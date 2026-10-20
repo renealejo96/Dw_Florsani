@@ -37,22 +37,23 @@ def _natural_block_key(blq_code):
 @permission_required('fenogramas')
 def index():
     # Obtener semanas de evaluación disponibles
-    semanas_query = db.session.execute(text("SELECT semana_anio, estado FROM semanas_evaluacion ORDER BY semana_anio ASC;")).fetchall()
-    semanas = [dict(s._mapping) for s in semanas_query]
-
-    # Si no hay semanas, intentar inicializar semana 30
-    if not semanas:
-        sem_default = SemanaEvaluacion(semana_anio=30, anio=2026, estado='ABIERTA')
-        db.session.add(sem_default)
-        db.session.commit()
-        semanas = [{'semana_anio': 30, 'estado': 'ABIERTA'}]
-
     try:
-        curr_cal_sc = db.session.execute(text("SELECT semana_campo FROM dim_calendario_agricola WHERE fecha = CURRENT_DATE LIMIT 1;")).scalar() or 2641
+        curr_cal_sc = db.session.execute(text("SELECT semana_campo FROM dim_calendario_agricola WHERE fecha = CURRENT_DATE LIMIT 1;")).scalar() or 2643
         sem_cal_hoy_default = int(curr_cal_sc) % 100
     except Exception:
         db.session.rollback()
-        sem_cal_hoy_default = 41
+        sem_cal_hoy_default = 43
+
+    # Obtener semanas de evaluación disponibles
+    semanas_query = db.session.execute(text("SELECT semana_anio, estado FROM semanas_evaluacion ORDER BY semana_anio ASC;")).fetchall()
+    semanas = [dict(s._mapping) for s in semanas_query]
+
+    # Si no hay semanas en BD, inicializar de forma limpia con la semana de corte actual (ej. 43)
+    if not semanas:
+        sem_default = SemanaEvaluacion(semana_anio=sem_cal_hoy_default, anio=2026, estado='ABIERTA')
+        db.session.add(sem_default)
+        db.session.commit()
+        semanas = [{'semana_anio': sem_cal_hoy_default, 'estado': 'ABIERTA'}]
 
     semanas_list = [s['semana_anio'] for s in semanas]
     semana_arg = request.args.get('semana', type=int)
@@ -62,9 +63,9 @@ def index():
     elif session.get('fenogramas_semana_activa') in semanas_list:
         semana = session.get('fenogramas_semana_activa')
     else:
-        # Por defecto seleccionar la semana actual (no saltar a semanas futuras proyectadas)
+        # Por defecto seleccionar la semana actual
         semanas_actuales = [s for s in semanas_list if s <= sem_cal_hoy_default]
-        semana = semanas_actuales[-1] if semanas_actuales else (semanas_list[-1] if semanas_list else 30)
+        semana = semanas_actuales[-1] if semanas_actuales else (semanas_list[-1] if semanas_list else sem_cal_hoy_default)
         session['fenogramas_semana_activa'] = semana
 
     zona_sel = request.args.get('zona', '').strip()

@@ -24,8 +24,14 @@ echo "🔄 Copiando plantillas y código actualizado..."
 docker cp app/. dw_florsani_app:/app/app/
 docker cp scripts/. dw_florsani_app:/app/scripts/
 
+echo "🧹 Limpiando caché compilada de Python en contenedor..."
+docker exec dw_florsani_app find /app/app -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
 echo "🔗 Sincronizando y homologando catálogos en PostgreSQL..."
 docker exec dw_florsani_app python scripts/migrar_catalogos_a_bd.py
+
+echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (para Semana 43)..."
+docker exec dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
 
 echo "🚀 Reiniciando servicio web dw_florsani_app..."
 docker restart dw_florsani_app
@@ -34,7 +40,8 @@ echo ""
 echo "=========================================================="
 echo "🎉 ACTUALIZACIÓN APLICADA CON ÉXITO EN TU VPS:"
 echo "   ✅ Últimos cambios descargados de GitHub."
-echo "   ✅ Código, rutas y plantillas sincronizadas en caliente en el contenedor."
-echo "   ✅ Catálogo general y variedades homologadas en PostgreSQL."
-echo "   ✅ Tus nuevos estimados, cosechas y datos quedan 100% seguros e intactos."
+echo "   ✅ Cosechas: Modal interactivo de 'Resumen por Bloque' y Excel activados."
+echo "   ✅ Fenogramas: Selector de 'Labor a Calificar' y reasignación dinámicos."
+echo "   ✅ Fenogramas: Base de pruebas vaciada y lista para generar la Semana 43."
+echo "   ✅ Estimados y cosechas de Render 100% seguros e intactos."
 echo "=========================================================="
