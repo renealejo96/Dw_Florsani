@@ -21,8 +21,19 @@ from app.extensions import db
 from sqlalchemy import text
 
 def limpiar_fenogramas():
+    flag_file = Path("/app/.fenogramas_limpiados")
+    if flag_file.exists():
+        print("[INFO] Fenogramas ya fue limpiado previamente. Omitiendo vaciado para proteger datos reales.")
+        return
+
     app = create_app()
     with app.app_context():
+        # Salvaguarda: si ya existe la semana 43 o superior, no limpiar
+        has_real_data = db.session.execute(text("SELECT 1 FROM semanas_evaluacion WHERE semana >= 43 LIMIT 1;")).scalar()
+        if has_real_data:
+            print("[INFO] La Semana 43 o superior ya existe en Fenogramas. Omitiendo vaciado para no borrar calificaciones operativas.")
+            return
+
         print("==========================================================")
         print("[FENOGRAMAS] Limpiando calificaciones de prueba...")
         print("==========================================================")
@@ -37,6 +48,11 @@ def limpiar_fenogramas():
         
         db.session.commit()
         
+        try:
+            flag_file.touch()
+        except Exception:
+            pass
+
         cnt_matriz = db.session.execute(text("SELECT COUNT(*) FROM matriz_fenogramas;")).scalar()
         cnt_plano = db.session.execute(text("SELECT COUNT(*) FROM plano_cultivo;")).scalar()
         

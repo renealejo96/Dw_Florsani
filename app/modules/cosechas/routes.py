@@ -356,7 +356,7 @@ def catalogos():
 
         try:
             if accion == 'crear_producto':
-                producto = request.form.get('producto_maestro', '').strip()
+                producto = request.form.get('producto_maestro', '').strip().upper()
                 if not producto:
                     flash('Debe ingresar el nombre del producto maestro.', 'danger')
                 else:
@@ -369,20 +369,20 @@ def catalogos():
                         flash(f'Producto maestro "{producto}" creado exitosamente.', 'success')
 
             elif accion == 'crear_variedad':
-                producto = request.form.get('producto_maestro', '').strip()
-                variedad = request.form.get('variedad', '').strip()
+                producto = request.form.get('producto_maestro', '').strip().upper()
+                variedad = request.form.get('variedad', '').strip().upper()
 
                 if not producto or not variedad:
                     flash('Debe seleccionar producto maestro e ingresar variedad.', 'danger')
                 else:
                     relaciones = cargar_relaciones_maestro()
-                    mapa_variedad = {var.upper(): prod for var, prod in relaciones}
+                    mapa_variedad = {var.upper(): prod.upper() for var, prod in relaciones}
                     clave_variedad = variedad.upper()
 
-                    if clave_variedad in mapa_variedad and mapa_variedad[clave_variedad].upper() == producto.upper():
+                    if clave_variedad in mapa_variedad and mapa_variedad[clave_variedad] == producto:
                         flash('La variedad ya existe asignada a ese producto maestro.', 'warning')
                     else:
-                        relaciones_actualizadas = [(var, prod) for var, prod in relaciones if var.upper() != clave_variedad]
+                        relaciones_actualizadas = [(var.upper(), prod.upper()) for var, prod in relaciones if var.upper() != clave_variedad]
                         relaciones_actualizadas.append((variedad, producto))
                         guardar_relaciones_maestro(relaciones_actualizadas)
 
@@ -397,10 +397,10 @@ def catalogos():
                         flash(f'Variedad "{variedad}" vinculada exitosamente con "{producto}".', 'success')
 
             elif accion == 'editar_variedad':
-                var_original = request.form.get('variedad_original', '').strip()
-                prod_original = request.form.get('producto_original', '').strip()
-                var_nueva = request.form.get('variedad_nueva', '').strip()
-                prod_nuevo = request.form.get('producto_maestro', '').strip()
+                var_original = request.form.get('variedad_original', '').strip().upper()
+                prod_original = request.form.get('producto_original', '').strip().upper()
+                var_nueva = request.form.get('variedad_nueva', '').strip().upper()
+                prod_nuevo = request.form.get('producto_maestro', '').strip().upper()
                 actualizar_historico = (request.form.get('actualizar_historico') == '1')
 
                 if not var_original or not var_nueva or not prod_nuevo:
@@ -411,11 +411,11 @@ def catalogos():
                     relaciones_actualizadas = []
                     encontrado = False
                     for var, prod in relaciones:
-                        if var.upper() == var_original.upper():
+                        if var.upper() == var_original:
                             relaciones_actualizadas.append((var_nueva, prod_nuevo))
                             encontrado = True
                         else:
-                            relaciones_actualizadas.append((var, prod))
+                            relaciones_actualizadas.append((var.upper(), prod.upper()))
                     
                     if not encontrado:
                         relaciones_actualizadas.append((var_nueva, prod_nuevo))
@@ -423,13 +423,12 @@ def catalogos():
                     guardar_relaciones_maestro(relaciones_actualizadas)
 
                     # 2. Actualizar archivo variedades.csv
-                    variedades_set = set(cargar_variedades())
-                    variedades_set = {v for v in variedades_set if v.upper() != var_original.upper()}
+                    variedades_set = {v.upper() for v in cargar_variedades() if v.upper() != var_original}
                     variedades_set.add(var_nueva)
                     guardar_variedades(sorted(list(variedades_set)))
 
                     # 3. Asegurar que prod_nuevo esté en productos maestros
-                    productos_set = set(cargar_productos_maestros())
+                    productos_set = {p.upper() for p in cargar_productos_maestros()}
                     productos_set.add(prod_nuevo)
                     guardar_productos_maestros(sorted(list(productos_set)))
 
@@ -464,15 +463,15 @@ def catalogos():
                     flash(msg, 'success')
 
             elif accion == 'eliminar_relacion':
-                variedad = request.form.get('variedad', '').strip()
-                producto = request.form.get('producto_maestro', '').strip()
+                variedad = request.form.get('variedad', '').strip().upper()
+                producto = request.form.get('producto_maestro', '').strip().upper()
 
                 relaciones = cargar_relaciones_maestro()
                 antes = len(relaciones)
                 relaciones_nuevas = [
                     (var, prod)
                     for var, prod in relaciones
-                    if not (var.upper() == variedad.upper() and prod.upper() == producto.upper())
+                    if not (var.upper() == variedad and prod.upper() == producto)
                 ]
 
                 if len(relaciones_nuevas) == antes:
@@ -481,15 +480,15 @@ def catalogos():
                     guardar_relaciones_maestro(relaciones_nuevas)
                     try:
                         from sqlalchemy import text
-                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(variedad) = :v AND UPPER(producto_maestro) = :p"), {'v': variedad.upper(), 'p': producto.upper()})
+                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(variedad) = :v AND UPPER(producto_maestro) = :p"), {'v': variedad, 'p': producto})
                         db.session.commit()
                     except Exception:
                         pass
 
                     # Si la variedad ya no pertenece a ningún otro producto, remover de variedades.csv
-                    otras_rel = [var for var, _ in relaciones_nuevas if var.upper() == variedad.upper()]
+                    otras_rel = [var for var, _ in relaciones_nuevas if var.upper() == variedad]
                     if not otras_rel:
-                        variedades_set = {v for v in cargar_variedades() if v.upper() != variedad.upper()}
+                        variedades_set = {v for v in cargar_variedades() if v.upper() != variedad}
                         guardar_variedades(sorted(list(variedades_set)))
 
                     record_audit('COSECHAS', 'VARIEDAD_DELETE', 'Catalogo', None,
@@ -497,30 +496,30 @@ def catalogos():
                     flash(f'Variedad "{variedad}" eliminada de "{producto}".', 'success')
 
             elif accion == 'editar_producto':
-                prod_original = request.form.get('producto_original', '').strip()
-                prod_nuevo = request.form.get('producto_nuevo', '').strip()
+                prod_original = request.form.get('producto_original', '').strip().upper()
+                prod_nuevo = request.form.get('producto_nuevo', '').strip().upper()
                 actualizar_historico = (request.form.get('actualizar_historico') == '1')
 
                 if not prod_original or not prod_nuevo:
                     flash('Debe especificar el nombre actual y el nuevo nombre del producto maestro.', 'danger')
                 else:
                     # Actualizar productos_maestros.csv y BD
-                    prods = {p for p in cargar_productos_maestros() if p.upper() != prod_original.upper()}
+                    prods = {p for p in cargar_productos_maestros() if p.upper() != prod_original}
                     prods.add(prod_nuevo)
                     guardar_productos_maestros(sorted(list(prods)))
 
                     # Actualizar MAESTRO_PROS.csv y BD
                     relaciones = cargar_relaciones_maestro()
                     relaciones_nuevas = [
-                        (var, prod_nuevo if prod.upper() == prod_original.upper() else prod)
+                        (var, prod_nuevo if prod.upper() == prod_original else prod)
                         for var, prod in relaciones
                     ]
                     guardar_relaciones_maestro(relaciones_nuevas)
 
                     try:
                         from sqlalchemy import text
-                        db.session.execute(text("UPDATE cat_variedades_maestro SET producto_maestro = :pnew WHERE UPPER(producto_maestro) = :pold"), {'pnew': prod_nuevo.upper(), 'pold': prod_original.upper()})
-                        db.session.execute(text("UPDATE dim_prod_maestros SET producto_maestro = :pnew WHERE UPPER(producto_maestro) = :pold"), {'pnew': prod_nuevo.upper(), 'pold': prod_original.upper()})
+                        db.session.execute(text("UPDATE cat_variedades_maestro SET producto_maestro = :pnew WHERE UPPER(producto_maestro) = :pold"), {'pnew': prod_nuevo, 'pold': prod_original})
+                        db.session.execute(text("UPDATE dim_prod_maestros SET producto_maestro = :pnew WHERE UPPER(producto_maestro) = :pold"), {'pnew': prod_nuevo, 'pold': prod_original})
                         db.session.commit()
                     except Exception:
                         pass
@@ -536,17 +535,17 @@ def catalogos():
                     flash(f'Producto maestro "{prod_original}" renombrado a "{prod_nuevo}".', 'success')
 
             elif accion == 'eliminar_producto':
-                producto = request.form.get('producto_maestro', '').strip()
+                producto = request.form.get('producto_maestro', '').strip().upper()
                 relaciones = cargar_relaciones_maestro()
-                vars_asoc = [var for var, prod in relaciones if prod.upper() == producto.upper()]
+                vars_asoc = [var for var, prod in relaciones if prod.upper() == producto]
                 if vars_asoc:
                     flash(f'No se puede eliminar "{producto}" porque tiene {len(vars_asoc)} variedades asociadas. Reasigne o elimine primero sus variedades.', 'warning')
                 else:
-                    prods = {p for p in cargar_productos_maestros() if p.upper() != producto.upper()}
+                    prods = {p for p in cargar_productos_maestros() if p.upper() != producto}
                     guardar_productos_maestros(sorted(list(prods)))
                     try:
                         from sqlalchemy import text
-                        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': producto.upper()})
+                        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': producto})
                         db.session.commit()
                     except Exception:
                         pass

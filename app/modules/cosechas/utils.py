@@ -113,7 +113,7 @@ def cargar_variedades():
 
 def guardar_variedades(variedades):
     """Guardar variedades únicas en CSV y sincronizar en PostgreSQL (dim_variedades, dim_productos, variedades)"""
-    variedades_limpias = sorted({(v or '').strip() for v in variedades if (v or '').strip()}, key=lambda value: value.upper())
+    variedades_limpias = sorted({(v or '').strip().upper() for v in variedades if (v or '').strip()}, key=lambda value: value.upper())
     csv_path = DATA_DIR / 'variedades.csv'
     try:
         with open(csv_path, 'w', encoding='utf-8', newline='') as file:
@@ -270,7 +270,7 @@ def sincronizar_variedad_a_bd(variedad, producto_maestro):
     """Sincroniza una variedad y su producto maestro hacia todas las tablas correspondientes en PostgreSQL"""
     if not variedad or not producto_maestro:
         return
-    v_clean = variedad.strip()
+    v_clean = variedad.strip().upper()
     p_clean = producto_maestro.strip().upper()
     
     try:
@@ -477,10 +477,10 @@ def guardar_relaciones_maestro(relaciones):
     """Guardar relaciones variedad-producto maestro en CSV y sincronizar en PostgreSQL"""
     relaciones_unicas = {}
     for variedad, producto in relaciones:
-        variedad_limpia = (variedad or '').strip()
-        producto_limpio = (producto or '').strip()
+        variedad_limpia = (variedad or '').strip().upper()
+        producto_limpio = (producto or '').strip().upper()
         if variedad_limpia and producto_limpio:
-            relaciones_unicas[variedad_limpia.upper()] = (variedad_limpia, producto_limpio)
+            relaciones_unicas[variedad_limpia] = (variedad_limpia, producto_limpio)
 
     relaciones_ordenadas = sorted(relaciones_unicas.values(), key=lambda item: (item[1].upper(), item[0].upper()))
     

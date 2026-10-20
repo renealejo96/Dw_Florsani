@@ -68,7 +68,8 @@
                                 Nombre del Producto Maestro *
                             </label>
                             <input type="text" class="form-control text-uppercase" id="producto_maestro" name="producto_maestro" 
-                                   maxlength="100" placeholder="Ej: HYPERICUM, GYPSOPHILA, ASTER" required>
+                                   maxlength="100" placeholder="Ej: HYPERICUM, GYPSOPHILA, ASTER" 
+                                   oninput="this.value = this.value.toUpperCase()" required>
                             <div class="form-text small">Se creará en mayúsculas como categoría padre.</div>
                         </div>
                         <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold">
@@ -107,7 +108,8 @@
                                 Nombre de la Variedad *
                             </label>
                             <input type="text" class="form-control text-uppercase" id="variedad" name="variedad" 
-                                   maxlength="120" placeholder="Ej: BILLION LIGHTS" required>
+                                   maxlength="120" placeholder="Ej: BILLION LIGHTS" 
+                                   oninput="this.value = this.value.toUpperCase()" required>
                         </div>
                         <button type="submit" class="btn btn-success btn-sm px-4 fw-bold">
                             <i class="fa-solid fa-plus me-1"></i> Guardar y Vincular Variedad
@@ -239,7 +241,8 @@
                             Nuevo Nombre de la Variedad *
                         </label>
                         <input type="text" class="form-control form-control-lg fw-bold text-uppercase" 
-                               id="modal_var_nueva" name="variedad_nueva" maxlength="120" required>
+                               id="modal_var_nueva" name="variedad_nueva" maxlength="120" 
+                               oninput="this.value = this.value.toUpperCase()" required>
                         <div class="form-text small">
                             Escribe el nuevo nombre autorizado (ej. cambiar <code>SMALL BLOOM</code> a <code>BILLION LIGHTS</code>).
                         </div>

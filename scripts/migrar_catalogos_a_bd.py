@@ -1,6 +1,7 @@
 """
 Script para crear y sincronizar la tabla cat_variedades_maestro en PostgreSQL
 y sincronizar dim_prod_maestros, dim_variedades, dim_productos y variedades.
+Garantiza que todas las variedades y productos queden en MAYÚSCULAS sin duplicados.
 """
 import sys
 from pathlib import Path
@@ -25,6 +26,26 @@ with app.app_context():
     """))
     db.session.commit()
 
+    print("[1.1] Limpiando duplicados y forzando mayúsculas en cat_variedades_maestro...")
+    try:
+        db.session.execute(text("""
+            DELETE FROM cat_variedades_maestro 
+            WHERE id NOT IN (
+                SELECT MIN(id) 
+                FROM cat_variedades_maestro 
+                GROUP BY UPPER(TRIM(variedad))
+            );
+        """))
+        db.session.execute(text("""
+            UPDATE cat_variedades_maestro 
+            SET variedad = UPPER(TRIM(variedad)), 
+                producto_maestro = UPPER(TRIM(producto_maestro));
+        """))
+        db.session.commit()
+    except Exception as e:
+        print(f"    -> Aviso en limpieza previa: {e}")
+        db.session.rollback()
+
     print("[2] Sincronizando relaciones de catálogos hacia cat_variedades_maestro...")
     relaciones = cargar_relaciones_maestro()
     count = 0
@@ -35,7 +56,7 @@ with app.app_context():
                 VALUES (:var, :prod)
                 ON CONFLICT (variedad) DO UPDATE 
                 SET producto_maestro = EXCLUDED.producto_maestro, updated_at = CURRENT_TIMESTAMP;
-            """), {'var': var.strip(), 'prod': prod.strip()})
+            """), {'var': var.strip().upper(), 'prod': prod.strip().upper()})
             count += 1
     db.session.commit()
     print(f"    -> {count} relaciones maestro sincronizadas en BD.")
@@ -47,7 +68,7 @@ with app.app_context():
         p_clean = p.strip().upper()
         if not p_clean:
             continue
-        exists = db.session.execute(text("SELECT 1 FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': p_clean}).scalar()
+        exists = db.session.execute(text("SELECT 1 FROM dim_prod_maestros WHERE UPPER(TRIM(producto_maestro)) = :p"), {'p': p_clean}).scalar()
         if not exists:
             max_id = db.session.execute(text("SELECT COALESCE(MAX(id_productos), 0) + 1 FROM dim_prod_maestros")).scalar()
             db.session.execute(text("INSERT INTO dim_prod_maestros (id_productos, producto_maestro) VALUES (:id, :p)"), {'id': max_id, 'p': p_clean})
@@ -59,10 +80,10 @@ with app.app_context():
     vars_list = cargar_variedades()
     v_count = 0
     for v in vars_list:
-        v_clean = v.strip()
+        v_clean = v.strip().upper()
         if not v_clean:
             continue
-        exists = db.session.execute(text("SELECT 1 FROM dim_variedades WHERE UPPER(variedad) = :v"), {'v': v_clean.upper()}).scalar()
+        exists = db.session.execute(text("SELECT 1 FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': v_clean}).scalar()
         if not exists:
             max_id = db.session.execute(text("SELECT COALESCE(MAX(id_producto), 0) + 1 FROM dim_variedades")).scalar()
             db.session.execute(text("INSERT INTO dim_variedades (id_producto, variedad) VALUES (:id, :v)"), {'id': max_id, 'v': v_clean})
@@ -72,12 +93,26 @@ with app.app_context():
             db.session.execute(text("INSERT INTO dim_productos (id_producto, variedad) VALUES (:id, :v)"), {'id': max_p_id, 'v': v_clean})
             
             # variedades
-            db.session.execute(text("INSERT INTO variedades (nombre, activo, created_at) VALUES (:v, true, NOW())"), {'v': v_clean.upper()})
+            db.session.execute(text("INSERT INTO variedades (nombre, activo, created_at) VALUES (:v, true, NOW())"), {'v': v_clean})
             v_count += 1
     db.session.commit()
     print(f"    -> {v_count} nuevas variedades agregadas a dim_variedades/dim_productos.")
 
-    print("[5] Homologando SKYLER DUO CRISTAL -> SKYLER DUO CRYSTAL...")
+    print("[5] Normalizando a MAYÚSCULAS en todas las tablas operativas (registro_cosecha, estimado, etc.)...")
+    try:
+        db.session.execute(text("UPDATE dim_prod_maestros SET producto_maestro = UPPER(TRIM(producto_maestro)) WHERE producto_maestro IS NOT NULL;"))
+        db.session.execute(text("UPDATE dim_variedades SET variedad = UPPER(TRIM(variedad)) WHERE variedad IS NOT NULL;"))
+        db.session.execute(text("UPDATE dim_productos SET variedad = UPPER(TRIM(variedad)) WHERE variedad IS NOT NULL;"))
+        db.session.execute(text("UPDATE variedades SET nombre = UPPER(TRIM(nombre)) WHERE nombre IS NOT NULL;"))
+        db.session.execute(text("UPDATE registro_cosecha SET variedad = UPPER(TRIM(variedad)) WHERE variedad IS NOT NULL;"))
+        db.session.execute(text("UPDATE estimado SET variedad = UPPER(TRIM(variedad)) WHERE variedad IS NOT NULL;"))
+        db.session.commit()
+        print("    -> Tablas operativas normalizadas a MAYÚSCULAS.")
+    except Exception as e:
+        print(f"    -> Aviso en normalización a mayúsculas: {e}")
+        db.session.rollback()
+
+    print("[6] Homologando SKYLER DUO CRISTAL -> SKYLER DUO CRYSTAL...")
     try:
         from scripts.corregir_skyler_crystal import corregir_skyler
         corregir_skyler()
