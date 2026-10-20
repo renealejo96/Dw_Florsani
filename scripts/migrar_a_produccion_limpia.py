@@ -18,6 +18,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, MetaData, Table
 
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
@@ -49,19 +55,20 @@ TABLAS_CATALOGOS = [
     "semanas_evaluacion"
 ]
 
-# Tablas de Snapshot Oficial de Cultivo:
+# Tablas de Snapshot Oficial e Historial de Cultivo y Cosechas:
 TABLAS_ESTADO_CULTIVO = [
     "crop_state_records",
-    "plano_cultivo"
+    "plano_cultivo",
+    "fact_eventos_cultivo",
+    "import_batches",
+    "registro_cosecha",
+    "estimado"
 ]
 
-# Tablas de Transacciones / Pruebas (se inicializan vacías):
+# Tablas de Transacciones / Pruebas Operativas (se inicializan vacías):
 TABLAS_TRANSACCIONALES_VACIAS = [
     "calificaciones",
-    "fact_eventos_cultivo",
     "drench_items",
-    "registro_cosecha",
-    "estimado",
     "rotations",
     "rotation_rounds",
     "rotation_round_items",
@@ -74,8 +81,7 @@ TABLAS_TRANSACCIONALES_VACIAS = [
     "audit_logs",
     "riego_ducha_registros",
     "valvulas_registros",
-    "warehouse_dispatch_logs",
-    "import_batches"
+    "warehouse_dispatch_logs"
 ]
 
 VISTA_STG_EVENTOS_SQL = """
