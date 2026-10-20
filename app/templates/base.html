@@ -280,9 +280,33 @@
                 </div>
 
                 <div class="ms-auto d-flex align-items-center gap-2">
-                    <span class="badge bg-success-subtle text-success border border-success me-2">
-                        <i class="fa-solid fa-circle-check me-1"></i> Finca Florícola Activa
+                    {% if current_user.role == 'ADMIN' or (current_user.allowed_finca_ids and current_user.allowed_finca_ids|length > 1) or current_user.finca_id == 0 %}
+                    <div class="dropdown me-1">
+                        <button class="btn btn-outline-success btn-sm dropdown-toggle fw-bold d-flex align-items-center gap-1.5 shadow-xs py-1 px-2.5" type="button" data-bs-toggle="dropdown" title="Cambiar finca de trabajo activa">
+                            <i class="fa-solid fa-mountain-sun text-success"></i>
+                            <span class="small">Finca: <strong>{{ session.get('finca_nombre', current_user.finca_nombre) }}</strong></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width: 180px;">
+                            <li><h6 class="dropdown-header text-uppercase" style="font-size: 0.68rem;"><i class="fa-solid fa-location-dot me-1"></i>Cambiar Sede Activa</h6></li>
+                            <li><a class="dropdown-item small d-flex align-items-center justify-content-between py-1.5 {% if session.get('finca_id', current_user.finca_id) == 1 %}active fw-bold{% endif %}" href="{{ url_for('auth.cambiar_finca', finca_id=1) }}">
+                                <span>🌸 Pyganflor</span>
+                                {% if session.get('finca_id', current_user.finca_id) == 1 %}<i class="fa-solid fa-check small"></i>{% endif %}
+                            </a></li>
+                            <li><a class="dropdown-item small d-flex align-items-center justify-content-between py-1.5 {% if session.get('finca_id', current_user.finca_id) == 2 %}active fw-bold{% endif %}" href="{{ url_for('auth.cambiar_finca', finca_id=2) }}">
+                                <span>🌿 Malchingui</span>
+                                {% if session.get('finca_id', current_user.finca_id) == 2 %}<i class="fa-solid fa-check small"></i>{% endif %}
+                            </a></li>
+                            <li><a class="dropdown-item small d-flex align-items-center justify-content-between py-1.5 {% if session.get('finca_id', current_user.finca_id) == 3 %}active fw-bold{% endif %}" href="{{ url_for('auth.cambiar_finca', finca_id=3) }}">
+                                <span>🌱 Urcuquí</span>
+                                {% if session.get('finca_id', current_user.finca_id) == 3 %}<i class="fa-solid fa-check small"></i>{% endif %}
+                            </a></li>
+                        </ul>
+                    </div>
+                    {% else %}
+                    <span class="badge bg-success-subtle text-success border border-success me-2 py-1.5 px-2.5">
+                        <i class="fa-solid fa-mountain-sun me-1"></i> Finca {{ session.get('finca_nombre', current_user.finca_nombre) }}
                     </span>
+                    {% endif %}
                     <div class="dropdown">
                         <button class="btn btn-light btn-sm dropdown-toggle fw-semibold text-dark border shadow-sm" type="button" data-bs-toggle="dropdown">
                             <i class="fa-solid fa-user-circle text-primary me-1"></i> {{ current_user.full_name }}

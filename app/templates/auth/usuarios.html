@@ -51,10 +51,25 @@
         <div class="card shadow-sm border-start border-4 border-info h-100">
             <div class="card-body p-3 d-flex align-items-center justify-content-between">
                 <div>
+                    <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.72rem;">Fenogramas</div>
+                    <div class="fs-4 fw-bold text-dark">
+                        {{ users|selectattr('role', 'equalto', 'EVALUADOR_FENOGRAMA')|list|length }}
+                    </div>
+                </div>
+                <div class="bg-info-subtle text-info p-2 rounded-circle fs-5">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card shadow-sm border-start border-4 border-secondary h-100">
+            <div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
                     <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.72rem;">Almacén / Bodega</div>
                     <div class="fs-4 fw-bold text-dark">{{ users|selectattr('role', 'in', ['BODEGUERO', 'BODEGA', 'ASISTENTE'])|list|length }}</div>
                 </div>
-                <div class="bg-info-subtle text-info p-2 rounded-circle fs-5">
+                <div class="bg-secondary-subtle text-secondary p-2 rounded-circle fs-5">
                     <i class="fa-solid fa-clipboard-user"></i>
                 </div>
             </div>
@@ -106,17 +121,29 @@
                         <input type="text" name="full_name" class="form-control form-control-sm" placeholder="Ing. Juan Pérez" required>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Rol del Sistema:</label>
-                        <select name="role" id="selectRoleCreate" class="form-select form-select-sm" onchange="onRoleChange('create')">
-                            <option value="AGRONOMO" selected>Agrónomo (Técnico / Planificador)</option>
-                            <option value="MONITOR_COSECHA">Monitor de Cosechas (Registro y Control de Flor)</option>
-                            <option value="OPERARIO">Técnico de Campo / Supervisor TPSR (Siembra y Poda)</option>
-                            <option value="BODEGUERO">Bodeguero / Almacén (Salidas y Órdenes Oficiales)</option>
-                            <option value="ASISTENTE">Asistente / Consulta (Ver e Imprimir)</option>
-                            <option value="ADMIN">Administrador (Control Total)</option>
-                            <option value="USUARIO">Usuario Operativo General</option>
-                        </select>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Finca Asignada: <span class="text-danger">*</span></label>
+                            <select name="finca_id" class="form-select form-select-sm fw-semibold">
+                                <option value="1" selected>🌸 Pyganflor</option>
+                                <option value="2">🌿 Malchingui</option>
+                                <option value="3">🌱 Urcuquí</option>
+                                <option value="0">🌐 Todas (Multi-Finca / Admin)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Rol del Sistema:</label>
+                            <select name="role" id="selectRoleCreate" class="form-select form-select-sm" onchange="onRoleChange('create')">
+                                <option value="AGRONOMO" selected>Agrónomo (Técnico / Planificador)</option>
+                                <option value="EVALUADOR_FENOGRAMA">Evaluador Fenogramas (Calidad y Labores)</option>
+                                <option value="MONITOR_COSECHA">Monitor de Cosechas (Registro y Flor)</option>
+                                <option value="OPERARIO">Técnico de Campo / TPSR (Siembra y Poda)</option>
+                                <option value="BODEGUERO">Bodeguero / Almacén (Salidas y Órdenes)</option>
+                                <option value="ASISTENTE">Asistente / Consulta (Ver e Imprimir)</option>
+                                <option value="ADMIN">Administrador (Control Total)</option>
+                                <option value="USUARIO">Usuario Operativo General</option>
+                            </select>
+                        </div>
                     </div>
 
                     <!-- Presets Rápidos -->
@@ -127,6 +154,9 @@
                             </label>
                         </div>
                         <div class="d-flex flex-wrap gap-1">
+                            <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="applyPreset('create', 'evaluador_fenograma')">
+                                <i class="fa-solid fa-clipboard-check me-1 text-info"></i> Evaluador Fenogramas
+                            </button>
                             <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="applyPreset('create', 'monitor_cosecha')">
                                 <i class="fa-solid fa-scissors me-1 text-warning"></i> Monitor Cosechas
                             </button>
@@ -356,6 +386,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Usuario / Nombre</th>
+                                <th>Finca Asignada</th>
                                 <th>Rol</th>
                                 <th>Permisos Habilitados</th>
                                 <th>Estado</th>
@@ -377,9 +408,34 @@
                                     </div>
                                 </td>
                                 <td>
+                                    {% if u.finca_id == 0 or u.role == 'ADMIN' %}
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                        <i class="fa-solid fa-globe me-1"></i> Multi-Finca
+                                    </span>
+                                    {% elif u.finca_id == 1 %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        🌸 Pyganflor
+                                    </span>
+                                    {% elif u.finca_id == 2 %}
+                                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
+                                        🌿 Malchingui
+                                    </span>
+                                    {% elif u.finca_id == 3 %}
+                                    <span class="badge bg-info-subtle text-dark border border-info-subtle">
+                                        🌱 Urcuquí
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark border">{{ u.finca_nombre }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if u.role == 'ADMIN' %}
                                     <span class="badge bg-danger text-white border border-danger">
                                         <i class="fa-solid fa-crown me-1"></i> ADMIN
+                                    </span>
+                                    {% elif u.role == 'EVALUADOR_FENOGRAMA' %}
+                                    <span class="badge bg-info text-dark border border-info">
+                                        <i class="fa-solid fa-clipboard-check me-1"></i> EVALUADOR FENO
                                     </span>
                                     {% elif u.role == 'MONITOR_COSECHA' or u.role == 'COSECHA' %}
                                     <span class="badge bg-warning text-dark border border-warning">
@@ -509,10 +565,20 @@
                                                 </div>
 
                                                 <div class="row g-3 mb-3">
-                                                    <div class="col-md-6">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label small fw-semibold">Finca Asignada:</label>
+                                                        <select name="finca_id" class="form-select form-select-sm fw-semibold">
+                                                            <option value="1" {% if u.finca_id == 1 %}selected{% endif %}>🌸 Pyganflor</option>
+                                                            <option value="2" {% if u.finca_id == 2 %}selected{% endif %}>🌿 Malchingui</option>
+                                                            <option value="3" {% if u.finca_id == 3 %}selected{% endif %}>🌱 Urcuquí</option>
+                                                            <option value="0" {% if u.finca_id == 0 %}selected{% endif %}>🌐 Todas (Multi-Finca)</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
                                                         <label class="form-label small fw-semibold">Rol Asignado:</label>
                                                         <select name="role" id="selectRoleEdit{{ u.id }}" class="form-select form-select-sm" {% if u.username == 'admin' %}disabled{% endif %}>
                                                             <option value="AGRONOMO" {% if u.role == 'AGRONOMO' %}selected{% endif %}>Agrónomo (Técnico / Planificador)</option>
+                                                            <option value="EVALUADOR_FENOGRAMA" {% if u.role == 'EVALUADOR_FENOGRAMA' %}selected{% endif %}>Evaluador Fenogramas (Calidad)</option>
                                                             <option value="MONITOR_COSECHA" {% if u.role == 'MONITOR_COSECHA' or u.role == 'COSECHA' %}selected{% endif %}>Monitor de Cosechas (Registro y Control de Flor)</option>
                                                             <option value="OPERARIO" {% if u.role == 'OPERARIO' or u.role == 'TECNICO_CAMPO' %}selected{% endif %}>Técnico de Campo / Supervisor TPSR (Siembra y Poda)</option>
                                                             <option value="BODEGUERO" {% if u.role == 'BODEGUERO' or u.role == 'BODEGA' %}selected{% endif %}>Bodeguero / Almacén (Salidas y Órdenes Oficiales)</option>
@@ -524,7 +590,7 @@
                                                         <input type="hidden" name="role" value="ADMIN">
                                                         {% endif %}
                                                     </div>
-                                                    <div class="col-md-6">
+                                                    <div class="col-md-4">
                                                         <label class="form-label small fw-semibold">Estado de la Cuenta:</label>
                                                         <div class="form-check form-switch mt-1">
                                                             <input class="form-check-input" type="checkbox" name="is_active" value="1" id="activeEdit{{ u.id }}" {% if u.is_active %}checked{% endif %} {% if u.username == 'admin' %}disabled{% endif %}>
@@ -539,6 +605,9 @@
                                                         <i class="fa-solid fa-wand-magic-sparkles text-warning me-1"></i> Ajustar con Plantilla Rápida:
                                                     </div>
                                                     <div class="d-flex flex-wrap gap-1">
+                                                        <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="applyPreset('edit_{{ u.id }}', 'evaluador_fenograma')">
+                                                            <i class="fa-solid fa-clipboard-check me-1 text-info"></i> Evaluador Fenogramas
+                                                        </button>
                                                         <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="applyPreset('edit_{{ u.id }}', 'monitor_cosecha')">
                                                             <i class="fa-solid fa-scissors me-1 text-warning"></i> Monitor Cosechas
                                                         </button>
@@ -776,6 +845,10 @@
 <script>
 // Presets configuration
 const PRESETS = {
+    evaluador_fenograma: {
+        role: 'EVALUADOR_FENOGRAMA',
+        perms: ['fenogramas']
+    },
     monitor_cosecha: {
         role: 'MONITOR_COSECHA',
         perms: ['cosechas']
@@ -843,6 +916,8 @@ function onRoleChange(scope) {
         const roleVal = document.getElementById('selectRoleCreate').value;
         if (roleVal === 'ADMIN') {
             applyPreset('create', 'admin_total');
+        } else if (roleVal === 'EVALUADOR_FENOGRAMA') {
+            applyPreset('create', 'evaluador_fenograma');
         } else if (roleVal === 'MONITOR_COSECHA' || roleVal === 'COSECHA') {
             applyPreset('create', 'monitor_cosecha');
         } else if (roleVal === 'OPERARIO') {

@@ -698,8 +698,57 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
     semana_base_usada = semana_corte
     delta_semanas_aplicado = 0
 
-    # 1. Intentar ingesta desde crop_state_records (Excel Integral) si fuente es AUTO o EXCEL
-    if fuente in ('AUTO', 'EXCEL'):
+    # 1. En modo AUTO o TPSR: Usar directamente mrt_estado_cultivo_actual (datos vivos de campo con eventos reales)
+    if fuente in ('AUTO', 'TPSR'):
+        query_camas = text("""
+            SELECT 
+                COALESCE(zona, 'ZONA1') as zona,
+                COALESCE(blq, codigo_bloque) as bloque,
+                COALESCE(sufijo, 'A') as sufijo,
+                num_cama,
+                CASE 
+                    WHEN UPPER(COALESCE(ultimo_evento, '')) LIKE '%PODA%' THEN 'Poda'
+                    ELSE 'Siembra'
+                END as actividad,
+                COALESCE(producto_actual, 'GYPSOPHILA') as producto_maestro,
+                COALESCE(edad_semanas_actual, 1) as edad_real,
+                semana_campo_ultimo_evento
+            FROM mrt_estado_cultivo_actual
+            WHERE producto_actual IS NOT NULL 
+              AND producto_actual NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', '')
+              AND COALESCE(ultimo_evento, '') != 'TUMBA'
+              AND num_cama IS NOT NULL
+            ORDER BY zona, bloque, num_cama, sufijo;
+        """)
+
+        camas_rows = db.session.execute(query_camas).fetchall()
+        if camas_rows:
+            fuente_usada = f"TPSR Campo (Semana {semana_corte})"
+            semana_base_usada = semana_corte
+            delta_semanas_aplicado = 0
+
+            for r in camas_rows:
+                blq_c = clean_block_code(r.bloque)
+                suf_c = str(r.sufijo or 'A').strip().upper()
+                n_cama = int(r.num_cama)
+                if r.semana_campo_ultimo_evento:
+                    yr_ev, wk_ev = _parse_week_code_to_tuple(r.semana_campo_ultimo_evento, anio)
+                    edad_proy = max(0, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
+                else:
+                    edad_proy = max(0, int(r.edad_real or 0))
+
+                camas_map[(blq_c, n_cama, suf_c)] = {
+                    'ZONA': clean_str(r.zona),
+                    'BLOQUE': blq_c,
+                    'SUFIJO': suf_c,
+                    'NUM_CAMA': n_cama,
+                    'ACTIVIDAD': r.actividad,
+                    'PRODUCTO_MAESTRO': clean_str(r.producto_maestro),
+                    'EDAD_REAL': int(edad_proy)
+                }
+
+    # 2. Modo explícito EXCEL o fallback si mrt_estado_cultivo_actual estaba vacío
+    if not camas_map and fuente in ('AUTO', 'EXCEL'):
         week_rows = db.session.execute(text("""
             SELECT DISTINCT week
             FROM crop_state_records
@@ -776,104 +825,6 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                         'PRODUCTO_MAESTRO': clean_str(r.producto_maestro),
                         'EDAD_REAL': edad_proy
                     }
-
-                # Si fuente es AUTO, superponer eventos de campo TPSR (fact_eventos_cultivo) posteriores a la semana base y <= semana_corte
-                if fuente == 'AUTO':
-                    sc_base_code = (chosen['year'] % 100) * 100 + chosen['week_num']
-                    sc_target_code = (anio % 100) * 100 + semana_corte
-                    if sc_target_code >= sc_base_code:
-                        ev_rows = db.session.execute(text("""
-                            SELECT DISTINCT ON (c.blq, c.num_cama, c.sufijo)
-                                COALESCE(b.zona, 'SIN ZONA') AS zona,
-                                c.blq AS bloque,
-                                COALESCE(c.sufijo, 'A') AS sufijo,
-                                c.num_cama,
-                                f.tipo_evento,
-                                f.producto_maestro,
-                                f.semana_campo
-                            FROM fact_eventos_cultivo f
-                            JOIN dim_camas c ON c.id_cama = f.id_cama
-                            LEFT JOIN dim_bloques b ON b.codigo_bloque = c.codigo_bloque
-                            WHERE f.estado_evento = 'ACTIVO'
-                              AND f.semana_campo > :sc_base
-                              AND f.semana_campo <= :sc_target
-                            ORDER BY c.blq, c.num_cama, c.sufijo, f.fecha_evento DESC, f.id_evento DESC;
-                        """), {'sc_base': sc_base_code, 'sc_target': sc_target_code}).fetchall()
-
-                        if ev_rows:
-                            fuente_usada += " + TPSR Campo"
-                        for ev in ev_rows:
-                            blq_c = clean_block_code(ev.bloque)
-                            suf_c = str(ev.sufijo or 'A').strip().upper()
-                            n_cama = int(ev.num_cama)
-                            key_bed = (blq_c, n_cama, suf_c)
-                            t_ev = str(ev.tipo_evento or '').upper()
-                            prod_ev = clean_str(ev.producto_maestro or '')
-                            if t_ev == 'TUMBA' or prod_ev in ('', 'VACIO', 'ERRADICADO'):
-                                camas_map.pop(key_bed, None)
-                            else:
-                                yr_ev, wk_ev = _parse_week_code_to_tuple(ev.semana_campo, anio)
-                                edad_ev = max(0, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
-                                camas_map[key_bed] = {
-                                    'ZONA': clean_str(ev.zona),
-                                    'BLOQUE': blq_c,
-                                    'SUFIJO': suf_c,
-                                    'NUM_CAMA': n_cama,
-                                    'ACTIVIDAD': 'Poda' if 'PODA' in t_ev else 'Siembra',
-                                    'PRODUCTO_MAESTRO': prod_ev,
-                                    'EDAD_REAL': edad_ev
-                                }
-
-    # 2. Fallback o modo explícito TPSR: usar mrt_estado_cultivo_actual proyectando edad a semana_corte
-    if not camas_map:
-        curr_cal_sc = db.session.execute(text("SELECT semana_campo FROM dim_calendario_agricola WHERE fecha = CURRENT_DATE LIMIT 1;")).scalar() or 2642
-        yr_hoy, wk_hoy = _parse_week_code_to_tuple(curr_cal_sc, anio)
-        semana_base_usada = wk_hoy
-        delta_semanas_aplicado = (anio - yr_hoy) * 52 + (semana_corte - wk_hoy)
-        fuente_usada = f"TPSR Campo (Sem {yr_hoy}-{wk_hoy:02d})"
-
-        query_camas = text("""
-            SELECT 
-                COALESCE(zona, 'ZONA1') as zona,
-                COALESCE(blq, codigo_bloque) as bloque,
-                COALESCE(sufijo, '') as sufijo,
-                num_cama,
-                CASE 
-                    WHEN UPPER(ultimo_evento) LIKE '%PODA%' THEN 'Poda'
-                    ELSE 'Siembra'
-                END as actividad,
-                COALESCE(producto_actual, 'GYPSOPHILA') as producto_maestro,
-                COALESCE(edad_semanas_actual, 1) as edad_real,
-                semana_campo_ultimo_evento
-            FROM mrt_estado_cultivo_actual
-            WHERE producto_actual IS NOT NULL 
-              AND producto_actual NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
-              AND COALESCE(ultimo_evento, '') != 'TUMBA'
-              AND num_cama IS NOT NULL
-            ORDER BY zona, bloque, num_cama, sufijo;
-        """)
-
-        camas_rows = db.session.execute(query_camas).fetchall()
-        for r in camas_rows:
-            blq_c = clean_block_code(r.bloque)
-            suf_c = str(r.sufijo or 'A').strip().upper()
-            n_cama = int(r.num_cama)
-            if r.semana_campo_ultimo_evento:
-                yr_ev, wk_ev = _parse_week_code_to_tuple(r.semana_campo_ultimo_evento, anio)
-                edad_proy = (anio - yr_ev) * 52 + (semana_corte - wk_ev)
-            else:
-                edad_proy = int(r.edad_real or 0) + delta_semanas_aplicado
-            if edad_proy < 0:
-                continue
-            camas_map[(blq_c, n_cama, suf_c)] = {
-                'ZONA': clean_str(r.zona),
-                'BLOQUE': blq_c,
-                'SUFIJO': suf_c,
-                'NUM_CAMA': n_cama,
-                'ACTIVIDAD': r.actividad,
-                'PRODUCTO_MAESTRO': clean_str(r.producto_maestro),
-                'EDAD_REAL': int(edad_proy)
-            }
 
     if not camas_map:
         return 0

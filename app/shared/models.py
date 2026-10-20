@@ -11,11 +11,30 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(150), nullable=False)
-    role = db.Column(db.String(30), default='USUARIO', nullable=False)  # ADMIN, USUARIO, AGRONOMO, BODEGA
+    role = db.Column(db.String(30), default='USUARIO', nullable=False)  # ADMIN, USUARIO, AGRONOMO, BODEGA, EVALUADOR_FENOGRAMA, MONITOR_COSECHA, OPERARIO
+    finca_id = db.Column(db.Integer, default=1, nullable=False)  # 1: Pyganflor, 2: Malchingui, 3: Urcuquí, 0: Todas
+    fincas_permitidas_json = db.Column(db.Text, default='[1]', nullable=True)
     permissions_json = db.Column(db.Text, default='["fumigacion", "orden_compra", "cosechas", "tpsr", "drench", "trichos", "desinfecciones", "catalogos", "importador"]')
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=get_local_now)
     updated_at = db.Column(db.DateTime, default=get_local_now, onupdate=get_local_now)
+
+    @property
+    def finca_nombre(self):
+        fincas_map = {1: 'Pyganflor', 2: 'Malchingui', 3: 'Urcuquí', 0: 'Todas las Fincas'}
+        return fincas_map.get(self.finca_id, 'Pyganflor')
+
+    @property
+    def allowed_finca_ids(self):
+        if self.role == 'ADMIN' or self.finca_id == 0:
+            return [1, 2, 3]
+        try:
+            ids = json.loads(self.fincas_permitidas_json or '[]')
+            if not ids:
+                return [self.finca_id or 1]
+            return [int(x) for x in ids]
+        except Exception:
+            return [self.finca_id or 1]
 
     @property
     def permissions(self):
@@ -51,6 +70,9 @@ class User(db.Model):
             'username': self.username,
             'full_name': self.full_name,
             'role': self.role,
+            'finca_id': self.finca_id,
+            'finca_nombre': self.finca_nombre,
+            'allowed_finca_ids': self.allowed_finca_ids,
             'permissions': self.permissions,
             'is_active': self.is_active
         }

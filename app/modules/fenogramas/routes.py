@@ -700,6 +700,21 @@ def api_duplicar_calificacion():
                 'message': 'Esta labor ya estaba registrada para este rango de camas'
             })
 
+        # Si la fila base era "No hay actividad" (sin match previo), actualizar esta misma fila en lugar de dejar un renglón vacío
+        if calif_base.labor == 'No hay actividad' and not calif_base.tiene_evaluacion:
+            calif_base.labor = nueva_labor
+            calif_base.auxiliar = aux
+            calif_base.supervisor = sup
+            calif_base.tiene_evaluacion = True
+            calif_base.cumplido = None
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'item': calif_base.to_dict(),
+                'already_existed': False,
+                'message': f'Labor "{nueva_labor}" asignada para evaluación'
+            })
+
         nueva_calif = Calificacion(
             semana_anio=calif_base.semana_anio,
             anio=calif_base.anio,

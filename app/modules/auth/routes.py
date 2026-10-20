@@ -1,10 +1,17 @@
 import functools
+import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g
 from app.extensions import db
 from app.shared.models import User
 from app.shared.audit import record_audit
 
 auth_bp = Blueprint('auth', __name__)
+
+FINCAS_MAP = {
+    1: 'Pyganflor',
+    2: 'Malchingui',
+    3: 'Urcuquí'
+}
 
 def login_required(view):
     @functools.wraps(view)
@@ -72,6 +79,10 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        try:
+            finca_id = int(request.form.get('finca_id', 1))
+        except (ValueError, TypeError):
+            finca_id = 1
 
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
@@ -79,21 +90,59 @@ def login():
                 flash("Esta cuenta de usuario ha sido desactivada. Comuníquese con el Administrador.", "danger")
                 return render_template('auth/login.html')
 
+            # Validar si el usuario tiene permiso para la finca seleccionada
+            if user.role != 'ADMIN' and user.finca_id != 0 and finca_id not in user.allowed_finca_ids:
+                flash(f"Acceso denegado: Tu usuario está asignado a la Finca {user.finca_nombre}. Selecciona la finca correcta.", "warning")
+                return render_template('auth/login.html')
+
             session['user_id'] = user.id
             session['username'] = user.username
             session['full_name'] = user.full_name
             session['role'] = user.role
             session['permissions'] = user.permissions
+            session['finca_id'] = finca_id
+            session['finca_nombre'] = FINCAS_MAP.get(finca_id, 'Pyganflor')
 
-            record_audit('AUTH', 'LOGIN', 'User', user.id, user=user.username)
-            flash(f"¡Bienvenido de nuevo, {user.full_name}!", "success")
+            record_audit('AUTH', 'LOGIN', 'User', user.id, user=user.username, details={'finca': session['finca_nombre']})
+            flash(f"¡Bienvenido de nuevo, {user.full_name}! Conectado a Finca {session['finca_nombre']}.", "success")
             
             next_url = request.args.get('next')
-            return redirect(next_url or url_for('dashboard'))
+            if not next_url:
+                if user.role in ('MONITOR_COSECHA', 'COSECHA'):
+                    next_url = url_for('cosechas.index')
+                elif user.role in ('EVALUADOR_FENOGRAMA', 'OPERARIO'):
+                    next_url = url_for('fenogramas.operarios')
+                elif user.role in ('BODEGUERO', 'BODEGA'):
+                    next_url = url_for('bodega.salidas')
+                else:
+                    next_url = url_for('dashboard')
+            return redirect(next_url)
         else:
             flash("Usuario o contraseña incorrectos. Por favor verifique sus credenciales.", "danger")
 
     return render_template('auth/login.html')
+
+
+@auth_bp.route('/cambiar-finca/<int:finca_id>')
+@login_required
+def cambiar_finca(finca_id):
+    if finca_id not in FINCAS_MAP:
+        flash("Finca solicitada no válida.", "warning")
+        return redirect(request.referrer or url_for('dashboard'))
+
+    user = User.query.get(session.get('user_id'))
+    if not user:
+        return redirect(url_for('auth.login'))
+
+    if user.role != 'ADMIN' and user.finca_id != 0 and finca_id not in user.allowed_finca_ids:
+        flash(f"No tienes autorización para cambiar a la Finca {FINCAS_MAP.get(finca_id)}.", "danger")
+        return redirect(request.referrer or url_for('dashboard'))
+
+    session['finca_id'] = finca_id
+    session['finca_nombre'] = FINCAS_MAP[finca_id]
+    record_audit('AUTH', 'SWITCH_FINCA', 'User', user.id, user=user.username, details={'finca': session['finca_nombre']})
+    flash(f"Finca activa cambiada a: {session['finca_nombre']}.", "info")
+    return redirect(request.referrer or url_for('dashboard'))
 
 
 @auth_bp.route('/logout')
@@ -117,6 +166,8 @@ def usuarios():
             username='admin',
             full_name='Administrador Principal',
             role='ADMIN',
+            finca_id=0,
+            fincas_permitidas_json='[1, 2, 3]',
             permissions=[
                 'tpsr', 'estado_cultivo',
                 'fumigacion', 'ordenes_ver', 'ordenes_imprimir', 'salidas_ver', 'salidas_imprimir',
@@ -133,6 +184,7 @@ def usuarios():
         password = request.form.get('password', '')
         full_name = request.form.get('full_name', '').strip()
         role = request.form.get('role', 'AGRONOMO')
+        finca_id = int(request.form.get('finca_id', 1))
         perms = request.form.getlist('permissions')
 
         if not username or not password:
@@ -144,18 +196,22 @@ def usuarios():
             flash(f"El usuario '@{username}' ya se encuentra registrado en el sistema.", "danger")
             return redirect(url_for('auth.usuarios'))
 
+        fincas_json = json.dumps([1, 2, 3]) if finca_id == 0 else json.dumps([finca_id])
+
         user = User(
             username=username,
             full_name=full_name or username,
             role=role,
+            finca_id=finca_id,
+            fincas_permitidas_json=fincas_json,
             permissions=perms
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
 
-        record_audit('AUTH', 'CREATE_USER', 'User', user.id, user=session.get('username', 'admin'), details={'new_user': username, 'role': role, 'permissions': perms})
-        flash(f"Usuario '@{username}' ({full_name}) creado exitosamente con sus permisos asignados.", "success")
+        record_audit('AUTH', 'CREATE_USER', 'User', user.id, user=session.get('username', 'admin'), details={'new_user': username, 'role': role, 'finca_id': finca_id, 'permissions': perms})
+        flash(f"Usuario '@{username}' ({full_name}) creado exitosamente para Finca {user.finca_nombre}.", "success")
         return redirect(url_for('auth.usuarios'))
 
     users = User.query.order_by(User.created_at.asc()).all()
@@ -172,9 +228,14 @@ def editar_usuario(user_id):
     password = request.form.get('password', '').strip()
     perms = request.form.getlist('permissions')
     is_active_val = request.form.get('is_active') == '1'
+    finca_id_raw = request.form.get('finca_id')
 
     if full_name:
         user.full_name = full_name
+
+    if finca_id_raw is not None:
+        user.finca_id = int(finca_id_raw)
+        user.fincas_permitidas_json = json.dumps([1, 2, 3]) if user.finca_id == 0 else json.dumps([user.finca_id])
 
     # Only change role if not the main admin
     if user.username != 'admin':
@@ -193,8 +254,11 @@ def editar_usuario(user_id):
         session['full_name'] = user.full_name
         session['role'] = user.role
         session['permissions'] = user.permissions
+        if user.finca_id != 0:
+            session['finca_id'] = user.finca_id
+            session['finca_nombre'] = user.finca_nombre
 
-    record_audit('AUTH', 'UPDATE_USER', 'User', user.id, user=session.get('username', 'admin'), details={'updated_user': user.username, 'role': user.role, 'permissions': perms})
+    record_audit('AUTH', 'UPDATE_USER', 'User', user.id, user=session.get('username', 'admin'), details={'updated_user': user.username, 'role': user.role, 'finca_id': user.finca_id, 'permissions': perms})
     flash(f"Datos y permisos del usuario '@{user.username}' actualizados correctamente.", "success")
     return redirect(url_for('auth.usuarios'))
 

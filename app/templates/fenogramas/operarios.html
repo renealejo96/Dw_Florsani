@@ -837,10 +837,10 @@
                     <th style="width: 52px;">Tipo</th>
                     <th style="width: 100px;">Producto</th>
                     <th style="width: 36px;" class="text-center">Sem</th>
-                    <th style="min-width: 120px;">Labor Fenograma</th>
+                    <th style="min-width: 130px;">Labor a Calificar</th>
                     <th style="width: 140px;">Auxiliar / Sup.</th>
                     <th style="width: 44px;" class="text-center">Cumpl.</th>
-                    <th style="width: 175px;">Labor a Calificar</th>
+                    <th style="width: 65px;" class="text-center">Extra</th>
                     <th style="width: 155px;">Observaciones</th>
                 </tr>
             </thead>
@@ -885,9 +885,15 @@
                     <td class="text-center tabular-nums fw-semibold">{{ item.edad_real }}</td>
 
                     <td class="cell-labor" title="{{ item.labor }}">
-                        {{ item.labor }}
-                        {% if not item.tiene_evaluacion %}
-                        <span class="text-warning-emphasis small fw-normal">(Sin match)</span>
+                        {% if item.labor and item.labor != 'No hay actividad' %}
+                            <span class="fw-semibold text-dark">{{ item.labor }}</span>
+                            {% if not item.tiene_evaluacion %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size: 0.65rem;">Sin match</span>
+                            {% elif item.semana_origen != item.semana_anio and not item.es_pendiente_anterior %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.65rem;">+ Extra</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted fst-italic small">Sin labor programada</span>
                         {% endif %}
                     </td>
 
@@ -897,63 +903,35 @@
                         <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
                     </td>
 
-                    <td class="text-center" style="{% if semana_estado == 'CERRADA' %}cursor: not-allowed; opacity: 0.65;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
+                    <td class="text-center" style="{% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}cursor: not-allowed; opacity: 0.65;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' and item.tiene_evaluacion %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
                         <div class="calif-cell-wrap" style="pointer-events: none;">
                             <button type="button"
                                     id="btn-check-{{ item.id }}"
                                     class="check-circle state-{{ c_val }}"
-                                    style="pointer-events: auto; {% if semana_estado == 'CERRADA' %}cursor: not-allowed;{% endif %}"
+                                    style="pointer-events: auto; {% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}cursor: not-allowed;{% endif %}"
                                     data-item-id="{{ item.id }}"
                                     data-bloque="{{ bloque }}"
                                     data-original-val="{{ c_val }}"
                                     data-current-val="{{ c_val }}"
                                     aria-label="Marcar cumplimiento de labor {{ item.labor }} en bloque {{ bloque }}"
-                                    title="{% if semana_estado == 'CERRADA' %}Semana CERRADA - Calificaciones bloqueadas{% else %}Clic para marcar/desmarcar labor ejecutada (✓){% endif %}"
-                                    {% if semana_estado == 'CERRADA' %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
+                                    title="{% if semana_estado == 'CERRADA' %}Semana CERRADA - Calificaciones bloqueadas{% elif not item.tiene_evaluacion %}Sin labor programada para calificar{% else %}Clic para marcar/desmarcar labor ejecutada (✓){% endif %}"
+                                    {% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
                                 {% if c_val == '1' %}✓{% endif %}
                             </button>
                         </div>
                     </td>
 
-                    <td class="cell-labor-calificar" style="padding: 1px 2px;">
-                        <div class="d-flex align-items-center gap-1">
-                            <select id="sel-labor-{{ item.id }}"
-                                    class="select-labor-calificar"
-                                    data-item-id="{{ item.id }}"
-                                    data-original-labor="{{ item.labor }}"
-                                    title="Seleccione la labor que desea calificar para estas camas"
-                                    aria-label="Labor a calificar en fila {{ item.id }}"
-                                    {% if semana_estado == 'CERRADA' %}disabled{% else %}onchange="handleLaborSelectChange({{ item.id }}, this.value)"{% endif %}>
-                                <option value="{{ item.labor }}" selected>{{ item.labor }} (Programada)</option>
-                                {% set p_labores = (catalogo_labores or {}).get(item.producto_maestro, []) %}
-                                {% if p_labores %}
-                                <optgroup label="Labores de {{ item.producto_maestro }}">
-                                    {% for lab_obj in p_labores %}
-                                    {% if lab_obj.labor != item.labor %}
-                                    <option value="{{ lab_obj.labor }}">{{ lab_obj.labor }}{% if lab_obj.auxiliar %} ({{ lab_obj.auxiliar }}){% endif %}</option>
-                                    {% endif %}
-                                    {% endfor %}
-                                </optgroup>
-                                {% endif %}
-                                {% if todas_labores %}
-                                <optgroup label="Otras Labores">
-                                    {% for o_lab in todas_labores %}
-                                    {% if o_lab != item.labor and o_lab not in (p_labores|map(attribute='labor')|list) %}
-                                    <option value="{{ o_lab }}">{{ o_lab }}</option>
-                                    {% endif %}
-                                    {% endfor %}
-                                </optgroup>
-                                {% endif %}
-                            </select>
-                            {% if semana_estado != 'CERRADA' %}
-                            <button type="button" 
-                                    class="btn btn-outline-primary btn-duplicar-labor shadow-xs" 
-                                    title="Calificar labor adicional en estas camas (sin sobrescribir)"
-                                    onclick="duplicarLaborFila({{ item.id }})">
-                                <i class="fa-solid fa-plus"></i>
-                            </button>
-                            {% endif %}
-                        </div>
+                    <td class="text-center" style="padding: 2px 4px;">
+                        {% if semana_estado != 'CERRADA' %}
+                        <button type="button" 
+                                class="btn btn-outline-primary btn-sm py-0 px-2 rounded-pill shadow-xs d-inline-flex align-items-center gap-1"
+                                style="font-size: 0.72rem; line-height: 1.5;"
+                                title="Calificar labor adicional en estas camas (sin sobrescribir)"
+                                onclick="abrirModalAgregarLabor({{ item.id }}, '{{ b_meta.clean_code }}', '{{ item.cama_inicial }}-{{ item.cama_final }}{{ item.sufijo or \'\' }}', '{{ item.producto_maestro }}')">
+                            <i class="fa-solid fa-plus text-primary"></i>
+                            <span>Extra</span>
+                        </button>
+                        {% endif %}
                     </td>
 
                     <td>
@@ -1000,6 +978,52 @@
     </div>
 </div>
 {% endif %}
+
+<!-- MODAL: ASIGNAR LABOR ADICIONAL EN MISMO RANGO DE CAMAS -->
+<div class="modal fade" id="modalAgregarLaborAdicional" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header py-2.5 px-3 bg-dark text-white">
+                <h6 class="modal-title fw-bold mb-0" style="font-size: 0.9rem;">
+                    <i class="fa-solid fa-plus-circle text-primary me-2"></i>Asignar Labor Adicional a Calificar
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.7rem;"></button>
+            </div>
+            <div class="modal-body p-3" style="background: #f8fafc; font-size: 0.85rem;">
+                <div class="p-2.5 mb-3 rounded border bg-white shadow-xs">
+                    <div class="row g-2 small">
+                        <div class="col-6">
+                            <span class="text-muted d-block" style="font-size: 0.72rem;">Bloque & Camas:</span>
+                            <strong class="text-dark font-monospace" id="modal-extra-bloque-camas">-</strong>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted d-block" style="font-size: 0.72rem;">Cultivo / Variedad:</span>
+                            <strong class="text-primary" id="modal-extra-producto">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="fa-solid fa-list-check text-primary me-1"></i>Seleccione la Labor Encontrada a Calificar: <span class="text-danger">*</span>
+                    </label>
+                    <select id="modal-extra-select-labor" class="form-select form-select-sm fw-semibold">
+                        <!-- Populated dynamically via JS -->
+                    </select>
+                    <div class="form-text text-muted mt-2" style="font-size: 0.72rem;">
+                        <i class="fa-solid fa-circle-info me-1"></i>Se creará un renglón nuevo independiente para este mismo rango de camas, asignando automáticamente al responsable del fenograma sin alterar la labor original programada.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="confirmarAgregarLaborAdicional()" id="btn-confirm-add-labor">
+                    <i class="fa-solid fa-check me-1"></i> Crear Evaluación de Labor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- MODAL: GENERAR / ACTUALIZAR SEMANA DE FENOGRAMA CON PROYECCIÓN DE EDAD RECORRIDA -->
 <div class="modal fade" id="modalGenerarSemanaFeno" tabindex="-1" aria-hidden="true">
@@ -1174,6 +1198,101 @@ function handleLaborSelectChange(itemId, newLabor) {
 
     markItemDirty(itemId);
     showFenoToast(`Labor a calificar cambiada a "${newLabor}" (${resp && resp.auxiliar ? resp.auxiliar : 'Operario campo'})`);
+}
+
+let currentExtraItemId = null;
+const CATALOGO_LABORES_MAP = {{ catalogo_labores|tojson if catalogo_labores else '{}' }};
+const TODAS_LABORES_LIST = {{ todas_labores|tojson if todas_labores else '[]' }};
+
+function abrirModalAgregarLabor(itemId, bloque, camas, producto) {
+    currentExtraItemId = itemId;
+    const bElem = document.getElementById('modal-extra-bloque-camas');
+    const pElem = document.getElementById('modal-extra-producto');
+    if (bElem) bElem.innerText = `Bloque ${bloque} (Camas ${camas})`;
+    if (pElem) pElem.innerText = producto || 'General';
+    
+    const sel = document.getElementById('modal-extra-select-labor');
+    if (sel) {
+        sel.innerHTML = '';
+        const prodLabores = CATALOGO_LABORES_MAP[producto] || [];
+        if (prodLabores.length > 0) {
+            const grp = document.createElement('optgroup');
+            grp.label = `Labores de ${producto}`;
+            prodLabores.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.labor;
+                opt.innerText = l.auxiliar ? `${l.labor} (${l.auxiliar})` : l.labor;
+                grp.appendChild(opt);
+            });
+            sel.appendChild(grp);
+        }
+
+        if (TODAS_LABORES_LIST && TODAS_LABORES_LIST.length > 0) {
+            const grpAll = document.createElement('optgroup');
+            grpAll.label = 'Otras Labores';
+            const prodLaborNames = new Set(prodLabores.map(x => x.labor));
+            TODAS_LABORES_LIST.forEach(l => {
+                if (!prodLaborNames.has(l)) {
+                    const opt = document.createElement('option');
+                    opt.value = l;
+                    opt.innerText = l;
+                    grpAll.appendChild(opt);
+                }
+            });
+            sel.appendChild(grpAll);
+        }
+    }
+
+    const modalEl = document.getElementById('modalAgregarLaborAdicional');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+
+function confirmarAgregarLaborAdicional() {
+    if (!currentExtraItemId) return;
+    const sel = document.getElementById('modal-extra-select-labor');
+    const nuevaLabor = sel ? sel.value : '';
+    if (!nuevaLabor) {
+        alert('Por favor seleccione una labor.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirm-add-labor');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Creando...';
+    }
+
+    fetch('{{ url_for("fenogramas.api_duplicar_calificacion") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentExtraItemId, nueva_labor: nuevaLabor })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.success) {
+            showFenoToast(`✓ Labor "${nuevaLabor}" agregada exitosamente`);
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        } else {
+            alert('Error: ' + ((data && data.error) || 'No se pudo agregar la labor'));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Crear Evaluación de Labor';
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Error duplicar:', err);
+        alert('Error de red al crear labor adicional');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Crear Evaluación de Labor';
+        }
+    });
 }
 
 function duplicarLaborFila(itemId) {
