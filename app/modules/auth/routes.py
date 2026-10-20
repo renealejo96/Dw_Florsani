@@ -111,7 +111,7 @@ def login():
                 if user.role in ('MONITOR_COSECHA', 'COSECHA'):
                     next_url = url_for('cosechas.index')
                 elif user.role in ('EVALUADOR_FENOGRAMA', 'OPERARIO'):
-                    next_url = url_for('fenogramas.operarios')
+                    next_url = url_for('fenogramas.index')
                 elif user.role in ('BODEGUERO', 'BODEGA'):
                     next_url = url_for('bodega.salidas')
                 else:

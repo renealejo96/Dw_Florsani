@@ -927,7 +927,7 @@
                                 class="btn btn-outline-primary btn-sm py-0 px-2 rounded-pill shadow-xs d-inline-flex align-items-center gap-1"
                                 style="font-size: 0.72rem; line-height: 1.5;"
                                 title="Calificar labor adicional en estas camas (sin sobrescribir)"
-                                onclick="abrirModalAgregarLabor({{ item.id }}, '{{ b_meta.clean_code }}', '{{ item.cama_inicial }}-{{ item.cama_final }}{{ item.sufijo or \'\' }}', '{{ item.producto_maestro }}')">
+                                onclick='abrirModalAgregarLabor({{ item.id }}, "{{ b_meta.clean_code }}", "{{ item.cama_inicial }}-{{ item.cama_final }}{% if item.sufijo %}{{ item.sufijo }}{% endif %}", "{{ item.producto_maestro }}")'>
                             <i class="fa-solid fa-plus text-primary"></i>
                             <span>Extra</span>
                         </button>
