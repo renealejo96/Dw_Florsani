@@ -3,6 +3,7 @@ import io
 import csv
 import re
 from datetime import datetime
+from collections import defaultdict
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, Response, flash, session
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
