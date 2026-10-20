@@ -702,27 +702,30 @@
             </button>
         </form>
 
-        <!-- ZONAS CON RELLENO LLAMATIVO Y LETRAS NEGRAS -->
+        <!-- ZONAS CON RELLENO LLAMATIVO Y LETRAS NEGRAS (Cambio Instantáneo 100% Offline) -->
         <div class="zone-tabs-inline" role="tablist" aria-label="Zonas">
             <span class="zone-label-tag"><i class="fa-solid fa-map-location-dot me-1"></i>ZONAS:</span>
             {% for z in zonas %}
             {% set z_info = zonas_resumen.get(z, {}) %}
             {% set z_pct = z_info.get('pct_cumplimiento') %}
-            <a href="{{ url_for('fenogramas.index', semana=semana, zona=z) }}"
+            <button type="button"
+               id="btn-zone-tab-{{ z }}"
+               onclick="switchZoneClient('{{ z }}')"
+               data-zona-name="{{ z }}"
                class="zone-tab-btn {% if z == zona_sel %}active{% endif %}">
                 <span>{{ z }}</span>
                 {% if z_pct is not none %}
-                <span {% if z == zona_sel %}id="active-zone-tab-pct"{% endif %}
+                <span id="zone-tab-pct-{{ z }}"
                       class="zone-tab-pct {% if z_pct >= 85 %}bg-success text-white{% elif z_pct >= 70 %}bg-warning text-dark{% else %}bg-danger text-white{% endif %}">
                     {{ z_pct|int if z_pct == (z_pct|int) else z_pct }}%
                 </span>
                 {% else %}
-                <span {% if z == zona_sel %}id="active-zone-tab-pct"{% endif %}
+                <span id="zone-tab-pct-{{ z }}"
                       class="zone-tab-pct bg-white text-dark border">
                     Pend.
                 </span>
                 {% endif %}
-            </a>
+            </button>
             {% endfor %}
         </div>
 
@@ -822,6 +825,7 @@
         <div class="blq-tile state-{{ meta.estado_bloque }} {% if bloque == bloque_sel %}active-selected{% endif %}"
              id="tile-blq-{{ bloque }}"
              data-bloque="{{ bloque }}"
+             data-zona="{{ meta.zona }}"
              data-clean-code="{{ meta.clean_code }}"
              data-estado="{{ meta.estado_bloque }}"
              data-productos="{{ meta.productos|join('|') }}"
@@ -833,9 +837,10 @@
              data-area-bruta="{{ meta.area_bruta }}"
              data-pct-veg="{{ meta.pct_veg }}"
              data-pct-prod="{{ meta.pct_prod }}"
-             data-search-text="bl {{ meta.clean_code }} bloque {{ meta.clean_code }} {{ meta.productos|join(' ') }} {{ (meta.variedades or [])|join(' ') }} {{ meta.actividades|join(' ') }} {{ meta.supervisores|join(' ') }} {{ meta.auxiliares|join(' ') }}"
+             data-search-text="bl {{ meta.clean_code }} bloque {{ meta.clean_code }} {{ meta.productos|join(' ') }} {{ (meta.variedades or [])|join(' ') }} {{ meta.actividades|join(' ') }} {{ meta.supervisores|join(' ') }} {{ meta.auxiliares|join(' ') }} {{ meta.zona }}"
              onclick="selectBlockFromGrid('{{ bloque }}')"
-             title="BL {{ meta.clean_code }} · {{ meta.productos|join(', ') }} · Área Neta: {{ meta.area_neta }} m² (Área Bruta: {{ meta.area_bruta }} m²) · Veg: {{ meta.pct_veg }}% ({{ meta.camas_veg }}c) | Prod: {{ meta.pct_prod }}% ({{ meta.camas_prod }}c) · Cumplidas: {{ meta.cumplidas }}/{{ meta.total_labores }}">
+             style="{% if meta.zona != zona_sel %}display: none;{% endif %}"
+             title="BL {{ meta.clean_code }} ({{ meta.zona }}) · {{ meta.productos|join(', ') }} · Área Neta: {{ meta.area_neta }} m² · Veg: {{ meta.pct_veg }}% | Prod: {{ meta.pct_prod }}% · Cumplidas: {{ meta.cumplidas }}/{{ meta.total_labores }}">
 
             <div class="blq-tile-row1">
                 <span class="blq-code tabular-nums">BL {{ meta.clean_code }}</span>
@@ -886,7 +891,7 @@
             <button type="button" class="btn btn-white border btn-sm py-0 px-2 fw-semibold" style="height: 22px; font-size: 0.7rem;" onclick="returnToBlockGrid()">
                 <i class="fa-solid fa-xmark me-1"></i>Cerrar tabla
             </button>
-            <span class="badge px-2 py-0.5 fw-bold text-dark border shadow-xs" style="background: #facc15; border-color: #ca8a04 !important; font-size: 0.72rem;"><i class="fa-solid fa-map-location-dot me-1 text-dark"></i>{{ zona_sel }}</span>
+            <span id="active-zone-toolbar-badge" class="badge px-2 py-0.5 fw-bold text-dark border shadow-xs" style="background: #facc15; border-color: #ca8a04 !important; font-size: 0.72rem;"><i class="fa-solid fa-map-location-dot me-1 text-dark"></i>{{ zona_sel }}</span>
             <span id="active-block-live-badge" class="fw-bold text-dark tabular-nums" style="font-size: 0.72rem;"></span>
             <button type="button" id="btn-clear-filters-toolbar" class="btn btn-xs btn-outline-danger py-0 px-1.5 fw-semibold" style="height: 20px; font-size: 0.68rem; display: none;" onclick="resetAllFilters()" title="Restablecer filtros">
                 <i class="fa-solid fa-filter-circle-xmark me-1"></i>Filtros activos (Limpiar)
@@ -1079,11 +1084,14 @@
                     class="excel-row {% if item.es_pendiente_anterior %}row-arrastre{% endif %}"
                     data-item-id="{{ item.id }}"
                     data-bloque="{{ bloque }}"
+                    data-zona="{{ item.zona }}"
                     data-evaluable="1"
                     data-producto="{{ item.producto_maestro }}"
                     data-actividad="{{ item.actividad_tipo }}"
                     data-supervisor="{{ item.supervisor or '' }}"
-                    data-search-text="bl {{ b_meta.clean_code }} {{ item.producto_maestro }} {{ item.labor }} {{ item.auxiliar or '' }} {{ item.supervisor or '' }}">
+                    data-auxiliar="{{ item.auxiliar or '' }}"
+                    data-search-text="bl {{ b_meta.clean_code }} {{ item.producto_maestro }} {{ item.labor }} {{ item.auxiliar or '' }} {{ item.supervisor or '' }} {{ item.zona }}"
+                    style="{% if item.zona != zona_sel %}display: none;{% endif %}">
 
                     <td class="fw-bold text-dark tabular-nums">{{ b_meta.clean_code }}</td>
 
@@ -1229,9 +1237,14 @@
 
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-dark mb-1">
-                        <i class="fa-solid fa-list-check text-primary me-1"></i>Seleccione la Labor Encontrada a Calificar: <span class="text-danger">*</span>
+                        <i class="fa-solid fa-list-check text-primary me-1"></i>Buscar y Seleccionar Labor a Calificar: <span class="text-danger">*</span>
                     </label>
-                    <select id="modal-extra-select-labor" class="form-select form-select-sm fw-semibold">
+                    <div class="input-group input-group-sm mb-2 shadow-xs">
+                        <span class="input-group-text bg-white text-muted border-end-0"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" id="modal-extra-search-labor" class="form-control border-start-0" placeholder="Escribe para buscar labor (ej. desmalezado, corte...)" autocomplete="off" oninput="filtrarLaboresModalExtra(this.value)">
+                        <button type="button" class="btn btn-outline-secondary" onclick="limpiarBusquedaModalExtra()" title="Borrar búsqueda">&times;</button>
+                    </div>
+                    <select id="modal-extra-select-labor" class="form-select form-select-sm fw-semibold" size="6" style="max-height: 180px;">
                         <!-- Populated dynamically via JS -->
                     </select>
                     <div class="form-text text-muted mt-2" style="font-size: 0.72rem;">
@@ -1427,6 +1440,7 @@ function handleLaborSelectChange(itemId, newLabor) {
 let currentExtraItemId = null;
 const CATALOGO_LABORES_MAP = {{ catalogo_labores|tojson if catalogo_labores else '{}' }};
 const TODAS_LABORES_LIST = {{ todas_labores|tojson if todas_labores else '[]' }};
+let modalExtraAllOptions = [];
 
 function abrirModalAgregarLabor(itemId, bloque, camas, producto) {
     currentExtraItemId = itemId;
@@ -1435,43 +1449,103 @@ function abrirModalAgregarLabor(itemId, bloque, camas, producto) {
     if (bElem) bElem.innerText = `Bloque ${bloque} (Camas ${camas})`;
     if (pElem) pElem.innerText = producto || 'General';
     
-    const sel = document.getElementById('modal-extra-select-labor');
-    if (sel) {
-        sel.innerHTML = '';
-        const prodLabores = CATALOGO_LABORES_MAP[producto] || [];
-        if (prodLabores.length > 0) {
-            const grp = document.createElement('optgroup');
-            grp.label = `Labores de ${producto}`;
-            prodLabores.forEach(l => {
-                const opt = document.createElement('option');
-                opt.value = l.labor;
-                opt.innerText = l.auxiliar ? `${l.labor} (${l.auxiliar})` : l.labor;
-                grp.appendChild(opt);
-            });
-            sel.appendChild(grp);
-        }
+    const searchInput = document.getElementById('modal-extra-search-labor');
+    if (searchInput) searchInput.value = '';
 
-        if (TODAS_LABORES_LIST && TODAS_LABORES_LIST.length > 0) {
-            const grpAll = document.createElement('optgroup');
-            grpAll.label = 'Otras Labores';
-            const prodLaborNames = new Set(prodLabores.map(x => x.labor));
-            TODAS_LABORES_LIST.forEach(l => {
-                if (!prodLaborNames.has(l)) {
-                    const opt = document.createElement('option');
-                    opt.value = l;
-                    opt.innerText = l;
-                    grpAll.appendChild(opt);
-                }
-            });
-            sel.appendChild(grpAll);
-        }
+    modalExtraAllOptions = [];
+    const prodLabores = CATALOGO_LABORES_MAP[producto] || [];
+    const prodLaborNames = new Set();
+    prodLabores.forEach(l => {
+        prodLaborNames.add(l.labor);
+        modalExtraAllOptions.push({
+            labor: l.labor,
+            label: l.auxiliar ? `${l.labor} (${l.auxiliar})` : l.labor,
+            grupo: `Labores de ${producto}`,
+            isPrimary: true
+        });
+    });
+
+    if (TODAS_LABORES_LIST && TODAS_LABORES_LIST.length > 0) {
+        TODAS_LABORES_LIST.forEach(l => {
+            if (!prodLaborNames.has(l)) {
+                modalExtraAllOptions.push({
+                    labor: l,
+                    label: l,
+                    grupo: 'Otras Labores del Catálogo',
+                    isPrimary: false
+                });
+            }
+        });
     }
+
+    renderExtraLaborOptions('');
 
     const modalEl = document.getElementById('modalAgregarLaborAdicional');
     if (modalEl) {
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
+        setTimeout(() => {
+            const sInp = document.getElementById('modal-extra-search-labor');
+            if (sInp) sInp.focus();
+        }, 400);
     }
+}
+
+function renderExtraLaborOptions(filterQuery) {
+    const sel = document.getElementById('modal-extra-select-labor');
+    if (!sel) return;
+    sel.innerHTML = '';
+    const q = (filterQuery || '').toLowerCase().trim();
+
+    const filtered = modalExtraAllOptions.filter(item => {
+        if (!q) return true;
+        return item.labor.toLowerCase().includes(q) || item.label.toLowerCase().includes(q) || item.grupo.toLowerCase().includes(q);
+    });
+
+    if (filtered.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.disabled = true;
+        opt.innerText = `No se encontraron labores con "${q}"`;
+        sel.appendChild(opt);
+        return;
+    }
+
+    const groups = {};
+    filtered.forEach(it => {
+        if (!groups[it.grupo]) groups[it.grupo] = [];
+        groups[it.grupo].push(it);
+    });
+
+    let firstSelected = false;
+    for (const [grpName, items] of Object.entries(groups)) {
+        const optGrp = document.createElement('optgroup');
+        optGrp.label = grpName;
+        items.forEach(it => {
+            const opt = document.createElement('option');
+            opt.value = it.labor;
+            opt.innerText = it.label;
+            if (!firstSelected) {
+                opt.selected = true;
+                firstSelected = true;
+            }
+            optGrp.appendChild(opt);
+        });
+        sel.appendChild(optGrp);
+    }
+}
+
+function filtrarLaboresModalExtra(query) {
+    renderExtraLaborOptions(query);
+}
+
+function limpiarBusquedaModalExtra() {
+    const inp = document.getElementById('modal-extra-search-labor');
+    if (inp) {
+        inp.value = '';
+        inp.focus();
+    }
+    renderExtraLaborOptions('');
 }
 
 function confirmarAgregarLaborAdicional() {
@@ -1597,6 +1671,67 @@ function formatPct(val) {
 }
 
 /* ============================================================================
+   CONMUTACIÓN DE ZONAS 100% OFFLINE (SIN RECARGA DE PÁGINA)
+   ============================================================================ */
+let currentActiveZone = '{{ zona_sel }}';
+const ZONAS_RESUMEN = {{ zonas_resumen | tojson | safe }};
+
+function switchZoneClient(targetZone) {
+    if (!targetZone) return;
+    currentActiveZone = targetZone;
+
+    // 1. Botones de pestañas de zona
+    document.querySelectorAll('.zone-tab-btn').forEach(btn => {
+        const zName = btn.getAttribute('data-zona-name');
+        btn.classList.toggle('active', zName === targetZone);
+    });
+
+    // 2. Input hidden del formulario de semana
+    const inputZonaForm = document.querySelector('input[name="zona"]');
+    if (inputZonaForm) inputZonaForm.value = targetZone;
+
+    // 3. Badge de zona en toolbar de la matriz
+    const zoneBadgeToolbar = document.getElementById('active-zone-toolbar-badge');
+    if (zoneBadgeToolbar) {
+        zoneBadgeToolbar.innerHTML = `<i class="fa-solid fa-map-location-dot me-1 text-dark"></i>${targetZone}`;
+    }
+
+    // 4. Resetear a vista de bloques
+    setWorkspaceMode('grid');
+    activeBlockCode = '';
+    highlightSelectedTile('');
+
+    // 5. Actualizar KPIs de la zona activa en la barra superior
+    const zInfo = ZONAS_RESUMEN[targetZone] || {};
+    const kpiAvanceVal = document.getElementById('kpi-avance-val');
+    const kpiCumplVal = document.getElementById('kpi-cumpl-val');
+    const kpiCalifCount = document.getElementById('kpi-calif-count');
+    const kpiCumplCount = document.getElementById('kpi-cumpl-count');
+    const kpiPendCount = document.getElementById('kpi-pend-count');
+    const kpiBloquesCount = document.getElementById('kpi-bloques-count');
+
+    if (kpiAvanceVal && zInfo.pct_avance !== undefined) kpiAvanceVal.innerText = `${zInfo.pct_avance}%`;
+    if (kpiCumplVal) {
+        kpiCumplVal.innerText = (zInfo.pct_cumplimiento !== null && zInfo.pct_cumplimiento !== undefined) ? `${zInfo.pct_cumplimiento}%` : 'N/D';
+    }
+    if (kpiCalifCount) kpiCalifCount.innerText = `${zInfo.calificadas || 0}/${zInfo.total_labores || 0}`;
+    if (kpiCumplCount) kpiCumplCount.innerText = `${zInfo.cumplidas || 0}/${zInfo.total_labores || 0}`;
+    if (kpiPendCount) kpiPendCount.innerText = `${zInfo.pendientes || 0}`;
+    if (kpiBloquesCount) kpiBloquesCount.innerText = `${zInfo.total_bloques || 0}`;
+
+    // 6. Actualizar URL silenciosamente sin recarga HTTP
+    try {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('zona', targetZone);
+        window.history.replaceState({}, '', newUrl.toString());
+        sessionStorage.setItem('feno_active_zona', targetZone);
+    } catch (e) {}
+
+    // 7. Re-filtrar para la nueva zona
+    applyAllFilters();
+}
+
+/* ============================================================================
    MODOS DE VISTA: CUADRÍCULA DE BLOQUES vs MATRIZ EXCEL
    ============================================================================ */
 function setWorkspaceMode(mode) {
@@ -1668,6 +1803,11 @@ function highlightSelectedTile(bloqueCode) {
 
 function filterMatrixRowsToBlock(bloqueCode) {
     document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
+        const rZona = row.getAttribute('data-zona') || '';
+        if (rZona && rZona !== currentActiveZone) {
+            row.style.display = 'none';
+            return;
+        }
         const rBlq = row.getAttribute('data-bloque');
         const isFilterMatch = row.getAttribute('data-filter-match') !== '0';
         row.style.display = ((!bloqueCode || rBlq === String(bloqueCode)) && isFilterMatch) ? '' : 'none';
@@ -1677,8 +1817,8 @@ function filterMatrixRowsToBlock(bloqueCode) {
 
 function getVisibleBlockCodes() {
     const tiles = Array.from(document.querySelectorAll('.blq-tile'));
-    const visible = tiles.filter(t => t.style.display !== 'none').map(t => t.getAttribute('data-bloque'));
-    return visible.length > 0 ? visible : tiles.map(t => t.getAttribute('data-bloque'));
+    const visible = tiles.filter(t => t.style.display !== 'none' && t.getAttribute('data-zona') === currentActiveZone).map(t => t.getAttribute('data-bloque'));
+    return visible.length > 0 ? visible : tiles.filter(t => t.getAttribute('data-zona') === currentActiveZone).map(t => t.getAttribute('data-bloque'));
 }
 
 function navigateAdjacentBlock(direction) {
@@ -1789,10 +1929,17 @@ function applyAllFilters() {
     const matchingBlocks = new Set();
 
     document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
+        const rZona = row.getAttribute('data-zona') || '';
+        if (rZona && rZona !== currentActiveZone) {
+            row.style.display = 'none';
+            return;
+        }
+
         const blq = row.getAttribute('data-bloque');
         const rProd = row.getAttribute('data-producto') || '';
         const rAct = row.getAttribute('data-actividad') || '';
         const rSup = row.getAttribute('data-supervisor') || '';
+        const rAux = row.getAttribute('data-auxiliar') || '';
         const rSearch = (row.getAttribute('data-search-text') || '').toLowerCase();
         const isArrastre = row.classList.contains('row-arrastre');
 
@@ -1806,8 +1953,8 @@ function applyAllFilters() {
         // Match Producto
         const matchProd = (totalProds === 0) || selProds.includes(rProd);
 
-        // Match Supervisor
-        const matchSup = (totalSups === 0) || selSups.includes(rSup) || (!rSup && selSups.length === totalSups);
+        // Match Supervisor / Auxiliar
+        const matchSup = (totalSups === 0) || selSups.includes(rSup) || selSups.includes(rAux) || (!rSup && !rAux && selSups.length === totalSups);
 
         // Match Cumplimiento
         let matchCumpl = false;
@@ -1841,11 +1988,12 @@ function applyAllFilters() {
         }
     });
 
-    // 4. Filtrar cuadrícula de bloques
+    // 4. Filtrar cuadrícula de bloques (solo para la zona activa)
     let visibleBlocksCount = 0;
-    document.querySelectorAll('.blq-tile').forEach(tile => {
+    document.querySelectorAll('#blq-grid .blq-tile').forEach(tile => {
         const blq = tile.getAttribute('data-bloque');
-        const isTileMatch = matchingBlocks.has(blq);
+        const tZona = tile.getAttribute('data-zona');
+        const isTileMatch = (tZona === currentActiveZone) && matchingBlocks.has(blq);
         tile.style.display = isTileMatch ? 'flex' : 'none';
         if (isTileMatch) visibleBlocksCount++;
     });
@@ -2465,6 +2613,15 @@ document.getElementById('form-upload-matrix')?.addEventListener('submit', functi
 
 document.addEventListener('DOMContentLoaded', () => {
     restoreOfflineChanges();
+
+    // Sincronizar zona activa desde URL o sessionStorage si existe
+    const urlParams = new URLSearchParams(window.location.search);
+    const zParam = urlParams.get('zona') || sessionStorage.getItem('feno_active_zona');
+    if (zParam && zParam !== currentActiveZone && document.getElementById(`btn-zone-tab-${zParam}`)) {
+        switchZoneClient(zParam);
+    } else {
+        applyAllFilters();
+    }
 
     // Detección en vivo de conectividad online / offline en campo
     window.addEventListener('online', () => {

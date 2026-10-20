@@ -84,7 +84,8 @@ def login():
         except (ValueError, TypeError):
             finca_id = 1
 
-        user = User.query.filter_by(username=username).first()
+        clean_user = username.lower().strip()
+        user = User.query.filter(db.func.lower(User.username) == clean_user).first()
         if user and user.check_password(password):
             if not user.is_active:
                 flash("Esta cuenta de usuario ha sido desactivada. Comuníquese con el Administrador.", "danger")
@@ -92,8 +93,9 @@ def login():
 
             # Validar si el usuario tiene permiso para la finca seleccionada
             if user.role != 'ADMIN' and user.finca_id != 0 and finca_id not in user.allowed_finca_ids:
-                flash(f"Acceso denegado: Tu usuario está asignado a la Finca {user.finca_nombre}. Selecciona la finca correcta.", "warning")
-                return render_template('auth/login.html')
+                # Conectar a la finca asignada automáticamente si no tiene acceso a la que seleccionó
+                finca_id = user.finca_id
+                flash(f"Conectado automáticamente a tu sede de trabajo: {user.finca_nombre}.", "info")
 
             session['user_id'] = user.id
             session['username'] = user.username

@@ -112,21 +112,20 @@ def index():
     if (not zona_sel or zona_sel not in zonas) and zonas:
         zona_sel = zonas[0]
 
-    calificaciones = []
-    if zona_sel:
-        calif_rows = db.session.execute(text("""
-            SELECT id, semana_anio, anio, zona, bloque, actividad_tipo, producto_maestro,
-                   cama_inicial, cama_final, sufijo, edad_real, labor, auxiliar, supervisor,
-                   cumplido, observacion, tiene_evaluacion, es_pendiente_anterior, semana_origen
-            FROM calificaciones
-            WHERE semana_anio = :semana AND zona = :zona
-            ORDER BY cama_inicial ASC, id ASC;
-        """), {'semana': semana, 'zona': zona_sel}).fetchall()
-        calificaciones = [dict(r._mapping) for r in calif_rows]
+    # Cargar todas las calificaciones de la semana para soporte 100% Offline (campo sin señal)
+    calif_rows = db.session.execute(text("""
+        SELECT id, semana_anio, anio, zona, bloque, actividad_tipo, producto_maestro,
+               cama_inicial, cama_final, sufijo, edad_real, labor, auxiliar, supervisor,
+               cumplido, observacion, tiene_evaluacion, es_pendiente_anterior, semana_origen
+        FROM calificaciones
+        WHERE semana_anio = :semana
+        ORDER BY zona ASC, cama_inicial ASC, id ASC;
+    """), {'semana': semana}).fetchall()
+    calificaciones = [dict(r._mapping) for r in calif_rows]
 
     raw_bloques = {}
     productos_set = set()
-    supervisores_set = set()
+    responsables_set = set()
 
     for item in calificaciones:
         bl = str(item['bloque'] or '').strip()
@@ -137,8 +136,10 @@ def index():
         raw_bloques[bl].append(item)
         if item.get('producto_maestro'):
             productos_set.add(item['producto_maestro'])
-        if item.get('supervisor'):
-            supervisores_set.add(item['supervisor'])
+        if item.get('supervisor') and str(item['supervisor']).strip():
+            responsables_set.add(str(item['supervisor']).strip())
+        if item.get('auxiliar') and str(item['auxiliar']).strip():
+            responsables_set.add(str(item['auxiliar']).strip())
 
     # Ordenar bloques naturalmente (ej. 71, 72, ..., 100)
     sorted_block_keys = sorted(raw_bloques.keys(), key=_natural_block_key)
@@ -222,7 +223,7 @@ def index():
     # Calcular metadatos por bloque y KPIs de la zona activa
     bloques_meta = {}
     zona_kpi = {
-        'total_bloques': len(bloques_dict),
+        'total_bloques': sum(1 for it in bloques_dict.values() if it and it[0].get('zona') == zona_sel),
         'bloques_completos': 0,
         'bloques_con_pendientes': 0,
         'bloques_sin_calificar': 0,
@@ -323,9 +324,11 @@ def index():
             if v_item:
                 variedades_set.add(v_item)
 
+        bl_zona = items[0].get('zona', '')
         bloques_meta[bl] = {
             'bloque': bl,
             'clean_code': c_code,
+            'zona': bl_zona,
             'total_filas': len(items),
             'total_labores': total_lab,
             'calificadas': calif,
@@ -354,27 +357,28 @@ def index():
             'area_prod': area_prod_bl
         }
 
-        zona_kpi['total_labores'] += total_lab
-        zona_kpi['calificadas'] += calif
-        zona_kpi['cumplidas'] += cumpl
-        zona_kpi['incumplidas'] += incumpl
-        zona_kpi['pendientes'] += pend
-        zona_kpi['arrastre_total'] += arrastre_cnt
+        if bl_zona == zona_sel:
+            zona_kpi['total_labores'] += total_lab
+            zona_kpi['calificadas'] += calif
+            zona_kpi['cumplidas'] += cumpl
+            zona_kpi['incumplidas'] += incumpl
+            zona_kpi['pendientes'] += pend
+            zona_kpi['arrastre_total'] += arrastre_cnt
 
-        if eval_completa:
-            zona_kpi['bloques_completos'] += 1
-        if pend > 0:
-            zona_kpi['bloques_con_pendientes'] += 1
-        if estado_bl == 'PENDIENTE':
-            zona_kpi['bloques_sin_calificar'] += 1
-        elif estado_bl == 'ALTO':
-            zona_kpi['bloques_alto'] += 1
-        elif estado_bl == 'MEDIO':
-            zona_kpi['bloques_medio'] += 1
-        elif estado_bl == 'BAJO':
-            zona_kpi['bloques_bajo'] += 1
-        if arrastre_cnt > 0:
-            zona_kpi['bloques_con_arrastre'] += 1
+            if eval_completa:
+                zona_kpi['bloques_completos'] += 1
+            if pend > 0:
+                zona_kpi['bloques_con_pendientes'] += 1
+            if estado_bl == 'PENDIENTE':
+                zona_kpi['bloques_sin_calificar'] += 1
+            elif estado_bl == 'ALTO':
+                zona_kpi['bloques_alto'] += 1
+            elif estado_bl == 'MEDIO':
+                zona_kpi['bloques_medio'] += 1
+            elif estado_bl == 'BAJO':
+                zona_kpi['bloques_bajo'] += 1
+            if arrastre_cnt > 0:
+                zona_kpi['bloques_con_arrastre'] += 1
 
     if zona_kpi['total_labores'] > 0:
         zona_kpi['pct_avance'] = round((zona_kpi['calificadas'] / zona_kpi['total_labores']) * 100, 1)
@@ -474,7 +478,7 @@ def index():
         zona_kpi=zona_kpi,
         productos_zona=sorted(productos_set),
         variedades_zona=sorted(variedades_set),
-        supervisores_zona=sorted(supervisores_set),
+        supervisores_zona=sorted(responsables_set),
         semana_estado=semana_estado,
         max_semanas_arrastre=max_semanas_arrastre,
         ingesta_info=ingesta_info,

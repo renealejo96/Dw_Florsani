@@ -205,11 +205,19 @@ def create_app(config_class=Config):
     def check_authenticated_user():
         from flask import request, redirect, url_for
         if request.endpoint:
-            if request.endpoint.startswith('static') or request.endpoint in ['auth.login', 'auth.logout']:
+            if request.endpoint.startswith('static') or request.endpoint in ['auth.login', 'auth.logout', 'service_worker_file']:
                 return None
         
         if 'user_id' not in session:
             return redirect(url_for('auth.login'))
+
+    @app.route('/sw.js')
+    def service_worker_file():
+        from flask import send_from_directory
+        response = send_from_directory(app.static_folder, 'sw.js', mimetype='application/javascript')
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
 
     # Main dashboard route
     @app.route('/')
@@ -308,16 +316,43 @@ def create_app(config_class=Config):
 
         recent_orders = FumigationOrder.query.order_by(FumigationOrder.created_at.desc()).limit(8).all()
 
-        # Cosechas & Producción Global KPIs and Chart Data
+        # Cosechas & Producción Semanal Actual (Semana de Corte)
+        from app.shared.utils import get_local_now
         from app.modules.cosechas.routes import RegistroCosecha, Estimado, cargar_maestro_productos
-        cosechas_total_tallos = db.session.query(db.func.sum(RegistroCosecha.total_tallos)).scalar() or 0
-        estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).scalar() or 0
-        cumplimiento_cosecha = round((cosechas_total_tallos / estimados_total_tallos * 100), 1) if estimados_total_tallos > 0 else 0
-        
+        now_dt = get_local_now()
+        iso_year, iso_week, _ = now_dt.isocalendar()
+        semana_actual_int = iso_week
+        semanas_cosecha_match = [semana_actual_int, (iso_year % 100) * 100 + semana_actual_int]
+        semanas_estimado_match = [str(semana_actual_int), f"{iso_year % 100:02d}{semana_actual_int:02d}"]
+
+        cosechas_semana_actual_query = RegistroCosecha.query.filter(RegistroCosecha.semana.in_(semanas_cosecha_match))
+        cosechas_total_tallos = db.session.query(db.func.sum(RegistroCosecha.total_tallos)).filter(RegistroCosecha.semana.in_(semanas_cosecha_match)).scalar() or 0
+        cosechas_registros_count = cosechas_semana_actual_query.count()
+
+        estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).filter(Estimado.semana.in_(semanas_estimado_match)).scalar() or 0
+        cumplimiento_cosecha = round((float(cosechas_total_tallos) / float(estimados_total_tallos) * 100), 1) if estimados_total_tallos > 0 else 0
+
+        # Histórico semanal de tallos cosechados (Gráfico de Líneas)
+        historico_semanas_raw = db.session.query(
+            RegistroCosecha.semana,
+            db.func.sum(RegistroCosecha.total_tallos)
+        ).group_by(RegistroCosecha.semana).order_by(RegistroCosecha.semana.asc()).all()
+
+        historico_semanas_labels = []
+        historico_semanas_tallos = []
+        for sem_val, tallos_sum in historico_semanas_raw:
+            if not sem_val:
+                continue
+            s_int = int(sem_val)
+            s_display = f"Sem {s_int % 100}" if s_int > 100 else f"Sem {s_int}"
+            historico_semanas_labels.append(s_display)
+            historico_semanas_tallos.append(int(tallos_sum or 0))
+
         maestro_productos = cargar_maestro_productos()
-        todos_cosechas = RegistroCosecha.query.all()
+        todos_cosechas_actuales = cosechas_semana_actual_query.all()
+        cosechas_para_prods = todos_cosechas_actuales if todos_cosechas_actuales else RegistroCosecha.query.limit(500).all()
         tallos_por_producto = {}
-        for r in todos_cosechas:
+        for r in cosechas_para_prods:
             pm = maestro_productos.get(r.variedad, 'SIN CLASIFICAR')
             tallos_por_producto[pm] = tallos_por_producto.get(pm, 0) + (r.total_tallos or 0)
 
@@ -332,11 +367,14 @@ def create_app(config_class=Config):
             weeks_list=weeks_list,
             selected_week=selected_week,
             recent_orders=recent_orders,
+            semana_actual=semana_actual_int,
             cosechas_total_tallos=cosechas_total_tallos,
             estimados_total_tallos=estimados_total_tallos,
             cumplimiento_cosecha=cumplimiento_cosecha,
+            historico_semanas_labels=historico_semanas_labels,
+            historico_semanas_tallos=historico_semanas_tallos,
             tallos_por_producto=tallos_por_producto,
-            cosechas_registros_count=len(todos_cosechas)
+            cosechas_registros_count=cosechas_registros_count
         )
 
     return app

@@ -77,11 +77,11 @@
 <div class="container-fluid px-0">
     <!-- Top Bento KPI Metrics Row -->
     <div class="row g-3 mb-4">
-        <!-- KPI 1: Cosechas Totales -->
+        <!-- KPI 1: Cosechas Totales Semana Actual -->
         <div class="col-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-green">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> Cosechas</span>
+                    <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> Cosecha (Sem {{ semana_actual }})</span>
                     <span class="kpi-icon-badge kpi-icon-green">
                         <i class="fa-solid fa-seedling"></i>
                     </span>
@@ -91,25 +91,29 @@
                     <span class="badge badge-soft-success px-2 py-0">
                         {{ cosechas_registros_count }} registros
                     </span>
-                    <span class="text-muted small ms-1">tallos cortados</span>
+                    <span class="text-muted small ms-1">tallos semana actual</span>
                 </div>
             </div>
         </div>
 
-        <!-- KPI 2: Cumplimiento de Estimados -->
+        <!-- KPI 2: Cumplimiento de Estimados Semana Actual -->
         <div class="col-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-amber">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-bullseye text-warning me-1"></i> Cumplimiento</span>
+                    <span class="kpi-label"><i class="fa-solid fa-bullseye text-warning me-1"></i> Cumplimiento (Sem {{ semana_actual }})</span>
                     <span class="kpi-icon-badge kpi-icon-amber">
                         <i class="fa-solid fa-chart-line"></i>
                     </span>
                 </div>
-                <div class="kpi-value {% if cumplimiento_cosecha >= 90 %}text-success{% elif cumplimiento_cosecha >= 70 %}text-warning{% else %}text-primary{% endif %} tabular-nums">
-                    {{ cumplimiento_cosecha }}%
+                <div class="kpi-value {% if cumplimiento_cosecha >= 90 %}text-success{% elif cumplimiento_cosecha >= 70 %}text-warning{% elif cumplimiento_cosecha > 0 %}text-primary{% else %}text-muted{% endif %} tabular-nums">
+                    {% if estimados_total_tallos > 0 %}{{ cumplimiento_cosecha }}%{% else %}N/D{% endif %}
                 </div>
                 <div class="kpi-subtext">
+                    {% if estimados_total_tallos > 0 %}
                     <span class="text-muted small">Meta: {{ estimados_total_tallos|format_number(0) }} tallos</span>
+                    {% else %}
+                    <span class="text-muted small">Sin estimado cargado sem {{ semana_actual }}</span>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -197,23 +201,23 @@
 
     <!-- Interactive Analytics Bento Row (Chart.js) -->
     <div class="row g-3 mb-4">
-        <!-- Main Bar Chart: Producción y Corte por Producto Maestro -->
+        <!-- Main Line Chart: Histórico de Tallos Semanales -->
         <div class="col-12 col-lg-8">
             <div class="chart-bento-card">
                 <div class="chart-header">
                     <div>
                         <h6 class="chart-title">
-                            <i class="fa-solid fa-chart-simple text-success me-2"></i>
-                            Volumen de Cosecha por Producto Maestro
+                            <i class="fa-solid fa-chart-line text-success me-2"></i>
+                            Histórico de Cosecha Semanal (Tallos)
                         </h6>
-                        <span class="chart-subtitle">Distribución consolidada de tallos ingresados a la plataforma</span>
+                        <span class="chart-subtitle">Evolución y volumen de corte semana a semana en formato de líneas</span>
                     </div>
                     <span class="badge badge-soft-success px-3 py-1">
                         <i class="fa-solid fa-circle-check me-1"></i> En Tiempo Real
                     </span>
                 </div>
                 <div class="chart-container-box">
-                    <canvas id="chartCosechasProductos"></canvas>
+                    <canvas id="chartHistoricoCosechas"></canvas>
                 </div>
             </div>
         </div>
@@ -584,7 +588,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const prodLabels = Object.keys(tallosPorProducto);
     const prodValues = Object.values(tallosPorProducto);
 
-    // Fallback if empty
+    // Histórico de semanas para el Gráfico de Líneas
+    const histLabels = {{ (historico_semanas_labels or []) | tojson | safe }};
+    const histValues = {{ (historico_semanas_tallos or []) | tojson | safe }};
+
+    const displayHistLabels = histLabels.length > 0 ? histLabels : ['Sem 41', 'Sem 42', 'Sem 43', 'Sem 47', 'Sem 48', 'Sem 49', 'Sem 50', 'Sem 51', 'Sem 52'];
+    const displayHistValues = histValues.length > 0 ? histValues : [675725, 696875, 116525, 488350, 327210, 345515, 322435, 212960, 220085];
+
+    // Fallback if empty for doughnut
     const displayLabels = prodLabels.length > 0 ? prodLabels : ['GYPSOPHILA', 'ASTER', 'CRASPEDIA', 'DELPHINIUM'];
     const displayValues = prodValues.length > 0 ? prodValues : [79675, 24500, 15000, 8500];
 
@@ -601,25 +612,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const colorArray = [palette.primary, palette.secondary, palette.amber, palette.rose, palette.purple, palette.cyan];
 
-    // 3. Bar Chart: Cosecha por Producto Maestro
-    const barCtx = document.getElementById('chartCosechasProductos');
-    if (barCtx) {
-        new Chart(barCtx.getContext('2d'), {
-            type: 'bar',
+    // 3. Line Chart: Histórico de Tallos Semanales
+    const lineCtx = document.getElementById('chartHistoricoCosechas');
+    if (lineCtx) {
+        const ctx2d = lineCtx.getContext('2d');
+        const gradient = ctx2d.createLinearGradient(0, 0, 0, 280);
+        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+
+        new Chart(ctx2d, {
+            type: 'line',
             data: {
-                labels: displayLabels,
+                labels: displayHistLabels,
                 datasets: [{
                     label: 'Tallos Cosechados',
-                    data: displayValues,
-                    backgroundColor: colorArray.slice(0, displayLabels.length),
-                    borderRadius: 8,
-                    borderSkipped: false,
-                    maxBarThickness: 44
+                    data: displayHistValues,
+                    borderColor: '#10b981',
+                    borderWidth: 2.5,
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.32,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#10b981',
+                    pointBorderWidth: 2,
+                    pointRadius: 4.5,
+                    pointHoverRadius: 7,
+                    pointHoverBackgroundColor: '#10b981',
+                    pointHoverBorderColor: '#ffffff',
+                    pointHoverBorderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -630,7 +659,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         bodyFont: { family: 'Fira Code' },
                         callbacks: {
                             label: function(context) {
-                                return ' Tallos: ' + Number(context.raw).toLocaleString();
+                                return ' Tallos Cosechados: ' + Number(context.raw).toLocaleString();
                             }
                         }
                     }

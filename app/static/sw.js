@@ -1,8 +1,9 @@
-const CACHE_NAME = 'florsani-pwa-v2';
+const CACHE_NAME = 'florsani-pwa-v3';
 const STATIC_ASSETS = [
   '/',
   '/fenogramas/',
   '/cosechas/nuevo',
+  '/cosechas/nuevo-registro',
   '/static/css/main.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
@@ -11,10 +12,17 @@ const STATIC_ASSETS = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Pre-caching static assets notice:', err);
-      });
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // Usar Promise.allSettled para que un redireccionamiento 302 o fallo puntual no aborte el resto de assets
+      await Promise.allSettled(
+        STATIC_ASSETS.map((url) =>
+          fetch(url, { cache: 'no-cache' })
+            .then((res) => {
+              if (res.ok) return cache.put(url, res);
+            })
+            .catch((err) => console.warn('[SW] Pre-caching asset warning:', url, err))
+        )
+      );
     })
   );
   self.skipWaiting();
@@ -49,9 +57,13 @@ self.addEventListener('fetch', (e) => {
         .catch(() => {
           return caches.match(e.request).then((cachedRes) => {
             if (cachedRes) return cachedRes;
-            // Si la URL exacta no está, intentar páginas principales de trabajo
-            if (e.request.url.includes('/fenogramas')) return caches.match('/fenogramas/');
-            if (e.request.url.includes('/cosechas')) return caches.match('/cosechas/nuevo');
+            // Si la URL exacta no está, intentar páginas de trabajo según el módulo
+            if (e.request.url.includes('/fenogramas')) {
+              return caches.match('/fenogramas/').then(r => r || caches.match('/fenogramas'));
+            }
+            if (e.request.url.includes('/cosechas')) {
+              return caches.match('/cosechas/nuevo').then(r => r || caches.match('/cosechas/nuevo-registro'));
+            }
             return caches.match('/');
           });
         })

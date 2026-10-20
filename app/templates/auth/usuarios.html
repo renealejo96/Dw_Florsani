@@ -101,24 +101,24 @@
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Nuevo Acceso</span>
             </div>
             <div class="card-body p-3 p-md-4">
-                <form method="POST" action="{{ url_for('auth.usuarios') }}" id="formCreateUser">
+                <form method="POST" action="{{ url_for('auth.usuarios') }}" id="formCreateUser" autocomplete="off">
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Usuario (Login): <span class="text-danger">*</span></label>
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-light text-muted">@</span>
-                                <input type="text" name="username" class="form-control" placeholder="agronomo_gp" required autocomplete="off">
+                                <input type="text" name="username" id="create_username" class="form-control" placeholder="agronomo_gp" required autocomplete="off" readonly onfocus="this.removeAttribute('readonly');">
                             </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Contraseña Inicial: <span class="text-danger">*</span></label>
-                            <input type="password" name="password" class="form-control form-control-sm" placeholder="••••••••" required>
+                            <input type="password" name="password" id="create_password" class="form-control form-control-sm" placeholder="Ingrese contraseña inicial" required autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label small fw-semibold">Nombre Completo: <span class="text-danger">*</span></label>
-                        <input type="text" name="full_name" class="form-control form-control-sm" placeholder="Ing. Juan Pérez" required>
+                        <input type="text" name="full_name" id="create_full_name" class="form-control form-control-sm" placeholder="Ing. Juan Pérez" required autocomplete="off">
                     </div>
 
                     <div class="row g-2 mb-3">
@@ -560,7 +560,7 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label class="form-label small fw-semibold">Cambiar Contraseña (opcional):</label>
-                                                        <input type="password" name="password" class="form-control form-control-sm" placeholder="Dejar en blanco para no cambiar">
+                                                        <input type="password" name="password" class="form-control form-control-sm" placeholder="Dejar en blanco para no cambiar" autocomplete="new-password">
                                                     </div>
                                                 </div>
 
@@ -934,6 +934,17 @@ function onRoleChange(scope) {
 
 // Initial preset on load for creation form
 document.addEventListener('DOMContentLoaded', function() {
+    const formCreate = document.getElementById('formCreateUser');
+    if (formCreate) {
+        setTimeout(() => {
+            const u = document.getElementById('create_username');
+            const p = document.getElementById('create_password');
+            const f = document.getElementById('create_full_name');
+            if (u) u.value = '';
+            if (p) p.value = '';
+            if (f) f.value = '';
+        }, 150);
+    }
     const roleSel = document.getElementById('selectRoleCreate');
     if (roleSel) {
         onRoleChange('create');

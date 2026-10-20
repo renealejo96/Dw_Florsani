@@ -162,6 +162,7 @@ def limpiar_nombre_modulo(mod_raw):
     return m.strip()
 
 @cosechas_bp.route('/nuevo', methods=['GET', 'POST'])
+@cosechas_bp.route('/nuevo-registro', methods=['GET', 'POST'])
 @login_required
 @permission_required('cosechas')
 def nuevo_registro():
@@ -191,11 +192,8 @@ def nuevo_registro():
             producto_maestro = request.form.get('producto_maestro', '').strip().upper()
             variedad = request.form.get('variedad', '').strip().upper()
 
-            # Bloqueo estricto del usuario / responsable si no es ADMIN
-            if u_sesion and u_sesion.role != 'ADMIN':
-                responsable = u_sesion.full_name or responsable_sesion or u_sesion.username
-            else:
-                responsable = request.form.get('responsable', '').strip() or responsable_sesion or 'Responsable'
+            # Bloqueo estricto del usuario / responsable a la sesión activa para garantizar trazabilidad
+            responsable = (u_sesion.full_name if u_sesion else None) or responsable_sesion or request.form.get('responsable', '').strip() or 'Responsable'
 
             if not producto_maestro:
                 flash('Debe seleccionar un producto maestro.', 'danger')
@@ -1072,11 +1070,8 @@ def api_sincronizar_offline():
             variedad = str(it.get('variedad', '')).strip().upper()
             total_tallos = tallos * mallas
 
-            # Enforzar autoría real del operario conectado
-            if u_sesion and u_sesion.role != 'ADMIN':
-                responsable = u_sesion.full_name or responsable_defecto
-            else:
-                responsable = str(it.get('responsable') or '').strip() or responsable_defecto
+            # Enforzar autoría real del operario conectado o autor del ticket capturado
+            responsable = str(it.get('responsable') or '').strip() or (u_sesion.full_name if u_sesion else None) or responsable_defecto
 
             if not variedad:
                 continue

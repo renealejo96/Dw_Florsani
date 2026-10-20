@@ -35,8 +35,11 @@
                 <div class="card-body p-4">
                     <form method="POST" id="registroForm">
                         <input type="hidden" id="productosConVariedadesData" value="{{ (productos_con_variedades or {}) | tojson | forceescape }}">
+                        <input type="hidden" id="modulosData" value="{{ (modulos or []) | tojson | forceescape }}">
                         <input type="hidden" id="productoSeleccionadoInicialData" value="{{ producto_seleccionado }}">
                         <input type="hidden" id="variedadSeleccionadaInicialData" value="{{ variedad_seleccionada }}">
+                        <input type="hidden" id="currentUserFullName" value="{{ (current_user.full_name if current_user and current_user.full_name else (current_user.username if current_user else responsable_sesion)) }}">
+                        <input type="hidden" id="currentUserName" value="{{ current_user.username if current_user else '' }}">
 
                         <div class="row g-3 mb-4">
                             <!-- Fecha y Semana -->
@@ -64,7 +67,7 @@
                                 </select>
                             </div>
 
-                            <!-- Responsable / Monitor Mapeado a Login (Bloqueado para trazabilidad) -->
+                            <!-- Responsable / Monitor Mapeado a Login (Bloqueado Estrictamente para Trazabilidad) -->
                             <div class="col-12 col-md-6">
                                 <label for="responsable" class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
                                     <span><i class="fa-solid fa-user-check me-1 text-info"></i> Responsable / Monitor *</span>
@@ -74,37 +77,15 @@
                                     </span>
                                     {% endif %}
                                 </label>
-                                {% if current_user and current_user.role == 'ADMIN' %}
-                                <select class="form-select fw-semibold" id="responsable" name="responsable" required>
-                                    <optgroup label="Usuario Conectado (Tú)">
-                                        <option value="{{ current_user.full_name }}" selected>
-                                            {{ current_user.full_name }} (@{{ current_user.username }}) — [Sesión Activa]
-                                        </option>
-                                    </optgroup>
-                                    <optgroup label="Monitores y Usuarios del Sistema ERP">
-                                        {% for m in monitores_sistema %}
-                                            {% if m.nombre != current_user.full_name %}
-                                            <option value="{{ m.nombre }}">
-                                                {{ m.nombre }} {% if m.username %}(@{{ m.username }} &bull; {{ m.role }}){% elif m.role %}({{ m.role }}){% endif %}
-                                            </option>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </optgroup>
-                                </select>
-                                <small class="text-muted d-block mt-1" style="font-size: 0.74rem;">
-                                    <i class="fa-solid fa-crown text-warning me-1"></i> Modo Administrador: Puedes cambiar el monitor responsable si es necesario.
-                                </small>
-                                {% else %}
-                                <input type="hidden" name="responsable" id="responsable" value="{{ current_user.full_name if current_user else responsable_sesion }}">
+                                <input type="hidden" name="responsable" id="responsable" value="{{ (current_user.full_name if current_user and current_user.full_name else (current_user.username if current_user else responsable_sesion)) }}">
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-success"><i class="fa-solid fa-user-check"></i></span>
-                                    <input type="text" class="form-control bg-light text-dark fw-bold" value="{{ (current_user.full_name if current_user else responsable_sesion) }} (@{{ current_user.username if current_user else '' }})" readonly disabled>
+                                    <input type="text" class="form-control bg-light text-dark fw-bold" id="responsable_display" value="{{ (current_user.full_name if current_user and current_user.full_name else (current_user.username if current_user else responsable_sesion)) }} (@{{ current_user.username if current_user else '' }})" readonly disabled>
                                     <span class="input-group-text bg-light text-muted" title="Bloqueado por seguridad"><i class="fa-solid fa-lock text-secondary"></i></span>
                                 </div>
                                 <small class="text-muted d-block mt-1" style="font-size: 0.74rem;">
                                     <i class="fa-solid fa-shield-halved text-success me-1"></i> Identidad bloqueada a tu sesión activa para garantizar la trazabilidad de los tickets.
                                 </small>
-                                {% endif %}
                             </div>
                             <div class="col-12 col-md-6">
                                 <label for="modulo" class="form-label fw-semibold small text-secondary">
@@ -204,12 +185,55 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const LOCAL_STORAGE_PRODS = 'florsani_cache_prods_variedades';
+    const LOCAL_STORAGE_MODS = 'florsani_cache_modulos';
+    const LOCAL_STORAGE_USER_NAME = 'florsani_cache_user_name';
+    const LOCAL_STORAGE_USER_FULL = 'florsani_cache_user_full_name';
+
     const rawData = document.getElementById('productosConVariedadesData')?.value || '{}';
     let productosConVariedades = {};
     try {
         productosConVariedades = JSON.parse(rawData);
     } catch (e) {
         console.error("Error parseando variedades:", e);
+    }
+
+    // Persistencia local para cuando el operario entra sin conexión a los bloques
+    if (productosConVariedades && Object.keys(productosConVariedades).length > 0) {
+        try { localStorage.setItem(LOCAL_STORAGE_PRODS, JSON.stringify(productosConVariedades)); } catch(e){}
+    } else {
+        try {
+            const cachedProds = localStorage.getItem(LOCAL_STORAGE_PRODS);
+            if (cachedProds) productosConVariedades = JSON.parse(cachedProds);
+        } catch(e){}
+    }
+
+    // Módulos: Cache y recuperación local
+    const modSelect = document.getElementById('modulo');
+    const rawMods = document.getElementById('modulosData')?.value || '[]';
+    let modulos = [];
+    try {
+        modulos = JSON.parse(rawMods);
+    } catch (e) {}
+
+    if (modulos && modulos.length > 0) {
+        try { localStorage.setItem(LOCAL_STORAGE_MODS, JSON.stringify(modulos)); } catch(e){}
+    } else {
+        try {
+            const cachedMods = localStorage.getItem(LOCAL_STORAGE_MODS);
+            if (cachedMods) modulos = JSON.parse(cachedMods);
+        } catch(e){}
+    }
+
+    // Si el select de módulos está vacío por carga offline, poblar con el catálogo local
+    if (modSelect && modSelect.options.length <= 1 && modulos && modulos.length > 0) {
+        modSelect.innerHTML = '<option value="">Seleccione el módulo</option>';
+        modulos.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            modSelect.appendChild(opt);
+        });
     }
 
     const prodSelInicial = document.getElementById('productoSeleccionadoInicialData')?.value || '';
@@ -225,6 +249,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const prodSelect = document.getElementById('producto_maestro');
     const varSelect = document.getElementById('variedad');
     const horaDisplay = document.getElementById('horaDisplay');
+
+    // Si el select de productos maestros está vacío por carga offline, poblar con el catálogo local
+    if (prodSelect && prodSelect.options.length <= 1 && Object.keys(productosConVariedades).length > 0) {
+        prodSelect.innerHTML = '<option value="">Seleccione producto maestro...</option>';
+        Object.keys(productosConVariedades).sort().forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            if (p === prodSelInicial) opt.selected = true;
+            prodSelect.appendChild(opt);
+        });
+    }
+
+    // Cache del responsable activo para offline
+    const respInput = document.getElementById('responsable');
+    const respDisplay = document.getElementById('responsable_display');
+    const currentFull = document.getElementById('currentUserFullName')?.value || '';
+    const currentNick = document.getElementById('currentUserName')?.value || '';
+    if (currentFull) {
+        try {
+            localStorage.setItem(LOCAL_STORAGE_USER_FULL, currentFull);
+            if (currentNick) localStorage.setItem(LOCAL_STORAGE_USER_NAME, currentNick);
+        } catch(e){}
+    } else {
+        try {
+            const cachedFull = localStorage.getItem(LOCAL_STORAGE_USER_FULL);
+            const cachedNick = localStorage.getItem(LOCAL_STORAGE_USER_NAME) || '';
+            if (cachedFull && respInput && !respInput.value) {
+                respInput.value = cachedFull;
+                if (respDisplay) respDisplay.value = `${cachedFull} (@${cachedNick})`;
+            }
+        } catch(e){}
+    }
 
     // Default to today
     if (!fechaInput.value) {
