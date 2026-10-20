@@ -1,0 +1,47 @@
+{
+  "name": "Florsani ERP Agrícola",
+  "short_name": "Florsani ERP",
+  "description": "Sistema Integral de Gestión Agrícola y Data Warehouse - Grupo Florsani",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/628/628324.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/628/628324.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fenograma",
+      "short_name": "Fenograma",
+      "description": "Evaluación semanal de labores y cumplimiento",
+      "url": "/fenogramas/",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/628/628324.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Fertilización",
+      "short_name": "Ferti",
+      "description": "Programación y drench de fertilización",
+      "url": "/fertilizacion/",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/628/628324.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Registro de Campo",
+      "short_name": "Campo",
+      "description": "Plano visual de camas y eventos TPSR",
+      "url": "/tpsr/registro",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/628/628324.png", "sizes": "192x192" }]
+    }
+  ]
+}

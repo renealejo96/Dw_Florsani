@@ -14,6 +14,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Custom Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <!-- PWA Progressive Web App -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Florsani ERP">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -445,5 +452,16 @@
     </script>
     {% endif %}
     {% block extra_js %}{% endblock %}
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+                    .then(reg => console.log('Florsani PWA ServiceWorker activo:', reg.scope))
+                    .catch(err => console.warn('PWA ServiceWorker error:', err));
+            });
+        }
+    </script>
 </body>
 </html>
