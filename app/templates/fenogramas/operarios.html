@@ -599,9 +599,9 @@
             <button type="button"
                     class="btn btn-success btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
                     style="height: 27px; font-size: 0.73rem;"
-                    onclick="abrirModalGenerarSemanaFeno()"
-                    title="Crear o proyectar calificación para una nueva semana (ej. Semana {{ ingesta_info.semana_proxima_sugerida if ingesta_info else 43 }}) con edades recorridas">
-                <i class="fa-solid fa-calendar-plus me-1"></i>+ Generar Semana
+                    onclick="abrirModalGenerarSemanaFeno({{ semana }})"
+                    title="Crear o proyectar calificación para una nueva semana (ej. Semana {{ semana }}) con edades recorridas">
+                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>+ Proyectar / Generar Fenograma
             </button>
         </form>
 
@@ -729,11 +729,21 @@
 </div>
 
 {% if not bloques %}
-<div class="border rounded bg-white text-center py-4 small text-muted">
-    No hay labores generadas para Semana {{ semana }} {% if zona_sel %}en {{ zona_sel }}{% endif %}.
-    <div class="mt-2">
-        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="abrirModalGenerarSemanaFeno({{ semana }})">
-            <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generar Fenograma para Semana {{ semana }} Ahora
+<div class="card border-0 shadow-sm rounded-3 my-4 mx-auto text-center p-4 bg-white" style="max-width: 600px;">
+    <div class="mb-3">
+        <span class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width: 58px; height: 58px; background-color: #ecfdf5; color: #059669;">
+            <i class="fa-solid fa-seedling fs-3"></i>
+        </span>
+    </div>
+    <h5 class="fw-bold text-dark mb-1">Módulo de Fenogramas Listo &bull; Semana {{ semana }}</h5>
+    <p class="text-muted small mb-3">
+        No hay labores generadas todavía para la Semana {{ semana }} {% if zona_sel %}en {{ zona_sel }}{% endif %}.
+        Haz clic a continuación para proyectar dinámicamente las edades recorridas y generar las labores de campo para esta semana.
+    </p>
+    <div class="d-flex justify-content-center gap-2">
+        <button type="button" class="btn btn-success fw-bold px-3 py-2 shadow-xs d-inline-flex align-items-center gap-2" onclick="abrirModalGenerarSemanaFeno({{ semana }})">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Proyectar y Generar Fenograma Semana {{ semana }}</span>
         </button>
     </div>
 </div>
@@ -1058,7 +1068,7 @@
                     <div class="col-6">
                         <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.75rem;">Semana Objetivo a Calificar</label>
                         <input type="number" id="gen-feno-semana-target" class="form-control form-control-sm fw-bold text-primary"
-                               min="1" max="53" value="{{ ingesta_info.semana_proxima_sugerida if ingesta_info else 43 }}"
+                               min="1" max="53" value="{{ semana if semana else (ingesta_info.semana_proxima_sugerida if ingesta_info else 43) }}"
                                onchange="actualizarPreviewProyeccionFeno()" oninput="actualizarPreviewProyeccionFeno()">
                     </div>
                     <div class="col-6">
@@ -2037,7 +2047,11 @@ function descartarArrastreItem(itemId, bloqueCode) {
     .catch(() => showFenoToast('Error de red.', true));
 }
 
-function abrirModalGenerarSemanaFeno() {
+function abrirModalGenerarSemanaFeno(targetWeek) {
+    if (targetWeek) {
+        const targetEl = document.getElementById('gen-feno-semana-target');
+        if (targetEl) targetEl.value = targetWeek;
+    }
     actualizarPreviewProyeccionFeno();
     const modalEl = document.getElementById('modalGenerarSemanaFeno');
     if (modalEl && window.bootstrap) {

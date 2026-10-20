@@ -33,10 +33,8 @@ docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_cat
 echo "🌱 Migrando fincas oficiales (Pyganflor, Malchingui, Urcuquí) y roles de usuario..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_fincas_y_roles.py
 
-if docker exec dw_florsani_app test ! -f /app/.fenogramas_limpiados; then
-    echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (para Semana 43)..."
-    docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
-fi
+echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (iniciar limpios para Semana 43)..."
+docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
 
 echo "🚀 Reiniciando servicio web dw_florsani_app..."
 docker restart dw_florsani_app

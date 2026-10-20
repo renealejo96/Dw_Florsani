@@ -23,13 +23,15 @@ from sqlalchemy import text
 def limpiar_fenogramas():
     flag_file = Path("/app/.fenogramas_limpiados")
     if flag_file.exists():
-        print("[INFO] Fenogramas ya fue limpiado previamente. Omitiendo vaciado para proteger datos reales.")
-        return
+        try:
+            flag_file.unlink()
+        except Exception:
+            pass
 
     app = create_app()
     with app.app_context():
         print("==========================================================")
-        print("[FENOGRAMAS] Limpiando calificaciones de prueba...")
+        print("[FENOGRAMAS] Limpiando calificaciones y semanas de prueba...")
         print("==========================================================")
         
         # 1. Truncar calificaciones

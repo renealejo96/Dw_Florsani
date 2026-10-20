@@ -712,7 +712,8 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                 END as actividad,
                 COALESCE(producto_actual, 'GYPSOPHILA') as producto_maestro,
                 COALESCE(edad_semanas_actual, 1) as edad_real,
-                semana_campo_ultimo_evento
+                semana_campo_ultimo_evento,
+                fecha_ultimo_evento
             FROM mrt_estado_cultivo_actual
             WHERE producto_actual IS NOT NULL 
               AND producto_actual NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', '')
@@ -733,6 +734,10 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                 n_cama = int(r.num_cama)
                 if r.semana_campo_ultimo_evento:
                     yr_ev, wk_ev = _parse_week_code_to_tuple(r.semana_campo_ultimo_evento, anio)
+                    edad_proy = max(0, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
+                elif r.fecha_ultimo_evento:
+                    dt = r.fecha_ultimo_evento
+                    yr_ev, wk_ev = dt.isocalendar()[0], dt.isocalendar()[1]
                     edad_proy = max(0, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
                 else:
                     edad_proy = max(0, int(r.edad_real or 0))
@@ -789,6 +794,26 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                 delta_semanas_aplicado = (anio - chosen['year']) * 52 + (semana_corte - chosen['week_num'])
                 fuente_usada = f"EXCEL Sem {chosen['year']}-{chosen['week_num']:02d}"
 
+                # Cargar eventos reales de campo registrados para cruzar por cama
+                tpsr_events_lookup = {}
+                try:
+                    ev_rows = db.session.execute(text("""
+                        SELECT 
+                            COALESCE(blq, codigo_bloque) as bloque,
+                            COALESCE(sufijo, 'A') as sufijo,
+                            num_cama,
+                            semana_campo_ultimo_evento,
+                            fecha_ultimo_evento,
+                            ultimo_evento
+                        FROM mrt_estado_cultivo_actual
+                        WHERE num_cama IS NOT NULL;
+                    """)).fetchall()
+                    for er in ev_rows:
+                        k_ev = (clean_block_code(er.bloque), int(er.num_cama), str(er.sufijo or 'A').strip().upper())
+                        tpsr_events_lookup[k_ev] = er
+                except Exception:
+                    tpsr_events_lookup = {}
+
                 csr_rows = db.session.execute(text("""
                     SELECT
                         COALESCE(NULLIF(TRIM(zone), ''), 'SIN ZONA') AS zona,
@@ -813,7 +838,21 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                     blq_c = clean_block_code(r.bloque)
                     suf_c = str(r.sufijo or 'A').strip().upper()
                     n_cama = int(r.num_cama)
-                    edad_proy = int(round(float(r.edad_base or 0))) + delta_semanas_aplicado
+                    ev_match = tpsr_events_lookup.get((blq_c, n_cama, suf_c))
+
+                    if ev_match and ev_match.semana_campo_ultimo_evento:
+                        yr_ev, wk_ev = _parse_week_code_to_tuple(ev_match.semana_campo_ultimo_evento, anio)
+                        edad_proy = max(0, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
+                        actividad = 'Poda' if 'PODA' in str(ev_match.ultimo_evento or '').upper() else 'Siembra'
+                    elif ev_match and ev_match.fecha_ultimo_evento:
+                        dt = ev_match.fecha_ultimo_evento
+                        yr_ev, wk_ev = dt.isocalendar()[0], dt.isocalendar()[1]
+                        edad_proy = max(0, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
+                        actividad = 'Poda' if 'PODA' in str(ev_match.ultimo_evento or '').upper() else 'Siembra'
+                    else:
+                        edad_proy = int(round(float(r.edad_base or 0))) + delta_semanas_aplicado
+                        actividad = r.actividad
+
                     if edad_proy < 0:
                         continue
                     camas_map[(blq_c, n_cama, suf_c)] = {
@@ -821,7 +860,7 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                         'BLOQUE': blq_c,
                         'SUFIJO': suf_c,
                         'NUM_CAMA': n_cama,
-                        'ACTIVIDAD': r.actividad,
+                        'ACTIVIDAD': actividad,
                         'PRODUCTO_MAESTRO': clean_str(r.producto_maestro),
                         'EDAD_REAL': edad_proy
                     }
