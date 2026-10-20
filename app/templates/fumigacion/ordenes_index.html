@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Programas de Fumigación | AgroFumigación{% endblock %}
+{% block page_header %}Fumigación &bull; Historial de Programas de Fumigación{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+            <i class="fa-solid fa-clipboard-list text-success"></i> Programas de Fumigación
+        </h4>
+        <div class="text-muted small">Programas oficiales de aplicación, pesaje de insumos e impresión</div>
+    </div>
+    <a href="{{ url_for('fumigacion.rotaciones_index') }}" class="btn btn-outline-primary btn-sm fw-semibold">
+        <i class="fa-solid fa-rotate me-1"></i> Rotaciones Semanales
+    </a>
+</div>
+
+<!-- Filter & Search Card -->
+<div class="card shadow-xs mb-3">
+    <div class="card-body py-2 px-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4 col-sm-12">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" id="live-search-programs" class="form-control form-control-sm ps-1 fw-semibold" placeholder="Buscar programa (ej. Botrytis, Vuelta 1, Extra, agrónomo)...">
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <select id="filter-week-select" class="form-select form-select-sm">
+                    <option value="all" {% if selected_week == 'all' %}selected{% endif %}>📅 Todas las semanas</option>
+                    {% for w in available_weeks %}
+                    <option value="{{ w }}" {% if selected_week == w %}selected{% endif %}>
+                        Semana {{ w }} {% if w == current_week %}(Actual){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <select id="filter-status-select" class="form-select form-select-sm">
+                    <option value="all">Todos los estados</option>
+                    <option value="APROBADA" {% if selected_status == 'APROBADA' %}selected{% endif %}>Aprobada</option>
+                    <option value="GENERADA" {% if selected_status == 'GENERADA' %}selected{% endif %}>Generada</option>
+                    <option value="EJECUTADA" {% if selected_status == 'EJECUTADA' %}selected{% endif %}>Ejecutada</option>
+                    <option value="CANCELADA" {% if selected_status == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-12 text-sm-end">
+                <span class="badge bg-light text-dark border font-monospace small" id="program-count-badge">{{ orders|length }} programas</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Programs Table -->
+<div class="card shadow-xs">
+    <div class="card-body p-0">
+        {% if orders %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="table-programs">
+                <thead class="table-light small">
+                    <tr>
+                        <th style="min-width: 200px;">Nombre del Programa de Fumigación</th>
+                        <th>Código Técnico</th>
+                        <th>Semana</th>
+                        <th>Día Planificado</th>
+                        <th class="text-end">Litros de Mezcla</th>
+                        <th class="text-end">Camas Est.</th>
+                        <th>Agrónomo</th>
+                        <th>Fecha Creación</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ord in orders %}
+                    <tr class="program-row" 
+                        data-title="{{ (ord.title or '')|lower }} {{ (ord.round_name or '')|lower }} {{ (ord.order_number or '')|lower }} {{ (ord.agronomist or '')|lower }} {{ (ord.week or '')|lower }}"
+                        data-status="{{ ord.status }}"
+                        data-week="{{ ord.week }}">
+                        <td>
+                            <div class="fw-bold text-dark">
+                                <i class="fa-solid fa-file-signature text-success me-1"></i> {{ ord.display_title }}
+                            </div>
+                            <small class="text-muted font-monospace">{{ ord.round_name }} &bull; {{ ord.scheduled_day }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border font-monospace">{{ ord.order_number }}</span>
+                        </td>
+                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">Sem {{ ord.week }}</span></td>
+                        <td>
+                            <span class="fw-semibold text-dark">{{ ord.scheduled_day }}</span>
+                            <div class="small text-muted">{{ ord.scheduled_date.strftime('%d/%m/%Y') if ord.scheduled_date else '-' }}</div>
+                        </td>
+                        <td class="text-end fw-bold text-primary">{{ ord.total_liters|format_number(1) }} L</td>
+                        <td class="text-end">{{ ord.total_standard_beds|format_number(2) }}</td>
+                        <td class="text-muted small">{{ ord.agronomist }}</td>
+                        <td class="text-muted small">{{ ord.created_at.strftime('%Y-%m-%d %H:%M') if ord.created_at else '-' }}</td>
+                        <td class="text-center">
+                            <span class="badge {% if ord.status == 'APROBADA' %}bg-success{% elif ord.status == 'EJECUTADA' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                {% if ord.status == 'APROBADA' %}<i class="fa-solid fa-circle-check me-1"></i> APROBADA
+                                {% elif ord.status == 'EJECUTADA' %}<i class="fa-solid fa-spray-can me-1"></i> EJECUTADA
+                                {% else %}{{ ord.status }}{% endif %}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('fumigacion.orden_detalle', order_id=ord.id) }}" class="btn btn-outline-success" title="Ver e Imprimir Programa de Campo">
+                                    <i class="fa-solid fa-print me-1"></i> Imprimir
+                                </a>
+                                <a href="{{ url_for('fumigacion.orden_exportar_excel', order_id=ord.id) }}" class="btn btn-outline-primary" title="Exportar a Excel">
+                                    <i class="fa-solid fa-file-excel"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fa-regular fa-folder-open fs-1 text-secondary mb-3"></i>
+            <h5>No hay programas de fumigación registrados</h5>
+            <p class="small">Genera programas desde el detalle de cada rotación semanal planificada.</p>
+            <a href="{{ url_for('fumigacion.rotaciones_index') }}" class="btn btn-warning btn-sm">
+                <i class="fa-solid fa-rotate me-1"></i> Ir a Rotaciones
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Live Search & Multi-Filter for Programs
+const searchInput = document.getElementById('live-search-programs');
+const weekSelect = document.getElementById('filter-week-select');
+const statusSelect = document.getElementById('filter-status-select');
+const countBadge = document.getElementById('program-count-badge');
+
+function filterPrograms() {
+    const q = (searchInput?.value || '').toLowerCase().trim();
+    const wk = weekSelect?.value || 'all';
+    const st = statusSelect?.value || 'all';
+    let visibleCount = 0;
+
+    document.querySelectorAll('tr.program-row').forEach(row => {
+        const text = row.getAttribute('data-title') || '';
+        const rowStatus = row.getAttribute('data-status') || '';
+        const rowWeek = row.getAttribute('data-week') || '';
+
+        const matchesQuery = !q || text.includes(q);
+        const matchesWeek = wk === 'all' || rowWeek === wk;
+        const matchesStatus = st === 'all' || rowStatus === st;
+
+        if (matchesQuery && matchesWeek && matchesStatus) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    if (countBadge) {
+        countBadge.innerText = `${visibleCount} programas encontrados`;
+    }
+}
+
+searchInput?.addEventListener('input', filterPrograms);
+weekSelect?.addEventListener('change', filterPrograms);
+statusSelect?.addEventListener('change', filterPrograms);
+</script>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Fenogramas - Auditoría de Camas Sin Match{% endblock %}
+
+{% block page_header %}
+<div class="d-flex align-items-center gap-2">
+    <i class="fa-solid fa-triangle-exclamation text-warning"></i>
+    <span>Ciclos & Fenología &bull; Auditoría de Camas Sin Match</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+        <div>
+            <h1 class="h4 fw-bold text-dark mb-1">
+                <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Auditoría de Camas Sin Match (Sin Labor)
+            </h1>
+            <p class="text-muted small mb-0">
+                Segmentos del plano de cultivo cuya edad o producto no encontraron coincidencia en la matriz fenogramas.
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-1 bg-white p-1 px-2 border rounded shadow-xs">
+                <span class="small fw-bold text-secondary">Semana:</span>
+                <select id="semana-select" class="form-select form-select-sm border-0 fw-bold" style="width: auto;" onchange="window.location.href='{{ url_for('fenogramas.sin_match') }}?semana=' + this.value">
+                    {% for s in semanas %}
+                        <option value="{{ s.semana_anio }}" {% if s.semana_anio == semana %}selected{% endif %}>
+                            Semana {{ s.semana_anio }} {% if s.estado == 'CERRADA' %}(Cerrada 🔒){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <a href="{{ url_for('fenogramas.exportar_sin_match', semana=semana) }}" class="btn btn-outline-warning btn-sm fw-bold">
+                <i class="fa-solid fa-file-csv me-1"></i> Exportar CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary by Product Grid -->
+    <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-seedling text-success me-2"></i>Resumen por Producto Maestro</h6>
+
+    {% if not sin_match_por_producto %}
+        <div class="bento-card text-center py-5 mb-4 text-success fw-bold">
+            <i class="fa-solid fa-circle-check fs-1 d-block mb-2"></i>
+            ¡Excelente! El 100% de las camas del plano de cultivo tienen sus labores fenológicas asignadas en la Semana {{ semana }}.
+        </div>
+    {% else %}
+        <div class="row g-3 mb-4">
+            {% for prod_nombre, prod_data in sin_match_por_producto.items() %}
+                <div class="col-md-4 col-sm-6">
+                    <div class="bento-card p-3 h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                            <span class="fw-bold text-dark">{{ prod_nombre }}</span>
+                            <span class="badge bg-warning text-dark">{{ prod_data.total_segmentos }} seg</span>
+                        </div>
+                        <div class="d-flex flex-column gap-1" style="max-height: 180px; overflow-y: auto;">
+                            {% for d in prod_data.detalles %}
+                                <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light small">
+                                    <span><strong>{{ d.actividad_tipo }}</strong> &bull; Edad {{ d.edad_real }} sem</span>
+                                    <span class="badge bg-danger">{{ d.segmentos }} camas/seg</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Detailed Table -->
+    <div class="bento-card">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-table text-secondary me-2"></i>Detalle de Camas sin Asignación</h6>
+            <span class="badge bg-secondary">{{ sin_match|length }} registros</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Zona</th>
+                        <th>Bloque</th>
+                        <th>Camas</th>
+                        <th>Tipo</th>
+                        <th>Producto Maestro</th>
+                        <th>Edad Real</th>
+                        <th>Estado de Asignación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in sin_match %}
+                        <tr>
+                            <td class="fw-bold">{{ r.zona }}</td>
+                            <td><span class="badge bg-dark">{{ r.bloque }}</span></td>
+                            <td class="fw-semibold">{{ r.cama_inicial }} - {{ r.cama_final }} {% if r.sufijo %}({{ r.sufijo }}){% endif %}</td>
+                            <td><span class="badge bg-light text-dark border">{{ r.actividad_tipo }}</span></td>
+                            <td class="fw-semibold text-dark">{{ r.producto_maestro }}</td>
+                            <td><span class="badge bg-light text-secondary border">{{ r.edad_real }} sem</span></td>
+                            <td><span class="badge bg-warning-subtle text-warning border border-warning-subtle">Sin labor configurada</span></td>
+                        </tr>
+                    {% endfor %}
+                    {% if not sin_match %}
+                        <tr><td colspan="7" class="text-center py-4 text-muted">No hay camas sin match.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,703 @@
+/* ==========================================================================
+   Main Application Stylesheet - Florsani ERP (UI/UX Pro Max Design System)
+   Theme: Organic Biophilic + Data-Dense Bento Grid
+   ========================================================================== */
+
+:root {
+    /* Brand Florícola Colors (WCAG AA Compliant) */
+    --brand-primary: #059669;         /* Emerald 600 - Organic Primary */
+    --brand-primary-hover: #047857;   /* Emerald 700 */
+    --brand-primary-dark: #064E3B;    /* Emerald 900 */
+    --brand-primary-light: #10B981;   /* Emerald 500 */
+    --brand-primary-subtle: #ECFDF5;  /* Emerald 50 */
+    --brand-primary-border: #A7F3D0;  /* Emerald 200 */
+
+    /* Data & Domain Accents */
+    --brand-accent-amber: #D97706;    /* Harvest Gold / Metas / Alertas */
+    --brand-accent-amber-subtle: #FEF3C7;
+    --brand-accent-amber-border: #FDE68A;
+
+    --brand-accent-blue: #2563EB;     /* Blue / Litrajes / Riegos / Órdenes */
+    --brand-accent-blue-subtle: #EFF6FF;
+    --brand-accent-blue-border: #BFDBFE;
+
+    --brand-accent-rose: #E11D48;     /* Rose / Variedades Florales */
+    --brand-accent-rose-subtle: #FFF1F2;
+    --brand-accent-rose-border: #FECDD3;
+
+    --brand-accent-purple: #7C3AED;   /* Purple / Control Biológico / Trichos */
+    --brand-accent-purple-subtle: #F5F3FF;
+    --brand-accent-purple-border: #DDD6FE;
+
+    --brand-accent-cyan: #0891B2;     /* Cyan / Drench & Suelo */
+    --brand-accent-cyan-subtle: #ECFEFF;
+    --brand-accent-cyan-border: #A5F3FC;
+
+    /* Slate Executive Neutral Palette */
+    --slate-950: #020617;
+    --slate-900: #0F172A;             /* Sidebar & Deep Accents */
+    --slate-800: #1E293B;             /* Primary Headings */
+    --slate-700: #334155;             /* Secondary Headings */
+    --slate-600: #475569;             /* Body Text */
+    --slate-500: #64748B;             /* Subtitles & Icons */
+    --slate-400: #94A3B8;             /* Muted labels & Placeholders */
+    --slate-300: #CBD5E1;             /* Borders Light */
+    --slate-200: #E2E8F0;             /* Card Borders */
+    --slate-100: #F1F5F9;             /* Card Hover / Inactive fills */
+    --slate-50:  #F8FAFC;             /* App Canvas Background */
+
+    /* Surface & Background Defaults */
+    --bg-canvas: var(--slate-50);
+    --bg-surface: #FFFFFF;
+    --card-border: var(--slate-200);
+
+    /* Bento Geometry & Border Radii */
+    --radius-xs: 6px;
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+
+    /* Elevation Shadows */
+    --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+    --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 12px 28px -4px rgba(15, 23, 42, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+    --shadow-hover: 0 16px 36px -6px rgba(15, 23, 42, 0.12), 0 6px 14px -3px rgba(15, 23, 42, 0.06);
+
+    /* Typography Settings */
+    --font-heading: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-numeric: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+
+    /* Transitions (Emil Kowalski Physics & Specificity) */
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-transform: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-colors: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+    --transition-shadow: box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-card: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms ease-out;
+    --transition-fast: transform 140ms ease-out, background-color 140ms ease-out;
+    --transition-smooth: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   Base & Reset
+   ========================================================================== */
+body {
+    font-family: var(--font-body);
+    background-color: var(--bg-canvas);
+    color: var(--slate-700);
+    font-size: 0.925rem;
+    line-height: 1.55;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, .fw-heading {
+    font-family: var(--font-heading);
+    color: var(--slate-800);
+    letter-spacing: -0.02em;
+}
+
+.tabular-nums {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   App Layout Structure (Sidebar + Content)
+   ========================================================================== */
+#wrapper {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+    min-height: 100vh;
+}
+
+#sidebar-wrapper {
+    background-color: var(--slate-900) !important;
+    display: flex;
+    flex-direction: column;
+    z-index: 1030;
+    transition: var(--transition-smooth);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 992px) {
+    #sidebar-wrapper {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        max-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex-shrink: 0;
+        width: 268px;
+        margin-left: 0 !important;
+    }
+    #wrapper.toggled #sidebar-wrapper {
+        margin-left: -268px !important;
+    }
+}
+
+@media (max-width: 991.98px) {
+    #sidebar-wrapper {
+        position: fixed;
+        top: 0;
+        left: -290px;
+        width: 290px;
+        height: 100vh;
+        max-height: 100vh;
+        overflow-y: auto;
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.45);
+    }
+    #wrapper.toggled #sidebar-wrapper {
+        left: 0;
+    }
+}
+
+#sidebar-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+#sidebar-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: var(--radius-full);
+}
+
+.sidebar-backdrop {
+    display: none;
+}
+@media (max-width: 991.98px) {
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.6);
+        z-index: 1025;
+        backdrop-filter: blur(4px);
+    }
+    #wrapper.toggled .sidebar-backdrop {
+        display: block;
+    }
+}
+
+#page-content-wrapper {
+    min-width: 0;
+    flex: 1 1 auto;
+    background-color: var(--bg-canvas);
+    overflow-x: hidden;
+}
+
+/* ==========================================================================
+   Sidebar Module Headings & Navigation (High-Contrast Visual Hierarchy)
+   ========================================================================== */
+.sidebar-module-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.52rem 0.85rem;
+    margin: 1.25rem 0.45rem 0.45rem 0.45rem;
+    background: linear-gradient(90deg, #1E3A8A 0%, #172554 100%) !important;
+    border: 1px solid rgba(59, 130, 246, 0.35) !important;
+    border-left: 4px solid #3B82F6 !important;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    user-select: none;
+    opacity: 1 !important;
+    letter-spacing: 0.04em;
+    position: relative;
+}
+
+.sidebar-module-heading .module-num-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #60A5FA 0%, #2563EB 100%);
+    color: #FFFFFF !important;
+    font-weight: 900;
+    font-size: 0.72rem;
+    font-family: var(--font-numeric);
+    line-height: 1;
+    flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.sidebar-module-heading .module-title {
+    color: #FFFFFF !important;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.list-group-item {
+    font-size: 0.865rem;
+    padding: 0.62rem 1.15rem;
+    margin: 0.15rem 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm) !important;
+    color: #94a3b8 !important;
+    transition: var(--transition-fast);
+}
+
+.list-group-item:hover {
+    background-color: rgba(255, 255, 255, 0.09) !important;
+    color: #ffffff !important;
+    padding-left: 1.35rem;
+}
+
+.list-group-item:active {
+    transform: scale(0.975);
+    transition: transform 80ms ease-out;
+}
+
+@keyframes activeNavEntrance {
+    0% {
+        transform: scale(0.96) translateX(-3px);
+        opacity: 0.8;
+    }
+    60% {
+        transform: scale(1.01) translateX(1px);
+    }
+    100% {
+        transform: scale(1) translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes activePillPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(52, 211, 153, 0.9), 0 0 20px rgba(16, 185, 129, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(52, 211, 153, 1), 0 0 28px rgba(16, 185, 129, 0.7);
+    }
+}
+
+.active-nav {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.38) 0%, rgba(5, 150, 105, 0.25) 100%) !important;
+    color: #A7F3D0 !important;
+    font-weight: 700 !important;
+    position: relative;
+    border-radius: var(--radius-sm) !important;
+    border: 1px solid rgba(52, 211, 153, 0.5) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3), inset 0 0 14px rgba(16, 185, 129, 0.2) !important;
+    padding-left: 1.55rem !important;
+    animation: activeNavEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.active-nav i {
+    color: #34D399 !important;
+    filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.8));
+    transform: scale(1.08);
+    transition: transform 0.2s ease;
+}
+
+.active-nav::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 15%;
+    bottom: 15%;
+    width: 5px;
+    border-radius: var(--radius-full);
+    background: #34D399;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.9), 0 0 22px rgba(16, 185, 129, 0.6);
+    animation: activePillPulse 2.4s infinite ease-in-out;
+}
+
+/* ==========================================================================
+   Bento Grid Architecture & Cards (Apple / Modern SaaS Aesthetic)
+   ========================================================================== */
+.bento-grid {
+    display: grid;
+    gap: 1.15rem;
+}
+
+.bento-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-smooth);
+    position: relative;
+    overflow: hidden;
+}
+
+.bento-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: #cbd5e1;
+}
+
+.bento-card-interactive {
+    cursor: pointer;
+}
+.bento-card-interactive:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--brand-primary-border);
+}
+
+/* Top Accent Highlights */
+.bento-accent-green { border-top: 4px solid var(--brand-primary); }
+.bento-accent-blue  { border-top: 4px solid var(--brand-accent-blue); }
+.bento-accent-amber { border-top: 4px solid var(--brand-accent-amber); }
+.bento-accent-rose  { border-top: 4px solid var(--brand-accent-rose); }
+.bento-accent-purple{ border-top: 4px solid var(--brand-accent-purple); }
+.bento-accent-cyan  { border-top: 4px solid var(--brand-accent-cyan); }
+
+/* ==========================================================================
+   High-Impact KPI Tiles (Bento Style)
+   ========================================================================== */
+.kpi-tile {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 1.15rem 1.25rem;
+    box-shadow: var(--shadow-xs);
+    transition: var(--transition-smooth);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+}
+
+.kpi-tile:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.kpi-label {
+    font-size: 0.73rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    font-weight: 700;
+}
+
+.kpi-icon-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.kpi-icon-green  { background: var(--brand-primary-subtle); color: var(--brand-primary); }
+.kpi-icon-blue   { background: var(--brand-accent-blue-subtle); color: var(--brand-accent-blue); }
+.kpi-icon-amber  { background: var(--brand-accent-amber-subtle); color: var(--brand-accent-amber); }
+.kpi-icon-rose   { background: var(--brand-accent-rose-subtle); color: var(--brand-accent-rose); }
+.kpi-icon-purple { background: var(--brand-accent-purple-subtle); color: var(--brand-accent-purple); }
+
+.kpi-value {
+    font-family: var(--font-numeric);
+    font-size: 1.85rem;
+    font-weight: 700;
+    color: var(--slate-900);
+    line-height: 1.1;
+    margin-bottom: 0.35rem;
+    letter-spacing: -0.02em;
+}
+
+.kpi-subtext {
+    font-size: 0.75rem;
+    color: var(--slate-500);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* ==========================================================================
+   Modern Quick Action Toolbar (Pill Buttons)
+   ========================================================================== */
+.quick-action-bar {
+    background: #ffffff;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1.25rem;
+    box-shadow: var(--shadow-xs);
+}
+
+.quick-pill-btn {
+    border-radius: var(--radius-full);
+    padding: 0.425rem 0.95rem;
+    font-size: 0.815rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+.quick-pill-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================================================
+   Supermódulos Grid Cards
+   ========================================================================== */
+.supermodulo-card {
+    background: #ffffff;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-smooth);
+    padding: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    position: relative;
+}
+
+.supermodulo-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    border-color: #cbd5e1;
+}
+
+.supermodulo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.supermodulo-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+.supermodulo-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--slate-900);
+    margin-bottom: 0.35rem;
+}
+
+.supermodulo-desc {
+    font-size: 0.835rem;
+    color: var(--slate-600);
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+}
+
+/* ==========================================================================
+   Interactive Chart Containers & Canvases
+   ========================================================================== */
+.chart-container-box {
+    position: relative;
+    width: 100%;
+    height: 290px;
+}
+
+.chart-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.chart-title {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--slate-900);
+    margin: 0;
+}
+
+.chart-subtitle {
+    font-size: 0.775rem;
+    color: var(--slate-500);
+}
+
+/* ==========================================================================
+   High-Density Data Tables
+   ========================================================================== */
+.table-modern {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table-modern th {
+    background-color: var(--slate-100);
+    color: var(--slate-700);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    padding: 0.65rem 0.95rem;
+    border-bottom: 2px solid var(--slate-200);
+}
+
+.table-modern td {
+    padding: 0.65rem 0.95rem;
+    border-bottom: 1px solid var(--slate-200);
+    vertical-align: middle;
+    font-size: 0.865rem;
+    color: var(--slate-800);
+    transition: var(--transition-fast);
+}
+
+.table-modern tbody tr:hover td {
+    background-color: #f8fafc;
+}
+
+.table-modern td.number-cell,
+.table-modern th.number-cell {
+    font-family: var(--font-numeric);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Pills & Badges System (WCAG AA Compliant)
+   ========================================================================== */
+.badge-soft-success {
+    background-color: var(--brand-primary-subtle);
+    color: var(--brand-primary-dark);
+    border: 1px solid var(--brand-primary-border);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+}
+
+.badge-soft-info {
+    background-color: var(--brand-accent-blue-subtle);
+    color: #1e40af;
+    border: 1px solid var(--brand-accent-blue-border);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+}
+
+.badge-soft-warning {
+    background-color: var(--brand-accent-amber-subtle);
+    color: #92400e;
+    border: 1px solid var(--brand-accent-amber-border);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+}
+
+.badge-soft-danger {
+    background-color: var(--brand-accent-rose-subtle);
+    color: #9f1239;
+    border: 1px solid var(--brand-accent-rose-border);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+}
+
+.badge-soft-purple {
+    background-color: var(--brand-accent-purple-subtle);
+    color: #5b21b6;
+    border: 1px solid var(--brand-accent-purple-border);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+}
+
+/* ==========================================================================
+   Mobile & Responsive Tweaks
+   ========================================================================== */
+@media (max-width: 768px) {
+    .kpi-value {
+        font-size: 1.45rem;
+    }
+    .kpi-tile {
+        padding: 0.85rem;
+    }
+    .kpi-icon-badge {
+        width: 32px;
+        height: 32px;
+        font-size: 0.85rem;
+    }
+    .chart-container-box {
+        height: 230px;
+    }
+    input, select, textarea, .form-control, .form-select {
+        font-size: 16px !important; /* Prevents auto-zoom on iOS */
+    }
+}
+
+/* Print Optimization */
+@media print {
+    #sidebar-wrapper, .navbar, .btn, .no-print, .alert {
+        display: none !important;
+    }
+    #page-content-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+}
+
+/* ==========================================================================
+   Micro-interactions & Tactile Physics (Emil Kowalski Philosophy)
+   ========================================================================== */
+.btn, .quick-pill-btn, .week-chip, .pbi-option {
+    transition: var(--transition-transform), var(--transition-colors), var(--transition-shadow);
+    user-select: none;
+}
+
+.btn:active, .quick-pill-btn:active, .week-chip:active {
+    transform: scale(0.975);
+    transition: transform 60ms ease-out;
+}
+
+.kpi-tile-bento:active, .supermodulo-bento:active, .chart-bento-card:active {
+    transform: scale(0.992);
+    transition: transform 80ms ease-out;
+}
+
+/* Natural Dropdown Entrance: Scales from 0.97 with soft opacity */
+.dropdown-menu {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--card-border) !important;
+    box-shadow: var(--shadow-lg) !important;
+    transform-origin: top center;
+    animation: dropdownPop 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdownPop {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}

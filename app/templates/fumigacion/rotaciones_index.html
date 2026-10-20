@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Rotaciones de Fumigación | AgroFumigación{% endblock %}
+{% block page_header %}Fumigación &bull; Planificación de Rotaciones Semanales{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+            <i class="fa-solid fa-rotate text-warning"></i> Rotaciones Semanales
+        </h4>
+        <div class="text-muted small">Planificación a 15 días, calibración de camas y vueltas de fumigación</div>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <a href="{{ url_for('fumigacion.rotacion_crear') }}" class="btn btn-warning text-dark btn-sm fw-bold shadow-xs">
+            <i class="fa-solid fa-plus me-1"></i> Nueva Rotación
+        </a>
+    </div>
+</div>
+
+<!-- Filters Bar & Search -->
+<div class="card shadow-xs mb-3">
+    <div class="card-body py-2 px-3">
+        <form method="GET" class="row g-2 align-items-center">
+            <div class="col-md-4 col-sm-6">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white text-muted"><i class="fa-solid fa-calendar-week"></i></span>
+                    <select name="week" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="all" {% if selected_week == 'all' %}selected{% endif %}>📅 Todas las semanas</option>
+                        {% for w in unique_weeks %}
+                        <option value="{{ w }}" {% if selected_week == w %}selected{% endif %}>
+                            Semana {{ w }} {% if w == current_week %}(Actual){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Todos los estados</option>
+                    <option value="APROBADA" {% if selected_status == 'APROBADA' %}selected{% endif %}>Aprobadas (Vigentes)</option>
+                    <option value="BORRADOR" {% if selected_status == 'BORRADOR' %}selected{% endif %}>Borradores</option>
+                    <option value="ANULADA" {% if selected_status == 'ANULADA' %}selected{% endif %}>Anuladas</option>
+                </select>
+            </div>
+            <div class="col-auto d-flex gap-1">
+                <a href="{{ url_for('fumigacion.rotaciones_index') }}?week=all" class="btn btn-outline-secondary btn-sm py-1">Ver Todas</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Rotations Table -->
+<div class="card shadow-xs">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3 border-bottom">
+        <span class="fw-bold text-dark"><i class="fa-solid fa-list-check me-2 text-warning"></i>Historial de Rotaciones por Semana</span>
+        <span class="badge bg-light text-dark border font-monospace">{{ rotations|length }} Registros</span>
+    </div>
+    <div class="card-body p-0">
+        {% if rotations %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 140px;">Semana</th>
+                        <th>Versión & Título</th>
+                        <th>Vueltas Programadas</th>
+                        <th>Responsable</th>
+                        <th>Fecha Creación</th>
+                        <th>Estado de Rotación</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rot in rotations %}
+                    <tr class="{% if rot.status == 'ANULADA' %}table-secondary opacity-60 text-decoration-line-through{% elif rot.status == 'APROBADA' %}table-success bg-opacity-10{% endif %}">
+                        <td class="fw-bold fs-6">
+                            <span class="badge {% if rot.status == 'APROBADA' %}bg-success{% else %}bg-dark{% endif %} font-monospace fs-6 px-2 py-1">
+                                Sem {{ rot.week }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">
+                                {{ rot.title or ('Rotación Semana ' ~ rot.week) }}
+                                <span class="badge bg-light text-muted border ms-1">v{{ rot.version }}</span>
+                            </div>
+                            {% if rot.notes %}
+                            <div class="text-muted small text-truncate" style="max-width: 280px;">{{ rot.notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for r in rot.rounds %}
+                                <span class="badge bg-light text-dark border">
+                                    {{ r.name }} ({{ r.scheduled_day }})
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="text-muted small">{{ rot.created_by }}</td>
+                        <td class="text-muted small">{{ rot.created_at.strftime('%Y-%m-%d %H:%M') if rot.created_at else '-' }}</td>
+                        <td>
+                            {% if rot.status == 'APROBADA' %}
+                            <span class="badge bg-success"><i class="fa-solid fa-circle-check me-1"></i> APROBADA</span>
+                            {% elif rot.status == 'BORRADOR' %}
+                            <span class="badge bg-warning text-dark"><i class="fa-solid fa-pen-ruler me-1"></i> BORRADOR</span>
+                            {% elif rot.status == 'ANULADA' %}
+                            <span class="badge bg-secondary"><i class="fa-solid fa-ban me-1"></i> ANULADA</span>
+                            {% else %}
+                            <span class="badge bg-primary">{{ rot.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('fumigacion.rotacion_detalle', rotation_id=rot.id) }}" class="btn btn-outline-primary btn-sm fw-medium" title="Abrir y Revisar">
+                                <i class="fa-solid fa-eye me-1"></i> Abrir
+                            </a>
+                            <form action="{{ url_for('fumigacion.rotacion_eliminar', rotation_id=rot.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Está seguro de eliminar esta rotación?');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
+                                    <i class="fa-regular fa-trash-can"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fa-regular fa-calendar-xmark fs-1 text-secondary mb-3"></i>
+            <h5>No se encontraron rotaciones</h5>
+            <p class="small">Crea una nueva rotación seleccionando la semana de planificación.</p>
+            <a href="{{ url_for('fumigacion.rotacion_crear') }}" class="btn btn-warning btn-sm">
+                <i class="fa-solid fa-plus me-1"></i> Crear Nueva Rotación
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

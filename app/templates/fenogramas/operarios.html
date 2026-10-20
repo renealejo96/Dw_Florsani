@@ -1,0 +1,1786 @@
+{% extends "base.html" %}
+
+{% block title %}Fenogramas - Calificación{% endblock %}
+{% block page_header %}Ciclos & Fenología &bull; Calificación de Campo{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Reducir márgenes del contenedor general para maximizar área útil tipo hoja de cálculo */
+    main.container-fluid {
+        padding-top: 0.65rem !important;
+        padding-bottom: 1rem !important;
+    }
+
+    .tabular-nums {
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Barra superior compacta (Semana + Zonas + Resumen + Guardar) */
+    .feno-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.4rem 0.65rem;
+        margin-bottom: 0.4rem;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .feno-top-left {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        min-width: 0;
+        max-width: 100%;
+        flex: 1 1 auto;
+    }
+
+    .zone-tabs-inline {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        min-width: 0;
+        max-width: 100%;
+        flex: 1 1 auto;
+    }
+    .zone-tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.22rem 0.55rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #334155;
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+    .zone-tab-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+    .zone-tab-btn.active {
+        background: #0f172a;
+        color: #ffffff;
+        border-color: #0f172a;
+    }
+    .zone-tab-pct {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 0.05rem 0.3rem;
+        border-radius: 3px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Resumen compacto en línea */
+    .feno-inline-kpis {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-size: 0.75rem;
+        color: #475569;
+        flex-wrap: wrap;
+        font-variant-numeric: tabular-nums;
+    }
+    .feno-inline-kpis strong {
+        color: #0f172a;
+    }
+    .kpi-sep {
+        color: #cbd5e1;
+    }
+
+    /* Barra de filtros compacta en una sola línea */
+    .feno-filter-strip {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.28rem 0.5rem;
+        margin-bottom: 0.5rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .feno-ctrl-sm {
+        height: 27px;
+        padding: 0.15rem 1.5rem 0.15rem 0.45rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background-color: #ffffff;
+        color: #1e293b;
+        width: auto;
+    }
+    .feno-search-input {
+        height: 27px;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background-color: #ffffff;
+        min-width: 180px;
+        flex: 1 1 160px;
+        max-width: 280px;
+    }
+    .feno-search-input:focus,
+    .feno-ctrl-sm:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
+
+    /* Cuadrícula Compacta de Bloques (Nivel 2 - Estilo ERP Centrado) */
+    #section-block-grid {
+        width: 100%;
+        margin-bottom: 0.45rem;
+    }
+    .blq-grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+        gap: 7px;
+        width: 100%;
+        padding: 4px;
+    }
+    .blq-grid-container.compact-strip-mode {
+        max-height: 215px;
+        overflow-y: auto;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        padding: 6px;
+    }
+    .blq-tile {
+        border-radius: 7px;
+        padding: 0.42rem 0.5rem 0.38rem 0.5rem;
+        border: 1.5px solid #cbd5e1;
+        background: #ffffff;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.14s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 4px;
+        min-width: 0;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .blq-tile:hover {
+        border-color: #0f172a !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.12);
+    }
+    /* Borde fluorescente de alta visibilidad al seleccionar el bloque */
+    .blq-tile.active-selected {
+        border: 2.5px solid #00ff66 !important;
+        outline: 2px solid #16a34a !important;
+        outline-offset: 0px;
+        box-shadow: 0 0 0 3px rgba(0, 255, 102, 0.38), 0 4px 15px rgba(0, 230, 92, 0.55) !important;
+        transform: translateY(-2px);
+        z-index: 3;
+    }
+
+    .blq-tile.state-ALTO {
+        background: #f0fdf4;
+        border-color: #86efac;
+        border-top: 3.5px solid #16a34a;
+    }
+    .blq-tile.state-MEDIO {
+        background: #fffbeb;
+        border-color: #fcd34d;
+        border-top: 3.5px solid #f59e0b;
+    }
+    .blq-tile.state-BAJO {
+        background: #fef2f2;
+        border-color: #fca5a5;
+        border-top: 3.5px solid #ef4444;
+    }
+    .blq-tile.state-PENDIENTE,
+    .blq-tile.state-SIN_LABOR {
+        background: #ffffff;
+        border-color: #cbd5e1;
+        border-top: 3.5px solid #64748b;
+    }
+
+    .blq-tile-row1 {
+        width: 100%;
+        text-align: center;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+        padding-bottom: 3px;
+    }
+    .blq-code {
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: #0f172a;
+        white-space: nowrap;
+        letter-spacing: -0.01em;
+        padding: 1px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        transition: all 0.12s ease;
+    }
+    .blq-tile.active-selected .blq-code {
+        background: #0f172a;
+        color: #39ff14 !important;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+    }
+    .blq-pct {
+        font-size: 0.82rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+    }
+    .state-ALTO .blq-pct { color: #15803d; }
+    .state-MEDIO .blq-pct { color: #b45309; }
+    .state-BAJO .blq-pct { color: #b91c1c; }
+    .state-PENDIENTE .blq-pct,
+    .state-SIN_LABOR .blq-pct {
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #64748b;
+    }
+
+    .blq-tile-row2 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 1px;
+        width: 100%;
+        font-size: 0.66rem;
+        color: #475569;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+    }
+    .blq-mini-stage-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        width: 100%;
+        font-variant-numeric: tabular-nums;
+    }
+    .blq-mini-stage-box {
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 4px;
+        padding: 2px 3px;
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-align: center;
+        line-height: 1.15;
+    }
+    .blq-mini-stage-box.stage-veg {
+        border: 1px solid rgba(3, 105, 161, 0.25);
+        color: #0369a1;
+    }
+    .blq-mini-stage-box.stage-prod {
+        border: 1px solid rgba(21, 128, 61, 0.28);
+        color: #15803d;
+    }
+    .blq-prod-name {
+        width: 100%;
+        text-align: center;
+        font-weight: 700;
+        color: #334155;
+        font-size: 0.64rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .blq-bar-track {
+        height: 4px;
+        width: 100%;
+        background: #e2e8f0;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 2px;
+    }
+    .blq-bar-fill {
+        height: 100%;
+        transition: width 0.2s ease;
+    }
+    .state-ALTO .blq-bar-fill { background-color: #16a34a; }
+    .state-MEDIO .blq-bar-fill { background-color: #f59e0b; }
+    .state-BAJO .blq-bar-fill { background-color: #ef4444; }
+    .state-PENDIENTE .blq-bar-fill,
+    .state-SIN_LABOR .blq-bar-fill { background-color: #94a3b8; }
+
+    /* Barra de contexto de la Matriz Estilo Excel */
+    .excel-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-bottom: none;
+        border-radius: 5px 5px 0 0;
+        padding: 0.2rem 0.5rem;
+        font-size: 0.72rem;
+    }
+
+    /* Contenedor y Tabla Ultra-Compacta Estilo Hoja de Cálculo (Excel) */
+    .excel-sheet-wrap {
+        max-height: calc(100vh - 185px);
+        overflow: auto;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+    }
+    .excel-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.71rem;
+        line-height: 1.15;
+        color: #1e293b;
+        table-layout: fixed;
+    }
+    .excel-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f1f5f9;
+        color: #334155;
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        padding: 2px 5px;
+        border-bottom: 1.5px solid #94a3b8;
+        border-right: 1px solid #cbd5e1;
+        white-space: nowrap;
+        user-select: none;
+    }
+    .excel-table thead th:last-child {
+        border-right: none;
+    }
+    .excel-table tbody tr {
+        height: 22px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .excel-table tbody tr:nth-child(even) {
+        background-color: #f8fafc;
+    }
+    .excel-table tbody tr:hover {
+        background-color: #eff6ff;
+    }
+    .excel-table tbody tr.row-arrastre {
+        background-color: #fffbeb;
+    }
+    .excel-table tbody tr.row-dirty {
+        background-color: #fef9c3 !important;
+    }
+    .excel-table td {
+        padding: 1px 5px;
+        border-right: 1px solid #e2e8f0;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .excel-table td:last-child {
+        border-right: none;
+    }
+    .excel-table td.cell-labor {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .excel-block-divider td {
+        background: #e2e8f0 !important;
+        color: #0f172a;
+        font-weight: 700;
+        font-size: 0.69rem;
+        padding: 2px 6px;
+        border-top: 1px solid #94a3b8;
+        border-bottom: 1px solid #94a3b8;
+    }
+
+    /* Check compacto de cumplimiento (✓ Ejecutada / vacío No ejecutada) */
+    .calif-cell-wrap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .check-circle {
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        border: 1px solid #94a3b8;
+        background: #ffffff;
+        color: #64748b;
+        font-weight: 800;
+        font-size: 0.62rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        user-select: none;
+    }
+    .check-circle:focus-visible {
+        outline: 2px solid #2563eb;
+        outline-offset: 1px;
+    }
+    .check-circle.state-1 {
+        background: #16a34a;
+        border-color: #15803d;
+        color: #ffffff;
+    }
+    .check-circle.state-0,
+    .check-circle.state-null {
+        background: #ffffff;
+        border-color: #94a3b8;
+        color: transparent;
+    }
+
+    /* Input de observaciones estilo celda de Excel */
+    .obs-excel-input {
+        width: 100%;
+        height: 19px;
+        border: 1px solid transparent;
+        border-radius: 2px;
+        background: transparent;
+        padding: 1px 4px;
+        font-size: 0.7rem;
+        color: #1e293b;
+    }
+    .obs-excel-input:hover {
+        border-color: #cbd5e1;
+        background: #ffffff;
+    }
+    .obs-excel-input:focus {
+        outline: none;
+        border-color: #2563eb;
+        background: #ffffff;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+    }
+
+    @media (max-width: 991.98px) {
+        .excel-table {
+            min-width: 740px;
+        }
+        .check-circle {
+            width: 18px;
+            height: 18px;
+        }
+    }
+
+    .feno-toast {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        z-index: 1060;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 0.45rem 0.9rem;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+        display: none;
+    }
+
+    /* Barra flotante de Guardar y Sincronizar (Modo Offline / Campo) */
+    .feno-floating-sync {
+        position: fixed;
+        bottom: 22px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1055;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 0.45rem 0.95rem;
+        border-radius: 50px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.15);
+        display: none;
+        align-items: center;
+        gap: 0.85rem;
+        animation: fenoSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        max-width: 95vw;
+    }
+    @keyframes fenoSlideUp {
+        from {
+            opacity: 0;
+            transform: translate(-50%, 20px);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- FILA 1: Semana + Botón Generar/Proyectar Semana + Zonas + Resumen en línea + Guardar -->
+<div class="feno-top-bar">
+    <div class="feno-top-left">
+        <form method="GET" action="{{ url_for('fenogramas.index') }}" class="m-0 flex-shrink-0 d-flex align-items-center gap-1">
+            <input type="hidden" name="zona" value="{{ zona_sel }}">
+            <select name="semana" class="feno-ctrl-sm fw-bold" onchange="this.form.submit()" aria-label="Seleccionar semana">
+                {% for s in semanas %}
+                <option value="{{ s.semana_anio }}" {% if s.semana_anio == semana %}selected{% endif %}>
+                    Sem. {{ s.semana_anio }}{% if s.estado == 'CERRADA' %} (Cerrada){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="button"
+                    class="btn btn-success btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
+                    style="height: 27px; font-size: 0.73rem;"
+                    onclick="abrirModalGenerarSemanaFeno()"
+                    title="Crear o proyectar calificación para una nueva semana (ej. Semana {{ ingesta_info.semana_proxima_sugerida if ingesta_info else 43 }}) con edades recorridas">
+                <i class="fa-solid fa-calendar-plus me-1"></i>+ Generar Semana
+            </button>
+        </form>
+
+        <div class="zone-tabs-inline" role="tablist" aria-label="Zonas">
+            {% for z in zonas %}
+            {% set z_info = zonas_resumen.get(z, {}) %}
+            {% set z_pct = z_info.get('pct_cumplimiento') %}
+            <a href="{{ url_for('fenogramas.index', semana=semana, zona=z) }}"
+               class="zone-tab-btn {% if z == zona_sel %}active{% endif %}">
+                <span>{{ z }}</span>
+                {% if z_pct is not none %}
+                <span {% if z == zona_sel %}id="active-zone-tab-pct"{% endif %}
+                      class="zone-tab-pct {% if z_pct >= 85 %}bg-success text-white{% elif z_pct >= 70 %}bg-warning text-dark{% else %}bg-danger text-white{% endif %}">
+                    {{ z_pct|int if z_pct == (z_pct|int) else z_pct }}%
+                </span>
+                {% else %}
+                <span {% if z == zona_sel %}id="active-zone-tab-pct"{% endif %}
+                      class="zone-tab-pct bg-secondary bg-opacity-25 text-secondary">
+                    Pend.
+                </span>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="feno-inline-kpis">
+            <span>Bloques: <strong id="kpi-total-bloques">{{ zona_kpi.total_bloques }}</strong> (<span id="kpi-visible-bloques">{{ zona_kpi.total_bloques }}</span> vis.)</span>
+            <span class="kpi-sep">|</span>
+            <span>Cumpl. Zona:
+                <strong id="kpi-pct-cumplimiento">
+                    {% if zona_kpi.pct_cumplimiento is not none %}
+                        {{ zona_kpi.pct_cumplimiento|int if zona_kpi.pct_cumplimiento == (zona_kpi.pct_cumplimiento|int) else zona_kpi.pct_cumplimiento }}%
+                    {% else %}
+                        Pend.
+                    {% endif %}
+                </strong>
+                (<span id="kpi-cumplidas">{{ zona_kpi.cumplidas }}</span>/<span id="kpi-total-labores">{{ zona_kpi.total_labores }}</span>)
+            </span>
+            <span class="kpi-sep">|</span>
+            <span>No Ejecutadas: <strong class="text-danger" id="kpi-pendientes-lab">{{ zona_kpi.total_labores - zona_kpi.cumplidas }}</strong></span>
+        </div>
+
+        {% if semana_estado != 'CERRADA' %}
+        <button id="btn-save-batch" type="button" class="btn btn-success btn-sm py-0 px-2.5 fw-bold shadow-sm d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.74rem; background-color: #10b981; border-color: #059669; color: #ffffff;" onclick="saveAllChanges()" disabled title="Guardar y sincronizar todas las calificaciones pendientes con el servidor">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Guardar y Sincronizar</span>
+            <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>
+        </button>
+        {% if current_user.role == 'ADMIN' or current_user.has_permission('fenogramas') %}
+        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="cerrarSemanaOperarios({{ semana }})" title="Cerrar la semana: bloquea nuevas calificaciones y arrastra las no cumplidas a la semana {{ semana + 1 }}">
+            <i class="fa-solid fa-lock"></i>
+            <span>Cerrar Semana</span>
+        </button>
+        {% endif %}
+        {% else %}
+        <span class="badge bg-secondary d-inline-flex align-items-center gap-1 py-1 px-2.5 shadow-xs" style="font-size: 0.74rem;" title="Esta semana está cerrada. No se admiten nuevas calificaciones.">
+            <i class="fa-solid fa-lock text-warning"></i>
+            <span>Semana Cerrada</span>
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- FILA 2: Filtros compactos y búsqueda en una sola línea -->
+<div class="feno-filter-strip">
+    <select id="filter-producto" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por producto">
+        <option value="ALL">Producto: Todos ({{ productos_zona|length }})</option>
+        {% for prod in productos_zona %}
+        <option value="{{ prod }}">{{ prod }}</option>
+        {% endfor %}
+    </select>
+
+    <select id="filter-variedad" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por variedad">
+        <option value="ALL">Variedad: Todas ({{ (variedades_zona or [])|length }})</option>
+        {% for var_item in (variedades_zona or []) %}
+        <option value="{{ var_item }}">{{ var_item }}</option>
+        {% endfor %}
+    </select>
+
+    <select id="filter-actividad" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por tipo">
+        <option value="ALL">Tipo: Todos</option>
+        <option value="Siembra">Siembra</option>
+        <option value="Poda">Poda</option>
+    </select>
+
+    <select id="filter-supervisor" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por supervisor">
+        <option value="ALL">Supervisor: Todos</option>
+        {% for sup in supervisores_zona %}
+        <option value="{{ sup }}">{{ sup }}</option>
+        {% endfor %}
+    </select>
+
+    <select id="filter-estado" class="feno-ctrl-sm" onchange="setStatusFilter(this.value)" aria-label="Filtrar por estado">
+        <option value="ALL">Estado: Todos ({{ zona_kpi.total_bloques }})</option>
+        <option value="ALTO">Cumplido ≥85% ({{ zona_kpi.bloques_alto }})</option>
+        <option value="MEDIO">Parcial 70–84% ({{ zona_kpi.bloques_medio }})</option>
+        <option value="BAJO">Bajo &lt;70% ({{ zona_kpi.bloques_bajo }})</option>
+        <option value="PENDIENTE">Sin calificar ({{ zona_kpi.bloques_sin_calificar }})</option>
+        <option value="ARRASTRE">Con arrastre ({{ zona_kpi.bloques_con_arrastre }})</option>
+    </select>
+
+    <input type="text" id="search-input" class="feno-search-input"
+           placeholder="Buscar bloque, labor, auxiliar..." oninput="applyAllFilters()" aria-label="Buscar">
+
+    <button type="button" id="btn-clear-filters" class="btn btn-link btn-sm text-secondary text-decoration-none p-0 px-1" style="font-size: 0.74rem; display: none;" onclick="resetAllFilters()">
+        Limpiar filtros
+    </button>
+
+    <div class="ms-auto d-flex align-items-center gap-1">
+        <button type="button" id="btn-mode-grid" class="btn btn-outline-secondary btn-sm py-0 px-2 active" style="height: 25px; font-size: 0.72rem;" onclick="setWorkspaceMode('grid')">
+            Bloques
+        </button>
+        <button type="button" id="btn-mode-all" class="btn btn-outline-secondary btn-sm py-0 px-2" style="height: 25px; font-size: 0.72rem;" onclick="setWorkspaceMode('all-matrix')">
+            Matriz Zona
+        </button>
+    </div>
+</div>
+
+{% if not bloques %}
+<div class="border rounded bg-white text-center py-4 small text-muted">
+    No hay labores generadas para Semana {{ semana }} {% if zona_sel %}en {{ zona_sel }}{% endif %}.
+    <div class="mt-2">
+        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="abrirModalGenerarSemanaFeno({{ semana }})">
+            <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generar Fenograma para Semana {{ semana }} Ahora
+        </button>
+    </div>
+</div>
+{% else %}
+
+<!-- VISTA 1: CUADRÍCULA COMPACTA DE BLOQUES (Centrada al estilo ERP con borde fluorescente al seleccionar) -->
+<div id="section-block-grid">
+    <div class="blq-grid-container" id="blq-grid">
+        {% for bloque, items in bloques.items() %}
+        {% set meta = bloques_meta[bloque] %}
+        {% set pct_cu = meta.pct_cumplimiento %}
+        <div class="blq-tile state-{{ meta.estado_bloque }} {% if bloque == bloque_sel %}active-selected{% endif %}"
+             id="tile-blq-{{ bloque }}"
+             data-bloque="{{ bloque }}"
+             data-clean-code="{{ meta.clean_code }}"
+             data-estado="{{ meta.estado_bloque }}"
+             data-productos="{{ meta.productos|join('|') }}"
+             data-variedades="{{ (meta.variedades or [])|join('|') }}"
+             data-actividades="{{ meta.actividades|join('|') }}"
+             data-supervisores="{{ meta.supervisores|join('|') }}"
+             data-arrastre="{{ meta.arrastre_count }}"
+             data-area-neta="{{ meta.area_neta }}"
+             data-area-bruta="{{ meta.area_bruta }}"
+             data-pct-veg="{{ meta.pct_veg }}"
+             data-pct-prod="{{ meta.pct_prod }}"
+             data-search-text="bl {{ meta.clean_code }} bloque {{ meta.clean_code }} {{ meta.productos|join(' ') }} {{ (meta.variedades or [])|join(' ') }} {{ meta.actividades|join(' ') }} {{ meta.supervisores|join(' ') }} {{ meta.auxiliares|join(' ') }}"
+             onclick="selectBlockFromGrid('{{ bloque }}')"
+             title="BL {{ meta.clean_code }} · {{ meta.productos|join(', ') }} · Área Neta: {{ meta.area_neta }} m² (Área Bruta: {{ meta.area_bruta }} m²) · Veg: {{ meta.pct_veg }}% ({{ meta.camas_veg }}c) | Prod: {{ meta.pct_prod }}% ({{ meta.camas_prod }}c) · Cumplidas: {{ meta.cumplidas }}/{{ meta.total_labores }}">
+
+            <div class="blq-tile-row1">
+                <span class="blq-code tabular-nums">BL {{ meta.clean_code }}</span>
+            </div>
+
+            <div class="blq-tile-row2">
+                <div class="d-flex align-items-center justify-content-center gap-1">
+                    <span class="blq-pct" id="tile-metric-{{ bloque }}">
+                        {% if meta.estado_bloque == 'SIN_LABOR' %}
+                            S/L
+                        {% elif pct_cu is none %}
+                            Pend.
+                        {% else %}
+                            {{ pct_cu|int if pct_cu == (pct_cu|int) else pct_cu }}%
+                        {% endif %}
+                    </span>
+                    <span class="text-muted fw-semibold" style="font-size: 0.65rem;">(<span id="tile-progress-text-{{ bloque }}">{{ meta.cumplidas }}/{{ meta.total_labores }}</span>)</span>
+                </div>
+                <div class="blq-prod-name">{{ meta.productos|join(', ') }}</div>
+                <div class="fw-bold text-dark tabular-nums" style="font-size: 0.64rem;" title="Área Neta: {{ meta.area_neta }} m² | Área Bruta: {{ meta.area_bruta }} m²">
+                    {{ meta.area_neta|int }} m² netos <span class="text-muted fw-normal">({{ meta.camas_fisicas }}c)</span>
+                </div>
+            </div>
+
+            <div class="blq-mini-stage-grid">
+                <div class="blq-mini-stage-box stage-veg" title="Vegetativo: {{ meta.camas_veg }} camas ({{ meta.area_veg }} m² netos)">Veg {{ meta.pct_veg|int if meta.pct_veg == (meta.pct_veg|int) else meta.pct_veg }}%</div>
+                <div class="blq-mini-stage-box stage-prod" title="Productivo: {{ meta.camas_prod }} camas ({{ meta.area_prod }} m² netos)">Prod {{ meta.pct_prod|int if meta.pct_prod == (meta.pct_prod|int) else meta.pct_prod }}%</div>
+            </div>
+
+            <div class="blq-bar-track">
+                {% set bar_width = pct_cu if pct_cu is not none else 0 %}
+                <div class="blq-bar-fill" id="tile-bar-{{ bloque }}" style="width: {{ bar_width }}%;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="grid-empty-filter-state" class="border rounded bg-white text-center py-3 my-2 small text-muted" style="display: none;">
+        Ningún bloque coincide con los filtros.
+        <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="font-size: 0.75rem;" onclick="resetAllFilters()">Ver todos</button>
+    </div>
+</div>
+
+<!-- VISTA 2: MATRIZ ESTILO EXCEL (Oculta por defecto; solo se despliega al seleccionar un bloque o Matriz Zona) -->
+<div id="section-block-matrix" style="display: none;">
+    <div class="excel-toolbar">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-white border btn-sm py-0 px-2 fw-semibold" style="height: 22px; font-size: 0.7rem;" onclick="returnToBlockGrid()">
+                <i class="fa-solid fa-xmark me-1"></i>Cerrar tabla
+            </button>
+
+            <span id="active-block-live-badge" class="fw-bold text-dark tabular-nums" style="font-size: 0.72rem;"></span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            {% if semana_estado != 'CERRADA' %}
+            <button type="button" id="btn-mark-block-ones" class="btn btn-outline-success btn-sm py-0 px-2 fw-semibold" style="height: 22px; font-size: 0.7rem;" onclick="markActiveBlockPendingsAsCumplido()" title="Marcar todas las labores del bloque visible como Ejecutadas (✓)">
+                Marcar Todo ✓
+            </button>
+            <button type="button" id="btn-save-toolbar" class="btn btn-success btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap" style="height: 22px; font-size: 0.7rem; background-color: #10b981; border-color: #059669;" onclick="saveAllChanges()" disabled title="Guardar y sincronizar calificaciones con el servidor">
+                <i class="fa-solid fa-floppy-disk me-1"></i>Guardar (<span id="toolbar-dirty-count">0</span>)
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="excel-sheet-wrap">
+        <table class="excel-table" id="feno-excel-table">
+            <thead>
+                <tr>
+                    <th style="width: 44px;">Blq</th>
+                    <th style="width: 76px;">Camas</th>
+                    <th style="width: 52px;">Tipo</th>
+                    <th style="width: 105px;">Producto</th>
+                    <th style="width: 36px;" class="text-center">Sem</th>
+                    <th>Labor Fenograma</th>
+                    <th style="width: 150px;">Auxiliar / Sup.</th>
+                    <th style="width: 44px;" class="text-center">Cumpl.</th>
+                    <th style="width: 155px;">Observaciones</th>
+                </tr>
+            </thead>
+            <tbody id="excel-tbody">
+                {% for bloque, items in bloques.items() %}
+                {% set b_meta = bloques_meta[bloque] %}
+                {% for item in items %}
+                {% set c_val = '1' if item.cumplido == 1 else 'null' %}
+                <tr id="row-{{ item.id }}"
+                    class="excel-row {% if item.es_pendiente_anterior %}row-arrastre{% endif %}"
+                    data-item-id="{{ item.id }}"
+                    data-bloque="{{ bloque }}"
+                    data-evaluable="1"
+                    data-producto="{{ item.producto_maestro }}"
+                    data-actividad="{{ item.actividad_tipo }}"
+                    data-supervisor="{{ item.supervisor or '' }}"
+                    data-search-text="bl {{ b_meta.clean_code }} {{ item.producto_maestro }} {{ item.labor }} {{ item.auxiliar or '' }} {{ item.supervisor or '' }}">
+
+                    <td class="fw-bold text-dark tabular-nums">{{ b_meta.clean_code }}</td>
+
+                    <td class="tabular-nums" title="Camas {{ item.cama_inicial }} a {{ item.cama_final }} {{ item.sufijo or '' }}">
+                        <span class="fw-semibold">{{ item.cama_inicial }}-{{ item.cama_final }}</span>
+                        {% if item.sufijo %}<span class="text-muted">{{ item.sufijo }}</span>{% endif %}
+                        {% if item.es_pendiente_anterior %}
+                        <span class="text-danger fw-bold ms-1" title="Arrastrada de Semana {{ item.semana_origen }}">
+                            [S{{ item.semana_origen }}]
+                        </span>
+                        {% if semana_estado != 'CERRADA' %}
+                        <button type="button" class="btn btn-link text-danger p-0 ms-1" style="font-size: 0.68rem; line-height: 1;"
+                                onclick="descartarArrastreItem({{ item.id }}, '{{ bloque }}')"
+                                title="Descartar tarea arrastrada">&times;</button>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+
+                    <td class="{% if item.actividad_tipo == 'Poda' %}text-info-emphasis{% else %}text-success-emphasis{% endif %} fw-medium">
+                        {{ item.actividad_tipo }}
+                    </td>
+
+                    <td title="{{ item.producto_maestro }}">{{ item.producto_maestro }}</td>
+
+                    <td class="text-center tabular-nums fw-semibold">{{ item.edad_real }}</td>
+
+                    <td class="cell-labor" title="{{ item.labor }}">
+                        {{ item.labor }}
+                        {% if not item.tiene_evaluacion %}
+                        <span class="text-warning-emphasis small fw-normal">(Sin match)</span>
+                        {% endif %}
+                    </td>
+
+                    <td title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
+                        <span class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
+                        {% if item.supervisor %}
+                        <span class="text-muted" style="font-size: 0.66rem;">/ {{ item.supervisor }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-center" style="{% if semana_estado == 'CERRADA' %}cursor: not-allowed; opacity: 0.65;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
+                        <div class="calif-cell-wrap" style="pointer-events: none;">
+                            <button type="button"
+                                    id="btn-check-{{ item.id }}"
+                                    class="check-circle state-{{ c_val }}"
+                                    style="pointer-events: auto; {% if semana_estado == 'CERRADA' %}cursor: not-allowed;{% endif %}"
+                                    data-item-id="{{ item.id }}"
+                                    data-bloque="{{ bloque }}"
+                                    data-original-val="{{ c_val }}"
+                                    data-current-val="{{ c_val }}"
+                                    aria-label="Marcar cumplimiento de labor {{ item.labor }} en bloque {{ bloque }}"
+                                    title="{% if semana_estado == 'CERRADA' %}Semana CERRADA - Calificaciones bloqueadas{% else %}Clic para marcar/desmarcar labor ejecutada (✓){% endif %}"
+                                    {% if semana_estado == 'CERRADA' %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
+                                {% if c_val == '1' %}✓{% endif %}
+                            </button>
+                        </div>
+                    </td>
+
+                    <td>
+                        <input type="text"
+                               id="obs-{{ item.id }}"
+                               class="obs-excel-input"
+                               placeholder="..."
+                               aria-label="Observación fila {{ item.id }}"
+                               value="{{ item.observacion or '' }}"
+                               data-original-obs="{{ item.observacion or '' }}"
+                               {% if semana_estado == 'CERRADA' %}disabled{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div id="feno-toast" class="feno-toast" role="status" aria-live="polite">
+    <span id="feno-toast-text">Guardado</span>
+</div>
+
+<!-- BARRA FLOTANTE DE GUARDAR Y SINCRONIZAR (MODO OFFLINE / CAMPO) -->
+{% if semana_estado != 'CERRADA' %}
+<div id="feno-floating-sync-bar" class="feno-floating-sync" style="display: none;">
+    <div class="d-flex align-items-center gap-2">
+        <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
+        <span class="fw-bold" style="font-size: 0.76rem;">
+            <span id="floating-dirty-count" class="badge bg-warning text-dark me-1">0</span>
+            <span class="d-none d-sm-inline">cambios sin sincronizar</span>
+        </span>
+    </div>
+    <div class="d-flex align-items-center gap-1.5">
+        <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-1 shadow-sm d-inline-flex align-items-center gap-1.5" style="border-radius: 20px; font-size: 0.76rem; background-color: #10b981; border-color: #059669;" onclick="saveAllChanges()" id="btn-floating-sync">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Guardar y Sincronizar</span>
+        </button>
+        <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white-50" style="border-radius: 20px; font-size: 0.7rem;" onclick="descartarCambiosLocales()" title="Descartar cambios locales no sincronizados">
+            <i class="fa-solid fa-rotate-left"></i>
+        </button>
+    </div>
+</div>
+{% endif %}
+
+<!-- MODAL: GENERAR / ACTUALIZAR SEMANA DE FENOGRAMA CON PROYECCIÓN DE EDAD RECORRIDA -->
+<div class="modal fade" id="modalGenerarSemanaFeno" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header py-2 px-3" style="background: #0f172a; color: #ffffff;">
+                <h6 class="modal-title fw-bold mb-0" style="font-size: 0.9rem;">
+                    <i class="fa-solid fa-wand-magic-sparkles me-2" style="color: #00ff66;"></i>Generar / Actualizar Semana de Fenograma
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.7rem;"></button>
+            </div>
+            <div class="modal-body p-3" style="font-size: 0.82rem; background: #f8fafc;">
+                <div class="p-2 mb-3 rounded-2 border" style="background: #ffffff; border-color: #cbd5e1 !important;">
+                    <div class="fw-bold text-dark mb-1" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em;">
+                        <i class="fa-solid fa-database text-primary me-1"></i>Estado Actual de Ingesta en Base de Datos
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 mt-1">
+                        <span class="badge bg-emerald-subtle text-success border border-success-subtle px-2 py-1" style="background: #ecfdf5; font-size: 0.72rem;">
+                            Excel Estado Cultivo: <strong>{% if ingesta_info and ingesta_info.ultima_sem_excel %}Sem {{ ingesta_info.ultima_sem_excel }}{% else %}N/A{% endif %}</strong>
+                            {% if ingesta_info and ingesta_info.semanas_excel %}({{ ingesta_info.semanas_excel|join(', ') }}){% endif %}
+                        </span>
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1" style="background: #eff6ff; font-size: 0.72rem;">
+                            Registro Campo TPSR: <strong>{% if ingesta_info and ingesta_info.ultima_sem_tpsr %}Sem {{ ingesta_info.ultima_sem_tpsr }}{% else %}N/A{% endif %}</strong>
+                        </span>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1" style="font-size: 0.72rem;">
+                            Semana Calendario: <strong>Sem {{ ingesta_info.semana_calendario_hoy if ingesta_info else 42 }}</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.75rem;">Semana Objetivo a Calificar</label>
+                        <input type="number" id="gen-feno-semana-target" class="form-control form-control-sm fw-bold text-primary"
+                               min="1" max="53" value="{{ ingesta_info.semana_proxima_sugerida if ingesta_info else 43 }}"
+                               onchange="actualizarPreviewProyeccionFeno()" oninput="actualizarPreviewProyeccionFeno()">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.75rem;">Semana Base (Estado Cultivo)</label>
+                        <select id="gen-feno-semana-base" class="form-select form-select-sm fw-semibold" onchange="actualizarPreviewProyeccionFeno()">
+                            {% if ingesta_info and ingesta_info.semanas_excel %}
+                                {% for s_ex in ingesta_info.semanas_excel %}
+                                <option value="{{ s_ex }}" {% if loop.first %}selected{% endif %}>Semana {{ s_ex }} (Excel Integral)</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="41" selected>Semana 41 (Última carga)</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.75rem;">Fuente de Sincronización</label>
+                    <select id="gen-feno-fuente" class="form-select form-select-sm" onchange="actualizarPreviewProyeccionFeno()">
+                        <option value="AUTO" selected>Automático: Estado de Cultivo + Eventos TPSR Campo + Proyección de Edad</option>
+                        <option value="EXCEL">Solo Estado de Cultivo (Excel Integral) + Proyección de Edad</option>
+                        <option value="TPSR">Solo Mart TPSR (Registro de Campo)</option>
+                    </select>
+                </div>
+
+                <div id="gen-feno-preview-box" class="p-2 rounded-2 border" style="background: #f0fdf4; border-color: #86efac !important; color: #14532d; font-size: 0.76rem;">
+                    <i class="fa-solid fa-calculator me-1 text-success"></i>
+                    <span id="gen-feno-preview-text">
+                        Proyección automática: Se tomará la base cargada y se sumará el diferencial de semanas a la edad de cada cama para asignar las labores fenológicas correspondientes.
+                    </span>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 bg-white border-top">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cancelar</button>
+                <button type="button" id="btn-confirm-gen-feno" class="btn btn-sm fw-bold"
+                        style="background: #16a34a; color: #fff; font-size: 0.78rem;"
+                        onclick="ejecutarGeneracionSemanaFeno()">
+                    <i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const modifiedItems = new Set();
+const SEMANA_ACTUAL = {{ semana }};
+const SEMANA_ESTADO = "{{ semana_estado or 'ABIERTA' }}";
+let currentStatusFilter = 'ALL';
+let currentWorkspaceMode = 'grid'; // 'grid' | 'single-block' | 'all-matrix'
+let activeBlockCode = {{ bloque_sel|tojson }};
+
+function cerrarSemanaOperarios(sem) {
+    if (!confirm(`¿Estás seguro de que deseas CERRAR la evaluación de la Semana ${sem}?\n\nAl cerrarla:\n1. Se bloquearán las calificaciones y observaciones para operarios.\n2. Las labores no cumplidas se arrastrarán automáticamente a la siguiente semana.\n\nEsta acción es definitiva.`)) {
+        return;
+    }
+
+    fetch("{{ url_for('fenogramas.api_cerrar_semana') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semana_actual: sem })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data && data.success) {
+            alert(`¡Semana ${sem} cerrada exitosamente! Se recalcularon y arrastraron ${data.actividades_recalculadas || 0} labores a la semana ${data.semana_siguiente}.`);
+            window.location.reload();
+        } else {
+            alert('Error al cerrar semana: ' + (data.error || 'Desconocido'));
+        }
+    })
+    .catch(err => {
+        alert('Error de red al intentar cerrar la semana: ' + err);
+    });
+}
+
+function showFenoToast(msg, isError = false) {
+    const toast = document.getElementById('feno-toast');
+    const text = document.getElementById('feno-toast-text');
+    if (!toast || !text) return;
+    text.innerText = msg;
+    toast.style.background = isError ? '#991b1b' : '#0f172a';
+    toast.style.display = 'block';
+    clearTimeout(window._fenoToastTimer);
+    window._fenoToastTimer = setTimeout(() => {
+        toast.style.display = 'none';
+    }, 2600);
+}
+
+function formatPct(val) {
+    if (val === null || val === undefined) return 'Pend.';
+    const rounded = Math.round(val * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
+}
+
+/* ============================================================================
+   MODOS DE VISTA: CUADRÍCULA DE BLOQUES vs MATRIZ EXCEL
+   ============================================================================ */
+function setWorkspaceMode(mode) {
+    currentWorkspaceMode = mode;
+    const gridSection = document.getElementById('section-block-grid');
+    const matrixSection = document.getElementById('section-block-matrix');
+    const switcher = document.getElementById('single-block-switcher');
+
+    const btnGrid = document.getElementById('btn-mode-grid');
+    const btnAll = document.getElementById('btn-mode-all');
+    if (btnGrid) btnGrid.classList.toggle('active', mode === 'grid' || mode === 'single-block');
+    if (btnAll) btnAll.classList.toggle('active', mode === 'all-matrix');
+
+    if (mode === 'grid') {
+        if (gridSection) gridSection.style.display = 'block';
+        if (matrixSection) matrixSection.style.display = 'none';
+        activeBlockCode = '';
+        highlightSelectedTile('');
+        updateUrlBlockParam('');
+    } else if (mode === 'single-block') {
+        // Mantener visibles las tarjetas de bloque arriba para ver el borde fosforescente del bloque activo
+        if (gridSection) gridSection.style.display = 'block';
+        if (matrixSection) matrixSection.style.display = 'block';
+        if (switcher) switcher.style.display = 'inline-flex';
+        filterMatrixRowsToBlock(activeBlockCode);
+        setTimeout(() => {
+            if (matrixSection) matrixSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 60);
+    } else if (mode === 'all-matrix') {
+        if (gridSection) gridSection.style.display = 'block';
+        if (matrixSection) matrixSection.style.display = 'block';
+        if (switcher) switcher.style.display = 'none';
+        activeBlockCode = '';
+        highlightSelectedTile('');
+        applyAllFilters();
+        const badge = document.getElementById('active-block-live-badge');
+        if (badge) badge.innerText = 'Todos los bloques filtrados';
+    }
+}
+
+function selectBlockFromGrid(bloqueCode) {
+    if (!bloqueCode) return;
+    const strCode = String(bloqueCode);
+    // Si hace clic en el bloque que ya está activo y la matriz está abierta, cerrar la matriz
+    if (currentWorkspaceMode === 'single-block' && activeBlockCode === strCode) {
+        returnToBlockGrid();
+        return;
+    }
+    activeBlockCode = strCode;
+    highlightSelectedTile(activeBlockCode);
+
+    const jumper = document.getElementById('matrix-block-jumper');
+    if (jumper) jumper.value = activeBlockCode;
+
+    setWorkspaceMode('single-block');
+    updateActiveBlockContextHeader(activeBlockCode);
+    updateUrlBlockParam(activeBlockCode);
+}
+
+function returnToBlockGrid() {
+    setWorkspaceMode('grid');
+}
+
+function highlightSelectedTile(bloqueCode) {
+    document.querySelectorAll('.blq-tile').forEach(tile => {
+        tile.classList.toggle('active-selected', Boolean(bloqueCode && tile.getAttribute('data-bloque') === String(bloqueCode)));
+    });
+}
+
+function filterMatrixRowsToBlock(bloqueCode) {
+    document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
+        const rBlq = row.getAttribute('data-bloque');
+        row.style.display = (!bloqueCode || rBlq === String(bloqueCode)) ? '' : 'none';
+    });
+    updateActiveBlockContextHeader(bloqueCode);
+}
+
+function getVisibleBlockCodes() {
+    const tiles = Array.from(document.querySelectorAll('.blq-tile'));
+    const visible = tiles.filter(t => t.style.display !== 'none').map(t => t.getAttribute('data-bloque'));
+    return visible.length > 0 ? visible : tiles.map(t => t.getAttribute('data-bloque'));
+}
+
+function navigateAdjacentBlock(direction) {
+    const codes = getVisibleBlockCodes();
+    if (!codes.length) return;
+    const idx = codes.indexOf(String(activeBlockCode));
+    let nextIdx = idx + direction;
+    if (nextIdx < 0) nextIdx = codes.length - 1;
+    if (nextIdx >= codes.length) nextIdx = 0;
+    selectBlockFromGrid(codes[nextIdx]);
+}
+
+function updateUrlBlockParam(bloqueCode) {
+    try {
+        const url = new URL(window.location.href);
+        if (bloqueCode) url.searchParams.set('bloque', bloqueCode);
+        else url.searchParams.delete('bloque');
+        window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+}
+
+/* ============================================================================
+   FILTROS COMPACTOS
+   ============================================================================ */
+function setStatusFilter(status) {
+    currentStatusFilter = status;
+    const sel = document.getElementById('filter-estado');
+    if (sel && sel.value !== status) sel.value = status;
+    applyAllFilters();
+}
+
+function resetAllFilters() {
+    ['filter-producto', 'filter-variedad', 'filter-actividad', 'filter-supervisor', 'filter-estado'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = 'ALL';
+    });
+    const fSearch = document.getElementById('search-input');
+    if (fSearch) fSearch.value = '';
+    currentStatusFilter = 'ALL';
+    applyAllFilters();
+}
+
+function applyAllFilters() {
+    const prodVal = (document.getElementById('filter-producto')?.value || 'ALL').trim();
+    const varVal = (document.getElementById('filter-variedad')?.value || 'ALL').trim();
+    const actVal = (document.getElementById('filter-actividad')?.value || 'ALL').trim();
+    const supVal = (document.getElementById('filter-supervisor')?.value || 'ALL').trim();
+    const query = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+
+    const hasFilters = (prodVal !== 'ALL' || varVal !== 'ALL' || actVal !== 'ALL' || supVal !== 'ALL' || currentStatusFilter !== 'ALL' || query.length > 0);
+    const btnClear = document.getElementById('btn-clear-filters');
+    if (btnClear) btnClear.style.display = hasFilters ? 'inline-block' : 'none';
+
+    let visibleBlocksCount = 0;
+    const matchingBlocks = new Set();
+
+    document.querySelectorAll('.blq-tile').forEach(tile => {
+        const blq = tile.getAttribute('data-bloque');
+        const estado = tile.getAttribute('data-estado');
+        const prods = (tile.getAttribute('data-productos') || '').split('|');
+        const vars = (tile.getAttribute('data-variedades') || '').split('|');
+        const acts = (tile.getAttribute('data-actividades') || '').split('|');
+        const sups = (tile.getAttribute('data-supervisores') || '').split('|');
+        const arrastreCnt = parseInt(tile.getAttribute('data-arrastre') || '0', 10);
+        const searchText = (tile.getAttribute('data-search-text') || '').toLowerCase();
+
+        const matchProd = (prodVal === 'ALL' || prods.includes(prodVal));
+        const matchVar = (varVal === 'ALL' || vars.includes(varVal));
+        const matchAct = (actVal === 'ALL' || acts.includes(actVal));
+        const matchSup = (supVal === 'ALL' || sups.includes(supVal));
+
+        let matchStatus = true;
+        if (currentStatusFilter === 'ARRASTRE') matchStatus = arrastreCnt > 0;
+        else if (currentStatusFilter !== 'ALL') matchStatus = (estado === currentStatusFilter);
+
+        const matchQuery = (!query || searchText.includes(query) || String(blq).toLowerCase().includes(query));
+
+        const isVisible = matchProd && matchVar && matchAct && matchSup && matchStatus && matchQuery;
+        tile.style.display = isVisible ? 'flex' : 'none';
+        if (isVisible) {
+            visibleBlocksCount++;
+            matchingBlocks.add(blq);
+        }
+    });
+
+    const visEl = document.getElementById('kpi-visible-bloques');
+    if (visEl) visEl.innerText = visibleBlocksCount;
+
+    const emptyState = document.getElementById('grid-empty-filter-state');
+    if (emptyState) emptyState.style.display = (visibleBlocksCount === 0) ? 'block' : 'none';
+
+    if (currentWorkspaceMode === 'all-matrix') {
+        document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
+            const blq = row.getAttribute('data-bloque');
+            const rSearch = (row.getAttribute('data-search-text') || '').toLowerCase();
+            const matchRowQuery = (!query || rSearch.includes(query));
+            row.style.display = (matchingBlocks.has(blq) && matchRowQuery) ? '' : 'none';
+        });
+    }
+}
+
+/* ============================================================================
+   CALIFICACIÓN EN MATRIZ Y RECÁLCULO REAL (CUMPLIDAS / TOTAL PROGRAMADAS)
+   ============================================================================ */
+function handleCheckKeydown(e, itemId) {
+    const btn = document.getElementById(`btn-check-${itemId}`);
+    if (!btn) return;
+
+    if (e.key === '1' || e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleCheckCircle(itemId, e);
+    } else if (e.key === '0' || e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        applyCheckValue(itemId, btn, 'null');
+    }
+}
+
+function toggleCheckCircle(itemId, evt) {
+    if (!itemId) return;
+    if (SEMANA_ESTADO === 'CERRADA') {
+        showFenoToast('Esta semana se encuentra CERRADA. No se admiten modificaciones.', true);
+        return;
+    }
+    const btn = document.getElementById(`btn-check-${itemId}`);
+    if (!btn || btn.disabled) return;
+
+    const currentVal = btn.getAttribute('data-current-val');
+    const nextVal = (currentVal === '1') ? 'null' : '1';
+
+    applyCheckValue(itemId, btn, nextVal);
+}
+
+function applyCheckValue(itemId, btn, nextVal) {
+    setCheckCircleState(btn, nextVal);
+    markItemDirty(itemId);
+
+    const bloqueCode = btn.getAttribute('data-bloque');
+    if (bloqueCode) recalculateBlockMetrics(bloqueCode);
+    recalculateZoneKPIs();
+}
+
+function setCheckCircleState(btn, nextVal) {
+    btn.setAttribute('data-current-val', nextVal);
+    btn.classList.remove('state-1', 'state-0', 'state-null');
+
+    if (nextVal === '1') {
+        btn.classList.add('state-1');
+        btn.innerHTML = '✓';
+    } else {
+        btn.classList.add('state-null');
+        btn.innerHTML = '';
+    }
+}
+
+function markActiveBlockPendingsAsCumplido() {
+    const targetRows = Array.from(document.querySelectorAll('#excel-tbody .excel-row')).filter(r => r.style.display !== 'none');
+    let changed = 0;
+    const touchedBlocks = new Set();
+
+    targetRows.forEach(row => {
+        const itemId = parseInt(row.getAttribute('data-item-id'), 10);
+        const btn = document.getElementById(`btn-check-${itemId}`);
+        if (btn && btn.getAttribute('data-current-val') !== '1') {
+            setCheckCircleState(btn, '1');
+            markItemDirty(itemId);
+            touchedBlocks.add(btn.getAttribute('data-bloque'));
+            changed++;
+        }
+    });
+
+    if (changed > 0) {
+        touchedBlocks.forEach(blq => recalculateBlockMetrics(blq));
+        recalculateZoneKPIs();
+        showFenoToast(`✓ ${changed} labor(es) marcadas. Presiona "Guardar y Sincronizar" para enviar.`);
+    } else {
+        showFenoToast('Todas las labores visibles ya están marcadas como ejecutadas.');
+    }
+}
+
+/**
+ * Cumplimiento Real del Bloque = (cumplidas / totalLabores) * 100
+ * Ejemplo: 2 labores cumplidas de 50 programadas = 4% (nunca 100%).
+ */
+function recalculateBlockMetrics(bloqueCode) {
+    const tile = document.getElementById(`tile-blq-${bloqueCode}`);
+    if (!tile) return;
+
+    const checks = document.querySelectorAll(`.check-circle[data-bloque="${bloqueCode}"]`);
+    const totalLabores = checks.length;
+    let cumplidas = 0;
+
+    checks.forEach(ch => {
+        if (ch.getAttribute('data-current-val') === '1') cumplidas++;
+    });
+
+    const pctCumplimiento = (totalLabores > 0 && cumplidas > 0)
+        ? Math.round((cumplidas / totalLabores) * 1000) / 10
+        : null;
+
+    let estado = 'PENDIENTE';
+    if (totalLabores === 0) estado = 'SIN_LABOR';
+    else if (cumplidas === 0) estado = 'PENDIENTE';
+    else if (pctCumplimiento >= 85) estado = 'ALTO';
+    else if (pctCumplimiento >= 70) estado = 'MEDIO';
+    else estado = 'BAJO';
+
+    tile.setAttribute('data-estado', estado);
+    tile.classList.remove('state-ALTO', 'state-MEDIO', 'state-BAJO', 'state-PENDIENTE', 'state-SIN_LABOR');
+    tile.classList.add(`state-${estado}`);
+
+    const metricEl = document.getElementById(`tile-metric-${bloqueCode}`);
+    if (metricEl) {
+        metricEl.innerText = estado === 'SIN_LABOR' ? 'S/L' : formatPct(pctCumplimiento);
+    }
+
+    const progTextEl = document.getElementById(`tile-progress-text-${bloqueCode}`);
+    if (progTextEl) {
+        progTextEl.innerText = `${cumplidas}/${totalLabores}`;
+    }
+
+    const barEl = document.getElementById(`tile-bar-${bloqueCode}`);
+    if (barEl) {
+        const w = pctCumplimiento === null ? 0 : pctCumplimiento;
+        barEl.style.width = `${w}%`;
+    }
+
+    if (String(activeBlockCode) === String(bloqueCode)) {
+        updateActiveBlockContextHeader(bloqueCode);
+    }
+}
+
+function updateActiveBlockContextHeader(bloqueCode) {
+    const liveBadge = document.getElementById('active-block-live-badge');
+    if (!liveBadge || !bloqueCode) return;
+
+    const tile = document.getElementById(`tile-blq-${bloqueCode}`);
+    const cleanCode = tile ? (tile.getAttribute('data-clean-code') || bloqueCode) : bloqueCode;
+    const areaNeta = tile ? Number(tile.getAttribute('data-area-neta') || 0).toFixed(1) : '0.0';
+    const areaBruta = tile ? Number(tile.getAttribute('data-area-bruta') || areaNeta || 0).toFixed(1) : areaNeta;
+    const pctVeg = tile ? (tile.getAttribute('data-pct-veg') || '0') : '0';
+    const pctProd = tile ? (tile.getAttribute('data-pct-prod') || '0') : '0';
+
+    const checks = document.querySelectorAll(`.check-circle[data-bloque="${bloqueCode}"]`);
+    const totalLab = checks.length;
+    let cumpl = 0;
+    checks.forEach(ch => {
+        if (ch.getAttribute('data-current-val') === '1') cumpl++;
+    });
+
+    const pct = (totalLab > 0 && cumpl > 0) ? Math.round((cumpl / totalLab) * 1000) / 10 : null;
+    const cumplTxt = pct === null
+        ? `Pendiente · 0/${totalLab} ejecutadas`
+        : `Cumpl.: ${formatPct(pct)} (${cumpl}/${totalLab} ejecutadas)`;
+
+    liveBadge.innerHTML = `<span class="badge bg-dark text-white me-1">BL ${cleanCode}</span> <span class="badge bg-info-subtle text-info-emphasis border me-1">Veg: ${pctVeg}%</span> <span class="badge bg-success-subtle text-success-emphasis border me-1">Prod: ${pctProd}%</span> <span class="badge bg-light text-dark border me-2" title="Área Neta: ${areaNeta} m² | Área Bruta: ${areaBruta} m²">Área Neta: ${areaNeta} m² (Bruta: ${areaBruta} m²)</span> ${cumplTxt}`;
+}
+
+function recalculateZoneKPIs() {
+    const allChecks = document.querySelectorAll('.check-circle');
+    const totalLabores = allChecks.length;
+    let cumplidas = 0;
+
+    allChecks.forEach(ch => {
+        if (ch.getAttribute('data-current-val') === '1') cumplidas++;
+    });
+
+    const noEjecutadas = totalLabores - cumplidas;
+    const pctCumplimiento = (totalLabores > 0 && cumplidas > 0)
+        ? Math.round((cumplidas / totalLabores) * 1000) / 10
+        : null;
+
+    const setTxt = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
+    };
+
+    setTxt('kpi-pct-cumplimiento', formatPct(pctCumplimiento));
+    setTxt('kpi-total-labores', totalLabores);
+    setTxt('kpi-cumplidas', cumplidas);
+    setTxt('kpi-pendientes-lab', noEjecutadas);
+
+    const zoneTabPct = document.getElementById('active-zone-tab-pct');
+    if (zoneTabPct) {
+        zoneTabPct.className = 'zone-tab-pct ';
+        if (pctCumplimiento === null) {
+            zoneTabPct.classList.add('bg-secondary', 'bg-opacity-25', 'text-secondary');
+            zoneTabPct.innerText = 'Pend.';
+        } else {
+            if (pctCumplimiento >= 85) zoneTabPct.classList.add('bg-success', 'text-white');
+            else if (pctCumplimiento >= 70) zoneTabPct.classList.add('bg-warning', 'text-dark');
+            else zoneTabPct.classList.add('bg-danger', 'text-white');
+            zoneTabPct.innerText = formatPct(pctCumplimiento);
+        }
+    }
+}
+
+function markItemDirty(itemId) {
+    const btn = document.getElementById(`btn-check-${itemId}`);
+    const obsInput = document.getElementById(`obs-${itemId}`);
+    const row = document.getElementById(`row-${itemId}`);
+
+    const origVal = btn ? btn.getAttribute('data-original-val') : 'null';
+    const currVal = btn ? btn.getAttribute('data-current-val') : 'null';
+
+    const origObs = obsInput ? obsInput.getAttribute('data-original-obs') : '';
+    const currObs = obsInput ? obsInput.value : '';
+
+    const isChanged = (origVal !== currVal) || (origObs !== currObs);
+
+    if (isChanged) {
+        modifiedItems.add(itemId);
+        if (row) row.classList.add('row-dirty');
+    } else {
+        modifiedItems.delete(itemId);
+        if (row) row.classList.remove('row-dirty');
+    }
+
+    updateSaveButtonsUI();
+}
+
+function updateSaveButtonsUI() {
+    const count = modifiedItems.size;
+    const saveBtnHeader = document.getElementById('btn-save-batch');
+    const dirtyBadge = document.getElementById('dirty-count-badge');
+    const saveBtnToolbar = document.getElementById('btn-save-toolbar');
+    const toolbarCount = document.getElementById('toolbar-dirty-count');
+    const floatingBar = document.getElementById('feno-floating-sync-bar');
+    const floatingCount = document.getElementById('floating-dirty-count');
+    const floatingBtn = document.getElementById('btn-floating-sync');
+
+    if (count > 0) {
+        if (saveBtnHeader) saveBtnHeader.disabled = false;
+        if (dirtyBadge) {
+            dirtyBadge.style.display = 'inline-block';
+            dirtyBadge.innerText = count;
+        }
+        if (saveBtnToolbar) saveBtnToolbar.disabled = false;
+        if (toolbarCount) toolbarCount.innerText = count;
+        if (floatingBar) floatingBar.style.display = 'flex';
+        if (floatingCount) floatingCount.innerText = count;
+        if (floatingBtn) {
+            floatingBtn.disabled = false;
+            floatingBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar y Sincronizar';
+        }
+        persistOfflineChanges();
+    } else {
+        if (saveBtnHeader) saveBtnHeader.disabled = true;
+        if (dirtyBadge) {
+            dirtyBadge.style.display = 'none';
+            dirtyBadge.innerText = '0';
+        }
+        if (saveBtnToolbar) saveBtnToolbar.disabled = true;
+        if (toolbarCount) toolbarCount.innerText = '0';
+        if (floatingBar) floatingBar.style.display = 'none';
+        if (floatingCount) floatingCount.innerText = '0';
+        try {
+            localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+        } catch (e) {}
+    }
+}
+
+function persistOfflineChanges() {
+    try {
+        const payload = [];
+        modifiedItems.forEach(itemId => {
+            const btn = document.getElementById(`btn-check-${itemId}`);
+            const obsInput = document.getElementById(`obs-${itemId}`);
+            if (btn) {
+                payload.push({
+                    id: itemId,
+                    val: btn.getAttribute('data-current-val'),
+                    obs: obsInput ? obsInput.value : ''
+                });
+            }
+        });
+        localStorage.setItem(`feno_offline_sync_${SEMANA_ACTUAL}`, JSON.stringify(payload));
+    } catch (e) {
+        console.warn('LocalStorage error:', e);
+    }
+}
+
+function restoreOfflineChanges() {
+    try {
+        const raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+        if (!raw) return;
+        const items = JSON.parse(raw);
+        if (!Array.isArray(items) || items.length === 0) return;
+
+        let restoredCount = 0;
+        const affectedBlocks = new Set();
+        items.forEach(it => {
+            const btn = document.getElementById(`btn-check-${it.id}`);
+            const obsInput = document.getElementById(`obs-${it.id}`);
+            if (btn) {
+                setCheckCircleState(btn, it.val);
+                if (obsInput && it.obs !== undefined) obsInput.value = it.obs;
+                markItemDirty(it.id);
+                const blq = btn.getAttribute('data-bloque');
+                if (blq) affectedBlocks.add(blq);
+                restoredCount++;
+            }
+        });
+
+        if (restoredCount > 0) {
+            affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
+            recalculateZoneKPIs();
+            updateSaveButtonsUI();
+            showFenoToast(`Se restauraron ${restoredCount} cambios locales pendientes de sincronizar.`);
+        }
+    } catch (e) {
+        console.warn('Error al restaurar cambios offline:', e);
+    }
+}
+
+function descartarCambiosLocales() {
+    if (modifiedItems.size === 0) return;
+    if (!confirm(`¿Descartar los ${modifiedItems.size} cambios pendientes de sincronizar en este dispositivo?`)) return;
+
+    const affectedBlocks = new Set();
+    modifiedItems.forEach(itemId => {
+        const btn = document.getElementById(`btn-check-${itemId}`);
+        const obsInput = document.getElementById(`obs-${itemId}`);
+        const row = document.getElementById(`row-${itemId}`);
+
+        if (btn) {
+            const origVal = btn.getAttribute('data-original-val') || 'null';
+            setCheckCircleState(btn, origVal);
+            const blq = btn.getAttribute('data-bloque');
+            if (blq) affectedBlocks.add(blq);
+        }
+        if (obsInput) {
+            obsInput.value = obsInput.getAttribute('data-original-obs') || '';
+        }
+        if (row) {
+            row.classList.remove('row-dirty');
+        }
+    });
+
+    modifiedItems.clear();
+    try {
+        localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+    } catch (e) {}
+
+    affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
+    recalculateZoneKPIs();
+    updateSaveButtonsUI();
+    showFenoToast('Cambios pendientes descartados.');
+}
+
+function saveAllChanges() {
+    if (modifiedItems.size === 0) return;
+
+    const payloadItems = [];
+    const affectedBlocks = new Set();
+
+    modifiedItems.forEach(itemId => {
+        const btn = document.getElementById(`btn-check-${itemId}`);
+        const obsInput = document.getElementById(`obs-${itemId}`);
+        const row = document.getElementById(`row-${itemId}`);
+
+        const currVal = btn ? btn.getAttribute('data-current-val') : 'null';
+        let cumplidoVal = null;
+        if (currVal === '1') cumplidoVal = 1;
+        if (currVal === '0') cumplidoVal = 0;
+
+        const obsVal = obsInput ? obsInput.value : '';
+        if (row && row.getAttribute('data-bloque')) {
+            affectedBlocks.add(row.getAttribute('data-bloque'));
+        }
+
+        payloadItems.push({
+            id: itemId,
+            cumplido: cumplidoVal,
+            observacion: obsVal
+        });
+    });
+
+    const btnHeader = document.getElementById('btn-save-batch');
+    const btnToolbar = document.getElementById('btn-save-toolbar');
+    const btnFloating = document.getElementById('btn-floating-sync');
+
+    if (btnHeader) {
+        btnHeader.disabled = true;
+        btnHeader.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
+    }
+    if (btnToolbar) {
+        btnToolbar.disabled = true;
+        btnToolbar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
+    }
+    if (btnFloating) {
+        btnFloating.disabled = true;
+        btnFloating.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
+    }
+
+    fetch('{{ url_for("fenogramas.api_calificar_lote") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: payloadItems })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            payloadItems.forEach(item => {
+                const btn = document.getElementById(`btn-check-${item.id}`);
+                const obsInput = document.getElementById(`obs-${item.id}`);
+                const row = document.getElementById(`row-${item.id}`);
+
+                if (btn) btn.setAttribute('data-original-val', item.cumplido === null ? 'null' : String(item.cumplido));
+                if (obsInput) obsInput.setAttribute('data-original-obs', item.observacion);
+                if (row) row.classList.remove('row-dirty');
+            });
+
+            affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
+            recalculateZoneKPIs();
+            applyAllFilters();
+
+            modifiedItems.clear();
+            try {
+                localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+            } catch (e) {}
+
+            updateSaveButtonsUI();
+            if (btnHeader) btnHeader.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Guardar y Sincronizar</span> <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>';
+            if (btnToolbar) btnToolbar.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i>Guardar (<span id="toolbar-dirty-count">0</span>)';
+            showFenoToast(`✓ ¡Sincronizado! Se guardaron ${data.updated} calificación(es) en el servidor.`);
+        } else {
+            updateSaveButtonsUI();
+            showFenoToast('Error: ' + (data.error || 'Desconocido'), true);
+        }
+    })
+    .catch((err) => {
+        console.warn('Network sync failed:', err);
+        updateSaveButtonsUI();
+        showFenoToast(`⚠️ Sin conexión: ${payloadItems.length} cambios guardados localmente en este dispositivo. Conéctate a la red para sincronizar.`, true);
+    });
+}
+
+function descartarArrastreItem(itemId, bloqueCode) {
+    if (!confirm('¿Descartar esta labor arrastrada de semanas anteriores?')) return;
+    fetch('{{ url_for("fenogramas.api_descartar_arrastre") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const row = document.getElementById(`row-${itemId}`);
+            if (row) row.remove();
+            modifiedItems.delete(itemId);
+            updateSaveButtonsUI();
+            recalculateBlockMetrics(bloqueCode);
+            recalculateZoneKPIs();
+            showFenoToast('Tarea arrastrada descartada.');
+        } else {
+            showFenoToast(data.error || 'Error al descartar.', true);
+        }
+    })
+    .catch(() => showFenoToast('Error de red.', true));
+}
+
+function abrirModalGenerarSemanaFeno() {
+    actualizarPreviewProyeccionFeno();
+    const modalEl = document.getElementById('modalGenerarSemanaFeno');
+    if (modalEl && window.bootstrap) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+}
+
+function actualizarPreviewProyeccionFeno() {
+    const targetEl = document.getElementById('gen-feno-semana-target');
+    const baseEl = document.getElementById('gen-feno-semana-base');
+    const fuenteEl = document.getElementById('gen-feno-fuente');
+    const previewText = document.getElementById('gen-feno-preview-text');
+    if (!targetEl || !baseEl || !previewText) return;
+
+    const semTarget = parseInt(targetEl.value || '43', 10);
+    const semBase = parseInt(baseEl.value || '41', 10);
+    const fuente = fuenteEl ? fuenteEl.value : 'AUTO';
+    const delta = semTarget - semBase;
+
+    if (fuente === 'TPSR') {
+        previewText.innerHTML = `Se sincronizará la <strong>Semana ${semTarget}</strong> usando el Mart de Registro de Campo TPSR con proyección a la semana objetivo.`;
+    } else if (delta > 0) {
+        previewText.innerHTML = `<strong>Proyección a Semana ${semTarget}:</strong> Tomando como base el Estado de Cultivo de <strong>Semana ${semBase}</strong>, se sumarán <strong>+${delta} semana(s)</strong> a la edad recorrida de cada cama (ej: edad ${10} &rarr; edad ${10 + delta})${fuente === 'AUTO' ? ' y se aplicarán los eventos TPSR registrados hasta la Semana ' + semTarget : ''}.`;
+    } else if (delta === 0) {
+        previewText.innerHTML = `<strong>Sincronización Exacta (Semana ${semTarget}):</strong> Se utilizarán las edades exactas reportadas en el Estado de Cultivo de la Semana ${semBase} (${delta} semanas de diferencia).`;
+    } else {
+        previewText.innerHTML = `<strong>Retro-proyección a Semana ${semTarget}:</strong> Se ajustará la edad con diferencial de <strong>${delta} semana(s)</strong> respecto a la Semana ${semBase}.`;
+    }
+}
+
+function ejecutarGeneracionSemanaFeno() {
+    const targetEl = document.getElementById('gen-feno-semana-target');
+    const baseEl = document.getElementById('gen-feno-semana-base');
+    const fuenteEl = document.getElementById('gen-feno-fuente');
+    const btn = document.getElementById('btn-confirm-gen-feno');
+
+    const semTarget = parseInt(targetEl?.value || '0', 10);
+    const semBase = parseInt(baseEl?.value || '0', 10);
+    const fuente = fuenteEl ? fuenteEl.value : 'AUTO';
+
+    if (!semTarget || semTarget < 1 || semTarget > 53) {
+        showFenoToast('Ingrese una semana válida (1 a 53).', true);
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Generando Semana ' + semTarget + '...';
+    }
+
+    fetch('{{ url_for("fenogramas.api_generar_desde_fact") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            semana_corte: semTarget,
+            semana_base: semBase || null,
+            fuente: fuente,
+            anio: 2026
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showFenoToast(`Semana ${semTarget} generada (${data.insertados || 0} nuevas, ${data.actualizados || 0} actualizadas). Cargando...`);
+            setTimeout(() => {
+                window.location.href = `{{ url_for('fenogramas.index') }}?semana=${semTarget}&zona={{ zona_sel }}`;
+            }, 600);
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana';
+            }
+            showFenoToast(data.error || 'No se pudo generar la semana.', true);
+        }
+    })
+    .catch(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana';
+        }
+        showFenoToast('Error de red al generar la semana.', true);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    restoreOfflineChanges();
+
+    if (activeBlockCode) {
+        selectBlockFromGrid(activeBlockCode);
+    } else {
+        setWorkspaceMode('grid');
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && currentWorkspaceMode === 'single-block') {
+            returnToBlockGrid();
+        }
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (modifiedItems.size > 0) {
+            e.preventDefault();
+            e.returnValue = 'Tienes calificaciones de fenograma pendientes sin sincronizar. ¿Deseas salir?';
+        }
+    });
+});
+</script>
+{% endblock %}

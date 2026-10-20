@@ -1,0 +1,868 @@
+{% extends "base.html" %}
+
+{% block title %}Avance Semanal TPSR - Florsani{% endblock %}
+
+{% block content %}
+<style>
+    /* Enterprise ERP Design Tokens */
+    .erp-header-title {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+    }
+    .erp-card {
+        border: 1px solid #e2e8f0;
+        background-color: #ffffff;
+        border-radius: 8px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .erp-card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+    }
+    .erp-metric-tile {
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 0.65rem 0.5rem;
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        background-color: #f8fafc;
+        user-select: none;
+    }
+    .erp-metric-tile:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px -1px rgba(15, 23, 42, 0.08);
+    }
+    .erp-metric-tile:active {
+        transform: translateY(0);
+    }
+    .erp-metric-tile.tile-siembra {
+        background-color: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+    .erp-metric-tile.tile-siembra:hover {
+        border-color: #22c55e;
+        background-color: #dcfce7;
+    }
+    .erp-metric-tile.tile-poda {
+        background-color: #eff6ff;
+        border-color: #bfdbfe;
+    }
+    .erp-metric-tile.tile-poda:hover {
+        border-color: #3b82f6;
+        background-color: #dbeafe;
+    }
+    .erp-metric-tile.tile-tumba {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+    }
+    .erp-metric-tile.tile-tumba:hover {
+        border-color: #ef4444;
+        background-color: #fee2e2;
+    }
+    .tabular-nums {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+    }
+    .matrix-table {
+        font-size: 0.81rem;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .matrix-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #0f172a;
+        color: #f8fafc;
+        font-weight: 600;
+        font-size: 0.73rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border-bottom: 2px solid #334155;
+        padding: 0.5rem 0.65rem;
+    }
+    .matrix-table tbody td {
+        padding: 0.42rem 0.65rem;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .matrix-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+    .kpi-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 9999px;
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        font-weight: 600;
+    }
+</style>
+
+<div class="container-fluid px-3 px-lg-4 py-3">
+    <!-- Header Context Bar -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-3 pb-2 border-bottom">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-dark text-white text-uppercase px-2 py-1" style="font-size: 0.65rem; letter-spacing: 0.08em; font-weight: 700;">MÓDULO TPSR</span>
+                <span class="text-muted small">| Control Agronómico de Campo</span>
+            </div>
+            <h1 class="h4 fw-bold erp-header-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-chart-line text-success"></i> Avance Semanal de Campo
+            </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-dark btn-sm fw-semibold shadow-sm" onclick="abrirMatrizDetalle('ALL', 'ALL', '{{ semana_actual }}')">
+                <i class="fa-solid fa-table-cells me-1 text-primary"></i> Ver Toda la Matriz (Sem {{ semana_actual }})
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Bar & Global KPI Strip -->
+    <div class="card erp-card mb-4">
+        <div class="card-body py-2 px-3">
+            <div class="row g-2 align-items-center justify-content-between">
+                <!-- Selector de Semana -->
+                <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+                    <form method="GET" action="{{ url_for('tpsr.index') }}" class="d-flex align-items-center gap-2 m-0" id="form-filtro-semana">
+                        <label for="select-semana" class="small fw-bold text-secondary text-nowrap mb-0">
+                            <i class="fa-regular fa-calendar-days text-primary me-1"></i> Semana Campo:
+                        </label>
+                        <select id="select-semana" name="semana" class="form-select form-select-sm fw-bold border-secondary text-dark" style="min-width: 140px;" onchange="this.form.submit()">
+                            {% for sem in semanas %}
+                            <option value="{{ sem }}" {% if sem == semana_actual %}selected{% endif %}>
+                                Semana {{ sem }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <span class="badge bg-light text-dark border px-2 py-1 small tabular-nums">
+                        Semana Activa: <strong>{{ semana_actual }}</strong>
+                    </span>
+                </div>
+
+                <!-- KPI Summary Badges for the Week -->
+                {% if totales_globales %}
+                <div class="col-12 col-md-auto d-flex align-items-center gap-2 flex-wrap">
+                    <span class="kpi-pill cursor-pointer" onclick="abrirMatrizDetalle('ALL', 'SIEMBRA', '{{ semana_actual }}')" title="Clic para ver detalle de siembras">
+                        <i class="fa-solid fa-seedling text-success"></i> Siembras:
+                        <strong class="text-success tabular-nums">{{ "{:,}".format(totales_globales.siembra_camas) }} cmas</strong>
+                        <span class="text-muted fw-normal">({{ "{:,}".format(totales_globales.siembra_plantas) }} pl)</span>
+                    </span>
+                    <span class="kpi-pill cursor-pointer" onclick="abrirMatrizDetalle('ALL', 'PODA', '{{ semana_actual }}')" title="Clic para ver detalle de podas">
+                        <i class="fa-solid fa-scissors text-primary"></i> Podas:
+                        <strong class="text-primary tabular-nums">{{ "{:,}".format(totales_globales.poda_camas) }} cmas</strong>
+                        <span class="text-muted fw-normal">({{ "{:,}".format(totales_globales.poda_plantas) }} pl)</span>
+                    </span>
+                    <span class="kpi-pill cursor-pointer" onclick="abrirMatrizDetalle('ALL', 'TUMBA', '{{ semana_actual }}')" title="Clic para ver detalle de tumbas">
+                        <i class="fa-solid fa-ban text-danger"></i> Tumbas:
+                        <strong class="text-danger tabular-nums">{{ "{:,}".format(totales_globales.tumba_camas) }} cmas</strong>
+                    </span>
+                    <span class="kpi-pill">
+                        <i class="fa-solid fa-cubes-stacked text-secondary"></i> Bloques:
+                        <strong class="text-dark tabular-nums">{{ totales_globales.total_bloques }}</strong>
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen de Cultivos (Grid de Tarjetas ERP) -->
+    <div class="row g-3">
+        {% if productos_resumen %}
+            {% for prod, stats in productos_resumen.items() %}
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="erp-card h-100 d-flex flex-column">
+                    <!-- Header Tarjeta -->
+                    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white rounded-top">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="rounded p-1 bg-light border text-success">
+                                <i class="fa-solid fa-spa"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-0 erp-header-title">{{ prod }}</h6>
+                                <span class="text-muted" style="font-size: 0.72rem;">
+                                    <i class="fa-solid fa-layer-group me-1"></i>{{ stats.num_bloques|default(stats.bloques|length) }} bloques intervenidos
+                                </span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="abrirMatrizDetalle('{{ prod }}', 'ALL', '{{ semana_actual }}')" title="Ver matriz completa de {{ prod }}">
+                            <i class="fa-solid fa-table-cells me-1"></i>Matriz
+                        </button>
+                    </div>
+
+                    <!-- Cuerpo: 3 Baldosas Interactivas de Labores -->
+                    <div class="p-3 flex-grow-1 bg-white">
+                        <div class="row g-2">
+                            <!-- Baldosa Siembra -->
+                            <div class="col-4">
+                                <div class="erp-metric-tile tile-siembra text-center h-100" onclick="abrirMatrizDetalle('{{ prod }}', 'SIEMBRA', '{{ semana_actual }}')" title="Clic para explorar matriz de Siembras de {{ prod }}">
+                                    <div class="d-flex align-items-center justify-content-center gap-1 text-success fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">
+                                        <i class="fa-solid fa-seedling"></i> Siembra
+                                    </div>
+                                    <div class="fs-4 fw-bold text-success my-1 tabular-nums">{{ stats.SIEMBRA }}</div>
+                                    <div class="text-muted small" style="font-size: 0.72rem;">Camas</div>
+                                    {% if stats.plantas_siembra > 0 %}
+                                    <div class="badge bg-success text-white mt-1 tabular-nums font-monospace" style="font-size: 0.66rem;">
+                                        {{ "{:,}".format(stats.plantas_siembra) }} pl
+                                    </div>
+                                    {% else %}
+                                    <div class="text-muted opacity-50 mt-1" style="font-size: 0.66rem;">0 pl</div>
+                                    {% endif %}
+                                    <div class="mt-1 text-success opacity-75" style="font-size: 0.62rem;">
+                                        Ver filas <i class="fa-solid fa-arrow-right"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Baldosa Poda -->
+                            <div class="col-4">
+                                <div class="erp-metric-tile tile-poda text-center h-100" onclick="abrirMatrizDetalle('{{ prod }}', 'PODA', '{{ semana_actual }}')" title="Clic para explorar matriz de Podas de {{ prod }}">
+                                    <div class="d-flex align-items-center justify-content-center gap-1 text-primary fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">
+                                        <i class="fa-solid fa-scissors"></i> Poda
+                                    </div>
+                                    <div class="fs-4 fw-bold text-primary my-1 tabular-nums">{{ stats.PODA }}</div>
+                                    <div class="text-muted small" style="font-size: 0.72rem;">Camas</div>
+                                    {% if stats.plantas_poda > 0 %}
+                                    <div class="badge bg-primary text-white mt-1 tabular-nums font-monospace" style="font-size: 0.66rem;">
+                                        {{ "{:,}".format(stats.plantas_poda) }} pl
+                                    </div>
+                                    {% else %}
+                                    <div class="text-muted opacity-50 mt-1" style="font-size: 0.66rem;">0 pl</div>
+                                    {% endif %}
+                                    <div class="mt-1 text-primary opacity-75" style="font-size: 0.62rem;">
+                                        Ver filas <i class="fa-solid fa-arrow-right"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Baldosa Tumba -->
+                            <div class="col-4">
+                                <div class="erp-metric-tile tile-tumba text-center h-100" onclick="abrirMatrizDetalle('{{ prod }}', 'TUMBA', '{{ semana_actual }}')" title="Clic para explorar matriz de Tumbas de {{ prod }}">
+                                    <div class="d-flex align-items-center justify-content-center gap-1 text-danger fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">
+                                        <i class="fa-solid fa-ban"></i> Tumba
+                                    </div>
+                                    <div class="fs-4 fw-bold text-danger my-1 tabular-nums">{{ stats.TUMBA }}</div>
+                                    <div class="text-muted small" style="font-size: 0.72rem;">Camas</div>
+                                    <div class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1" style="font-size: 0.66rem;">
+                                        Vaciado
+                                    </div>
+                                    <div class="mt-1 text-danger opacity-75" style="font-size: 0.62rem;">
+                                        Ver filas <i class="fa-solid fa-arrow-right"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer de Tarjeta -->
+                    <div class="p-2 px-3 border-top bg-light rounded-bottom d-flex justify-content-between align-items-center" style="font-size: 0.72rem;">
+                        <span class="text-muted">Total labores: <strong class="text-dark tabular-nums">{{ stats.SIEMBRA + stats.PODA + stats.TUMBA }}</strong> camas</span>
+                        <a href="javascript:void(0)" onclick="abrirMatrizDetalle('{{ prod }}', 'ALL', '{{ semana_actual }}')" class="text-decoration-none fw-semibold text-primary">
+                            Explorar cultivo <i class="fa-solid fa-chevron-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="erp-card p-5 text-center">
+                    <div class="text-muted mb-3"><i class="fa-solid fa-seedling fs-1 text-secondary opacity-50"></i></div>
+                    <h5 class="fw-bold text-dark mb-1">Sin Registros en Semana {{ semana_actual }}</h5>
+                    <p class="text-muted small mb-0">No se detectaron eventos activos de siembra, poda o tumba en esta semana.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL MATRIZ DETALLADA TIPO EXCEL -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="modalMatrizDetalle" tabindex="-1" aria-labelledby="modalMatrizDetalleLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width: 95vw;">
+        <div class="modal-content border-0 shadow-lg">
+            <!-- Modal Header -->
+            <div class="modal-header bg-dark text-white py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-table-cells text-warning fs-5"></i>
+                    <div>
+                        <h5 class="modal-title fw-bold fs-6 mb-0" id="modalMatrizDetalleLabel">
+                            Matriz Detallada de Eventos de Campo (TPSR)
+                        </h5>
+                        <div class="small text-white-50" style="font-size: 0.72rem;" id="modalMatrizSubtitulo">
+                            Semana: {{ semana_actual }} | Mostrando datos...
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-success btn-sm py-1 px-2 fw-semibold" onclick="exportarMatrizCSV()" title="Descargar como archivo CSV para Excel">
+                        <i class="fa-solid fa-file-excel me-1"></i> Exportar CSV
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+
+            <!-- Modal Subtoolbar / Filter Controls -->
+            <div class="modal-body p-0">
+                <div class="bg-light p-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <!-- Buscador en tiempo real -->
+                        <div class="input-group input-group-sm" style="width: 240px;">
+                            <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                            <input type="text" id="filtro-busqueda-matriz" class="form-control" placeholder="Buscar bloque, cama, variedad..." oninput="filtrarEventosEnMemoria()">
+                        </div>
+
+                        <!-- Filtro de Labor -->
+                        <div class="btn-group btn-group-sm" role="group" id="btn-group-labor">
+                            <button type="button" class="btn btn-outline-secondary fw-semibold active" data-labor="ALL" onclick="cambiarFiltroLabor('ALL')">Todos</button>
+                            <button type="button" class="btn btn-outline-success fw-semibold" data-labor="SIEMBRA" onclick="cambiarFiltroLabor('SIEMBRA')">🌱 Siembras</button>
+                            <button type="button" class="btn btn-outline-primary fw-semibold" data-labor="PODA" onclick="cambiarFiltroLabor('PODA')">✂️ Podas</button>
+                            <button type="button" class="btn btn-outline-danger fw-semibold" data-labor="TUMBA" onclick="cambiarFiltroLabor('TUMBA')">🚫 Tumbas</button>
+                        </div>
+
+                        <!-- Filtro de Estado -->
+                        <select id="filtro-estado-matriz" class="form-select form-select-sm" style="width: 120px;" onchange="filtrarEventosEnMemoria()">
+                            <option value="ACTIVO" selected>Solo Activos</option>
+                            <option value="ANULADO">Solo Anulados</option>
+                            <option value="ALL">Todos los Estados</option>
+                        </select>
+                    </div>
+
+                    <!-- Resumen de Conteo en Vivo -->
+                    <div class="d-flex align-items-center gap-2 small text-secondary">
+                        <span class="badge bg-white text-dark border tabular-nums">
+                            Filas: <strong id="lbl-matriz-total" class="text-primary">0</strong>
+                        </span>
+                        <span class="badge bg-white text-dark border tabular-nums">
+                            Camas únicas: <strong id="lbl-matriz-camas" class="text-dark">0</strong>
+                        </span>
+                        <span class="badge bg-white text-dark border tabular-nums">
+                            Total Plantas: <strong id="lbl-matriz-plantas" class="text-success">0</strong>
+                        </span>
+                        {% if current_user.role == 'ADMIN' %}
+                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
+                            <i class="fa-solid fa-shield-halved me-1"></i> Modo Administrador (Edición Habilitada)
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Tabla Grilla Tipo Excel -->
+                <div class="table-responsive" style="max-height: 60vh;">
+                    <table class="table table-hover align-middle mb-0 matrix-table" id="tabla-matriz-eventos">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;" class="text-center"># ID</th>
+                                <th style="width: 85px;">Fecha</th>
+                                <th style="width: 60px;" class="text-center">Semana</th>
+                                <th style="width: 70px;">Bloque</th>
+                                <th style="width: 130px;">ID Cama</th>
+                                <th style="width: 90px;" class="text-center">Labor</th>
+                                <th style="width: 60px;" class="text-center">Poda #</th>
+                                <th style="width: 110px;">Cultivo</th>
+                                <th style="width: 140px;">Variedad</th>
+                                <th style="width: 85px;" class="text-end">Plantas</th>
+                                <th style="width: 80px;" class="text-center">Estado</th>
+                                {% if current_user.role == 'ADMIN' %}
+                                <th style="width: 90px;" class="text-center">Acciones</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-matriz-eventos">
+                            <!-- Filas dinámicas inyectadas por JS -->
+                            <tr>
+                                <td colspan="{% if current_user.role == 'ADMIN' %}12{% else %}11{% endif %}" class="text-center py-5 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                    Cargando matriz de campo...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer py-2 px-3 bg-light d-flex justify-content-between">
+                <span class="text-muted small" style="font-size: 0.73rem;">
+                    <i class="fa-solid fa-circle-info me-1 text-primary"></i> Datos sincronizados con el data warehouse en tiempo real.
+                </span>
+                <button type="button" class="btn btn-secondary btn-sm px-3 fw-semibold" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL EDITAR EVENTO (EXCLUSIVO ADMINISTRADOR) -->
+<!-- ========================================================================= -->
+{% if current_user.role == 'ADMIN' %}
+<div class="modal fade" id="modalEditarEvento" tabindex="-1" aria-labelledby="modalEditarEventoLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <h6 class="modal-title fw-bold" id="modalEditarEventoLabel">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Modificar Evento de Campo #<span id="edit-id-lbl"></span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="form-editar-evento" onsubmit="guardarEdicionEvento(event)">
+                <div class="modal-body p-3">
+                    <input type="hidden" id="edit-id-evento" name="id_evento">
+                    
+                    <div class="alert alert-light border small py-2 px-3 mb-3">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <span class="text-muted d-block" style="font-size: 0.7rem;">CAMA:</span>
+                                <strong id="edit-cama-lbl" class="font-monospace text-dark"></strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block" style="font-size: 0.7rem;">LABOR:</span>
+                                <strong id="edit-labor-lbl" class="text-dark"></strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Fecha Evento:</label>
+                            <input type="date" id="edit-fecha" name="fecha_evento" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-6" id="wrap-edit-poda">
+                            <label class="form-label small fw-bold text-dark mb-1">Número de Poda:</label>
+                            <input type="number" id="edit-poda" name="num_poda" class="form-control form-control-sm" min="0" max="25" step="1">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Variedad Agrícola:</label>
+                            <input type="text" id="edit-variedad" name="variedad" class="form-control form-control-sm" placeholder="Ej: Xlence, Mirabella, Tinted..." required>
+                        </div>
+                        <div class="col-12" id="wrap-edit-plantas">
+                            <label class="form-label small fw-bold text-dark mb-1">Número de Plantas:</label>
+                            <input type="number" id="edit-plantas" name="num_plantas" class="form-control form-control-sm" min="0" step="1" required>
+                            <span class="text-muted" style="font-size: 0.7rem;">Actualiza las plantas vivas de la cama en el catastro físico.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2 px-3 bg-light">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold shadow-sm" id="btn-submit-edit">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ========================================================================= -->
+<!-- JAVASCRIPT: CONTROLADOR DE MATRIZ Y EDICIÓN ADMIN -->
+<!-- ========================================================================= -->
+<script>
+    // Variables de estado local en memoria
+    let MATRIZ_DATA = [];
+    let CURRENT_PRODUCTO = 'ALL';
+    let CURRENT_LABOR = 'ALL';
+    let CURRENT_SEMANA = '{{ semana_actual }}';
+    const IS_ADMIN = {% if current_user.role == 'ADMIN' %}true{% else %}false{% endif %};
+
+    /**
+     * Abre el modal de matriz detallada y consulta la API
+     */
+    function abrirMatrizDetalle(producto, labor, semana) {
+        CURRENT_PRODUCTO = producto || 'ALL';
+        CURRENT_LABOR = labor || 'ALL';
+        CURRENT_SEMANA = semana || '{{ semana_actual }}';
+
+        // Actualizar subtítulo
+        const subtitulo = document.getElementById('modalMatrizSubtitulo');
+        const prodLabel = (CURRENT_PRODUCTO === 'ALL') ? 'Todos los Cultivos' : CURRENT_PRODUCTO;
+        const laborLabel = (CURRENT_LABOR === 'ALL') ? 'Todas las Labores' : CURRENT_LABOR;
+        if (subtitulo) {
+            subtitulo.textContent = `Semana: ${CURRENT_SEMANA} | Cultivo: ${prodLabel} | Labor: ${laborLabel}`;
+        }
+
+        // Actualizar botones de filtro de labor
+        actualizarBotonesLaborUI(CURRENT_LABOR);
+
+        // Limpiar búsqueda
+        const inputBusq = document.getElementById('filtro-busqueda-matriz');
+        if (inputBusq) inputBusq.value = '';
+
+        // Mostrar spinner en tbody
+        const tbody = document.getElementById('tbody-matriz-eventos');
+        const colCount = IS_ADMIN ? 12 : 11;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${colCount}" class="text-center py-5 text-muted">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                    Cargando matriz de campo para Semana ${CURRENT_SEMANA}...
+                </td>
+            </tr>
+        `;
+
+        // Abrir modal Bootstrap
+        const modalEl = document.getElementById('modalMatrizDetalle');
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modalInstance.show();
+
+        // Llamar API
+        cargarDatosMatriz();
+    }
+
+    /**
+     * Carga eventos desde la API del backend
+     */
+    function cargarDatosMatriz() {
+        const url = `/tpsr/api/eventos-semana?semana=${encodeURIComponent(CURRENT_SEMANA)}&producto=${encodeURIComponent(CURRENT_PRODUCTO)}&estado=ALL`;
+
+        fetch(url)
+            .then(res => {
+                if (!res.ok) throw new Error('Error al consultar eventos');
+                return res.json();
+            })
+            .then(data => {
+                if (data.success && data.eventos) {
+                    MATRIZ_DATA = data.eventos;
+                    filtrarEventosEnMemoria();
+                } else {
+                    renderErrorMatriz('No se pudieron obtener los datos de la semana.');
+                }
+            })
+            .catch(err => {
+                console.error('Error cargando matriz:', err);
+                renderErrorMatriz('Error de conexión al cargar la matriz.');
+            });
+    }
+
+    /**
+     * Filtra los datos cargados en memoria según búsqueda, labor y estado
+     */
+    function filtrarEventosEnMemoria() {
+        const query = (document.getElementById('filtro-busqueda-matriz')?.value || '').toLowerCase().trim();
+        const estadoSel = document.getElementById('filtro-estado-matriz')?.value || 'ACTIVO';
+
+        const filtrados = MATRIZ_DATA.filter(ev => {
+            // Filtro Labor
+            if (CURRENT_LABOR !== 'ALL' && ev.tipo_evento !== CURRENT_LABOR) return false;
+
+            // Filtro Estado
+            if (estadoSel !== 'ALL' && ev.estado_evento !== estadoSel) return false;
+
+            // Filtro Texto
+            if (query) {
+                const matchBloque = (ev.codigo_bloque || '').toLowerCase().includes(query);
+                const matchCama = (ev.id_cama || '').toLowerCase().includes(query);
+                const matchVar = (ev.variedad || '').toLowerCase().includes(query);
+                const matchProd = (ev.producto_maestro || '').toLowerCase().includes(query);
+                const matchId = String(ev.id_evento || '').includes(query);
+                if (!matchBloque && !matchCama && !matchVar && !matchProd && !matchId) return false;
+            }
+
+            return true;
+        });
+
+        renderFilasMatriz(filtrados);
+    }
+
+    /**
+     * Renderiza las filas en la tabla grilla tipo Excel
+     */
+    function renderFilasMatriz(eventos) {
+        const tbody = document.getElementById('tbody-matriz-eventos');
+        const colCount = IS_ADMIN ? 12 : 11;
+
+        // Actualizar KPIs de la matriz
+        const totalRows = eventos.length;
+        const camasSet = new Set();
+        let totalPlantas = 0;
+
+        eventos.forEach(ev => {
+            if (ev.estado_evento === 'ACTIVO') {
+                camasSet.add(ev.id_cama);
+                totalPlantas += (ev.num_plantas || 0);
+            }
+        });
+
+        document.getElementById('lbl-matriz-total').textContent = totalRows;
+        document.getElementById('lbl-matriz-camas').textContent = camasSet.size;
+        document.getElementById('lbl-matriz-plantas').textContent = Number(totalPlantas).toLocaleString();
+
+        if (eventos.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="${colCount}" class="text-center py-5 text-muted">
+                        <i class="fa-regular fa-folder-open fs-3 text-secondary mb-2 d-block"></i>
+                        No se encontraron eventos con los filtros seleccionados.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        let html = '';
+        eventos.forEach(ev => {
+            const isAnulado = (ev.estado_evento === 'ANULADO');
+            let laborBadge = '';
+            if (ev.tipo_evento === 'SIEMBRA') {
+                laborBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fa-solid fa-seedling me-1"></i>SIEMBRA</span>';
+            } else if (ev.tipo_evento === 'PODA') {
+                laborBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="fa-solid fa-scissors me-1"></i>PODA</span>';
+            } else if (ev.tipo_evento === 'TUMBA') {
+                laborBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="fa-solid fa-ban me-1"></i>TUMBA</span>';
+            } else {
+                laborBadge = `<span class="badge bg-secondary-subtle text-secondary px-2 py-1">${ev.tipo_evento}</span>`;
+            }
+
+            const estadoBadge = isAnulado 
+                ? '<span class="badge bg-danger text-white">ANULADO</span>'
+                : '<span class="badge bg-success text-white">ACTIVO</span>';
+
+            const rowStyle = isAnulado ? 'opacity: 0.55; text-decoration: line-through;' : '';
+
+            html += `
+                <tr id="row-ev-${ev.id_evento}" style="${rowStyle}">
+                    <td class="text-center font-monospace text-muted small">${ev.id_evento}</td>
+                    <td class="text-nowrap font-monospace text-secondary">${ev.fecha_evento || '-'}</td>
+                    <td class="text-center font-monospace fw-semibold text-dark">${ev.semana_campo}</td>
+                    <td class="fw-bold text-dark font-monospace">${ev.codigo_bloque}</td>
+                    <td class="font-monospace text-primary fw-semibold">${ev.id_cama}</td>
+                    <td class="text-center">${laborBadge}</td>
+                    <td class="text-center font-monospace">${ev.tipo_evento === 'TUMBA' ? '-' : (ev.num_poda || '1')}</td>
+                    <td class="fw-semibold text-dark">${ev.producto_maestro || '-'}</td>
+                    <td class="text-dark">${ev.variedad || '-'}</td>
+                    <td class="text-end font-monospace fw-bold tabular-nums ${ev.num_plantas > 0 ? 'text-success' : 'text-muted'}">
+                        ${Number(ev.num_plantas || 0).toLocaleString()}
+                    </td>
+                    <td class="text-center">${estadoBadge}</td>
+                    ${IS_ADMIN ? `
+                    <td class="text-center">
+                        ${!isAnulado ? `
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" title="Editar este evento" onclick='abrirModalEditar(${JSON.stringify(ev)})'>
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" title="Anular este evento" onclick="confirmarAnularEvento(${ev.id_evento}, '${ev.id_cama}', '${ev.tipo_evento}')">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                        ` : '<span class="text-muted small">-</span>'}
+                    </td>
+                    ` : ''}
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function renderErrorMatriz(msg) {
+        const tbody = document.getElementById('tbody-matriz-eventos');
+        const colCount = IS_ADMIN ? 12 : 11;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${colCount}" class="text-center py-4 text-danger">
+                    <i class="fa-solid fa-triangle-exclamation fs-4 me-2"></i> ${msg}
+                </td>
+            </tr>
+        `;
+    }
+
+    /**
+     * Cambia el filtro de labor y refresca
+     */
+    function cambiarFiltroLabor(labor) {
+        CURRENT_LABOR = labor;
+        actualizarBotonesLaborUI(labor);
+        filtrarEventosEnMemoria();
+    }
+
+    function actualizarBotonesLaborUI(labor) {
+        const btns = document.querySelectorAll('#btn-group-labor button');
+        btns.forEach(b => {
+            const bLab = b.getAttribute('data-labor');
+            b.classList.toggle('active', bLab === labor);
+        });
+    }
+
+    /**
+     * Exporta la matriz filtrada actualmente a archivo CSV compatible con Excel
+     */
+    function exportarMatrizCSV() {
+        if (!MATRIZ_DATA || MATRIZ_DATA.length === 0) {
+            alert('No hay datos para exportar.');
+            return;
+        }
+
+        const query = (document.getElementById('filtro-busqueda-matriz')?.value || '').toLowerCase().trim();
+        const estadoSel = document.getElementById('filtro-estado-matriz')?.value || 'ACTIVO';
+
+        const filtrados = MATRIZ_DATA.filter(ev => {
+            if (CURRENT_LABOR !== 'ALL' && ev.tipo_evento !== CURRENT_LABOR) return false;
+            if (estadoSel !== 'ALL' && ev.estado_evento !== estadoSel) return false;
+            if (query) {
+                const matchBloque = (ev.codigo_bloque || '').toLowerCase().includes(query);
+                const matchCama = (ev.id_cama || '').toLowerCase().includes(query);
+                const matchVar = (ev.variedad || '').toLowerCase().includes(query);
+                const matchProd = (ev.producto_maestro || '').toLowerCase().includes(query);
+                if (!matchBloque && !matchCama && !matchVar && !matchProd) return false;
+            }
+            return true;
+        });
+
+        let csv = 'ID_EVENTO,FECHA,SEMANA,BLOQUE,ID_CAMA,TIPO_EVENTO,NUM_PODA,CULTIVO,VARIEDAD,PLANTAS,ESTADO\n';
+        filtrados.forEach(e => {
+            csv += `"${e.id_evento}","${e.fecha_evento || ''}","${e.semana_campo}","${e.codigo_bloque}","${e.id_cama}","${e.tipo_evento}","${e.num_poda || 1}","${e.producto_maestro || ''}","${e.variedad || ''}","${e.num_plantas || 0}","${e.estado_evento}"\n`;
+        });
+
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        const fileName = `TPSR_Matriz_${CURRENT_PRODUCTO}_Sem${CURRENT_SEMANA}_${CURRENT_LABOR}.csv`;
+        link.setAttribute("href", url);
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    {% if current_user.role == 'ADMIN' %}
+    /**
+     * Abre el modal de edición de evento para Administradores
+     */
+    function abrirModalEditar(ev) {
+        document.getElementById('edit-id-evento').value = ev.id_evento;
+        document.getElementById('edit-id-lbl').textContent = ev.id_evento;
+        document.getElementById('edit-cama-lbl').textContent = `${ev.id_cama} (Blq ${ev.codigo_bloque})`;
+        document.getElementById('edit-labor-lbl').textContent = `${ev.tipo_evento} (${ev.producto_maestro})`;
+        document.getElementById('edit-fecha').value = ev.fecha_evento || '';
+        document.getElementById('edit-variedad').value = ev.variedad || '';
+        document.getElementById('edit-poda').value = ev.num_poda || 1;
+        document.getElementById('edit-plantas').value = ev.num_plantas || 0;
+
+        const wrapPoda = document.getElementById('wrap-edit-poda');
+        const wrapPlantas = document.getElementById('wrap-edit-plantas');
+        if (ev.tipo_evento === 'TUMBA') {
+            if (wrapPoda) wrapPoda.style.display = 'none';
+            if (wrapPlantas) wrapPlantas.style.display = 'none';
+        } else {
+            if (wrapPoda) wrapPoda.style.display = '';
+            if (wrapPlantas) wrapPlantas.style.display = '';
+        }
+
+        const modalEl = document.getElementById('modalEditarEvento');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+
+    /**
+     * Guarda la edición enviando POST al backend
+     */
+    function guardarEdicionEvento(e) {
+        e.preventDefault();
+        const id_evento = document.getElementById('edit-id-evento').value;
+        const fecha_evento = document.getElementById('edit-fecha').value;
+        const variedad = document.getElementById('edit-variedad').value;
+        const num_poda = document.getElementById('edit-poda').value;
+        const num_plantas = document.getElementById('edit-plantas').value;
+        const btn = document.getElementById('btn-submit-edit');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+        fetch('/tpsr/api/editar-evento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id_evento: parseInt(id_evento),
+                fecha_evento: fecha_evento,
+                variedad: variedad,
+                num_poda: parseInt(num_poda || 1),
+                num_plantas: parseInt(num_plantas || 0)
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios';
+
+            if (data.success) {
+                // Actualizar elemento en MATRIZ_DATA en memoria
+                const item = MATRIZ_DATA.find(x => x.id_evento === parseInt(id_evento));
+                if (item) {
+                    item.fecha_evento = fecha_evento;
+                    item.variedad = variedad;
+                    item.num_poda = parseInt(num_poda || 1);
+                    item.num_plantas = parseInt(num_plantas || 0);
+                }
+
+                // Cerrar modal de edición
+                const modalEl = document.getElementById('modalEditarEvento');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+
+                // Re-renderizar tabla matriz
+                filtrarEventosEnMemoria();
+
+                alert(`✅ ${data.message}`);
+            } else {
+                alert(`❌ Error: ${data.error || 'No se pudo guardar la modificación'}`);
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios';
+            console.error('Error al editar:', err);
+            alert('Error al comunicarse con el servidor.');
+        });
+    }
+
+    /**
+     * Confirma y anula un evento
+     */
+    function confirmarAnularEvento(id_evento, id_cama, labor) {
+        const confirmar = confirm(`¿Está seguro de anular el evento #${id_evento} (${labor} en ${id_cama})?\n\nEsta acción revertirá el conteo de plantas y el estado agronómico previo de la cama en el catastro.`);
+        if (!confirmar) return;
+
+        const motivo = prompt('Ingrese el motivo de anulación:', 'Corrección manual por Administrador');
+        if (motivo === null) return;
+
+        fetch('/tpsr/api/anular-evento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id_evento: id_evento,
+                motivo: motivo || 'Anulado desde Avance Semanal'
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Actualizar item localmente
+                const item = MATRIZ_DATA.find(x => x.id_evento === id_evento);
+                if (item) {
+                    item.estado_evento = 'ANULADO';
+                }
+                filtrarEventosEnMemoria();
+                alert(`✅ ${data.message}`);
+            } else {
+                alert(`❌ Error al anular: ${data.error || 'No se pudo anular el evento'}`);
+            }
+        })
+        .catch(err => {
+            console.error('Error al anular evento:', err);
+            alert('Error de conexión al intentar anular el evento.');
+        });
+    }
+    {% endif %}
+</script>
+{% endblock %}

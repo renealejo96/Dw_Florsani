@@ -1,0 +1,938 @@
+{% extends "base.html" %}
+
+{% block title %}{% if rotation %}Editar Rotación {{ rotation.week }}{% else %}Nueva Rotación Semanal{% endif %} | AgroFumigación{% endblock %}
+{% block page_header %}Fumigación &bull; Matriz de Rotación Semanal (Celdas Excel & Drag and Drop){% endblock %}
+
+{% block extra_css %}
+<style>
+/* Excel Grid Matrix Styling */
+.excel-matrix-table {
+    border-collapse: collapse;
+    background-color: #ffffff;
+}
+.excel-matrix-table th {
+    background-color: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    text-align: center;
+    vertical-align: middle;
+}
+.excel-matrix-table td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    vertical-align: middle;
+}
+.excel-matrix-table tr:hover {
+    background-color: #f8fafc;
+}
+.product-cell-box {
+    min-height: 48px;
+    background-color: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    padding: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+.product-cell-box.drag-over {
+    border-color: #10b981;
+    background-color: #ecfdf5;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+}
+.prod-badge-tag {
+    display: inline-flex;
+    align-items: center;
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+    border-radius: 4px;
+    font-size: 0.825rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: transform 0.15s ease;
+}
+.prod-badge-tag:active {
+    cursor: grabbing;
+}
+.prod-badge-tag.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+}
+.prod-badge-tag.drag-over {
+    border-color: #0284c7 !important;
+    background-color: #bae6fd !important;
+    transform: scale(1.06);
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.5);
+}
+.prod-badge-tag .btn-remove-tag {
+    color: #0369a1;
+    margin-left: 5px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0.7;
+    border: none;
+    background: transparent;
+    padding: 0;
+}
+.prod-badge-tag .btn-remove-tag:hover {
+    opacity: 1;
+    color: #dc2626;
+}
+.btn-add-tag {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #94a3b8;
+    background-color: #ffffff;
+    color: #475569;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn-add-tag:hover {
+    background-color: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+}
+.sticky-col-week {
+    background-color: #f8fafc !important;
+    font-weight: 800;
+    text-align: center;
+    width: 110px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('fumigacion.rotaciones_index') }}" class="text-decoration-none text-muted small">
+        <i class="fa-solid fa-arrow-left me-1"></i> Volver al listado de rotaciones
+    </a>
+</div>
+
+<!-- Header Control Bar -->
+<div class="card mb-4 shadow-sm border-top border-4 border-warning">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h4 class="fw-bold mb-1">
+                    <i class="fa-solid fa-table-cells text-warning me-2"></i>
+                    {% if rotation %}Editar Rotación Semana {{ rotation.week }} (v{{ rotation.version }}){% else %}Planificador de Rotación Semanal (Celdas Excel & Drag and Drop){% endif %}
+                </h4>
+                <div class="text-muted small">
+                    <i class="fa-solid fa-hand-pointer text-primary me-1"></i>
+                    Puedes <strong>arrastrar y soltar (Drag & Drop)</strong> cualquier producto entre celdas (ej. de Vegetativo a Productivo) para duplicarlo o moverlo rápidamente.
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-success btn-sm fw-semibold" id="btn-add-extra-vuelta">
+                    <i class="fa-solid fa-plus me-1"></i> Agregar Vuelta Extra
+                </button>
+                <button type="button" class="btn btn-outline-info btn-sm fw-semibold" id="btn-preview-calc">
+                    <i class="fa-solid fa-calculator me-1"></i> Simular Cálculos
+                </button>
+                <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm" id="btn-save-rotation">
+                    <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Rotación
+                </button>
+            </div>
+        </div>
+
+        <hr class="my-3">
+
+        <input type="hidden" id="rotation-id-hidden" value="{{ rotation.id if rotation else '' }}">
+
+        <div class="row g-3 align-items-center">
+            <!-- Week Selection -->
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-dark mb-1">
+                    <i class="fa-solid fa-calendar-check text-primary me-1"></i> Semana de Planificación <span class="text-danger">*</span>
+                </label>
+                <select id="select-week-target" class="form-select form-select-sm fw-bold text-primary">
+                    {% for w in week_options %}
+                    <option value="{{ w.value }}" {% if (rotation and rotation.week == w.value) or (not rotation and w.is_target) %}selected{% endif %}>
+                        {{ w.label }} {% if w.is_target %}(A 15 días){% endif %}
+                    </option>
+                    {% endfor %}
+                    <option value="custom">-- Otra semana personalizada --</option>
+                </select>
+                <input type="text" id="input-custom-week" class="form-control form-control-sm mt-1 d-none" placeholder="ej. 2026-36" value="{{ rotation.week if rotation else default_week }}">
+            </div>
+
+            <!-- Title -->
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-dark mb-1">Título de la Rotación <span class="text-danger">*</span></label>
+                <input type="text" id="rotation-title" class="form-control form-control-sm" placeholder="ej. Rotación Fitosanitaria Trips y Botrytis" value="{{ rotation.title if rotation else '' }}" required>
+            </div>
+
+            <!-- Agronomist -->
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-dark mb-1">Agrónomo Responsable</label>
+                <input type="text" id="rotation-agronomist" class="form-control form-control-sm" value="{{ rotation.created_by if (rotation and rotation.created_by) else (current_user.full_name or current_user.username or session.get('full_name') or session.get('username') or 'Agrónomo Responsable') }}">
+            </div>
+
+            <!-- Status Indicator -->
+            <div class="col-md-2 text-end">
+                <span class="badge {% if rotation and rotation.status == 'APROBADA' %}bg-success{% else %}bg-warning text-dark{% endif %} px-3 py-2 fs-6" title="Estado de la rotación antes de generar la orden oficial">
+                    <i class="fa-solid {% if rotation and rotation.status == 'APROBADA' %}fa-circle-check{% else %}fa-pen-ruler{% endif %} me-1"></i>
+                    {% if rotation %}{{ rotation.status }}{% else %}BORRADOR (En edición){% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dynamic Excel Matrix Grid -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+        <span class="fw-bold text-dark"><i class="fa-solid fa-table me-2 text-primary"></i>Matriz de Asignación de Agroquímicos por Vuelta</span>
+        <span class="text-muted small">Arrastra productos de una celda a otra o pulsa <strong>[+ Producto]</strong> para agregar.</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table excel-matrix-table align-middle mb-0" id="matrix-table">
+                <thead>
+                    <tr id="matrix-header-row">
+                        <th class="sticky-col-week">Semana</th>
+                        <th style="width: 130px;">Cultivo</th>
+                        <th style="width: 140px;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="matrix-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal to Pick Product -->
+<div class="modal fade" id="modalPickProduct" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2 bg-light">
+                <h6 class="modal-title fw-bold" id="modalPickTitle">
+                    <i class="fa-solid fa-flask text-primary me-2"></i>Agregar Producto a la Celda
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Buscar Agroquímico:</label>
+                    <input type="text" id="modal-product-search" class="form-control form-control-sm" placeholder="Escribe el nombre o código...">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Seleccionar Producto:</label>
+                    <select id="modal-product-select" class="form-select form-select-sm" size="8">
+                    </select>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold">Dosis (/Litro):</label>
+                        <input type="number" step="0.0001" min="0" id="modal-dose-input" class="form-control form-control-sm" placeholder="ej. 0.5">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold">Unidad:</label>
+                        <input type="text" id="modal-unit-input" class="form-control form-control-sm bg-light" readonly value="CC">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="modal-btn-confirm-add">
+                    <i class="fa-solid fa-plus me-1"></i> Agregar a la Celda
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Live Preview Simulation -->
+<div class="modal fade" id="modalPreview" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light py-2">
+                <h5 class="modal-title fw-bold text-info"><i class="fa-solid fa-chart-pie me-2"></i>Simulación de Cálculos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalPreviewBody">
+                <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ACTIVE_CROPS = [
+    {% for c in active_crops %}
+    { id: {{ c.id }}, name: "{{ c.name }}", veg_min: {{ c.veg_min_age }}, veg_max: {{ c.veg_max_age }}, prod_min: {{ c.prod_min_age }}, prod_max: {{ c.prod_max_age }} },
+    {% endfor %}
+];
+
+const ACTIVE_PRODUCTS = [
+    {% for p in active_products %}
+    { id: {{ p.id }}, code: "{{ p.code }}", commercial_name: "{{ p.commercial_name or p.code }}", unit: "{{ p.unit or 'CC' }}", dose_fumigation: {{ p.dose_fumigation if p.dose_fumigation is not none else 'null' }}, pest: "{{ p.pest or '' }}", ct: "{{ p.toxicological_category or '' }}" },
+    {% endfor %}
+];
+
+let roundsState = [
+    {% if rotation and rotation.rounds %}
+        {% for r in rotation.rounds %}
+        {
+            round_number: {{ r.round_number }},
+            name: "{{ r.name }}",
+            scheduled_day: "{{ r.scheduled_day }}",
+            items: [
+                {% for it in r.items %}
+                {
+                    crop_name: "{{ it.crop_name }}",
+                    phenological_stage: "{{ it.phenological_stage }}",
+                    product_id: {{ it.product_id }},
+                    product_code: "{{ it.product.code if it.product else '' }}",
+                    dose_applied: {{ it.dose_applied }},
+                    dose_unit: "{{ it.dose_unit }}",
+                    order_index: {{ it.order_index }}
+                },
+                {% endfor %}
+            ]
+        },
+        {% endfor %}
+    {% else %}
+        { round_number: 1, name: "Vuelta 1", scheduled_day: "Lunes", items: [] },
+        { round_number: 2, name: "Vuelta 2", scheduled_day: "Jueves", items: [] }
+    {% endif %}
+];
+
+let activeTargetCell = null;
+let draggedItemData = null; 
+let uidCounter = 1;
+
+function ensureItemUids() {
+    roundsState.forEach(r => {
+        if (!r.items) r.items = [];
+        r.items.forEach(it => {
+            if (!it._uid) {
+                it._uid = 'uid_' + (uidCounter++) + '_' + Math.random().toString(36).substring(2, 8);
+            }
+        });
+    });
+}
+
+function getWeekDisplay() {
+    const sel = document.getElementById('select-week-target');
+    if (sel.value === 'custom') {
+        return document.getElementById('input-custom-week').value.trim() || 'Semana';
+    }
+    return sel.value;
+}
+
+function renderMatrixTable() {
+    ensureItemUids();
+    const headerRow = document.getElementById('matrix-header-row');
+    const tbody = document.getElementById('matrix-body');
+    const weekVal = getWeekDisplay();
+
+    headerRow.innerHTML = `
+        <th class="sticky-col-week text-primary">SEMANA</th>
+        <th style="width: 140px;">CULTIVO</th>
+        <th style="width: 150px;">ESTADO</th>
+    `;
+
+    roundsState.forEach((r, rIdx) => {
+        const th = document.createElement('th');
+        th.style.minWidth = '220px';
+        th.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <input type="text" class="form-control form-control-sm fw-bold round-name-edit" data-round-idx="${rIdx}" value="${r.name}" style="width: 110px; display: inline-block;">
+                    <select class="form-select form-select-sm round-day-edit mt-1" data-round-idx="${rIdx}" style="width: 110px; display: inline-block;">
+                        <option value="Lunes" ${r.scheduled_day === 'Lunes' ? 'selected' : ''}>Lunes</option>
+                        <option value="Martes" ${r.scheduled_day === 'Martes' ? 'selected' : ''}>Martes</option>
+                        <option value="Miércoles" ${r.scheduled_day === 'Miércoles' ? 'selected' : ''}>Miércoles</option>
+                        <option value="Jueves" ${r.scheduled_day === 'Jueves' ? 'selected' : ''}>Jueves</option>
+                        <option value="Viernes" ${r.scheduled_day === 'Viernes' ? 'selected' : ''}>Viernes</option>
+                        <option value="Sábado" ${r.scheduled_day === 'Sábado' ? 'selected' : ''}>Sábado</option>
+                        <option value="Domingo" ${r.scheduled_day === 'Domingo' ? 'selected' : ''}>Domingo</option>
+                    </select>
+                </div>
+                ${roundsState.length > 1 ? `<button type="button" class="btn btn-outline-danger btn-sm p-1 btn-delete-vuelta" data-round-idx="${rIdx}" title="Eliminar Vuelta"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+            </div>
+        `;
+        headerRow.appendChild(th);
+    });
+
+    tbody.innerHTML = '';
+    ACTIVE_CROPS.forEach(crop => {
+        ['VEGETATIVO', 'PRODUCTIVO'].forEach(stage => {
+            const isVeg = stage === 'VEGETATIVO';
+            const tr = document.createElement('tr');
+
+            const tdWeek = document.createElement('td');
+            tdWeek.className = 'sticky-col-week text-primary font-monospace';
+            tdWeek.textContent = weekVal;
+            tr.appendChild(tdWeek);
+
+            const tdCrop = document.createElement('td');
+            tdCrop.className = 'fw-bold text-dark';
+            tdCrop.innerHTML = `<i class="fa-solid fa-seedling text-success me-1"></i> ${crop.name}`;
+            tr.appendChild(tdCrop);
+
+            const tdStage = document.createElement('td');
+            tdStage.innerHTML = `
+                <span class="badge ${isVeg ? 'bg-success-subtle text-success border border-success' : 'bg-primary-subtle text-primary border border-primary'} px-2 py-1">
+                    <i class="fa-solid ${isVeg ? 'fa-leaf' : 'fa-spa'} me-1"></i> ${stage}
+                </span>
+            `;
+            tr.appendChild(tdStage);
+
+            roundsState.forEach((r, rIdx) => {
+                const tdCell = document.createElement('td');
+                const box = document.createElement('div');
+                box.className = 'product-cell-box';
+                box.dataset.roundIdx = rIdx;
+                box.dataset.crop = crop.name;
+                box.dataset.stage = stage;
+
+                // Drag and drop listeners on cell box (for empty space drop)
+                box.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    box.classList.add('drag-over');
+                });
+                box.addEventListener('dragleave', function() {
+                    box.classList.remove('drag-over');
+                });
+                box.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    box.classList.remove('drag-over');
+                    if (!draggedItemData) return;
+
+                    const sourceRoundIdx = draggedItemData.roundIdx;
+                    const sourceCrop = draggedItemData.crop;
+                    const sourceStage = draggedItemData.stage;
+                    const sourceItem = draggedItemData.itemObj;
+
+                    const targetRoundIdx = parseInt(box.dataset.roundIdx);
+                    const targetCrop = box.dataset.crop;
+                    const targetStage = box.dataset.stage;
+
+                    if (sourceRoundIdx === targetRoundIdx && sourceCrop === targetCrop && sourceStage === targetStage) {
+                        // Dragged onto empty box area within same cell -> move to the end
+                        let cellItems = roundsState[targetRoundIdx].items.filter(it => it.crop_name === targetCrop && it.phenological_stage === targetStage);
+                        cellItems.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+                        cellItems = cellItems.filter(it => it._uid !== sourceItem._uid);
+                        cellItems.push(sourceItem);
+                        cellItems.forEach((it, idx) => { it.order_index = idx; });
+                        draggedItemData = null;
+                        renderMatrixTable();
+                        return;
+                    }
+
+                    // Dragged to a different cell
+                    const alreadyExists = roundsState[targetRoundIdx].items.some(it => 
+                        it.crop_name === targetCrop && 
+                        it.phenological_stage === targetStage &&
+                        (it.product_id === sourceItem.product_id || it.product_code === sourceItem.product_code)
+                    );
+
+                    if (!alreadyExists) {
+                        const cellItems = roundsState[targetRoundIdx].items.filter(it => it.crop_name === targetCrop && it.phenological_stage === targetStage);
+                        roundsState[targetRoundIdx].items.push({
+                            _uid: 'uid_' + (uidCounter++) + '_' + Math.random().toString(36).substring(2, 8),
+                            crop_name: targetCrop,
+                            phenological_stage: targetStage,
+                            product_id: sourceItem.product_id,
+                            product_code: sourceItem.product_code,
+                            dose_applied: sourceItem.dose_applied,
+                            dose_unit: sourceItem.dose_unit,
+                            order_index: cellItems.length
+                        });
+                    } else {
+                        const notification = document.createElement('div');
+                        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #fbbf24; color: #78350f; padding: 12px 20px; border-radius: 8px; z-index: 9999; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
+                        notification.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Este producto ya está en esta celda';
+                        document.body.appendChild(notification);
+                        setTimeout(() => notification.remove(), 2000);
+                    }
+
+                    draggedItemData = null;
+                    renderMatrixTable();
+                });
+
+                const cellItems = r.items.filter(it => it.crop_name === crop.name && it.phenological_stage === stage);
+                cellItems.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+                cellItems.forEach((it) => {
+                    const tag = document.createElement('span');
+                    tag.className = 'prod-badge-tag';
+                    tag.draggable = true;
+                    tag.title = `Arrastrar para reordenar o mover - ${it.product_code} (${it.dose_applied} ${it.dose_unit}/L)`;
+                    tag.innerHTML = `
+                        <i class="fa-solid fa-grip-vertical text-muted me-1" style="font-size: 0.7rem;"></i>
+                        ${it.product_code}
+                        <button type="button" class="btn-remove-tag" data-round-idx="${rIdx}" data-uid="${it._uid}" title="Quitar este producto">✕</button>
+                    `;
+
+                    // Dragstart on badge
+                    tag.addEventListener('dragstart', function(e) {
+                        e.stopPropagation();
+                        tag.classList.add('dragging');
+                        draggedItemData = {
+                            roundIdx: rIdx,
+                            crop: crop.name,
+                            stage: stage,
+                            itemObj: it
+                        };
+                        e.dataTransfer.setData('text/plain', it.product_code);
+                        e.dataTransfer.effectAllowed = 'move';
+                    });
+
+                    tag.addEventListener('dragend', function(e) {
+                        tag.classList.remove('dragging');
+                        document.querySelectorAll('.prod-badge-tag').forEach(t => t.classList.remove('drag-over'));
+                        draggedItemData = null;
+                    });
+
+                    // Dragover on badge for reordering
+                    tag.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (draggedItemData && draggedItemData.itemObj._uid !== it._uid) {
+                            tag.classList.add('drag-over');
+                        }
+                    });
+
+                    tag.addEventListener('dragleave', function(e) {
+                        tag.classList.remove('drag-over');
+                    });
+
+                    // Drop on badge: reorder position
+                    tag.addEventListener('drop', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        tag.classList.remove('drag-over');
+                        if (!draggedItemData) return;
+
+                        const sourceRoundIdx = draggedItemData.roundIdx;
+                        const sourceCrop = draggedItemData.crop;
+                        const sourceStage = draggedItemData.stage;
+                        const sourceItem = draggedItemData.itemObj;
+
+                        const targetRoundIdx = rIdx;
+                        const targetCrop = crop.name;
+                        const targetStage = stage;
+                        const targetItem = it;
+
+                        const rect = tag.getBoundingClientRect();
+                        const isBefore = (e.clientX < (rect.left + rect.width / 2));
+
+                        if (sourceRoundIdx === targetRoundIdx && sourceCrop === targetCrop && sourceStage === targetStage) {
+                            // Reorder within the same cell
+                            if (sourceItem._uid === targetItem._uid) return;
+
+                            let itemsInCell = roundsState[targetRoundIdx].items.filter(item => item.crop_name === targetCrop && item.phenological_stage === targetStage);
+                            itemsInCell.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+                            // Remove sourceItem from array
+                            itemsInCell = itemsInCell.filter(item => item._uid !== sourceItem._uid);
+
+                            // Find target index and insert before or after
+                            const targetIdx = itemsInCell.findIndex(item => item._uid === targetItem._uid);
+                            const insertIdx = isBefore ? targetIdx : targetIdx + 1;
+                            itemsInCell.splice(insertIdx, 0, sourceItem);
+
+                            // Update order_index sequentially
+                            itemsInCell.forEach((item, idx) => {
+                                item.order_index = idx;
+                            });
+
+                            draggedItemData = null;
+                            renderMatrixTable();
+                        } else {
+                            // Dragging to a different cell over a tag
+                            const alreadyExists = roundsState[targetRoundIdx].items.some(item => 
+                                item.crop_name === targetCrop && 
+                                item.phenological_stage === targetStage &&
+                                (item.product_id === sourceItem.product_id || item.product_code === sourceItem.product_code)
+                            );
+
+                            if (!alreadyExists) {
+                                let itemsInCell = roundsState[targetRoundIdx].items.filter(item => item.crop_name === targetCrop && item.phenological_stage === targetStage);
+                                itemsInCell.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+                                const newItem = {
+                                    _uid: 'uid_' + (uidCounter++) + '_' + Math.random().toString(36).substring(2, 8),
+                                    crop_name: targetCrop,
+                                    phenological_stage: targetStage,
+                                    product_id: sourceItem.product_id,
+                                    product_code: sourceItem.product_code,
+                                    dose_applied: sourceItem.dose_applied,
+                                    dose_unit: sourceItem.dose_unit,
+                                    order_index: 0
+                                };
+
+                                const targetIdx = itemsInCell.findIndex(item => item._uid === targetItem._uid);
+                                const insertIdx = isBefore ? targetIdx : targetIdx + 1;
+                                itemsInCell.splice(insertIdx, 0, newItem);
+
+                                itemsInCell.forEach((item, idx) => {
+                                    item.order_index = idx;
+                                });
+
+                                roundsState[targetRoundIdx].items.push(newItem);
+                                draggedItemData = null;
+                                renderMatrixTable();
+                            }
+                        }
+                    });
+
+                    box.appendChild(tag);
+                });
+
+                const addBtn = document.createElement('button');
+                addBtn.type = 'button';
+                addBtn.className = 'btn-add-tag';
+                addBtn.dataset.roundIdx = rIdx;
+                addBtn.dataset.crop = crop.name;
+                addBtn.dataset.stage = stage;
+                addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Producto';
+                box.appendChild(addBtn);
+
+                tdCell.appendChild(box);
+                tr.appendChild(tdCell);
+            });
+
+            tbody.appendChild(tr);
+        });
+    });
+}
+
+function openProductModal(roundIdx, cropName, stage) {
+    activeTargetCell = { roundIdx: parseInt(roundIdx), cropName, stage };
+    document.getElementById('modalPickTitle').innerHTML = `<i class="fa-solid fa-flask text-primary me-2"></i>Agregar Agroquímico para ${cropName} (${stage})`;
+    
+    const searchInput = document.getElementById('modal-product-search');
+    searchInput.value = '';
+    populateModalProductList('');
+
+    const modal = new bootstrap.Modal(document.getElementById('modalPickProduct'));
+    modal.show();
+}
+
+function populateModalProductList(query) {
+    const select = document.getElementById('modal-product-select');
+    select.innerHTML = '';
+    const q = query.toLowerCase().trim();
+
+    const filtered = ACTIVE_PRODUCTS.filter(p => 
+        p.code.toLowerCase().includes(q) || 
+        p.commercial_name.toLowerCase().includes(q) || 
+        p.pest.toLowerCase().includes(q)
+    );
+
+    filtered.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.code} - ${p.commercial_name} (${p.dose_fumigation || 0} ${p.unit}/L) [${p.pest || 'General'}]`;
+        select.appendChild(opt);
+    });
+
+    if (filtered.length > 0) {
+        select.selectedIndex = 0;
+        updateModalDose(filtered[0]);
+    }
+}
+
+function updateModalDose(product) {
+    if (product) {
+        document.getElementById('modal-dose-input').value = product.dose_fumigation || 1.0;
+        document.getElementById('modal-unit-input').value = product.unit || 'CC';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    renderMatrixTable();
+
+    document.getElementById('select-week-target').addEventListener('change', function() {
+        if (this.value === 'custom') {
+            document.getElementById('input-custom-week').classList.remove('d-none');
+            document.getElementById('input-custom-week').focus();
+        } else {
+            document.getElementById('input-custom-week').classList.add('d-none');
+        }
+        renderMatrixTable();
+    });
+
+    document.getElementById('input-custom-week').addEventListener('input', function() {
+        renderMatrixTable();
+    });
+
+    document.getElementById('btn-add-extra-vuelta').addEventListener('click', function() {
+        const nextNum = roundsState.length + 1;
+        roundsState.push({
+            round_number: nextNum,
+            name: `Vuelta ${nextNum}`,
+            scheduled_day: nextNum === 3 ? 'Miércoles' : 'Configurable',
+            items: []
+        });
+        renderMatrixTable();
+    });
+
+    document.getElementById('matrix-table').addEventListener('click', function(e) {
+        if (e.target.closest('.btn-add-tag')) {
+            const btn = e.target.closest('.btn-add-tag');
+            openProductModal(btn.dataset.roundIdx, btn.dataset.crop, btn.dataset.stage);
+        } else if (e.target.closest('.btn-remove-tag')) {
+            const btn = e.target.closest('.btn-remove-tag');
+            const rIdx = parseInt(btn.dataset.roundIdx);
+            const uid = btn.dataset.uid;
+            if (roundsState[rIdx]) {
+                roundsState[rIdx].items = roundsState[rIdx].items.filter(it => it._uid !== uid);
+                renderMatrixTable();
+            }
+        } else if (e.target.closest('.btn-delete-vuelta')) {
+            const btn = e.target.closest('.btn-delete-vuelta');
+            const rIdx = parseInt(btn.dataset.roundIdx);
+            if (confirm(`¿Eliminar la ${roundsState[rIdx].name}?`)) {
+                roundsState.splice(rIdx, 1);
+                roundsState.forEach((r, idx) => r.round_number = idx + 1);
+                renderMatrixTable();
+            }
+        }
+    });
+
+    document.getElementById('matrix-table').addEventListener('change', function(e) {
+        if (e.target.classList.contains('round-name-edit')) {
+            const rIdx = parseInt(e.target.dataset.roundIdx);
+            roundsState[rIdx].name = e.target.value.trim();
+        } else if (e.target.classList.contains('round-day-edit')) {
+            const rIdx = parseInt(e.target.dataset.roundIdx);
+            roundsState[rIdx].scheduled_day = e.target.value;
+        }
+    });
+
+    // Auto-focus search input when product modal opens
+    const modalPickProductEl = document.getElementById('modalPickProduct');
+    if (modalPickProductEl) {
+        modalPickProductEl.addEventListener('shown.bs.modal', function() {
+            const searchInput = document.getElementById('modal-product-search');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        });
+    }
+
+    // Keyboard navigation and instant search in product picker
+    const searchInputEl = document.getElementById('modal-product-search');
+    const selectProductEl = document.getElementById('modal-product-select');
+    const doseInputEl = document.getElementById('modal-dose-input');
+
+    searchInputEl?.addEventListener('input', function() {
+        populateModalProductList(this.value);
+    });
+
+    // Handle arrow keys and enter in search input to navigate dropdown without clicking
+    searchInputEl?.addEventListener('keydown', function(e) {
+        if (!selectProductEl || selectProductEl.options.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            let nextIdx = selectProductEl.selectedIndex + 1;
+            if (nextIdx >= selectProductEl.options.length) nextIdx = 0;
+            selectProductEl.selectedIndex = nextIdx;
+            const pId = parseInt(selectProductEl.value);
+            const prod = ACTIVE_PRODUCTS.find(p => p.id === pId);
+            updateModalDose(prod);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            let prevIdx = selectProductEl.selectedIndex - 1;
+            if (prevIdx < 0) prevIdx = selectProductEl.options.length - 1;
+            selectProductEl.selectedIndex = prevIdx;
+            const pId = parseInt(selectProductEl.value);
+            const prod = ACTIVE_PRODUCTS.find(p => p.id === pId);
+            updateModalDose(prod);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('modal-btn-confirm-add').click();
+        }
+    });
+
+    selectProductEl?.addEventListener('change', function() {
+        const pId = parseInt(this.value);
+        const prod = ACTIVE_PRODUCTS.find(p => p.id === pId);
+        updateModalDose(prod);
+    });
+
+    selectProductEl?.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('modal-btn-confirm-add').click();
+        }
+    });
+
+    doseInputEl?.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('modal-btn-confirm-add').click();
+        }
+    });
+
+    document.getElementById('modal-btn-confirm-add').addEventListener('click', function() {
+        if (!activeTargetCell) return;
+        const select = document.getElementById('modal-product-select');
+        const prodId = parseInt(select.value);
+        const dose = parseFloat(document.getElementById('modal-dose-input').value);
+        const unit = document.getElementById('modal-unit-input').value;
+
+        if (!prodId || isNaN(dose) || dose <= 0) {
+            alert('Por favor seleccione un producto y dosis válida mayor a 0.');
+            return;
+        }
+
+        const prod = ACTIVE_PRODUCTS.find(p => p.id === prodId);
+        const rIdx = activeTargetCell.roundIdx;
+
+        const cellItems = roundsState[rIdx].items.filter(it => it.crop_name === activeTargetCell.cropName && it.phenological_stage === activeTargetCell.stage);
+        
+        roundsState[rIdx].items.push({
+            _uid: 'uid_' + (uidCounter++) + '_' + Math.random().toString(36).substring(2, 8),
+            crop_name: activeTargetCell.cropName,
+            phenological_stage: activeTargetCell.stage,
+            product_id: prod.id,
+            product_code: prod.code,
+            dose_applied: dose,
+            dose_unit: unit,
+            order_index: cellItems.length
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('modalPickProduct')).hide();
+        renderMatrixTable();
+    });
+
+    // Clear red error highlight on title input as user types
+    document.getElementById('rotation-title')?.addEventListener('input', function() {
+        if (this.value.trim()) {
+            this.classList.remove('is-invalid');
+            const fb = document.getElementById('rotation-title-feedback');
+            if (fb) fb.style.display = 'none';
+        }
+    });
+
+    // Save Rotation Button (Works for both Create and Edit mode!)
+    document.getElementById('btn-save-rotation').addEventListener('click', function() {
+        const week = getWeekDisplay();
+        if (!week) {
+            alert('Por favor especifique la semana de rotación.');
+            return;
+        }
+
+        // Validate mandatory Title
+        const titleInput = document.getElementById('rotation-title');
+        const title = titleInput ? titleInput.value.trim() : '';
+        if (!title) {
+            titleInput.classList.add('is-invalid');
+            titleInput.focus();
+            let fb = document.getElementById('rotation-title-feedback');
+            if (!fb) {
+                fb = document.createElement('div');
+                fb.id = 'rotation-title-feedback';
+                fb.className = 'invalid-feedback fw-bold mt-1';
+                fb.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> Por favor ingrese el nombre o título de la rotación antes de guardar.';
+                titleInput.parentNode.appendChild(fb);
+            }
+            fb.style.display = 'block';
+            return;
+        } else {
+            titleInput.classList.remove('is-invalid');
+            const fb = document.getElementById('rotation-title-feedback');
+            if (fb) fb.style.display = 'none';
+        }
+
+        const rotationId = document.getElementById('rotation-id-hidden').value;
+        const agronomist = document.getElementById('rotation-agronomist').value.trim();
+
+        const payload = {
+            rotation_id: rotationId || null,
+            week: week,
+            title: title,
+            created_by: agronomist,
+            rounds: roundsState
+        };
+
+        const btn = document.getElementById('btn-save-rotation');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+        fetch('{{ url_for("fumigacion.rotacion_crear") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                alert(data.error || 'Error al guardar la rotación.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar Rotación';
+            }
+        })
+        .catch(err => {
+            alert('Error de red: ' + err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar Rotación';
+        });
+    });
+
+    document.getElementById('btn-preview-calc').addEventListener('click', function() {
+        const allItems = [];
+        roundsState.forEach(r => {
+            r.items.forEach(it => allItems.push(it));
+        });
+
+        if (allItems.length === 0) {
+            alert('No has agregado productos a ninguna celda de la rotación.');
+            return;
+        }
+
+        const modal = new bootstrap.Modal(document.getElementById('modalPreview'));
+        modal.show();
+
+        const body = document.getElementById('modalPreviewBody');
+        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+
+        fetch('{{ url_for("fumigacion.api_calcular_preview") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: allItems })
+        })
+        .then(res => res.json())
+        .then(data => {
+            body.innerHTML = `
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-4"><div class="p-2 border rounded bg-light"><div class="small text-muted">Litros Totales</div><div class="fs-4 fw-bold text-primary">${data.totals.total_liters} L</div></div></div>
+                    <div class="col-4"><div class="p-2 border rounded bg-light"><div class="small text-muted">Camas Estándar</div><div class="fs-4 fw-bold text-success">${data.totals.total_standard_beds}</div></div></div>
+                    <div class="col-4"><div class="p-2 border rounded bg-light"><div class="small text-muted">Segmentos</div><div class="fs-4 fw-bold text-dark">${data.totals.total_segments}</div></div></div>
+                </div>
+            `;
+        })
+        .catch(err => {
+            body.innerHTML = `<div class="alert alert-danger">Error: ${err}</div>`;
+        });
+    });
+});
+</script>
+{% endblock %}

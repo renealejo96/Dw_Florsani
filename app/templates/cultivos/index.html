@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Cultivos y Rangos de Edad | AgroFumigación{% endblock %}
+{% block page_header %}Configuración de Cultivos y Rangos Fenológicos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="fa-solid fa-seedling text-success me-2"></i>Cultivos y Rangos de Edad</h4>
+        <p class="text-muted mb-0 small">Administra los cultivos activos y los rangos de edad en semanas para clasificar automáticamente camas en Vegetativo o Productivo.</p>
+    </div>
+    <a href="{{ url_for('cultivos.create') }}" class="btn btn-success btn-sm fw-semibold shadow-sm">
+        <i class="fa-solid fa-plus me-1"></i> Configurar Nuevo Cultivo
+    </a>
+</div>
+
+<!-- Crops Table -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="fw-bold"><i class="fa-solid fa-list-check me-2 text-success"></i>Cultivos Configurados</span>
+        <span class="badge bg-success-subtle text-success">{{ crops|length }} Cultivos</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre Cultivo</th>
+                        <th>Grupo de Impresión / Pesaje</th>
+                        <th>Alias y Variaciones</th>
+                        <th>Rango Vegetativo</th>
+                        <th>Rango Productivo</th>
+                        <th>Observaciones</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in crops %}
+                    <tr class="{% if not c.is_active %}table-secondary opacity-75{% endif %}">
+                        <td class="fw-bold text-dark fs-6">{{ c.name }}</td>
+                        <td>
+                            {% if c.category == 'GYPSOPHILA' %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="fa-solid fa-seedling me-1"></i>🌸 Gypsophila</span>
+                            {% elif c.category == 'PIV' %}
+                            <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="fa-solid fa-leaf me-1"></i>🌱 PIV</span>
+                            {% else %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fa-solid fa-spa me-1"></i>🌿 Prod. Nuevos / Var.</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for a in c.aliases %}
+                            <span class="badge bg-light text-dark border me-1">{{ a }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            <span class="badge badge-stage-veg px-2 py-1 fs-6">
+                                {{ c.veg_min_age }} a {{ c.veg_max_age }} sem
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-stage-prod px-2 py-1 fs-6">
+                                {{ c.prod_min_age }} a {{ c.prod_max_age }} sem
+                            </span>
+                        </td>
+                        <td class="small text-muted">{{ c.notes or '-' }}</td>
+                        <td>
+                            {% if c.is_active %}
+                            <span class="badge bg-success">Activo</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('cultivos.edit', crop_id=c.id) }}" class="btn btn-outline-primary btn-sm" title="Editar Rangos">
+                                <i class="fa-solid fa-pen me-1"></i> Editar
+                            </a>
+                            <form action="{{ url_for('cultivos.toggle_status', crop_id=c.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn {% if c.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-sm" title="{% if c.is_active %}Desactivar{% else %}Activar{% endif %}">
+                                    <i class="fa-solid {% if c.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

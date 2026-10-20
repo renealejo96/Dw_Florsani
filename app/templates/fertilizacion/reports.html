@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Reportes de Fertilización & Rendimientos - Florsani ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 py-3">
+
+  <!-- ================================================================ -->
+  <!-- HEADER & ACCESOS -->
+  <!-- ================================================================ -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <h2 class="h4 fw-bold text-dark mb-0">Tablero Ejecutivo de Rendimientos de Fertilización</h2>
+      <p class="text-muted small mb-0">Métricas de cumplimiento de Drench y productividad de Riego Ducha (Camas/Hora, Min/Cama).</p>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- FILTROS EJECUTIVOS -->
+  <!-- ================================================================ -->
+  <div class="bento-card p-3 mb-4 bg-light">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md-4">
+        <label class="small fw-bold text-secondary mb-1">Semana de Evaluación:</label>
+        <select id="filtro-semana" onchange="cargarDatosReporte()" class="form-select form-select-sm fw-bold">
+          <option value="TODAS">Todas las Semanas</option>
+          {% for s in semanas %}
+            <option value="{{ s }}" {% if s == semana_actual %}selected{% endif %}>Semana {{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-4">
+        <label class="small fw-bold text-secondary mb-1">Técnico de Riego:</label>
+        <select id="filtro-tecnico" onchange="cargarDatosReporte()" class="form-select form-select-sm">
+          <option value="TODOS">Todos los Técnicos</option>
+          {% for t in tecnicos %}
+            <option value="{{ t.nombre }}">{{ t.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-4 d-flex align-items-end">
+        <button type="button" onclick="cargarDatosReporte()" class="btn btn-sm btn-success fw-bold w-100">
+          <i class="fa-solid fa-filter me-1"></i> Aplicar Filtros
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- KPIS PRINCIPALES -->
+  <!-- ================================================================ -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="bento-card p-3 p-md-4">
+        <span class="text-secondary small fw-semibold text-uppercase">Cumplimiento Drench</span>
+        <div class="metric-tabular fs-3 fw-bold text-success mt-1" id="kpi-pct-drench">0.0%</div>
+        <span class="text-muted small" id="kpi-camas-drench">0 de 0 camas</span>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="bento-card p-3 p-md-4">
+        <span class="text-secondary small fw-semibold text-uppercase">Promedio Min/Cama (Ducha)</span>
+        <div class="metric-tabular fs-3 fw-bold text-info mt-1" id="kpi-prom-min-cama">0.00</div>
+        <span class="text-muted small">Minutos por cama física</span>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="bento-card p-3 p-md-4">
+        <span class="text-secondary small fw-semibold text-uppercase">Velocidad Camas / Hora</span>
+        <div class="metric-tabular fs-3 fw-bold text-primary mt-1" id="kpi-camas-hora">0.0</div>
+        <span class="text-muted small">Rendimiento global promedio</span>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="bento-card p-3 p-md-4">
+        <span class="text-secondary small fw-semibold text-uppercase">Total Válvulas Operadas</span>
+        <div class="metric-tabular fs-3 fw-bold text-warning mt-1" id="kpi-valvulas">0</div>
+        <span class="text-muted small" id="kpi-minutos-valvulas">0 minutos regados</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- TABLA DE RENDIMIENTOS POR APLICADOR -->
+  <!-- ================================================================ -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-7">
+      <div class="bento-card p-4 h-100">
+        <h5 class="fw-bold mb-3"><i class="fa-solid fa-user-gear me-2 text-info"></i>Productividad de Riego Ducha por Operador</h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="tabla-rendimiento-aplicador">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th>Aplicador</th>
+                <th>Registros</th>
+                <th>Camas Físicas</th>
+                <th>Minutos</th>
+                <th>Min/Cama</th>
+                <th>Camas/Hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" class="text-center py-3 text-muted">Cargando datos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="bento-card p-4 h-100">
+        <h5 class="fw-bold mb-3"><i class="fa-solid fa-chart-pie me-2 text-success"></i>Cumplimiento por Clasificación Drench</h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="tabla-clasificaciones-drench">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th>Clasificación</th>
+                <th>Aplicados</th>
+                <th>Total</th>
+                <th>Avance %</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4" class="text-center py-3 text-muted">Cargando datos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  cargarDatosReporte();
+});
+
+async function cargarDatosReporte() {
+  const sem = document.getElementById("filtro-semana").value;
+  const tec = document.getElementById("filtro-tecnico").value;
+  const url = `{{ url_for('fertilizacion.api_reportes_datos') }}?semana=${sem}&tecnico=${tec}`;
+
+  try {
+    const res = await fetch(url);
+    const result = await res.json();
+    if (!result.success) return;
+
+    const d = result.data;
+
+    // Actualizar KPIs Drench
+    document.getElementById("kpi-pct-drench").innerText = d.kpis_drench.porcentaje_cumplimiento + "%";
+    document.getElementById("kpi-camas-drench").innerText = `${d.kpis_drench.completados} de ${d.kpis_drench.total_items} items`;
+
+    // Actualizar KPIs Riego Ducha
+    document.getElementById("kpi-prom-min-cama").innerText = d.kpis_riego.promedio_min_cama.toFixed(2);
+    document.getElementById("kpi-camas-hora").innerText = d.kpis_riego.camas_por_hora.toFixed(1);
+
+    // Actualizar KPIs Válvulas
+    document.getElementById("kpi-valvulas").innerText = d.kpis_valvulas.cantidad_valvulas;
+    document.getElementById("kpi-minutos-valvulas").innerText = `${d.kpis_valvulas.minutos_totales} minutos regados`;
+
+    // Tabla Aplicadores
+    const tbodyAp = document.querySelector("#tabla-rendimiento-aplicador tbody");
+    if (d.kpis_riego.por_aplicador && d.kpis_riego.por_aplicador.length > 0) {
+      tbodyAp.innerHTML = d.kpis_riego.por_aplicador.map(a => `
+        <tr>
+          <td class="fw-bold">${a.aplicador}</td>
+          <td class="metric-tabular">${a.registros}</td>
+          <td class="metric-tabular">${a.camas_totales}</td>
+          <td class="metric-tabular">${a.minutos_totales}</td>
+          <td class="metric-tabular text-info fw-bold">${a.promedio_min_cama.toFixed(2)}</td>
+          <td class="metric-tabular text-success fw-bold">${a.camas_por_hora.toFixed(1)}</td>
+        </tr>
+      `).join("");
+    } else {
+      tbodyAp.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted">No hay registros de riego para el filtro seleccionado.</td></tr>`;
+    }
+
+    // Tabla Clasificaciones
+    const tbodyClasif = document.querySelector("#tabla-clasificaciones-drench tbody");
+    if (d.clasificaciones && d.clasificaciones.length > 0) {
+      tbodyClasif.innerHTML = d.clasificaciones.map(c => `
+        <tr>
+          <td><span class="badge bg-dark-subtle text-dark fw-bold">${c.clasificacion}</span></td>
+          <td class="metric-tabular text-success">${c.completados}</td>
+          <td class="metric-tabular">${c.total}</td>
+          <td class="metric-tabular fw-bold ${c.porcentaje >= 80 ? 'text-success' : 'text-warning'}">
+            ${c.porcentaje}%
+          </td>
+        </tr>
+      `).join("");
+    } else {
+      tbodyClasif.innerHTML = `<tr><td colspan="4" class="text-center py-3 text-muted">No hay datos de clasificación.</td></tr>`;
+    }
+
+  } catch (err) {
+    console.error("Error al cargar reportes:", err);
+  }
+}
+</script>
+{% endblock %}

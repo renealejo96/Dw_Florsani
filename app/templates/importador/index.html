@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Importador de Archivos Excel | AgroFumigación{% endblock %}
+{% block page_header %}Importación y Normalización de Archivos Excel{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="fa-solid fa-file-excel text-success me-2"></i>Importador de Archivos Excel</h4>
+        <p class="text-muted mb-0 small">Carga y actualiza fuentes de datos: Productos y Dosis, Litrajes y Estado de Cultivo con normalización automática de encabezados.</p>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Card 1: Estado de Cultivo (Fumigación Real) -->
+    <div class="col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-top border-4 border-primary">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="fa-solid fa-spray-can-sparkles text-primary fs-4"></i>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-primary">Estado de Cultivo (Real)</h6>
+                        <span class="badge bg-primary-subtle text-primary" style="font-size: 0.7rem;">Fumigación y Rotación Semanal</span>
+                    </div>
+                </div>
+                <p class="text-muted small mb-3">
+                    Plano con camas y edades reales para la semana en curso. Se usará para calibrar litros y bloques en el <strong>Paso 2</strong>.
+                </p>
+                <form action="{{ url_for('importador.upload') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
+                    <input type="hidden" name="file_type" value="ESTADO_CULTIVO">
+                    <input type="hidden" name="header_row" value="4">
+                    <input type="hidden" name="sheet_name" value="DATOS">
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Archivo Excel:</label>
+                        <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx,.xls,.xlsm" required>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-primary"><i class="fa-solid fa-calendar-week me-1"></i>Semana Real:</label>
+                        <input type="text" name="target_week" class="form-control form-control-sm" placeholder="Ej: 2026-35" 
+                               pattern="[0-9]{4}-[0-9]{2}" title="Formato: YYYY-WW (ej. 2026-35)" required>
+                    </div>
+
+                    <input type="hidden" name="mode" value="replace">
+
+                    <div class="d-grid gap-2 pt-2">
+                        <button type="submit" name="action_type" value="preview" class="btn btn-outline-primary btn-sm btn-import-submit">
+                            <i class="fa-solid fa-eye me-1"></i> Previsualizar
+                        </button>
+                        <button type="submit" name="action_type" value="commit" class="btn btn-primary btn-sm fw-semibold btn-import-submit" onclick="const wk = this.form.target_week.value; return confirm('¿Confirmar importación de Estado de Cultivo REAL para la semana ' + wk + '?\n\nSi ya existían camas de esta semana, se reemplazarán para reiniciar el proceso.');">
+                            <i class="fa-solid fa-upload me-1"></i> Importar Real
+                        </button>
+                    </div>
+
+                    <!-- Visual Progress Bar Container -->
+                    <div class="upload-progress-box d-none mt-3 p-2 bg-light border border-primary-subtle rounded text-center">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-primary progress-status-text"><i class="fa-solid fa-spinner fa-spin me-1"></i> Subiendo y procesando plano...</span>
+                            <span class="small fw-bold text-primary progress-status-percent">15%</span>
+                        </div>
+                        <div class="progress" style="height: 7px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 15%;"></div>
+                        </div>
+                        <div class="text-muted small mt-1" style="font-size: 0.7rem;">Leyendo bloques, camas y edades del cultivo...</div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Estado de Cultivo (Orden de Compra a 15 Días) -->
+    <div class="col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-top border-4 border-warning">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="fa-solid fa-cart-shopping text-warning fs-4"></i>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark">Estado de Cultivo (Futuro)</h6>
+                        <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">Orden de Compra (15 Días)</span>
+                    </div>
+                </div>
+                <p class="text-muted small mb-3">
+                    Plano estimado para planificar requisiciones de insumos y compras anticipadas sin alterar camas de fumigación real.
+                </p>
+                <form action="{{ url_for('importador.upload') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
+                    <input type="hidden" name="file_type" value="ESTADO_CULTIVO_COMPRA">
+                    <input type="hidden" name="header_row" value="4">
+                    <input type="hidden" name="sheet_name" value="DATOS">
+                    
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Archivo Excel:</label>
+                        <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx,.xls,.xlsm" required>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-warning"><i class="fa-solid fa-calendar-week me-1"></i>Semana Proyectada:</label>
+                        <input type="text" name="target_week" class="form-control form-control-sm" placeholder="Ej: 2026-37" 
+                               pattern="[0-9]{4}-[0-9]{2}" title="Formato: YYYY-WW (ej. 2026-37)" required>
+                    </div>
+
+                    <input type="hidden" name="mode" value="replace">
+
+                    <div class="d-grid gap-2 pt-2">
+                        <button type="submit" name="action_type" value="preview" class="btn btn-outline-warning text-dark btn-sm btn-import-submit">
+                            <i class="fa-solid fa-eye me-1"></i> Previsualizar
+                        </button>
+                        <button type="submit" name="action_type" value="commit" class="btn btn-warning text-dark btn-sm fw-semibold btn-import-submit" onclick="const wk = this.form.target_week.value; return confirm('¿Confirmar importación de Estado de Cultivo para ORDEN DE COMPRA (Semana ' + wk + ')?');">
+                            <i class="fa-solid fa-upload me-1"></i> Importar Compra
+                        </button>
+                    </div>
+
+                    <!-- Visual Progress Bar Container -->
+                    <div class="upload-progress-box d-none mt-3 p-2 bg-light border border-warning-subtle rounded text-center">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-dark progress-status-text"><i class="fa-solid fa-spinner fa-spin me-1"></i> Subiendo plano proyectado...</span>
+                            <span class="small fw-bold text-dark progress-status-percent">15%</span>
+                        </div>
+                        <div class="progress" style="height: 7px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark" role="progressbar" style="width: 15%;"></div>
+                        </div>
+                        <div class="text-muted small mt-1" style="font-size: 0.7rem;">Normalizando camas para orden de compra a 15 días...</div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Productos y Dosis -->
+    <div class="col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-top border-4 border-success">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="fa-solid fa-flask-vial text-success fs-4"></i>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-success">Productos y Dosis</h6>
+                        <span class="badge bg-success-subtle text-success" style="font-size: 0.7rem;">Catálogo Maestro</span>
+                    </div>
+                </div>
+                <p class="text-muted small mb-3">
+                    Catálogo de agroquímicos, códigos cortos, nombres comerciales, dosis de fumigación y unidades de medida.
+                </p>
+                <form action="{{ url_for('importador.upload') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
+                    <input type="hidden" name="file_type" value="PRODUCTOS_DOSIS">
+                    <input type="hidden" name="mode" value="replace">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Archivo Excel:</label>
+                        <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx,.xls,.xlsm" required>
+                    </div>
+
+                    <div class="d-grid gap-2 pt-4">
+                        <button type="submit" name="action_type" value="preview" class="btn btn-outline-success btn-sm btn-import-submit">
+                            <i class="fa-solid fa-eye me-1"></i> Previsualizar
+                        </button>
+                        <button type="submit" name="action_type" value="commit" class="btn btn-success btn-sm fw-semibold btn-import-submit" onclick="return confirm('¿Confirmar actualización de Catálogo de Productos?');">
+                            <i class="fa-solid fa-upload me-1"></i> Importar Catálogo
+                        </button>
+                    </div>
+
+                    <!-- Visual Progress Bar Container -->
+                    <div class="upload-progress-box d-none mt-3 p-2 bg-light border border-success-subtle rounded text-center">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-success progress-status-text"><i class="fa-solid fa-spinner fa-spin me-1"></i> Actualizando catálogo...</span>
+                            <span class="small fw-bold text-success progress-status-percent">15%</span>
+                        </div>
+                        <div class="progress" style="height: 7px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 15%;"></div>
+                        </div>
+                        <div class="text-muted small mt-1" style="font-size: 0.7rem;">Validando códigos y dosis estándar...</div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Tabla de Litrajes -->
+    <div class="col-lg-6 col-xl-3">
+        <div class="card h-100 shadow-sm border-top border-4 border-info">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="fa-solid fa-droplet text-info fs-4"></i>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-info">Tabla de Litrajes</h6>
+                        <span class="badge bg-info-subtle text-info" style="font-size: 0.7rem;">Matriz Estándar</span>
+                    </div>
+                </div>
+                <p class="text-muted small mb-3">
+                    Matriz de litrajes por cama estándar para cada cultivo y edad en semanas.
+                </p>
+                <form action="{{ url_for('importador.upload') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
+                    <input type="hidden" name="file_type" value="LITRAJES">
+                    <input type="hidden" name="mode" value="replace">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Archivo Excel:</label>
+                        <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx,.xls,.xlsm" required>
+                    </div>
+
+                    <div class="d-grid gap-2 pt-4">
+                        <button type="submit" name="action_type" value="preview" class="btn btn-outline-info btn-sm btn-import-submit">
+                            <i class="fa-solid fa-eye me-1"></i> Previsualizar
+                        </button>
+                        <button type="submit" name="action_type" value="commit" class="btn btn-info text-white btn-sm fw-semibold btn-import-submit" onclick="return confirm('¿Confirmar actualización de Matriz de Litrajes?');">
+                            <i class="fa-solid fa-upload me-1"></i> Importar Litrajes
+                        </button>
+                    </div>
+
+                    <!-- Visual Progress Bar Container -->
+                    <div class="upload-progress-box d-none mt-3 p-2 bg-light border border-info-subtle rounded text-center">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-info progress-status-text"><i class="fa-solid fa-spinner fa-spin me-1"></i> Actualizando litrajes...</span>
+                            <span class="small fw-bold text-info progress-status-percent">15%</span>
+                        </div>
+                        <div class="progress" style="height: 7px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 15%;"></div>
+                        </div>
+                        <div class="text-muted small mt-1" style="font-size: 0.7rem;">Cargando matriz de consumo por cama...</div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import History & Audit -->
+<div class="row g-4">
+    <!-- Import Batches -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-clock-rotate-left me-2 text-warning"></i>Historial de Lotes Importados
+                </h6>
+                <span class="badge bg-light text-dark border">{{ batches|length }} Lotes</span>
+            </div>
+            <div class="card-body p-0">
+                {% if batches %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Tipo de Archivo</th>
+                                <th>Nombre Archivo</th>
+                                <th>Semana Mapeada</th>
+                                <th class="text-end">Filas</th>
+                                <th>Fecha y Hora</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in batches %}
+                            <tr>
+                                <td class="fw-semibold">
+                                    <span class="badge {% if b.file_type == 'ESTADO_CULTIVO' %}bg-primary{% elif b.file_type == 'ESTADO_CULTIVO_COMPRA' %}bg-warning text-dark border border-warning{% elif b.file_type == 'PRODUCTOS_DOSIS' %}bg-success{% else %}bg-info{% endif %}">
+                                        {% if b.file_type == 'ESTADO_CULTIVO' %}
+                                            <i class="fa-solid fa-spray-can-sparkles me-1"></i> Estado Cultivo (Real)
+                                        {% elif b.file_type == 'ESTADO_CULTIVO_COMPRA' %}
+                                            <i class="fa-solid fa-cart-shopping me-1"></i> Estado Cultivo (Compra)
+                                        {% elif b.file_type == 'PRODUCTOS_DOSIS' %}
+                                            <i class="fa-solid fa-flask-vial me-1"></i> Productos y Dosis
+                                        {% elif b.file_type == 'LITRAJES' %}
+                                            <i class="fa-solid fa-droplet me-1"></i> Litrajes
+                                        {% else %}
+                                            {{ b.file_type }}
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td class="font-monospace text-truncate" style="max-width: 180px;" title="{{ b.filename }}">{{ b.filename }}</td>
+                                <td>
+                                    {% if b.file_type in ('ESTADO_CULTIVO', 'ESTADO_CULTIVO_COMPRA') and b.week %}
+                                    <span class="badge {% if b.file_type == 'ESTADO_CULTIVO_COMPRA' %}bg-warning-subtle text-dark border border-warning{% else %}bg-primary-subtle text-primary border border-primary{% endif %} fw-bold" title="Semana asignada a este plano">
+                                        <i class="fa-solid fa-calendar-week me-1"></i>{{ b.week }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-bold">{{ b.imported_rows }}</td>
+                                <td class="text-muted">{{ b.created_at.strftime('%Y-%m-%d %H:%M') if b.created_at else '-' }}</td>
+                                <td><span class="badge bg-success-subtle text-success border border-success">{{ b.status }}</span></td>
+                                <td class="text-end text-nowrap">
+                                    <form action="{{ url_for('importador.eliminar_lote', batch_id=b.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Confirmas que deseas eliminar este lote importado?{% if b.file_type in ["ESTADO_CULTIVO", "ESTADO_CULTIVO_COMPRA"] %} Se eliminarán todas las camas asignadas para la Semana {{ b.week }} y podrás volver a subir el archivo.{% endif %}');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold" title="Eliminar registro y camas de este lote para volver a subir">
+                                            <i class="fa-solid fa-trash-can me-1"></i> Eliminar
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted small">No hay registro de importaciones previas.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Trace -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-shield-halved me-2 text-primary"></i>Trazabilidad y Auditoría Reciente
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                {% if audit_logs %}
+                <div class="table-responsive" style="max-height: 380px;">
+                    <table class="table table-sm table-hover mb-0 small">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Módulo</th>
+                                <th>Acción</th>
+                                <th>Usuario</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in audit_logs %}
+                            <tr>
+                                <td><span class="badge bg-light text-dark border">{{ l.module }}</span></td>
+                                <td class="fw-semibold">{{ l.action }}</td>
+                                <td class="text-muted">{{ l.user }}</td>
+                                <td class="text-muted">{{ l.created_at.strftime('%H:%M %d/%m') if l.created_at else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted small">No hay eventos de auditoría registrados.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[action*="importador/upload"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const fileInput = form.querySelector('input[type="file"]');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                return;
+            }
+
+            const progressBox = form.querySelector('.upload-progress-box');
+            const submitBtns = form.querySelectorAll('.btn-import-submit');
+            const progressBar = form.querySelector('.progress-bar');
+            const percentSpan = form.querySelector('.progress-status-percent');
+
+            if (progressBox) {
+                progressBox.classList.remove('d-none');
+            }
+
+            submitBtns.forEach(btn => {
+                btn.disabled = true;
+                btn.classList.add('opacity-50');
+            });
+
+            // Smooth progress simulation while backend processes Excel
+            let progress = 15;
+            const interval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.floor(Math.random() * 8) + 3;
+                    if (progress > 90) progress = 90;
+                    if (progressBar) progressBar.style.width = progress + '%';
+                    if (percentSpan) percentSpan.textContent = progress + '%';
+                }
+            }, 300);
+        });
+    });
+});
+</script>
+{% endblock %}

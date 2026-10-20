@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo Registro de Cosecha | Florícola{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-circle-plus text-success me-2"></i>
+                Ingreso Diario de Cosecha
+            </h2>
+            <p class="text-muted small mb-0">Digita el viaje, variedad y conteo de mallas para el control de rendimientos.</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-9">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+                <div class="card-header bg-success text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-scissors fs-5"></i>
+                        <span class="fw-bold">Planilla de Ingreso de Viaje</span>
+                    </div>
+                    <span class="badge bg-white text-success fw-bold px-3 py-1 shadow-xs">
+                        <i class="fa-regular fa-clock me-1"></i> <span id="horaDisplay">--:--:--</span>
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" id="registroForm">
+                        <input type="hidden" id="productosConVariedadesData" value="{{ (productos_con_variedades or {}) | tojson | forceescape }}">
+                        <input type="hidden" id="productoSeleccionadoInicialData" value="{{ producto_seleccionado }}">
+                        <input type="hidden" id="variedadSeleccionadaInicialData" value="{{ variedad_seleccionada }}">
+
+                        <div class="row g-3 mb-4">
+                            <!-- Fecha y Semana -->
+                            <div class="col-12 col-md-4">
+                                <label for="fecha" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-regular fa-calendar me-1 text-primary"></i> Fecha de Cosecha *
+                                </label>
+                                <input type="date" class="form-control" id="fecha" name="fecha" required>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label for="semana" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-calendar-week me-1 text-success"></i> Semana Agrícola (Auto 2641)
+                                </label>
+                                <input type="number" class="form-control bg-light fw-bold text-success font-monospace" id="semana" name="semana" min="1000" max="9999" readonly required>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label for="viaje" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-truck-ramp-box me-1 text-warning"></i> N° de Viaje *
+                                </label>
+                                <select class="form-select fw-semibold" id="viaje" name="viaje" required>
+                                    <option value="">Seleccione el viaje</option>
+                                    {% for i in range(1, 21) %}
+                                    <option value="{{ i }}">Viaje {{ i }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Responsable / Monitor Mapeado a Login -->
+                            <div class="col-12 col-md-6">
+                                <label for="responsable" class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
+                                    <span><i class="fa-solid fa-user-check me-1 text-info"></i> Responsable / Monitor *</span>
+                                    {% if current_user %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle small fw-normal py-0 px-2" style="font-size: 0.72rem;">
+                                        <i class="fa-solid fa-link me-1"></i> Sesión: {{ current_user.username }}
+                                    </span>
+                                    {% endif %}
+                                </label>
+                                <select class="form-select fw-semibold" id="responsable" name="responsable" required>
+                                    <option value="">Seleccione o confirme responsable...</option>
+                                    
+                                    {% if current_user %}
+                                    <optgroup label="Usuario Conectado (Tú)">
+                                        <option value="{{ current_user.full_name }}" selected>
+                                            {{ current_user.full_name }} (@{{ current_user.username }}) — [Sesión Activa]
+                                        </option>
+                                    </optgroup>
+                                    {% endif %}
+
+                                    <optgroup label="Monitores y Usuarios del Sistema ERP">
+                                        {% for m in monitores_sistema %}
+                                            {% if not current_user or m.nombre != current_user.full_name %}
+                                            <option value="{{ m.nombre }}" {% if not current_user and m.nombre == responsable_sesion %}selected{% endif %}>
+                                                {{ m.nombre }} {% if m.username %}(@{{ m.username }} &bull; {{ m.role }}){% elif m.role %}({{ m.role }}){% endif %}
+                                            </option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </optgroup>
+                                </select>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.74rem;">
+                                    <i class="fa-solid fa-circle-info text-primary me-1"></i> El monitor se vincula automáticamente con tu cuenta de sesión. Puedes seleccionar otro monitor registrado si es necesario.
+                                </small>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="modulo" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-cube me-1 text-primary"></i> Módulo / Nave de Campo *
+                                </label>
+                                <select class="form-select" id="modulo" name="modulo" required>
+                                    <option value="">Seleccione el módulo</option>
+                                    {% for mod in modulos %}
+                                    <option value="{{ mod }}">{{ mod }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Producto Maestro y Variedad Cascada -->
+                            <div class="col-12 col-md-6">
+                                <label for="producto_maestro" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> 1. Producto Maestro *
+                                </label>
+                                <select class="form-select fw-semibold" id="producto_maestro" name="producto_maestro" required>
+                                    <option value="">Seleccione producto maestro...</option>
+                                    {% for producto in productos_con_variedades.keys() %}
+                                    <option value="{{ producto }}" {% if producto == producto_seleccionado %}selected{% endif %}>{{ producto }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="variedad" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-seedling me-1 text-success"></i> 2. Variedad Específica *
+                                </label>
+                                <select class="form-select fw-semibold" id="variedad" name="variedad" required>
+                                    <option value="">Seleccione primero un producto maestro</option>
+                                </select>
+                            </div>
+
+                            <!-- Mallas y Tallos -->
+                            <div class="col-12 col-md-6">
+                                <label for="mallas" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-table-cells me-1 text-warning"></i> Cantidad de Mallas *
+                                </label>
+                                <input type="number" class="form-control form-control-lg fw-bold" id="mallas" name="mallas" min="1" placeholder="Ej: 15" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="tallos" class="form-label fw-semibold small text-secondary">
+                                    <i class="fa-solid fa-bars-staggered me-1 text-success"></i> Tallos por Malla *
+                                </label>
+                                <select class="form-select form-select-lg fw-bold" id="tallos" name="tallos" required>
+                                    <option value="">Seleccione tallos...</option>
+                                    <option value="10">10 tallos</option>
+                                    <option value="15">15 tallos</option>
+                                    <option value="25">25 tallos</option>
+                                    <option value="30">30 tallos</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Big Counter Widget -->
+                        <div class="card border-0 rounded-4 mb-4" style="background: linear-gradient(135deg, #e8f5ee 0%, #d4edda 100%);">
+                            <div class="card-body text-center py-4">
+                                <div class="text-uppercase text-success fw-bold small tracking-wider mb-1" style="letter-spacing: 0.1em;">
+                                    <i class="fa-solid fa-calculator me-1"></i> Cómputo Total de Tallos
+                                </div>
+                                <div class="display-3 fw-bolder text-success mb-1" id="totalTallosDisplay">0</div>
+                                <span class="badge bg-white text-muted border px-3 py-1 small">
+                                    Mallas (<span id="previewMallas">0</span>) &times; Tallos (<span id="previewTallos">0</span>)
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-flex flex-wrap justify-content-end gap-2 pt-2">
+                            <a href="{{ url_for('cosechas.index') }}" class="btn btn-outline-secondary px-4">
+                                <i class="fa-solid fa-xmark me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg px-4 shadow-sm fw-bold">
+                                <i class="fa-solid fa-floppy-disk me-2"></i> Guardar Cosecha
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rawData = document.getElementById('productosConVariedadesData')?.value || '{}';
+    let productosConVariedades = {};
+    try {
+        productosConVariedades = JSON.parse(rawData);
+    } catch (e) {
+        console.error("Error parseando variedades:", e);
+    }
+
+    const prodSelInicial = document.getElementById('productoSeleccionadoInicialData')?.value || '';
+    const varSelInicial = document.getElementById('variedadSeleccionadaInicialData')?.value || '';
+
+    const fechaInput = document.getElementById('fecha');
+    const semanaInput = document.getElementById('semana');
+    const mallasInput = document.getElementById('mallas');
+    const tallosInput = document.getElementById('tallos');
+    const totalDisplay = document.getElementById('totalTallosDisplay');
+    const prevMallas = document.getElementById('previewMallas');
+    const prevTallos = document.getElementById('previewTallos');
+    const prodSelect = document.getElementById('producto_maestro');
+    const varSelect = document.getElementById('variedad');
+    const horaDisplay = document.getElementById('horaDisplay');
+
+    // Default to today
+    if (!fechaInput.value) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        fechaInput.value = `${yyyy}-${mm}-${dd}`;
+        actualizarSemana();
+    }
+
+    fechaInput.addEventListener('change', actualizarSemana);
+
+    function actualizarSemana() {
+        if (!fechaInput.value) return;
+        const d = new Date(fechaInput.value + 'T00:00:00');
+        const target = new Date(d.valueOf());
+        const dayNr = (d.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNr + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) {
+            target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        }
+        const week = 1 + Math.ceil((firstThursday - target) / 604800000);
+        const isoYear = target.getFullYear();
+        const yy = isoYear % 100;
+        const semanaCampo = (yy * 100) + week; // Formato estricto 2641
+        semanaInput.value = semanaCampo;
+    }
+
+    // Live Ecuador Clock
+    function tickClock() {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const ecTime = new Date(utc - (5 * 3600000));
+        const hh = String(ecTime.getHours()).padStart(2, '0');
+        const mm = String(ecTime.getMinutes()).padStart(2, '0');
+        const ss = String(ecTime.getSeconds()).padStart(2, '0');
+        if (horaDisplay) horaDisplay.textContent = `${hh}:${mm}:${ss} (ECT)`;
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    // Live Calculation
+    function recalcularTallos() {
+        const m = parseInt(mallasInput.value) || 0;
+        const t = parseInt(tallosInput.value) || 0;
+        const total = m * t;
+        totalDisplay.textContent = total.toLocaleString();
+        prevMallas.textContent = m;
+        prevTallos.textContent = t;
+    }
+
+    mallasInput.addEventListener('input', recalcularTallos);
+    tallosInput.addEventListener('change', recalcularTallos);
+
+    // Cascading Dropdown
+    function actualizarVariedades(producto, preseleccionar = '') {
+        varSelect.innerHTML = '';
+        if (!producto || !productosConVariedades[producto] || productosConVariedades[producto].length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Sin variedades disponibles';
+            varSelect.appendChild(opt);
+            return;
+        }
+
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = 'Seleccione una variedad';
+        varSelect.appendChild(defaultOpt);
+
+        productosConVariedades[producto].forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            if (v === preseleccionar) opt.selected = true;
+            varSelect.appendChild(opt);
+        });
+    }
+
+    prodSelect.addEventListener('change', function() {
+        actualizarVariedades(this.value);
+    });
+
+    if (prodSelInicial) {
+        prodSelect.value = prodSelInicial;
+        actualizarVariedades(prodSelInicial, varSelInicial);
+    }
+});
+</script>
+{% endblock %}

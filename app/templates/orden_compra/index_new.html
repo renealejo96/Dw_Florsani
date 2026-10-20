@@ -1,0 +1,940 @@
+{% extends "base.html" %}
+
+{% block title %}Orden de Compra | AgroFumigación{% endblock %}
+{% block page_header %}Orden de Compra &bull; Pedido a 15 Días{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-tile {
+    background-color: #ffffff;
+    border: 1px solid var(--card-border);
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.15s ease;
+}
+.kpi-tile:hover {
+    border-color: #cbd5e1;
+}
+.kpi-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+}
+.kpi-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+}
+.diff-cell-superavit {
+    background-color: #22c55e !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.diff-cell-deficit {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.diff-cell-neutral {
+    background-color: #f8fafc !important;
+    color: #475569 !important;
+    font-weight: 600 !important;
+}
+.pivot-child-box {
+    background-color: #f8fafc;
+    border-left: 4px solid #0284c7;
+    border-radius: 0 4px 4px 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top Header & Week Navigation Strip -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+        <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted small d-inline-block mb-1">
+            <i class="fa-solid fa-arrow-left me-1"></i> Dashboard
+        </a>
+        <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+            <i class="fa-solid fa-cart-shopping text-warning"></i> Compras & Control de Abastecimiento
+        </h4>
+        <div class="text-muted small">Cálculo proyectado (15 días) vs balance global ejecutado en campo (Fumigación + Drench + Trichos)</div>
+    </div>
+
+    <!-- Inline Week Selector & Quick Actions -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="GET" action="{{ url_for('orden_compra.index') }}" class="d-flex align-items-center gap-2">
+            <label class="small fw-semibold text-secondary text-nowrap mb-0"><i class="fa-solid fa-calendar-week me-1"></i>Semana:</label>
+            <select name="week" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width: 170px;">
+                {% for w in week_options %}
+                <option value="{{ w.value }}" {% if w.value == selected_week %}selected{% endif %}>
+                    {{ w.label }} {% if w.is_target %}(A 15 días){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+
+        {% if rotation %}
+        <a href="{{ url_for('orden_compra.exportar_excel', week=selected_week) }}" class="btn btn-outline-success btn-sm fw-semibold" title="Exportar Requisición a Excel">
+            <i class="fa-solid fa-file-excel me-1"></i> Excel
+        </a>
+        <a href="{{ url_for('fumigacion.rotacion_detalle', rotation_id=rotation.id) }}" class="btn btn-outline-primary btn-sm fw-semibold" title="Ver detalle de la rotación semanal">
+            <i class="fa-solid fa-eye me-1"></i> Ver Rotación
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Biological Cut-off & Requisition Week Badge -->
+<div class="alert alert-primary py-2 px-3 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-sm border-primary-subtle">
+    <div class="d-flex align-items-center">
+        <i class="fa-solid fa-clock-rotate-left fs-4 me-3 text-primary"></i>
+        <div>
+            <div class="fw-bold text-dark">
+                Regla de Abastecimiento (15 Días): 
+                <span class="badge bg-success fs-6 ms-1">Semana {{ selected_week }}</span>
+                <span class="badge bg-secondary fs-6 ms-1">Corte Estado Cultivo: Semana {{ cutoff_week }}</span>
+            </div>
+            <div class="small text-muted">
+                Estado de cultivo disponible en sistema: <strong>Semana {{ latest_available_week }}</strong> | Utilizado <strong>Semana {{ cutoff_week }}</strong> para requisición de <strong>Semana {{ selected_week }}</strong> (Restricción biológica: corte edad &ge; 2 semanas).
+            </div>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge bg-light text-dark border"><i class="fa-solid fa-seedling text-success me-1"></i>Edad &lt; 2 sem: Excluido de fumigación</span>
+        <span class="badge bg-light text-dark border"><i class="fa-solid fa-calculator text-warning me-1"></i>Holguras: Camas de presupuesto</span>
+    </div>
+</div>
+
+{% if rotation %}
+<!-- KPI Indicators Strip -->
+<div class="row g-2 mb-3">
+    <div class="col-6 col-md-3 col-xl">
+        <div class="kpi-tile text-center">
+            <div class="kpi-label">Semana Operativa</div>
+            <div class="kpi-value text-dark font-monospace">{{ selected_week }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="kpi-tile text-center">
+            <div class="kpi-label">Camas Std Totales</div>
+            <div class="kpi-value text-primary">{{ total_standard_beds_sum|format_number(2) }}</div>
+            {% if budget_standard_beds_sum and budget_standard_beds_sum > 0 %}
+            <div class="text-muted fw-semibold" style="font-size: 0.68rem;">Base: {{ base_standard_beds_sum|format_number(2) }} | Holgura: +{{ budget_standard_beds_sum|format_number(2) }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="kpi-tile text-center">
+            <div class="kpi-label">Bloques / Segmentos</div>
+            <div class="kpi-value text-secondary">{{ total_beds_count }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="kpi-tile text-center">
+            <div class="kpi-label">Litros Estimados</div>
+            <div class="kpi-value text-dark">{{ total_liters_sum|format_number(1) }} L</div>
+            {% if budget_liters_sum and budget_liters_sum > 0 %}
+            <div class="text-muted fw-semibold" style="font-size: 0.68rem;">Base: {{ base_liters_sum|format_number(1) }}L | Holgura: +{{ budget_liters_sum|format_number(1) }}L</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-12 col-md-12 col-xl">
+        <div class="kpi-tile text-center d-flex flex-column justify-content-center align-items-center">
+            <div class="kpi-label">Estado de Orden</div>
+            {% if requisition and requisition.status == 'APROBADO' %}
+            <span class="badge bg-success-subtle text-success border border-success fw-bold">
+                <i class="fa-solid fa-lock me-1"></i> APROBADO (Inmutable)
+            </span>
+            {% else %}
+            <span class="badge bg-warning-subtle text-dark border border-warning fw-bold">
+                <i class="fa-solid fa-clock me-1"></i> PENDIENTE
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TABLA DINÁMICA PIVOTE MULTI-MÓDULO ==================== -->
+{% if pivot_data and pivot_data.rows %}
+<div class="card shadow-xs mb-3">
+    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-scale-balanced text-primary fs-5"></i>
+            <div>
+                <span class="fw-bold text-dark">Tabla Dinámica de Abastecimiento: Pedido 15 Días vs Ejecutado Real Finca</span>
+                <div class="text-muted small" style="font-size: 0.76rem;">Consolidación por insumo: Fumigación Foliar + Drench Suelo + Trichos. Clic en [+] para ver desglose por origen y cultivo.</div>
+            </div>
+        </div>
+        
+        <!-- Filter Pills & Search -->
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-filter-pivot-status active" data-status="ALL">Todos</button>
+                <button type="button" class="btn btn-outline-success btn-filter-pivot-status" data-status="SUPERAVIT">🟢 Superávit</button>
+                <button type="button" class="btn btn-outline-danger btn-filter-pivot-status" data-status="DEFICIT">🔴 Déficit</button>
+                <button type="button" class="btn btn-outline-secondary btn-filter-pivot-status" data-status="EXACTO">⚪ Exacto</button>
+            </div>
+            <input type="text" id="search-pivot-chem" class="form-control form-control-sm" placeholder="Buscar químico..." style="width: 150px; font-size: 0.8rem;">
+            {% if requisition and requisition.status != 'APROBADO' %}
+            <button type="button" class="btn btn-sm btn-success fw-bold py-1 px-3" id="btn-approve-order">
+                <i class="fa-solid fa-check me-1"></i> Aprobar Orden
+            </button>
+            {% elif requisition and session.get('role') == 'ADMIN' %}
+            <button type="button" class="btn btn-sm btn-outline-danger py-1" id="btn-delete-order" title="Reiniciar orden aprobada">
+                <i class="fa-solid fa-trash-can me-1"></i> Reiniciar (Admin)
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="table-pivot-chemicals" style="font-size: 0.85rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 38px;" class="text-center"></th>
+                        <th style="width: 130px;">Producto Químico</th>
+                        <th>Nombre Comercial</th>
+                        <th style="width: 70px;" class="text-center">Unidad</th>
+                        <th class="text-end" style="width: 150px;">Comprado (15 Días)</th>
+                        <th class="text-end text-muted" style="width: 130px;" title="Fumigación Foliar + Manchas">🌿 Fumigación</th>
+                        <th class="text-end text-muted" style="width: 110px;" title="Drench Radicular y Suelo">💧 Drench</th>
+                        <th class="text-end text-muted" style="width: 110px;" title="Trichos y Biológicos">🧪 Trichos</th>
+                        <th class="text-end fw-bold" style="width: 140px;">Total Ejecutando</th>
+                        <th class="text-end" style="width: 140px;">Diferencia Global</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in pivot_data.rows %}
+                    {% set child_id = 'pivot-detail-' ~ loop.index %}
+                    <tr class="pivot-main-row" data-diff-type="{{ r.diff_type }}" data-code="{{ r.product_code|upper }}" data-name="{{ r.commercial_name|upper }}" data-child-id="{{ child_id }}">
+                        <td class="text-center p-1">
+                            {% if r.details %}
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none btn-toggle-pivot-details" data-target="{{ child_id }}" title="Ver desglose por origen y cultivo">
+                                <i class="fa-solid fa-square-plus text-primary fs-6"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-muted small">&bull;</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold font-monospace text-primary">{{ r.product_code }}</td>
+                        <td class="fw-semibold text-dark">{{ r.commercial_name }}</td>
+                        <td class="text-center"><span class="badge bg-light text-secondary border font-monospace">{{ r.unit }}</span></td>
+                        <td class="text-end fw-semibold text-secondary font-monospace">{{ r.quantity_forecast|format_product(r.unit) }}</td>
+                        <td class="text-end text-muted font-monospace">{{ r.quantity_fumigacion|format_product(r.unit) if r.quantity_fumigacion > 0 else '-' }}</td>
+                        <td class="text-end text-muted font-monospace">{{ r.quantity_drench|format_product(r.unit) if r.quantity_drench > 0 else '-' }}</td>
+                        <td class="text-end text-muted font-monospace">{{ r.quantity_trichos|format_product(r.unit) if r.quantity_trichos > 0 else '-' }}</td>
+                        <td class="text-end fw-bold text-dark font-monospace">{{ r.total_real|format_product(r.unit) }}</td>
+                        <td class="text-end font-monospace {{ r.diff_cell_class }}" title="{{ r.status_label }}">
+                            {{ r.diff_display }}
+                        </td>
+                    </tr>
+                    {% if r.details %}
+                    <tr id="{{ child_id }}" class="pivot-child-row d-none" data-parent-code="{{ r.product_code|upper }}">
+                        <td colspan="10" class="p-2">
+                            <div class="pivot-child-box p-2 mx-2">
+                                <div class="fw-bold text-secondary small mb-1">
+                                    <i class="fa-solid fa-diagram-project text-primary me-1"></i> Desglose de Uso para <strong>{{ r.commercial_name }} ({{ r.product_code }})</strong>:
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered bg-white mb-0" style="font-size: 0.78rem;">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Módulo / Origen</th>
+                                                <th>Programa / Orden</th>
+                                                <th>Cultivo / Variedad</th>
+                                                <th class="text-end">Camas Std</th>
+                                                <th class="text-end">Litros Mezcla</th>
+                                                <th class="text-end">Cantidad Asignada</th>
+                                                <th class="text-center">Unidad</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for d in r.details %}
+                                            <tr>
+                                                <td>
+                                                    <span class="badge {% if 'Foliar' in d.module %}bg-primary-subtle text-primary border border-primary{% elif 'Drench' in d.module %}bg-info-subtle text-info border border-info{% elif 'Planific' in d.module or 'Pedido' in d.module %}bg-warning-subtle text-dark border border-warning{% elif 'Tricho' in d.module %}bg-success-subtle text-success border border-success{% else %}bg-secondary-subtle text-secondary border{% endif %}">
+                                                        {{ d.module }}
+                                                    </span>
+                                                </td>
+                                                <td class="fw-semibold text-dark">{{ d.program }}</td>
+                                                <td class="fw-semibold text-dark"><i class="fa-solid fa-seedling text-success me-1"></i>{{ d.crop_name }}</td>
+                                                <td class="text-end font-monospace">{{ d.beds|format_number(2) if d.beds else '-' }}</td>
+                                                <td class="text-end font-monospace">{{ d.liters|format_number(1) if d.liters else '-' }}</td>
+                                                <td class="text-end fw-bold text-primary font-monospace">{{ d.amount|format_product(d.unit) }}</td>
+                                                <td class="text-center"><span class="badge bg-light text-secondary border">{{ d.unit }}</span></td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td colspan="4" class="text-start text-secondary small text-uppercase">Totales Consolidados:</td>
+                        <td class="text-end text-secondary font-monospace">{{ pivot_data.totals.total_forecast|format_number(2) }}</td>
+                        <td class="text-end text-muted font-monospace">{{ pivot_data.totals.total_fumigacion|format_number(2) }}</td>
+                        <td class="text-end text-muted font-monospace">{{ pivot_data.totals.total_drench|format_number(2) }}</td>
+                        <td class="text-end text-muted font-monospace">{{ pivot_data.totals.total_trichos|format_number(2) }}</td>
+                        <td class="text-end text-dark font-monospace">{{ pivot_data.totals.total_real|format_number(2) }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Beds & Variety Summary Section -->
+<div class="card shadow-xs mb-3">
+    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-chart-pie text-primary"></i>
+            <span class="fw-bold text-dark">Resumen de Camas por Variedad / Cultivo</span>
+        </div>
+        <!-- Selectable Toggle Boxes (Compra vs Real) -->
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small d-none d-md-inline">Vista:</span>
+            <div class="btn-group btn-group-sm shadow-xs" role="group" id="btn-group-beds-mode">
+                <button type="button" class="btn btn-primary fw-bold active" id="btn-beds-compra" onclick="setBedsSummaryMode('compra')" title="Ver camas proyectadas para el pedido de compra de 15 días (Censo + Holgura)">
+                    <i class="fa-solid fa-cart-shopping me-1"></i> 📦 Según Compra (15 Días)
+                </button>
+                <button type="button" class="btn btn-outline-primary fw-bold" id="btn-beds-real" onclick="setBedsSummaryMode('real')" title="Ver camas reales asignadas y calibradas en las órdenes oficiales de campo">
+                    <i class="fa-solid fa-clipboard-check me-1"></i> 🚜 Según Ejecución Real (Órdenes)
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Table 1: Según Compra -->
+    <div class="card-body p-0" id="pane-beds-compra">
+        {% if variety_summary_list %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.82rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-start">Cultivo / Variedad</th>
+                        {% if budget_standard_beds_sum and budget_standard_beds_sum > 0 %}
+                        <th class="text-end" style="width: 110px;">Base (Std)</th>
+                        <th class="text-end text-warning" style="width: 110px;">Holgura (Std)</th>
+                        {% endif %}
+                        <th class="text-end" style="width: 140px;">Camas Std Totales</th>
+                        <th class="text-end" style="width: 130px;">Veg (Std)</th>
+                        <th class="text-end" style="width: 130px;">Prod (Std)</th>
+                        <th class="text-end" style="width: 110px;">N° Bloques</th>
+                        <th class="text-end" style="width: 140px;">Litros Estimados</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for var in variety_summary_list %}
+                    <tr>
+                        <td class="text-start fw-bold text-dark">{{ var.crop_name }}</td>
+                        {% if budget_standard_beds_sum and budget_standard_beds_sum > 0 %}
+                        <td class="text-end text-muted font-monospace">{{ var.base_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-warning fw-semibold font-monospace">{{ ('+' ~ var.budget_std_beds|format_number(2)) if var.budget_std_beds > 0 else '-' }}</td>
+                        {% endif %}
+                        <td class="text-end fw-bold text-primary">{{ var.total_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-success fw-semibold">{{ var.veg_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-primary fw-semibold">{{ var.prod_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-muted">{{ var.segments_count }}</td>
+                        <td class="text-end fw-semibold text-dark">{{ var.total_liters|format_number(1) }} L</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td class="text-start text-secondary small text-uppercase">Total General (Compra):</td>
+                        {% if budget_standard_beds_sum and budget_standard_beds_sum > 0 %}
+                        <td class="text-end text-secondary">{{ base_standard_beds_sum|format_number(2) }}</td>
+                        <td class="text-end text-warning">+{{ budget_standard_beds_sum|format_number(2) }}</td>
+                        {% endif %}
+                        <td class="text-end text-primary">{{ total_standard_beds_sum|format_number(2) }}</td>
+                        <td class="text-end text-success">{{ variety_summary_list|sum(attribute='veg_std_beds')|format_number(2) }}</td>
+                        <td class="text-end text-primary">{{ variety_summary_list|sum(attribute='prod_std_beds')|format_number(2) }}</td>
+                        <td class="text-end text-secondary">{{ total_beds_count }}</td>
+                        <td class="text-end text-dark">{{ total_liters_sum|format_number(1) }} L</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-muted small p-3 text-center">No hay camas calculadas para mostrar el resumen por variedad.</div>
+        {% endif %}
+    </div>
+
+    <!-- Table 2: Según Ejecución Real -->
+    <div class="card-body p-0 d-none" id="pane-beds-real">
+        {% if variety_real_summary_list and variety_real_summary_list|length > 0 %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.82rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-start">Cultivo / Variedad</th>
+                        <th class="text-end" style="width: 150px;">Camas Std Reales</th>
+                        <th class="text-end text-success" style="width: 140px;">Veg Real (Std)</th>
+                        <th class="text-end text-primary" style="width: 140px;">Prod Real (Std)</th>
+                        <th class="text-end text-secondary" style="width: 120px;">N° Bloques</th>
+                        <th class="text-end text-dark" style="width: 150px;">Litros Mezcla Real</th>
+                        <th class="text-center" style="width: 130px;">Órdenes Asignadas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for var in variety_real_summary_list %}
+                    <tr>
+                        <td class="text-start fw-bold text-dark">{{ var.crop_name }}</td>
+                        <td class="text-end fw-bold text-success font-monospace">{{ var.total_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-success font-monospace">{{ var.veg_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-primary font-monospace">{{ var.prod_std_beds|format_number(2) }}</td>
+                        <td class="text-end text-muted font-monospace">{{ var.segments_count }}</td>
+                        <td class="text-end fw-bold text-dark font-monospace">{{ var.total_liters|format_number(1) }} L</td>
+                        <td class="text-center"><span class="badge bg-light text-primary border">{{ var.orders_count }} orden(es)</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td class="text-start text-secondary small text-uppercase">Total Ejecutado Real:</td>
+                        <td class="text-end text-success font-monospace">{{ real_std_beds_sum|format_number(2) }}</td>
+                        <td class="text-end text-success font-monospace">{{ variety_real_summary_list|sum(attribute='veg_std_beds')|format_number(2) }}</td>
+                        <td class="text-end text-primary font-monospace">{{ variety_real_summary_list|sum(attribute='prod_std_beds')|format_number(2) }}</td>
+                        <td class="text-end text-secondary font-monospace">{{ real_segments_count }}</td>
+                        <td class="text-end text-dark font-monospace">{{ real_liters_sum|format_number(1) }} L</td>
+                        <td class="text-center text-muted small">&bull;</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted bg-light">
+            <i class="fa-solid fa-clipboard-question fs-3 text-secondary mb-2 d-block"></i>
+            <h6 class="fw-bold text-dark mb-1">Aún no hay órdenes de fumigación generadas para la Semana {{ selected_week }}</h6>
+            <p class="small text-muted mb-0">Cuando el agrónomo asigne las vueltas desde la Mesa de Calibración, aquí aparecerán las camas y litros reales por variedad.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Budget Adjustments Section (Siembras y Podas) -->
+<div class="card shadow-xs mb-3">
+    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-calculator text-warning"></i>
+            <span class="fw-bold text-dark">Ajustes de Presupuesto (Camas de Siembra / Poda)</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if saved_budget_adjustments %}
+            <span class="badge bg-success-subtle text-success border border-success fw-bold" style="font-size: 0.75rem;">
+                <i class="fa-solid fa-circle-check me-1"></i>Guardado: +{{ budget_standard_beds_sum|format_number(1) }} camas (+{{ budget_liters_sum|format_number(1) }} L)
+            </span>
+            {% else %}
+            <span class="badge bg-light text-muted border small" style="font-size: 0.72rem;">Sin camas adicionales registradas</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="text-muted small mb-3" style="font-size: 0.8rem;">
+            <i class="fa-solid fa-circle-info text-primary me-1"></i>
+            Camas proyectadas (siembras/podas) añadidas a la orden de compra a 15 días con litraje promedio (<strong>3 L/cama</strong> en vegetativo, <strong>7 L/cama</strong> en productivo).
+        </div>
+        
+        <!-- 1. MODO VISUALIZACIÓN / GUARDADO -->
+        {% if saved_budget_adjustments %}
+        <div id="budget-view-mode">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover table-bordered align-middle mb-2" style="font-size: 0.82rem;">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;" class="text-center">#</th>
+                            <th style="width: 180px;">Cultivo / Variedad</th>
+                            <th style="width: 80px;" class="text-center">Edad (sem)</th>
+                            <th style="width: 130px;" class="text-center">Estado</th>
+                            <th style="width: 120px;" class="text-end">Camas Presupuesto</th>
+                            <th style="width: 110px;" class="text-end">Litraje Ref.</th>
+                            <th style="width: 120px;" class="text-end">Litros Proyectados</th>
+                            <th>Motivo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for adj in saved_budget_adjustments %}
+                        {% set l_bed = adj.liters_per_bed or (3.0 if adj.stage == 'VEGETATIVO' else 7.0) %}
+                        {% set l_tot = adj.total_liters or (adj.beds * l_bed) %}
+                        <tr>
+                            <td class="text-center text-muted">{{ loop.index }}</td>
+                            <td class="fw-bold text-dark">
+                                <i class="fa-solid fa-seedling text-success me-1"></i>{{ adj.crop_name }}
+                            </td>
+                            <td class="text-center font-monospace">{{ adj.age }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if adj.stage == 'VEGETATIVO' %}bg-success-subtle text-success border border-success{% else %}bg-primary-subtle text-primary border border-primary{% endif %}">
+                                    {{ adj.stage }}
+                                </span>
+                            </td>
+                            <td class="text-end fw-bold text-primary font-monospace">{{ adj.beds|format_number(1) }}</td>
+                            <td class="text-end text-muted font-monospace">{{ l_bed|format_number(1) }} L/c</td>
+                            <td class="text-end fw-bold text-dark font-monospace">{{ l_tot|format_number(1) }} L</td>
+                            <td class="text-muted small">{{ adj.reason or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light fw-bold border-top">
+                        <tr>
+                            <td colspan="4" class="text-uppercase small text-secondary">Totales de Holgura:</td>
+                            <td class="text-end text-primary font-monospace">+{{ budget_standard_beds_sum|format_number(1) }}</td>
+                            <td class="text-end text-muted small">Promedio ~{{ ((budget_liters_sum / budget_standard_beds_sum)|format_number(1)) if budget_standard_beds_sum else '5.0' }} L</td>
+                            <td class="text-end text-dark font-monospace">+{{ budget_liters_sum|format_number(1) }} L</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <div class="d-flex gap-2 justify-content-end align-items-center pt-2">
+                <button type="button" class="btn btn-warning text-dark btn-sm fw-bold py-1 px-3 shadow-xs" id="btn-enable-edit-budget">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Editar Presupuesto
+                </button>
+                <button type="button" class="btn btn-outline-primary btn-sm py-1 fw-semibold" id="btn-add-more-budget">
+                    <i class="fa-solid fa-plus me-1"></i> Agregar Fila
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 2. MODO EDICIÓN / FORMULARIO -->
+        <div id="budget-edit-mode" class="{% if saved_budget_adjustments %}d-none{% endif %}">
+            <form id="form-budget-adjustments">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle mb-2" id="table-budget" style="font-size: 0.82rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 180px;">Cultivo / Variedad</th>
+                                <th style="width: 80px;" class="text-center">Edad (sem)</th>
+                                <th style="width: 140px;">Estado</th>
+                                <th style="width: 120px;" class="text-end">Camas Presupuesto</th>
+                                <th style="width: 120px;" class="text-end">Litraje (L/cama)</th>
+                                <th style="width: 100px;" class="text-end">Litros Calc.</th>
+                                <th>Motivo</th>
+                                <th style="width: 50px;" class="text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="budget-rows">
+                            <!-- Dynamic budget rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="d-flex gap-2 justify-content-end align-items-center pt-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm py-1" id="btn-add-budget-row">
+                        <i class="fa-solid fa-plus me-1"></i> Agregar Fila
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm fw-bold py-1 px-3 shadow-sm" id="btn-recalculate">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar y Recalcular Pedido
+                    </button>
+                    {% if saved_budget_adjustments %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-1" id="btn-cancel-edit-budget">
+                        <i class="fa-solid fa-xmark me-1"></i> Cancelar
+                    </button>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="alert alert-warning shadow-xs py-3">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+    <strong>No existe rotación para la Semana {{ selected_week }}.</strong>
+    <div class="mt-2">
+        <a href="{{ url_for('fumigacion.rotacion_crear') }}?week={{ selected_week }}" class="btn btn-warning btn-sm fw-bold">
+            <i class="fa-solid fa-plus me-1"></i> Crear Rotación para Semana {{ selected_week }}
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Budget adjustments functionality
+let budgetRowCounter = 0;
+
+// Crops and ages available
+const availableCrops = {{ active_crops|tojson if active_crops else '[]'|safe }};
+const phenStages = ['VEGETATIVO', 'PRODUCTIVO'];
+const roundsCount = {{ rotation.rounds|length if rotation and rotation.rounds else 1 }};
+
+function createBudgetRow(data = {}) {
+    budgetRowCounter++;
+    const crop_name = data.crop_name || '';
+    const age = (data.age !== undefined && data.age !== null) ? data.age : 2;
+    const stage = data.stage || 'VEGETATIVO';
+    const beds = data.beds !== undefined && data.beds !== null ? data.beds : '';
+    let lit = data.liters_per_bed;
+    if (!lit || parseFloat(lit) <= 0) {
+        lit = (stage === 'VEGETATIVO') ? 3.0 : 7.0;
+    }
+    const reason = data.reason || '';
+    const calcLiters = (beds && lit) ? (parseFloat(beds) * parseFloat(lit) * roundsCount).toFixed(1) : '0.0';
+
+    const tbody = document.getElementById('budget-rows');
+    if (!tbody) return;
+    const row = document.createElement('tr');
+    row.id = `budget-row-${budgetRowCounter}`;
+    row.innerHTML = `
+        <td>
+            <input type="text" class="form-control form-control-sm" name="crop_name[]" 
+                   value="${crop_name}" placeholder="Ej: GYPSOPHILA" list="crop-list-${budgetRowCounter}" required>
+            <datalist id="crop-list-${budgetRowCounter}">
+                ${availableCrops.map(c => `<option value="${c.name}">`).join('')}
+            </datalist>
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm text-center font-monospace" name="age[]" 
+                   value="${age}" min="0" max="200" required onchange="onStageOrAgeChange(${budgetRowCounter})">
+        </td>
+        <td>
+            <select class="form-select form-select-sm" name="stage[]" required onchange="onStageOrAgeChange(${budgetRowCounter})">
+                <option value="">Seleccionar...</option>
+                <option value="VEGETATIVO" ${stage === 'VEGETATIVO' ? 'selected' : ''}>VEGETATIVO</option>
+                <option value="PRODUCTIVO" ${stage === 'PRODUCTIVO' ? 'selected' : ''}>PRODUCTIVO</option>
+            </select>
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm text-end font-monospace" name="beds[]" 
+                   value="${beds}" min="0.1" step="0.1" placeholder="Ej: 50" required oninput="recalcRowLiters(${budgetRowCounter})">
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm text-end font-monospace" name="liters_per_bed[]" 
+                   value="${lit}" min="0.1" step="0.1" required oninput="recalcRowLiters(${budgetRowCounter})">
+        </td>
+        <td class="text-end font-monospace fw-bold text-dark">
+            <span id="row-liters-${budgetRowCounter}">${calcLiters}</span> L
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="reason[]" 
+                   value="${reason}" placeholder="Ej: Siembras semana 39">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeBudgetRow(${budgetRowCounter})" title="Eliminar fila">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+}
+
+function onStageOrAgeChange(rowId) {
+    const row = document.getElementById(`budget-row-${rowId}`);
+    if (!row) return;
+    const stageSelect = row.querySelector('[name="stage[]"]');
+    const litInput = row.querySelector('[name="liters_per_bed[]"]');
+    const ageInput = row.querySelector('[name="age[]"]');
+    const stage = stageSelect ? stageSelect.value : '';
+    const age = parseFloat(ageInput?.value || 0);
+
+    if (stage === 'VEGETATIVO' || (age > 0 && age < 10)) {
+        if (!litInput.value || litInput.value === '7' || litInput.value === '7.0' || litInput.value === '5' || litInput.value === '5.0') {
+            litInput.value = '3.0';
+        }
+    } else if (stage === 'PRODUCTIVO' || age >= 10) {
+        if (!litInput.value || litInput.value === '3' || litInput.value === '3.0' || litInput.value === '5' || litInput.value === '5.0') {
+            litInput.value = '7.0';
+        }
+    }
+    recalcRowLiters(rowId);
+}
+
+function recalcRowLiters(rowId) {
+    const row = document.getElementById(`budget-row-${rowId}`);
+    if (!row) return;
+    const bedsInput = row.querySelector('[name="beds[]"]');
+    const litInput = row.querySelector('[name="liters_per_bed[]"]');
+    const span = document.getElementById(`row-liters-${rowId}`);
+    const beds = parseFloat(bedsInput?.value || 0) || 0;
+    const lit = parseFloat(litInput?.value || 0) || 0;
+    if (span) {
+        span.textContent = (beds * lit * roundsCount).toFixed(1);
+    }
+}
+
+function removeBudgetRow(rowId) {
+    const row = document.getElementById(`budget-row-${rowId}`);
+    if (row) row.remove();
+}
+
+// Add budget row button
+document.getElementById('btn-add-budget-row')?.addEventListener('click', function() {
+    createBudgetRow();
+});
+
+// Toggle view / edit modes
+const viewMode = document.getElementById('budget-view-mode');
+const editMode = document.getElementById('budget-edit-mode');
+
+document.getElementById('btn-enable-edit-budget')?.addEventListener('click', function() {
+    if (viewMode) viewMode.classList.add('d-none');
+    if (editMode) editMode.classList.remove('d-none');
+});
+
+document.getElementById('btn-add-more-budget')?.addEventListener('click', function() {
+    if (viewMode) viewMode.classList.add('d-none');
+    if (editMode) editMode.classList.remove('d-none');
+    createBudgetRow();
+});
+
+document.getElementById('btn-cancel-edit-budget')?.addEventListener('click', function() {
+    if (editMode) editMode.classList.add('d-none');
+    if (viewMode) viewMode.classList.remove('d-none');
+});
+
+// Recalculate with budget
+document.getElementById('btn-recalculate')?.addEventListener('click', function() {
+    const form = document.getElementById('form-budget-adjustments');
+    const formData = new FormData(form);
+    
+    // Build budget adjustments array
+    const crops = formData.getAll('crop_name[]');
+    const ages = formData.getAll('age[]');
+    const stages = formData.getAll('stage[]');
+    const beds = formData.getAll('beds[]');
+    const liters = formData.getAll('liters_per_bed[]');
+    const reasons = formData.getAll('reason[]');
+    
+    const adjustments = [];
+    for (let i = 0; i < crops.length; i++) {
+        if (crops[i] && ages[i] && stages[i] && beds[i]) {
+            adjustments.push({
+                crop_name: crops[i].trim(),
+                age: parseFloat(ages[i]) || 0,
+                stage: stages[i],
+                beds: parseFloat(beds[i]) || 0,
+                liters_per_bed: parseFloat(liters[i]) || (stages[i] === 'VEGETATIVO' ? 3.0 : 7.0),
+                reason: (reasons[i] || '').trim()
+            });
+        }
+    }
+    
+    if (adjustments.length === 0) {
+        alert('Agrega al menos una fila de presupuesto antes de recalcular.');
+        return;
+    }
+    
+    // Send to backend
+    fetch('{{ url_for("orden_compra.recalculate_with_budget") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            week: '{{ selected_week }}',
+            rotation_id: {{ rotation.id if rotation else 'null' }},
+            adjustments: adjustments
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ Pedido recalculado con camas de presupuesto');
+            window.location.reload();
+        } else {
+            alert('Error al recalcular: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al recalcular el pedido');
+    });
+});
+
+// Approve order
+document.getElementById('btn-approve-order')?.addEventListener('click', function() {
+    if (!confirm('¿Confirmar aprobación de esta orden de compra?')) return;
+    
+    fetch('{{ url_for("orden_compra.approve_order") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            week: '{{ selected_week }}',
+            rotation_id: {{ rotation.id if rotation else 'null' }}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ Orden de compra APROBADA exitosamente');
+            window.location.reload();
+        } else {
+            alert('Error al aprobar: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al aprobar la orden');
+    });
+});
+
+// Delete / Reset order (Admin only)
+document.getElementById('btn-delete-order')?.addEventListener('click', function() {
+    if (!confirm('⚠️ ¿Estás seguro de que deseas ELIMINAR / REINICIAR esta Orden de Compra aprobada?\n\nEsta acción solo la puede realizar el Administrador para permitir volver a generar la orden de compra desde cero para la semana {{ selected_week }}.')) return;
+
+    fetch('{{ url_for("orden_compra.eliminar_orden") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            week: '{{ selected_week }}',
+            rotation_id: {{ rotation.id if rotation else 'null' }}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ ' + data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al eliminar la orden');
+    });
+});
+
+// Load existing budget adjustments
+function loadExistingBudgetAdjustments() {
+    {% if requisition and requisition.budget_adjustments_json %}
+    try {
+        const existingAdjustments = {{ requisition.budget_adjustments_json|safe }};
+        if (Array.isArray(existingAdjustments) && existingAdjustments.length > 0) {
+            existingAdjustments.forEach(adj => {
+                createBudgetRow(adj);
+            });
+            return;
+        }
+    } catch (e) {
+        console.error('Error loading budget adjustments:', e);
+    }
+    {% endif %}
+    // If no adjustments exist, start with 1 empty row in edit mode
+    createBudgetRow();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadExistingBudgetAdjustments();
+
+    // Toggle child row details in dynamic pivot table
+    document.querySelectorAll('.btn-toggle-pivot-details').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('data-target');
+            const targetRow = document.getElementById(targetId);
+            if (targetRow) {
+                if (targetRow.classList.contains('d-none')) {
+                    targetRow.classList.remove('d-none');
+                    this.innerHTML = '<i class="fa-solid fa-square-minus text-secondary fs-6"></i>';
+                } else {
+                    targetRow.classList.add('d-none');
+                    this.innerHTML = '<i class="fa-solid fa-square-plus text-primary fs-6"></i>';
+                }
+            }
+        });
+    });
+
+    // Filter dynamic pivot table by Status
+    let activeFilter = 'ALL';
+    document.querySelectorAll('.btn-filter-pivot-status').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.btn-filter-pivot-status').forEach(b => {
+                b.classList.remove('active');
+                if (b.getAttribute('data-status') === 'SUPERAVIT') b.className = 'btn btn-outline-success btn-filter-pivot-status';
+                else if (b.getAttribute('data-status') === 'DEFICIT') b.className = 'btn btn-outline-danger btn-filter-pivot-status';
+                else b.className = 'btn btn-outline-secondary btn-filter-pivot-status';
+            });
+
+            this.classList.add('active');
+            if (this.getAttribute('data-status') === 'SUPERAVIT') this.className = 'btn btn-success btn-filter-pivot-status active';
+            else if (this.getAttribute('data-status') === 'DEFICIT') this.className = 'btn btn-danger btn-filter-pivot-status active';
+            else this.className = 'btn btn-secondary btn-filter-pivot-status active';
+
+            activeFilter = this.getAttribute('data-status');
+            applyPivotFilters();
+        });
+    });
+
+    // Real-time search in dynamic pivot table
+    const searchInput = document.getElementById('search-pivot-chem');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            applyPivotFilters();
+        });
+    }
+
+    function applyPivotFilters() {
+        const query = (document.getElementById('search-pivot-chem')?.value || '').trim().toUpperCase();
+        document.querySelectorAll('.pivot-main-row').forEach(row => {
+            const diffType = row.getAttribute('data-diff-type') || '';
+            const code = row.getAttribute('data-code') || '';
+            const name = row.getAttribute('data-name') || '';
+            const childId = row.getAttribute('data-child-id');
+            const childRow = document.getElementById(childId);
+
+            const matchesStatus = (activeFilter === 'ALL' || diffType === activeFilter);
+            const matchesSearch = (!query || code.includes(query) || name.includes(query));
+
+            if (matchesStatus && matchesSearch) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+                if (childRow) childRow.classList.add('d-none');
+            }
+        });
+    }
+});
+
+function setBedsSummaryMode(mode) {
+    const paneCompra = document.getElementById('pane-beds-compra');
+    const paneReal = document.getElementById('pane-beds-real');
+    const btnCompra = document.getElementById('btn-beds-compra');
+    const btnReal = document.getElementById('btn-beds-real');
+
+    if (mode === 'real') {
+        if (paneCompra) paneCompra.classList.add('d-none');
+        if (paneReal) paneReal.classList.remove('d-none');
+        if (btnReal) {
+            btnReal.className = 'btn btn-primary fw-bold active';
+        }
+        if (btnCompra) {
+            btnCompra.className = 'btn btn-outline-primary fw-bold';
+        }
+    } else {
+        if (paneReal) paneReal.classList.add('d-none');
+        if (paneCompra) paneCompra.classList.remove('d-none');
+        if (btnCompra) {
+            btnCompra.className = 'btn btn-primary fw-bold active';
+        }
+        if (btnReal) {
+            btnReal.className = 'btn btn-outline-primary fw-bold';
+        }
+    }
+}
+</script>
+{% endblock %}

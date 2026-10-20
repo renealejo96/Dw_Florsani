@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Fertilización - Florsani ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 py-3">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <h2 class="h4 fw-bold text-dark mb-0">Catálogos Maestros de Fertilización</h2>
+      <p class="text-muted small mb-0">Gestión de técnicos de riego, variedades y asignación de bloques.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Catálogo de Técnicos -->
+    <div class="col-12 col-lg-6">
+      <div class="bento-card p-4 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="fw-bold mb-0"><i class="fa-solid fa-user-tie text-success me-2"></i>Técnicos de Riego</h5>
+          <button type="button" class="btn btn-sm btn-success fw-bold" onclick="abrirModalTecnico()">
+            <i class="fa-solid fa-plus me-1"></i> Nuevo Técnico
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th>Nombre</th>
+                <th>Estado</th>
+                <th class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in tecnicos %}
+              <tr>
+                <td class="fw-bold">{{ t.nombre }}</td>
+                <td>
+                  <span class="badge {% if t.activo %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                    {{ 'Activo' if t.activo else 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button type="button" onclick="toggleTecnico({{ t.id }})" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" title="Cambiar Estado">
+                    <i class="fa-solid fa-power-off"></i>
+                  </button>
+                  <button type="button" onclick="eliminarTecnico({{ t.id }})" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center py-3 text-muted">No hay técnicos configurados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Catálogo de Variedades -->
+    <div class="col-12 col-lg-6">
+      <div class="bento-card p-4 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="fw-bold mb-0"><i class="fa-solid fa-seedling text-primary me-2"></i>Variedades de Fertilización</h5>
+          <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="abrirModalVariedad()">
+            <i class="fa-solid fa-plus me-1"></i> Nueva Variedad
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th>Variedad</th>
+                <th>Estado</th>
+                <th class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in variedades %}
+              <tr>
+                <td class="fw-bold">{{ v.nombre }}</td>
+                <td>
+                  <span class="badge {% if v.activo %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                    {{ 'Activo' if v.activo else 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button type="button" onclick="eliminarVariedad({{ v.id }})" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center py-3 text-muted">No hay variedades configuradas.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bloques Asignados -->
+    <div class="col-12">
+      <div class="bento-card p-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <div>
+            <h5 class="fw-bold mb-1"><i class="fa-solid fa-cubes-stacked text-warning me-2"></i>Catálogo Maestro de Bloques, Zonas y Técnicos de Riego</h5>
+            <p class="text-muted small mb-0">Total bloques registrados: <strong class="text-dark">{{ total_bloques }}</strong> &bull; Datos maestros autorizados de la finca Florsani.</p>
+          </div>
+          <div>
+            <input type="text" id="filtro-busqueda-bloques" onkeyup="filtrarTablaBloques(this.value)" placeholder="Buscar por bloque, zona o técnico..." class="form-control form-control-sm" style="max-width: 320px;">
+          </div>
+        </div>
+
+        <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+          <table class="table table-hover align-middle mb-0" id="tabla-bloques-config">
+            <thead class="table-light sticky-top">
+              <tr class="small text-uppercase text-secondary">
+                <th style="width: 100px;">Bloque</th>
+                <th style="width: 180px;">Zona</th>
+                <th>Técnico de Riego Asignado</th>
+                <th style="width: 130px;" class="text-end">Camas Físicas</th>
+                <th style="width: 130px;" class="text-end">Camas Estándar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in bloques_list %}
+              <tr>
+                <td class="fw-bold font-monospace fs-7 text-dark">{{ b.bloque }}</td>
+                <td><span class="badge bg-light text-dark border">{{ b.zona }}</span></td>
+                <td><span class="badge bg-primary-subtle text-primary border border-primary font-monospace fw-bold">{{ b.tecnico_nombre }}</span></td>
+                <td class="metric-tabular text-end font-monospace">{{ b.camas_fisicas }}</td>
+                <td class="metric-tabular text-end text-success fw-bold font-monospace">{{ b.cama_estandar|round(2) }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center py-3 text-muted">No hay bloques registrados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL NUEVO TÉCNICO -->
+<div class="modal fade" id="modalTecnico" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bento-card border-0">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold">Nuevo Técnico de Riego</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form onsubmit="guardarTecnico(event)">
+        <div class="modal-body">
+          <label class="form-label small fw-bold">Nombre Completo:</label>
+          <input type="text" id="input-nombre-tecnico" required class="form-control form-control-sm" placeholder="Ej: Técnico 6 - Nuevo">
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-success fw-bold">Guardar Técnico</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA VARIEDAD -->
+<div class="modal fade" id="modalVariedad" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bento-card border-0">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold">Nueva Variedad</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form onsubmit="guardarVariedad(event)">
+        <div class="modal-body">
+          <label class="form-label small fw-bold">Nombre de la Variedad:</label>
+          <input type="text" id="input-nombre-variedad" required class="form-control form-control-sm" placeholder="Ej: GYPSOPHILA - NUEVA">
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary fw-bold">Guardar Variedad</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function abrirModalTecnico() {
+  new bootstrap.Modal(document.getElementById('modalTecnico')).show();
+}
+
+function abrirModalVariedad() {
+  new bootstrap.Modal(document.getElementById('modalVariedad')).show();
+}
+
+async function guardarTecnico(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('input-nombre-tecnico').value.trim();
+  const res = await fetch("{{ url_for('fertilizacion.api_config_tecnicos') }}", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nombre })
+  });
+  const data = await res.json();
+  if (data.success) location.reload();
+  else alert("Error: " + data.message);
+}
+
+async function toggleTecnico(id) {
+  const res = await fetch(`{{ url_for('fertilizacion.index') }}api/config/tecnicos/${id}/toggle`, { method: "POST" });
+  const data = await res.json();
+  if (data.success) location.reload();
+}
+
+async function eliminarTecnico(id) {
+  if (!confirm("¿Eliminar este técnico?")) return;
+  const res = await fetch(`{{ url_for('fertilizacion.index') }}api/config/tecnicos/${id}`, { method: "DELETE" });
+  const data = await res.json();
+  if (data.success) location.reload();
+}
+
+async function guardarVariedad(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('input-nombre-variedad').value.trim();
+  const res = await fetch("{{ url_for('fertilizacion.api_config_variedades') }}", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nombre })
+  });
+  const data = await res.json();
+  if (data.success) location.reload();
+  else alert("Error: " + data.message);
+}
+
+async function eliminarVariedad(id) {
+  if (!confirm("¿Eliminar esta variedad?")) return;
+  const res = await fetch(`{{ url_for('fertilizacion.index') }}api/config/variedades/${id}`, { method: "DELETE" });
+  const data = await res.json();
+  if (data.success) location.reload();
+}
+
+function filtrarTablaBloques(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#tabla-bloques-config tbody tr');
+  rows.forEach(r => {
+    const text = r.innerText.toLowerCase();
+    r.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

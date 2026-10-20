@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Módulo Trichos | AgroFumigación{% endblock %}
+{% block page_header %}Supermódulo 3 &bull; Inoculación y Control Biológico con Trichoderma{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-top border-4 border-success">
+    <div class="card-body p-5 text-center">
+        <div class="bg-success-subtle text-success d-inline-block p-4 rounded-circle mb-3">
+            <i class="fa-solid fa-bacteria fs-1"></i>
+        </div>
+        <h3 class="fw-bold text-dark mb-2">Supermódulo de Trichos</h3>
+        <p class="text-muted mx-auto" style="max-width: 600px;">
+            Módulo base diseñado para la planificación, inoculación y seguimiento biológico de cepas de <em>Trichoderma spp.</em> en camas de cultivo y propagación.
+        </p>
+
+        <div class="row g-3 justify-content-center my-4" style="max-width: 800px; margin: 0 auto;">
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-microscope text-success me-1"></i> Cepas y Concentración</div>
+                    <div class="small text-muted mt-1">Conteo de UFC/g y dosificación de biológicos por cama o volumen.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-calendar-days text-primary me-1"></i> Frecuencias de Inoculación</div>
+                    <div class="small text-muted mt-1">Ciclos de refuerzo en siembra, poda y estados críticos.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-shield-virus text-warning me-1"></i> Compatibilidad Química</div>
+                    <div class="small text-muted mt-1">Reglas de períodos de carencia con fungicidas químicos.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{
+    "semana": 30,
+    "supervisor_aliases": {
+        "MARIA DOLORES": "Maria Dolores Perugachi",
+        "MARIA DOLORES PERUGACHI": "Maria Dolores Perugachi",
+        "DIEGO FLORES": "Diego Flores",
+        "ANDRES BORJA": "Andres Borja",
+        "ROLANDO QUISHPE": "Rolando Quishpe"
+    },
+    "auxiliar_aliases": {
+        "PATRCIO CEVILLA": "Patricio Sevilla",
+        "PATRICIO SEVILLA": "Patricio Sevilla",
+        "PATRCIO SEVILLA": "Patricio Sevilla",
+        "KEVIN BUTRON": "Kevin Buitron",
+        "KEVIN BUITRON": "Kevin Buitron",
+        "CARLOS PERUGACHI": "Carlos Perugachi",
+        "MARCIA MEDINA": "Marcia Medina",
+        "PACO ESTACIO": "Paco Estacio",
+        "JOSE BLANCO": "Jose Blanco",
+        "XAVIER BUITRON": "Xavier Buitron"
+    },
+    "producto_aliases": {
+        "BILLION LIGHTS": [
+            "GYPSO XLENCE",
+            "MILLION STAR II",
+            "BILLION LIGHTS",
+            "SMALL BLOOM",
+            "GYPSOPHILA"
+        ],
+        "VERONICA": [
+            "VERONICAS",
+            "VERONICA"
+        ],
+        "VERONICA SPLASH": [
+            "VERONICAS SPLASH",
+            "VERONICA SPLASH"
+        ]
+    }
+}

@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Estado de Cultivo y Camas | AgroEz{% endblock %}
+{% block page_header %}Estado de Cultivo &bull; Consolidado Semanal Unificado con TPSR{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="fa-solid fa-layer-group text-primary me-2"></i>Estado de Cultivo y Camas</h4>
+        <p class="text-muted mb-0 small">Resumen ejecutivo semanal del inventario de camas, bloques y estados fenológicos sincronizado con el Registro de Campo TPSR.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('tpsr.registro') }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+            <i class="fa-solid fa-map-location-dot me-1"></i> Ir a Mapping TPSR (Campo)
+        </a>
+        <a href="{{ url_for('importador.index') }}" class="btn btn-outline-primary btn-sm fw-semibold shadow-sm">
+            <i class="fa-solid fa-file-excel me-1"></i> Importar Excel Semanal
+        </a>
+    </div>
+</div>
+
+<!-- Cut-off Week Active Card & Loaded Weeks Notification -->
+<div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-sm border-info-subtle">
+    <div class="d-flex align-items-center">
+        <i class="fa-solid fa-calendar-check fs-4 me-3 text-info"></i>
+        <div>
+            <div class="fw-bold text-dark d-flex align-items-center flex-wrap gap-1">
+                <span>Foto de Estado de Cultivo Activa:</span>
+                <span class="badge bg-primary fs-6 ms-1">
+                    {% if selected_week == 'ALL' %}
+                        Todas las Semanas Cargadas (Última: {{ ultima_semana_excel }})
+                    {% else %}
+                        Semana {{ corte_semana }}
+                    {% endif %}
+                </span>
+                <span class="badge bg-secondary fs-6 ms-1">Semana Calendario Hoy: {{ semana_calendario }}</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">
+                    <i class="fa-solid fa-rotate me-1"></i>Sincronizado con TPSR
+                </span>
+            </div>
+            <div class="small text-muted mt-1">
+                Las edades reales y conteos mostrados corresponden a la <strong>Semana {{ corte_semana }}</strong>. Cada carga de Excel o registro en Mapping TPSR actualiza automáticamente las camas e historial de eventos.
+            </div>
+            {% if semanas_cargadas_info %}
+            <div class="d-flex align-items-center flex-wrap gap-1 mt-2">
+                <span class="small fw-bold text-dark me-1"><i class="fa-solid fa-database text-success me-1"></i>Semanas Cargadas en Sistema:</span>
+                {% for w_info in semanas_cargadas_info %}
+                <a href="{{ url_for('estado_cultivo.index', crop=selected_crop, zone=selected_zone, week=w_info.raw) }}"
+                   class="badge text-decoration-none {% if selected_week == w_info.raw %}bg-success text-white border border-dark shadow-xs{% else %}bg-white text-dark border{% endif %} px-2 py-1">
+                    <i class="fa-solid {% if selected_week == w_info.raw %}fa-circle-check{% else %}fa-calendar-week text-secondary{% endif %} me-1"></i>Sem {{ w_info.label }}
+                    <span class="{% if selected_week == w_info.raw %}text-white-50{% else %}text-muted{% endif %} ms-1">({{ "{:,}".format(w_info.count) }} camas)</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Stats Bar -->
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card p-3 border-start border-4 border-primary shadow-sm text-center">
+            <div class="text-muted small text-uppercase fw-semibold">Camas Registradas (Sem {{ corte_semana }})</div>
+            <div class="fs-4 fw-bold text-dark">{{ "{:,}".format(total_records) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 border-start border-4 border-success shadow-sm text-center">
+            <div class="text-muted small text-uppercase fw-semibold">Camas Activas con Cultivo</div>
+            <div class="fs-4 fw-bold text-success">{{ "{:,}".format(active_records) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 border-start border-4 border-info shadow-sm text-center">
+            <div class="text-muted small text-uppercase fw-semibold">Total Camas Estándar</div>
+            <div class="fs-4 fw-bold text-info">{{ total_std_beds|format_number(2) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 border-start border-4 border-secondary shadow-sm text-center">
+            <div class="text-muted small text-uppercase fw-semibold">Camas Vacías / Inactivas</div>
+            <div class="fs-4 fw-bold text-muted">{{ "{:,}".format(empty_records) }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Compact Filters Bar -->
+<div class="card mb-3 shadow-sm">
+    <div class="card-body py-2 px-3">
+        <form method="GET" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <select name="week" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()">
+                    {% for w_info in (semanas_cargadas_info or []) %}
+                    <option value="{{ w_info.raw }}" {% if selected_week == w_info.raw %}selected{% endif %}>
+                        Semana {{ w_info.label }} ({{ "{:,}".format(w_info.count) }} camas)
+                    </option>
+                    {% endfor %}
+                    <option value="ALL" {% if selected_week == 'ALL' %}selected{% endif %}>-- Todas las semanas --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="zone" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- Todas las zonas --</option>
+                    {% for z in unique_zones %}
+                    <option value="{{ z }}" {% if selected_zone == z %}selected{% endif %}>{{ z }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="crop" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- Todos los cultivos --</option>
+                    {% for c in unique_crops %}
+                    <option value="{{ c }}" {% if selected_crop == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <a href="{{ url_for('estado_cultivo.index', week=selected_week) }}" class="btn btn-outline-secondary btn-sm">Limpiar Filtros</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Executive Summary Matrices (Zero Pagination) -->
+<div class="row g-3">
+    <!-- Summary by Crop Master -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3">
+                <span class="fw-bold text-dark small text-uppercase"><i class="fa-solid fa-seedling me-2 text-success"></i>Distribución por Cultivo Maestro</span>
+                <span class="badge bg-success-subtle text-success">{{ summary_by_crop|length }} Cultivos</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.82rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Cultivo Maestro</th>
+                                <th class="text-center">Bloques</th>
+                                <th class="text-center">Variedades</th>
+                                <th class="text-end">Camas Activas</th>
+                                <th class="text-center">% Veg / % Prod</th>
+                                <th class="text-end pe-3">Camas Estándar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in summary_by_crop %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-dark">{{ row.crop }}</td>
+                                <td class="text-center"><span class="badge bg-light text-dark border">{{ row.blocks_count }}</span></td>
+                                <td class="text-center text-muted">{{ row.varieties_count }}</td>
+                                <td class="text-end fw-semibold">{{ "{:,}".format(row.active_beds) }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">{{ row.pct_veg }}% V</span>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ row.pct_prod }}% P</span>
+                                </td>
+                                <td class="text-end pe-3 fw-bold text-primary">{{ row.std_beds|format_number(2) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">Sin registros para los filtros seleccionados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary by Zone -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3">
+                <span class="fw-bold text-dark small text-uppercase"><i class="fa-solid fa-map-pin me-2 text-primary"></i>Distribución por Zona de Finca</span>
+                <span class="badge bg-primary-subtle text-primary">{{ summary_by_zone|length }} Zonas</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.82rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Zona</th>
+                                <th class="text-center">Bloques Activos</th>
+                                <th class="text-end">Camas Activas</th>
+                                <th class="text-end">Vacías</th>
+                                <th class="text-center">% Veg / % Prod</th>
+                                <th class="text-end pe-3">Camas Estándar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for z in summary_by_zone %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-dark">{{ z.zone }}</td>
+                                <td class="text-center"><span class="badge bg-light text-dark border">{{ z.blocks_count }}</span></td>
+                                <td class="text-end fw-semibold text-success">{{ "{:,}".format(z.active_beds) }}</td>
+                                <td class="text-end text-muted">{{ "{:,}".format(z.empty_beds) }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">{{ z.pct_veg }}% V</span>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ z.pct_prod }}% P</span>
+                                </td>
+                                <td class="text-end pe-3 fw-bold text-primary">{{ z.std_beds|format_number(2) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">Sin registros para los filtros seleccionados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

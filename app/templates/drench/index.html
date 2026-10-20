@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Módulo Drench | AgroFumigación{% endblock %}
+{% block page_header %}Supermódulo 2 &bull; Aplicaciones Drench (Suelo y Radicular){% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-top border-4 border-info">
+    <div class="card-body p-5 text-center">
+        <div class="bg-info-subtle text-info d-inline-block p-4 rounded-circle mb-3">
+            <i class="fa-solid fa-faucet-drip fs-1"></i>
+        </div>
+        <h3 class="fw-bold text-dark mb-2">Supermódulo de Drench</h3>
+        <p class="text-muted mx-auto" style="max-width: 600px;">
+            Este módulo está preparado estructural y arquitectónicamente para gestionar aplicaciones al suelo, drench preventivo, bioestimulación radicular y fungicidas sistémicos.
+        </p>
+
+        <div class="row g-3 justify-content-center my-4" style="max-width: 800px; margin: 0 auto;">
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-flask text-info me-1"></i> Dosis Drench</div>
+                    <div class="small text-muted mt-1">El catálogo de productos ya incluye la columna de <code>dosis drench</code> configurada y lista.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-calculator text-success me-1"></i> Reglas de Litraje Suelo</div>
+                    <div class="small text-muted mt-1">Estructura de cálculo independiente de fumigación foliar para calibración de descarga por m².</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-file-signature text-warning me-1"></i> Órdenes de Drench</div>
+                    <div class="small text-muted mt-1">Carcasa modular para emitir órdenes operativas dirigidas al equipo de riego y drench.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

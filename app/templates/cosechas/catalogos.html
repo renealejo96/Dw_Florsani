@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Catálogos de Cosecha | Florícola{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-boxes-stacked text-primary me-2"></i>
+                Catálogo de Productos Maestros y Variedades
+            </h2>
+            <p class="text-muted small mb-0">Crea, edita, renombra o elimina variedades y productos maestros agronómicos.</p>
+        </div>
+    </div>
+
+    <!-- Stats row (Bento Style) -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4">
+            <div class="kpi-tile kpi-accent-blue">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="kpi-label"><i class="fa-solid fa-boxes-stacked text-primary me-1"></i> Productos Maestros</span>
+                    <span class="kpi-icon-badge kpi-icon-blue"><i class="fa-solid fa-layer-group"></i></span>
+                </div>
+                <div class="kpi-value text-primary tabular-nums">{{ total_productos }}</div>
+                <div class="kpi-subtext">Familias botánicas y cultivos</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="kpi-tile kpi-accent-green">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="kpi-label"><i class="fa-solid fa-leaf text-success me-1"></i> Variedades Mapeadas</span>
+                    <span class="kpi-icon-badge kpi-icon-green"><i class="fa-solid fa-seedling"></i></span>
+                </div>
+                <div class="kpi-value text-success tabular-nums">{{ total_variedades }}</div>
+                <div class="kpi-subtext">Variedades activas para corte</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="kpi-tile kpi-accent-purple">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="kpi-label"><i class="fa-solid fa-file-csv text-purple me-1" style="color: var(--brand-accent-purple);"></i> Archivo Fuente</span>
+                    <span class="kpi-icon-badge kpi-icon-purple"><i class="fa-solid fa-database"></i></span>
+                </div>
+                <div class="fw-bold text-dark font-monospace mb-1" style="font-size: 0.95rem;">MAESTRO_PROS.csv</div>
+                <div class="kpi-subtext">Sincronización bidireccional activa</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form Cards Row -->
+    <div class="row g-4 mb-4">
+        <!-- Card 1: Crear Producto Maestro -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                <div class="card-header bg-primary text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 fw-bold fs-6">
+                        <i class="fa-solid fa-circle-plus me-2"></i> 1. Crear Nuevo Producto Maestro
+                    </h5>
+                    <span class="badge bg-white text-primary">Categoría Padre</span>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST">
+                        <input type="hidden" name="accion" value="crear_producto">
+                        <div class="mb-3">
+                            <label for="producto_maestro" class="form-label small fw-semibold text-secondary">
+                                Nombre del Producto Maestro *
+                            </label>
+                            <input type="text" class="form-control text-uppercase" id="producto_maestro" name="producto_maestro" 
+                                   maxlength="100" placeholder="Ej: HYPERICUM, GYPSOPHILA, ASTER" required>
+                            <div class="form-text small">Se creará en mayúsculas como categoría padre.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Producto Maestro
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Crear Variedad y Asociar -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                <div class="card-header bg-success text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 fw-bold fs-6">
+                        <i class="fa-solid fa-link me-2"></i> 2. Crear y Vincular Variedad
+                    </h5>
+                    <span class="badge bg-white text-success">Variedad Hija</span>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST">
+                        <input type="hidden" name="accion" value="crear_variedad">
+                        <div class="mb-3">
+                            <label for="producto_asignado" class="form-label small fw-semibold text-secondary">
+                                Producto Maestro Asociado *
+                            </label>
+                            <select class="form-select fw-semibold" id="producto_asignado" name="producto_maestro" required>
+                                <option value="">Seleccione el producto maestro...</option>
+                                {% for prod in productos_maestros %}
+                                <option value="{{ prod }}">{{ prod }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="variedad" class="form-label small fw-semibold text-secondary">
+                                Nombre de la Variedad *
+                            </label>
+                            <input type="text" class="form-control text-uppercase" id="variedad" name="variedad" 
+                                   maxlength="120" placeholder="Ej: BILLION LIGHTS" required>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm px-4 fw-bold">
+                            <i class="fa-solid fa-plus me-1"></i> Guardar y Vincular Variedad
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Search & Filter Bar -->
+    <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+        <div class="card-body p-3">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-md-6">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0 text-muted">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </span>
+                        <input type="text" id="filtroCatalogo" class="form-control border-start-0" 
+                               placeholder="Buscar variedad o producto maestro (ej: Small Bloom, Billion Lights, Gypsophila...)" 
+                               autocomplete="off">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 text-md-end text-muted small">
+                    Mostrando <strong id="contadorVisible" class="text-dark">{{ total_variedades }}</strong> variedades en <strong class="text-dark">{{ total_productos }}</strong> productos
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Catalog Cards -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="card-title fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-network-wired text-primary me-2"></i>
+                Estructura Actual del Maestro de Cosechas
+            </h5>
+            <span class="badge bg-light text-secondary border">Total Grupos: {{ productos_con_variedades|length }}</span>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3" id="catalogoGrid">
+                {% for prod, vars in productos_con_variedades.items() %}
+                <div class="col-12 col-md-6 col-xl-4 producto-card-col" data-producto="{{ prod|upper }}">
+                    <div class="border rounded-3 p-3 bg-light h-100 d-flex flex-column shadow-2xs">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <span class="fw-bold text-dark fs-6">{{ prod }}</span>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 badge-conteo">
+                                    {{ vars|length }} variedades
+                                </span>
+                                {% if not vars %}
+                                <form method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar producto maestro {{ prod }} sin variedades?');">
+                                    <input type="hidden" name="accion" value="eliminar_producto">
+                                    <input type="hidden" name="producto_maestro" value="{{ prod }}">
+                                    <button type="submit" class="btn btn-link text-danger p-0 ms-1" title="Eliminar producto maestro">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 overflow-auto" style="max-height: 240px;">
+                            {% if vars %}
+                            <ul class="list-group list-group-flush small">
+                                {% for v in vars %}
+                                <li class="list-group-item bg-transparent px-1 py-1 d-flex justify-content-between align-items-center variedad-item" 
+                                    data-variedad="{{ v|upper }}" data-producto="{{ prod|upper }}">
+                                    <span class="text-secondary text-truncate" title="{{ v }}">
+                                        <i class="fa-solid fa-leaf text-success me-1 opacity-75"></i>
+                                        <strong class="variedad-nombre text-dark">{{ v }}</strong>
+                                    </span>
+                                    <div class="d-flex align-items-center gap-1 ms-2">
+                                        <button type="button" class="btn btn-outline-primary btn-xs py-0 px-2 border-0 rounded-2" 
+                                                onclick="abrirModalEditar('{{ prod }}', '{{ v }}')"
+                                                title="Editar / Renombrar variedad">
+                                            <i class="fa-solid fa-pen-to-square"></i>
+                                        </button>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('¿Desvincular o eliminar la variedad {{ v }} de {{ prod }}?');">
+                                            <input type="hidden" name="accion" value="eliminar_relacion">
+                                            <input type="hidden" name="producto_maestro" value="{{ prod }}">
+                                            <input type="hidden" name="variedad" value="{{ v }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-xs py-0 px-2 border-0 rounded-2" title="Eliminar variedad">
+                                                <i class="fa-solid fa-trash-can"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <div class="text-muted small fst-italic py-2 text-center">Sin variedades asignadas.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar / Renombrar Variedad -->
+<div class="modal fade" id="modalEditarVariedad" tabindex="-1" aria-labelledby="modalEditarVariedadLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="card-header bg-dark text-white py-3 px-4 rounded-top-4 d-flex justify-content-between align-items-center">
+                <h5 class="modal-title fs-6 fw-bold mb-0" id="modalEditarVariedadLabel">
+                    <i class="fa-solid fa-pen-to-square text-warning me-2"></i>
+                    Editar Variedad de Cosecha
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="accion" value="editar_variedad">
+                <input type="hidden" name="variedad_original" id="modal_var_orig">
+                <input type="hidden" name="producto_original" id="modal_prod_orig">
+                
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small text-muted mb-3 d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-primary fs-5"></i>
+                        <div>
+                            Editando actualmente: <strong class="text-dark" id="modal_txt_orig"></strong> en <span class="badge bg-secondary" id="modal_txt_prod"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_var_nueva" class="form-label small fw-semibold text-secondary">
+                            Nuevo Nombre de la Variedad *
+                        </label>
+                        <input type="text" class="form-control form-control-lg fw-bold text-uppercase" 
+                               id="modal_var_nueva" name="variedad_nueva" maxlength="120" required>
+                        <div class="form-text small">
+                            Escribe el nuevo nombre autorizado (ej. cambiar <code>SMALL BLOOM</code> a <code>BILLION LIGHTS</code>).
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_prod_nuevo" class="form-label small fw-semibold text-secondary">
+                            Producto Maestro Asociado *
+                        </label>
+                        <select class="form-select fw-semibold" id="modal_prod_nuevo" name="producto_maestro" required>
+                            {% for prod in productos_maestros %}
+                            <option value="{{ prod }}">{{ prod }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small">Puedes mantener la misma categoría o reasignar a otro producto maestro.</div>
+                    </div>
+
+                    <div class="form-check form-switch p-3 bg-light rounded-3 border mt-3">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" name="actualizar_historico" value="1" id="modal_actualizar_historico" checked>
+                        <label class="form-check-label fw-semibold text-dark small" for="modal_actualizar_historico">
+                            Actualizar automáticamente el nombre en registros de cosechas y estimados existentes
+                        </label>
+                        <div class="small text-muted mt-1 ps-4" style="font-size: 0.78rem;">
+                            Recomendado: Renombra todas las apariciones de esta variedad en el historial de cosechas y metas semanales para mantener coherencia contable y de reportes.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light px-4 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-xs">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    window.abrirModalEditar = function(prod, variedad) {
+        document.getElementById('modal_var_orig').value = variedad;
+        document.getElementById('modal_prod_orig').value = prod;
+        document.getElementById('modal_var_nueva').value = variedad;
+        document.getElementById('modal_prod_nuevo').value = prod;
+        document.getElementById('modal_txt_orig').textContent = variedad;
+        document.getElementById('modal_txt_prod').textContent = prod;
+        
+        const modalEl = document.getElementById('modalEditarVariedad');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        setTimeout(() => {
+            const input = document.getElementById('modal_var_nueva');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }, 300);
+    };
+
+    // Buscador interactivo en vivo
+    const filtroInput = document.getElementById('filtroCatalogo');
+    if (filtroInput) {
+        filtroInput.addEventListener('input', function() {
+            const term = this.value.trim().toUpperCase();
+            const items = document.querySelectorAll('.variedad-item');
+            const cards = document.querySelectorAll('.producto-card-col');
+            let visibles = 0;
+
+            items.forEach(item => {
+                const varName = (item.dataset.variedad || '').toUpperCase();
+                const prodName = (item.dataset.producto || '').toUpperCase();
+                const match = !term || varName.includes(term) || prodName.includes(term);
+                item.style.display = match ? '' : 'none';
+                if (match) visibles++;
+            });
+
+            cards.forEach(card => {
+                const prod = (card.dataset.producto || '').toUpperCase();
+                const hasVisibleVars = card.querySelectorAll('.variedad-item:not([style*="display: none"])').length > 0;
+                card.style.display = (!term || prod.includes(term) || hasVisibleVars) ? '' : 'none';
+            });
+
+            const contador = document.getElementById('contadorVisible');
+            if (contador) contador.textContent = visibles;
+        });
+    }
+});
+</script>
+{% endblock %}

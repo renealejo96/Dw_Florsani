@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}Fenogramas - Detalle de Actividades Incumplidas (0s){% endblock %}
+
+{% block page_header %}
+<div class="d-flex align-items-center gap-2">
+    <i class="fa-solid fa-circle-xmark text-danger"></i>
+    <span>Ciclos & Fenología &bull; Actividades Incumplidas (Calificaciones 0)</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+        <div>
+            <h1 class="h4 fw-bold text-dark mb-1">
+                <i class="fa-solid fa-circle-xmark text-danger me-2"></i>Fallas Operativas e Incumplimientos
+            </h1>
+            <p class="text-muted small mb-0">
+                Auditoría detallada de labores marcadas con 0 en campo, con filtro por auxiliar, labor y novedades.
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-1 bg-white p-1 px-2 border rounded shadow-xs">
+                <span class="small fw-bold text-secondary">Semana:</span>
+                <select id="semana-select" class="form-select form-select-sm border-0 fw-bold" style="width: auto;" onchange="window.location.href='{{ url_for('fenogramas.incumplidas') }}?semana=' + this.value + '&auxiliar={{ aux_sel|urlencode }}'">
+                    {% for s in semanas %}
+                        <option value="{{ s.semana_anio }}" {% if s.semana_anio == semana %}selected{% endif %}>
+                            Semana {{ s.semana_anio }} {% if s.estado == 'CERRADA' %}(Cerrada 🔒){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <a href="{{ url_for('fenogramas.exportar_incumplidas', semana=semana, auxiliar=aux_sel) }}" class="btn btn-outline-danger btn-sm fw-bold">
+                <i class="fa-solid fa-file-csv me-1"></i> Exportar CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="bento-card p-3 mb-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-secondary mb-1">Filtrar por Auxiliar:</label>
+                <select class="form-select form-select-sm" onchange="window.location.href='{{ url_for('fenogramas.incumplidas') }}?semana={{ semana }}&auxiliar=' + encodeURIComponent(this.value)">
+                    <option value="">-- Todos los Auxiliares --</option>
+                    {% for a in auxiliares_list %}
+                        <option value="{{ a }}" {% if a == aux_sel %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-secondary mb-1">Buscar en Tabla:</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                    <input type="text" id="search-incumplidas" class="form-control" placeholder="Buscar bloque, labor, supervisor..." onkeyup="filterIncumplidasTable()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary KPIs -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="bento-card p-3 d-flex align-items-center gap-3">
+                <div class="rounded-3 p-3 bg-danger-subtle text-danger fs-4"><i class="fa-solid fa-circle-xmark"></i></div>
+                <div>
+                    <h3 class="h4 fw-bold text-danger mb-0">{{ total_incumplidas_count }}</h3>
+                    <div class="text-muted small fw-semibold">Total Labores en 0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bento-card p-3 d-flex align-items-center gap-3">
+                <div class="rounded-3 p-3 bg-warning-subtle text-warning fs-4"><i class="fa-solid fa-users"></i></div>
+                <div>
+                    <h3 class="h4 fw-bold text-warning mb-0">{{ aux_afectados_count }}</h3>
+                    <div class="text-muted small fw-semibold">Auxiliares con Fallas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bento-card p-3 d-flex align-items-center gap-3">
+                <div class="rounded-3 p-3 bg-secondary-subtle text-secondary fs-4"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div>
+                    <h6 class="fw-bold text-dark mb-0 text-truncate" style="max-width: 200px;">{{ top_labor_fallo }}</h6>
+                    <div class="text-muted small fw-semibold">Labor con Mayor Incumplimiento</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incumplidas Table -->
+    <div class="bento-card">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 small" id="table-incumplidas">
+                <thead class="table-light">
+                    <tr>
+                        <th>Zona</th>
+                        <th>Bloque</th>
+                        <th>Camas</th>
+                        <th>Tipo</th>
+                        <th>Producto</th>
+                        <th>Edad</th>
+                        <th>Labor Incumplida</th>
+                        <th>Auxiliar</th>
+                        <th>Supervisor</th>
+                        <th>Observaciones / Novedad</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in incumplidas_list %}
+                        <tr class="incump-row" data-search="{{ r.zona }} {{ r.bloque }} {{ r.actividad_tipo }} {{ r.producto_maestro }} {{ r.labor }} {{ r.auxiliar }} {{ r.supervisor }} {{ r.observacion }}">
+                            <td class="fw-bold">{{ r.zona }}</td>
+                            <td><span class="badge bg-dark">{{ r.bloque }}</span></td>
+                            <td class="fw-semibold">{{ r.cama_inicial }} - {{ r.cama_final }} {% if r.sufijo %}({{ r.sufijo }}){% endif %}</td>
+                            <td><span class="badge bg-light text-dark border">{{ r.actividad_tipo }}</span></td>
+                            <td class="fw-semibold text-dark">{{ r.producto_maestro }}</td>
+                            <td><span class="badge bg-light text-secondary border">{{ r.edad_real }} sem</span></td>
+                            <td class="fw-bold text-danger">{{ r.labor }}</td>
+                            <td class="fw-semibold">{{ r.auxiliar or '-' }}</td>
+                            <td class="text-muted">{{ r.supervisor or '-' }}</td>
+                            <td class="text-danger italic">{{ r.observacion or 'Sin justificación' }}</td>
+                        </tr>
+                    {% endfor %}
+                    {% if not incumplidas_list %}
+                        <tr><td colspan="10" class="text-center py-5 text-success fw-bold">
+                            <i class="fa-solid fa-circle-check fs-2 d-block mb-2"></i>
+                            ¡Excelente! No hay labores marcadas como incumplidas (0) en la Semana {{ semana }}.
+                        </td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterIncumplidasTable() {
+    const q = document.getElementById('search-incumplidas').value.toLowerCase();
+    const rows = document.querySelectorAll('.incump-row');
+    rows.forEach(r => {
+        const text = r.getAttribute('data-search').toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

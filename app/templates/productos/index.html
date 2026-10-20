@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Catálogo de Productos y Dosis | AgroFumigación{% endblock %}
+{% block page_header %}Catálogo de Agroquímicos y Dosis de Aplicación{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="fa-solid fa-flask-vial text-primary me-2"></i>Productos y Dosis</h4>
+        <p class="text-muted mb-0 small">Administra los agroquímicos, nombres comerciales, dosis foliares y dosis drench preparadas para el futuro.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('productos.create') }}" class="btn btn-primary btn-sm fw-semibold shadow-sm">
+            <i class="fa-solid fa-plus me-1"></i> Nuevo Producto
+        </a>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                    <input type="text" name="q" class="form-control" placeholder="Buscar por código, nombre comercial, plaga o ingrediente activo..." value="{{ search }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Todos los productos</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Solo Activos</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Solo Inactivos</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+                <a href="{{ url_for('productos.index') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Products Table -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="fw-bold"><i class="fa-solid fa-list me-2 text-primary"></i>Listado de Agroquímicos</span>
+        <span class="badge bg-primary-subtle text-primary">{{ products|length }} Productos</span>
+    </div>
+    <div class="card-body p-0">
+        {% if products %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código / Nombre Corto</th>
+                        <th>Nombre Comercial</th>
+                        <th>Dosis Fumigación</th>
+                        <th>Drench / Trichos / Sólidos</th>
+                        <th>Unidad</th>
+                        <th>Blanco / Plaga</th>
+                        <th>Ingrediente Activo</th>
+                        <th>Cat. Tox.</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr class="{% if not p.is_active %}table-secondary opacity-75{% endif %}">
+                        <td class="fw-bold font-monospace text-primary">{{ p.code }}</td>
+                        <td class="fw-semibold">{{ p.commercial_name or p.code }}</td>
+                        <td>
+                            {% if p.dose_fumigation is not none %}
+                            <span class="badge bg-success-subtle text-success fw-bold">{{ p.dose_fumigation }} {{ p.unit }}/L</span>
+                            {% else %}
+                            <span class="text-muted small">Sin dosis</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-1" style="font-size: 0.75rem;">
+                                {% if p.dose_drench is not none %}
+                                <span><strong class="text-info">Dr:</strong> {{ p.dose_drench }}</span>
+                                {% endif %}
+                                {% if p.dose_trichos is not none %}
+                                <span><strong class="text-success">Tri:</strong> {{ p.dose_trichos }}</span>
+                                {% endif %}
+                                {% if p.dose_solidos is not none %}
+                                <span><strong class="text-primary">Sól:</strong> {{ p.dose_solidos }}</span>
+                                {% endif %}
+                                {% if p.dose_desinfecciones is not none %}
+                                <span><strong class="text-warning">Des:</strong> {{ p.dose_desinfecciones }}</span>
+                                {% endif %}
+                                {% if p.dose_drench is none and p.dose_trichos is none and p.dose_solidos is none and p.dose_desinfecciones is none %}
+                                <span class="text-muted small">-</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ p.unit or 'CC' }}</span></td>
+                        <td class="small">{{ p.pest or '-' }}</td>
+                        <td class="small text-muted">{{ p.active_ingredient or '-' }}</td>
+                        <td>
+                            {% if p.toxicological_category %}
+                            <span class="badge bg-warning-subtle text-dark">{{ p.toxicological_category }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.is_active %}
+                            <span class="badge bg-success">Activo</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('productos.edit', product_id=p.id) }}" class="btn btn-outline-primary btn-sm" title="Editar">
+                                <i class="fa-solid fa-pen"></i>
+                            </a>
+                            <form action="{{ url_for('productos.toggle_status', product_id=p.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn {% if p.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-sm" title="{% if p.is_active %}Desactivar{% else %}Activar{% endif %}">
+                                    <i class="fa-solid {% if p.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fa-solid fa-flask-vial fs-1 text-secondary mb-3"></i>
+            <h5>No se encontraron productos</h5>
+            <p class="small">Importa el archivo inicial o crea un nuevo producto.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

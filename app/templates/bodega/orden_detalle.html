@@ -1,0 +1,552 @@
+{% extends "base.html" %}
+
+{% block title %}{{ order.display_title }} | Bodega & Almacén | AgroFumigación{% endblock %}
+{% block page_header %}Bodega &bull; Programa de Fumigación: {{ order.display_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.toxic-badge {
+    font-size: 0.70rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+.editable-title-badge {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.editable-title-badge:hover {
+    background-color: #e2e8f0;
+}
+
+/* Thick 4px black divider line between block groups */
+.block-group-row, tbody.block-group {
+    border-top: 4px solid #0f172a !important;
+}
+
+.zone-subtotal-header {
+    background-color: #f8fafc !important;
+}
+.zone-subtotal-header td {
+    border-top: 2px solid #0f172a !important;
+    border-bottom: 2px solid #0f172a !important;
+}
+/* Maximize Screen Width Usage */
+.container-fluid {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    max-width: 100% !important;
+}
+
+<style id="dynamic-page-orientation">
+@page {
+    size: portrait;
+    margin: 4mm 4mm 4mm 4mm;
+}
+</style>
+<style>
+
+@media print {
+    .no-print, nav, header, footer, .sidebar, #sidebar-wrapper, .btn, form, select, .alert, .modal {
+        display: none !important;
+    }
+    body {
+        background-color: #ffffff !important;
+        font-size: 0.65rem !important;
+    }
+    #page-content-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 8px !important;
+    }
+    .table {
+        font-size: 0.64rem !important;
+    }
+    .table th {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        padding: 2px 3px !important;
+    }
+    .table td {
+        padding: 1.5px 3px !important;
+        border: 1px solid #666 !important;
+    }
+    /* Thick 4px divider between block changes for crisp PDF output */
+    .block-group-row, tbody.block-group {
+        border-top: 4px solid #000000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .zone-subtotal-header {
+        background-color: #e2e8f0 !important;
+        border-top: 2.5px solid #000000 !important;
+        border-bottom: 2.5px solid #000000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3 no-print d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <a href="{{ url_for('bodega.ordenes', week=order.week) }}" class="text-decoration-none text-muted small">
+        <i class="fa-solid fa-arrow-left me-1"></i> Volver a Programas de Fumigación Oficiales
+    </a>
+    <div class="small text-muted font-monospace">
+        Código Técnico: <span class="badge bg-light text-dark border">{{ order.order_number }}</span>
+    </div>
+</div>
+
+<!-- Header Card with Dynamic / Editable Program Title -->
+<div class="card mb-4 shadow-sm border-0 bg-white">
+    <div class="card-body p-3 p-md-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-primary-subtle text-primary border border-primary fw-bold">
+                        <i class="fa-solid fa-warehouse me-1"></i> Bodega & Almacén
+                    </span>
+                    <span class="badge bg-success font-monospace">
+                        <i class="fa-solid fa-stamp me-1"></i> PROGRAMA OFICIAL APROBADO
+                    </span>
+                    <span class="badge bg-light text-dark border font-monospace">Semana {{ order.week }}</span>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
+                    <h3 class="fw-bold text-dark mb-0 font-monospace" id="program-title-display">
+                        <i class="fa-solid fa-clipboard-check text-success me-2"></i>{{ order.display_title }}
+                    </h3>
+                    <!-- Quick rename title button -->
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 no-print" onclick="openRenameModal();" title="Cambiar nombre de búsqueda del programa">
+                        <i class="fa-solid fa-pen-to-square text-primary"></i> Cambiar Nombre
+                    </button>
+                </div>
+
+                <div class="text-muted small mt-2">
+                    <span class="me-3"><strong>Vuelta:</strong> {{ order.round_name }} ({{ order.scheduled_day }})</span>
+                    <span class="me-3"><strong>Fecha:</strong> {{ order.scheduled_date.strftime('%Y-%m-%d') if order.scheduled_date else '-' }}</span>
+                    <span class="me-3"><strong>Agrónomo Responsable:</strong> {{ order.agronomist }}</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2 flex-wrap no-print align-items-center">
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn btn-secondary fw-semibold active" id="btn-bodega-orient-portrait" onclick="setBodegaPrintOrientation('portrait');" title="Orientación Vertical (Recomendada)">
+                        <i class="fa-solid fa-file me-1"></i> Vertical
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary fw-semibold" id="btn-bodega-orient-landscape" onclick="setBodegaPrintOrientation('landscape');" title="Orientación Horizontal">
+                        <i class="fa-solid fa-file-invoice me-1"></i> Horizontal
+                    </button>
+                </div>
+                <button type="button" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="window.print();">
+                    <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir Programa Oficial
+                </button>
+                <a href="{{ url_for('bodega.orden_exportar_excel', order_id=order.id) }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+                    <i class="fa-solid fa-file-excel me-1"></i> Descargar Excel Bodega
+                </a>
+                <a href="{{ url_for('bodega.salidas', week=order.week) }}" class="btn btn-outline-info btn-sm fw-semibold">
+                    <i class="fa-solid fa-dolly me-1"></i> Salidas de la Semana
+                </a>
+            </div>
+        </div>
+
+        {% if order.notes %}
+        <div class="mt-3 p-2 bg-light rounded border text-muted small">
+            <strong><i class="fa-regular fa-comment-dots me-1"></i> Observaciones de Aplicación:</strong> {{ order.notes }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal to Rename Program Title -->
+<div class="modal fade no-print" id="renameProgramModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white py-2">
+                <h6 class="modal-title fw-bold">
+                    <i class="fa-solid fa-pen-to-square text-warning me-2"></i>Personalizar Nombre del Programa
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formRenameProgram" onsubmit="saveProgramTitle(event);">
+                <div class="modal-body p-3">
+                    <label class="form-label small fw-bold text-dark">Nombre / Título del Programa en Finca:</label>
+                    <input type="text" id="input-program-title" class="form-control form-control-sm fw-bold" value="{{ order.display_title }}" placeholder="Ej. Programa Botrytis Explorer - Vuelta 1" required autocomplete="off">
+                    <div class="form-text small">
+                        Este nombre se usará en los encabezados de impresión y te permitirá buscar y filtrar fácilmente en el histórico de programas de fumigación.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Nombre
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Print Document Header (Visible only when printing) -->
+<div class="d-none d-print-block mb-2 border-bottom pb-1">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="fw-bold text-uppercase mb-0">FINCA FLORÍCOLA PYGANFLOR &bull; PROGRAMA DE FUMIGACIÓN</h4>
+            <div class="small text-dark font-monospace fw-bold" id="print-header-title">
+                {{ order.display_title }} &bull; Cód: {{ order.order_number }}
+            </div>
+        </div>
+        <div class="text-end small">
+            <div><strong>Semana:</strong> {{ order.week }} &bull; <strong>Día:</strong> {{ order.scheduled_day }}</div>
+            <div><strong>Volumen:</strong> {{ order.total_liters|format_number(1) }} L &bull; <strong>Camas:</strong> {{ order.total_standard_beds|format_number(1) }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Warehouse Weighing Section: Separated Liquids and Solids -->
+<div class="card mb-4 shadow-sm border-0 border-top border-4 border-primary bg-white">
+    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold text-dark mb-0 font-monospace">
+            <i class="fa-solid fa-scale-balanced text-primary me-2"></i>Pesaje y Dosificación en Bodega (Líquidos y Sólidos Separados)
+        </h6>
+        <span class="badge bg-primary fs-6 font-monospace">{{ order.total_liters|format_number(1) }} Litros de Mezcla Total</span>
+    </div>
+    <div class="card-body p-3">
+        <div class="row g-3">
+            <!-- Full-Width Insumos Líquidos -->
+            <div class="col-12">
+                <div class="p-3 border rounded bg-light">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-primary">
+                        <span class="fw-bold text-primary small">
+                            <i class="fa-solid fa-droplet me-1"></i> Insumos Líquidos a Medir (CC / ML / LT)
+                        </span>
+                        <span class="badge bg-primary">{{ overall_liquids|length }} productos líquidos</span>
+                    </div>
+                    {% if overall_liquids %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0 small bg-white border">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;" class="text-center">#</th>
+                                    <th style="width: 140px;">Código</th>
+                                    <th>Nombre Comercial</th>
+                                    <th style="width: 130px;" class="text-center">Dosis</th>
+                                    <th style="width: 160px;" class="text-end">Total a Medir</th>
+                                    <th style="width: 90px;" class="text-center">U.M</th>
+                                    <th style="width: 80px;" class="text-center">Listo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in overall_liquids %}
+                                <tr>
+                                    <td class="text-center text-muted">{{ loop.index }}</td>
+                                    <td class="fw-bold font-monospace text-primary">{{ p.code }}</td>
+                                    <td class="fw-semibold text-dark">{{ p.name }}</td>
+                                    <td class="text-center font-monospace">{{ p.dose }} {{ p.unit }}/L</td>
+                                    <td class="text-end fw-bold text-primary font-monospace fs-6">
+                                        {{ p.total_amount|format_product(p.unit) }}
+                                    </td>
+                                    <td class="text-center"><span class="badge bg-light text-dark border">{{ p.unit }}</span></td>
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input" style="width: 16px; height: 16px;">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small text-center py-2">No hay insumos líquidos en esta orden.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Full-Width Insumos Sólidos / Polvos -->
+            <div class="col-12">
+                <div class="p-3 border rounded bg-light">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-warning">
+                        <span class="fw-bold text-dark small">
+                            <i class="fa-solid fa-box me-1 text-warning"></i> Insumos Sólidos / Polvos a Pesar en Balanza (G / GR / KG)
+                        </span>
+                        <span class="badge bg-warning text-dark">{{ overall_solids|length }} productos sólidos</span>
+                    </div>
+                    {% if overall_solids %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0 small bg-white border">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;" class="text-center">#</th>
+                                    <th style="width: 140px;">Código</th>
+                                    <th>Nombre Comercial</th>
+                                    <th style="width: 130px;" class="text-center">Dosis</th>
+                                    <th style="width: 160px;" class="text-end">Total a Pesar</th>
+                                    <th style="width: 90px;" class="text-center">U.M</th>
+                                    <th style="width: 80px;" class="text-center">Listo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in overall_solids %}
+                                <tr>
+                                    <td class="text-center text-muted">{{ loop.index }}</td>
+                                    <td class="fw-bold font-monospace text-dark">{{ p.code }}</td>
+                                    <td class="fw-semibold text-dark">{{ p.name }}</td>
+                                    <td class="text-center font-monospace">{{ p.dose }} {{ p.unit }}/L</td>
+                                    <td class="text-end fw-bold text-dark font-monospace fs-6">
+                                        {{ p.total_amount|format_product(p.unit) }}
+                                    </td>
+                                    <td class="text-center"><span class="badge bg-light text-dark border">{{ p.unit }}</span></td>
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input" style="width: 16px; height: 16px;">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small text-center py-2">No hay insumos sólidos en esta orden.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operator Filter Bar (Interactive Live in Browser) -->
+<div class="card mb-3 shadow-sm bg-light border no-print">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-user-check text-success me-1"></i> Filtrar por Operario de Campo:
+                </label>
+                <select id="filter-operator-select" class="form-select form-select-sm fw-bold text-primary">
+                    <option value="ALL">-- Ver Todos los Operarios y Zonas --</option>
+                    {% set ops = [] %}
+                    {% for z in zones_list %}
+                        {% if z.operator and z.operator not in ops %}
+                            {% set _ = ops.append(z.operator) %}
+                            <option value="{{ z.operator }}">{{ z.operator }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-7 text-end pt-3 small text-muted">
+                <i class="fa-solid fa-circle-info text-info me-1"></i>
+                Línea negra ancha (4px) marca el cambio entre bloques. Los subtotales por zona desglosan líquidos y sólidos listos para pesaje.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Table Grouped by Zone & Operator with Subtotals per Zone -->
+<div class="card shadow-sm border-0 mb-4 bg-white">
+    <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold">
+            <i class="fa-solid fa-list-check me-2"></i>Detalle de Bloques, Camas, Dosis y Subtotales por Zona
+        </h6>
+        <span class="badge bg-light text-dark font-monospace">{{ order.total_standard_beds|format_number(1) }} Camas Estándar</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover table-bordered align-middle mb-0 small font-monospace" style="font-size: 0.80rem;">
+                <thead class="table-light text-center">
+                    <tr>
+                        <th style="width: 130px;">Operario</th>
+                        <th style="width: 80px;">Zona</th>
+                        <th style="width: 75px;">Bloque</th>
+                        <th style="width: 45px;">Suf.</th>
+                        <th style="width: 100px;">Variedad</th>
+                        <th style="width: 45px;">Edad</th>
+                        <th style="width: 65px;">Camas</th>
+                        <th style="width: 90px;">Rango</th>
+                        <th>Producto / Mezcla</th>
+                        <th style="width: 65px;">Dosis</th>
+                        <th style="width: 90px;">Cantidad</th>
+                        <th style="width: 70px;">Litros</th>
+                    </tr>
+                </thead>
+
+                {% for z in zones_list %}
+                <!-- Zone details grouped by block with thick 4px divider between block changes -->
+                {% set prev_block = namespace(value='') %}
+                {% for d in z.details %}
+                {% set is_new_block = (d.block_name != prev_block.value and not loop.first) %}
+                {% set prev_block.value = d.block_name %}
+                <tbody class="detail-tbody-row {% if is_new_block %}block-group-row{% endif %}" data-operator="{{ d.operator }}">
+                    <tr class="detail-row" data-operator="{{ d.operator }}">
+                        <td class="fw-bold text-dark font-sans">{{ d.operator }}</td>
+                        <td class="text-center small">{{ d.zone or '-' }}</td>
+                        <td class="fw-bold text-primary text-center">{{ d.block_name }}</td>
+                        <td class="text-center">{{ d.suffix }}</td>
+                        <td>{{ d.crop_name }}</td>
+                        <td class="text-center">{{ d.real_age|format_age }}</td>
+                        <td class="text-end">{{ d.standard_beds|format_number(2) }}</td>
+                        <td class="text-center text-muted small">{{ d.bed_range }}</td>
+                        <td>
+                            <strong>{{ d.product_code }}</strong>
+                            {% if d.commercial_name and d.commercial_name != d.product_code %}
+                            <small class="text-muted">({{ d.commercial_name }})</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ d.dose }} {{ d.unit }}/L</td>
+                        <td class="text-end fw-bold text-dark">
+                            {{ d.product_amount|format_product(d.unit) }} {{ d.unit }}
+                        </td>
+                        <td class="text-end text-primary fw-bold">{{ d.total_liters|format_number(1) }}</td>
+                    </tr>
+                </tbody>
+                {% endfor %}
+
+                <!-- Zone Subtotal Highlighted Row -->
+                <tbody class="zone-subtotal-tbody" data-operator="{{ z.operator }}">
+                    <tr class="zone-subtotal-header fw-bold">
+                        <td colspan="6" class="text-uppercase text-primary ps-3">
+                            <i class="fa-solid fa-calculator me-1"></i> SUBTOTAL {{ z.zone_name }} &bull; {{ z.operator }}:
+                        </td>
+                        <td class="text-end text-dark fs-6">{{ z.total_beds|format_number(2) }}</td>
+                        <td class="text-center text-muted small">Camas</td>
+                        <td colspan="3" class="small bg-white p-2">
+                            <!-- Insumos Líquidos de la Zona -->
+                            {% if z.liquid_products %}
+                            <div class="mb-1">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1"><i class="fa-solid fa-droplet me-1"></i>Líquidos:</span>
+                                {% for lp in z.liquid_products %}
+                                <strong>{{ lp.product_code }}</strong>: {{ lp.total_amount|format_product(lp.unit) }} {{ lp.unit }}{% if not loop.last %} &bull; {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <!-- Insumos Sólidos de la Zona -->
+                            {% if z.solid_products %}
+                            <div>
+                                <span class="badge bg-warning-subtle text-dark border border-warning-subtle me-1"><i class="fa-solid fa-box me-1"></i>Sólidos:</span>
+                                {% for sp in z.solid_products %}
+                                <strong>{{ sp.product_code }}</strong>: {{ sp.total_amount|format_product(sp.unit) }} {{ sp.unit }}{% if not loop.last %} &bull; {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-primary fs-6">{{ z.total_liters|format_number(1) }} L</td>
+                    </tr>
+                </tbody>
+                {% endfor %}
+
+                <tfoot class="table-dark fw-bold">
+                    <tr>
+                        <td colspan="6" class="text-end text-uppercase">TOTAL GENERAL PROGRAMA:</td>
+                        <td class="text-end">{{ order.total_standard_beds|format_number(2) }}</td>
+                        <td colspan="4"></td>
+                        <td class="text-end text-warning">{{ order.total_liters|format_number(1) }} L</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Print Signature Box (Visible only when printing) -->
+<div class="d-none d-print-block mt-4 pt-3">
+    <div class="row text-center">
+        <div class="col-6">
+            <div style="border-top: 1px solid #333; margin: 0 40px; padding-top: 5px;">
+                <strong>Entregado por (Bodega / Almacén):</strong><br>
+                <span class="text-muted small">Nombre y Firma</span>
+            </div>
+        </div>
+        <div class="col-6">
+            <div style="border-top: 1px solid #333; margin: 0 40px; padding-top: 5px;">
+                <strong>Recibido por (Aplicador Responsable):</strong><br>
+                <span class="text-muted small">{{ order.agronomist }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filter detailed rows and zone subtotals by operator
+document.getElementById('filter-operator-select')?.addEventListener('change', function() {
+    const op = this.value;
+    
+    // Filter detail tbodys
+    document.querySelectorAll('tbody.detail-tbody-row').forEach(tb => {
+        if (op === 'ALL' || tb.dataset.operator === op) {
+            tb.style.display = '';
+        } else {
+            tb.style.display = 'none';
+        }
+    });
+
+    // Filter zone subtotal tbodys
+    document.querySelectorAll('tbody.zone-subtotal-tbody').forEach(stb => {
+        if (op === 'ALL' || stb.dataset.operator === op) {
+            stb.style.display = '';
+        } else {
+            stb.style.display = 'none';
+        }
+    });
+});
+
+// Modal helpers for dynamic title rename
+function openRenameModal() {
+    const modal = new bootstrap.Modal(document.getElementById('renameProgramModal'));
+    modal.show();
+}
+
+function saveProgramTitle(e) {
+    e.preventDefault();
+    const newTitle = document.getElementById('input-program-title').value.trim();
+    if (!newTitle) return;
+
+    fetch(`/bodega/ordenes/{{ order.id }}/editar-titulo`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ title: newTitle })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('program-title-display').innerHTML = `<i class="fa-solid fa-clipboard-check text-success me-2"></i>${data.title}`;
+            const prH = document.getElementById('print-header-title');
+            if (prH) prH.innerText = `${data.title} • Cód: {{ order.order_number }}`;
+            
+            const modalEl = document.getElementById('renameProgramModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+    })
+    .catch(err => console.error('Error updating title:', err));
+}
+
+function setBodegaPrintOrientation(orient) {
+    const styleEl = document.getElementById('dynamic-page-orientation');
+    if (styleEl) {
+        styleEl.innerHTML = `@page { size: ${orient}; margin: 4mm 4mm 4mm 4mm; }`;
+    }
+    const btnPort = document.getElementById('btn-bodega-orient-portrait');
+    const btnLand = document.getElementById('btn-bodega-orient-landscape');
+    if (btnPort && btnLand) {
+        if (orient === 'portrait') {
+            btnPort.className = 'btn btn-secondary fw-semibold active';
+            btnLand.className = 'btn btn-outline-secondary fw-semibold';
+        } else {
+            btnLand.className = 'btn btn-secondary fw-semibold active';
+            btnPort.className = 'btn btn-outline-secondary fw-semibold';
+        }
+    }
+}
+</script>
+{% endblock %}

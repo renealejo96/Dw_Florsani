@@ -1,0 +1,2637 @@
+{% extends "base.html" %}
+
+{% block title %}Mapping / Registro de Campo TPSR - Florsani{% endblock %}
+{% block page_header %}Gestión de Campo &bull; Plano Vertical de Camas y Registro Rápido TPSR{% endblock %}
+
+{% block extra_css %}
+<style>
+    main.container-fluid {
+        padding-top: 0.55rem !important;
+        padding-bottom: 1.2rem !important;
+    }
+
+    .tabular-nums {
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ========================================================================
+       1. BARRA SUPERIOR FIJA: SEMANA + ZONAS + FILTROS DE ESTADO
+       ======================================================================== */
+    .tpsr-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        padding: 0.4rem 0.65rem;
+        margin-bottom: 0.4rem;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .tpsr-top-left {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        min-width: 0;
+        max-width: 100%;
+        flex: 1 1 auto;
+    }
+
+    .week-pill-box {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 0.18rem 0.48rem;
+        border-radius: 5px;
+        font-size: 0.74rem;
+        flex-shrink: 0;
+    }
+    .week-pill-box select {
+        background: #1e293b;
+        color: #ffffff;
+        border: 1px solid #475569;
+        border-radius: 4px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 1px 5px;
+    }
+    .week-nav-btn {
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.68rem;
+        cursor: pointer;
+    }
+    .week-nav-btn:hover {
+        background: rgba(255, 255, 255, 0.28);
+    }
+
+    /* Pestañas de Zonas */
+    .zone-tabs-inline {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.28rem;
+        min-width: 0;
+        max-width: 100%;
+        flex: 1 1 auto;
+    }
+    .zone-tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.55rem;
+        border-radius: 5px;
+        font-size: 0.73rem;
+        font-weight: 700;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #334155;
+        cursor: pointer;
+        white-space: nowrap;
+        line-height: 1.2;
+        transition: all 0.12s ease;
+    }
+    .zone-tab-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+    .zone-tab-btn.active {
+        background: #0f172a;
+        color: #ffffff;
+        border-color: #0f172a;
+    }
+    .zone-cnt-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 0.04rem 0.3rem;
+        border-radius: 3px;
+        background: rgba(100, 116, 139, 0.18);
+        color: inherit;
+    }
+    .zone-tab-btn.active .zone-cnt-badge {
+        background: #10b981;
+        color: #0f172a;
+    }
+
+    /* ========================================================================
+       2. SELECTOR SUPERIOR DE BLOQUES (PERMANECE ARRIBA)
+       ======================================================================== */
+    .tpsr-blocks-top-panel {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        padding: 0.4rem 0.65rem;
+        margin-bottom: 0.45rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .state-legend-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.15rem 0.48rem;
+        border-radius: 4px;
+        font-size: 0.71rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid transparent;
+        user-select: none;
+    }
+    .state-legend-pill.active-filter {
+        outline: 2px solid #0f172a;
+    }
+    .legend-siembra { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .legend-poda    { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .legend-vacio   { background: #e2e8f0; color: #334155; border-color: #94a3b8; }
+
+    /* Tira / Cuadrícula Compacta de Bloques en la parte superior (Estilo ERP Avance Semanal) */
+    .tpsr-blq-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+        gap: 7px;
+        width: 100%;
+        margin-top: 0.42rem;
+        max-height: 225px;
+        overflow-y: auto;
+        padding: 4px;
+    }
+
+    .tpsr-blq-pill {
+        border-radius: 7px;
+        padding: 0.42rem 0.5rem;
+        border: 1.5px solid #cbd5e1;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.14s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 4px;
+        min-width: 0;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .tpsr-blq-pill:hover {
+        border-color: #0f172a !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.12);
+    }
+    /* Borde fluorescente de alta visibilidad al seleccionar el bloque */
+    .tpsr-blq-pill.active-blq {
+        border: 2.5px solid #00ff66 !important;
+        outline: 2px solid #16a34a !important;
+        outline-offset: 0px;
+        box-shadow: 0 0 0 3px rgba(0, 255, 102, 0.38), 0 4px 15px rgba(0, 230, 92, 0.55) !important;
+        transform: translateY(-2px);
+        z-index: 3;
+    }
+    .tpsr-blq-pill .blq-header-title {
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.01em;
+        line-height: 1.15;
+        padding: 1px 8px;
+        border-radius: 4px;
+        transition: all 0.12s ease;
+    }
+    .tpsr-blq-pill.active-blq .blq-header-title {
+        background: #0f172a;
+        color: #39ff14 !important;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+    }
+    .tpsr-mini-stage-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        width: 100%;
+    }
+    .tpsr-mini-stage-box {
+        background: rgba(255, 255, 255, 0.82);
+        border-radius: 4px;
+        padding: 2px 3px;
+        font-size: 0.63rem;
+        font-weight: 700;
+        text-align: center;
+        line-height: 1.15;
+    }
+    .tpsr-mini-stage-box.stage-veg {
+        border: 1px solid rgba(3, 105, 161, 0.25);
+        color: #0369a1;
+    }
+    .tpsr-mini-stage-box.stage-prod {
+        border: 1px solid rgba(21, 128, 61, 0.28);
+        color: #15803d;
+    }
+
+    /* Colores del bloque según estado dominante */
+    .tpsr-blq-pill.state-SIEMBRA {
+        background: #dcfce7;
+        border-color: #4ade80;
+        border-top: 3.5px solid #16a34a;
+        color: #14532d;
+    }
+    .tpsr-blq-pill.state-PODA {
+        background: #fef3c7;
+        border-color: #fbbf24;
+        border-top: 3.5px solid #d97706;
+        color: #78350f;
+    }
+    .tpsr-blq-pill.state-VACIO {
+        background: #e2e8f0;
+        border-color: #94a3b8;
+        border-top: 3.5px solid #64748b;
+        color: #334155;
+    }
+
+    /* ========================================================================
+       3. CABECERA DEL PLANO DEL BLOQUE + BOTÓN DE FORMULARIO RÁPIDO
+       ======================================================================== */
+    .plano-workspace-bar {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-left: 4px solid #0f172a;
+        border-radius: 7px;
+        padding: 0.4rem 0.65rem;
+        margin-bottom: 0.4rem;
+    }
+
+    /* ========================================================================
+       4. DISTRIBUCIÓN VERTICAL DEL PLANO ESQUEMÁTICO DE CAMAS
+          - Fila 1 = Cama 1, Fila 2 = Cama 2, Fila 3 = Cama 3...
+          - Columna pequeña a la izquierda con # de cama
+          - Rectángulo horizontal alargado a la derecha ocupando todo el ancho
+          - Verde = Sembrada, Amarillo = Podada, Gris = Tumbada/Vacía
+       ======================================================================== */
+    .plano-vertical-wrapper {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        padding: 0.45rem 0.6rem;
+    }
+
+    .plano-header-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 0 4px 0;
+        margin-bottom: 4px;
+        border-bottom: 1.5px solid #0f172a;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: #334155;
+        letter-spacing: 0.3px;
+    }
+
+    .plano-col-num-hdr {
+        width: 62px;
+        min-width: 62px;
+        text-align: center;
+        border-right: 1px solid #cbd5e1;
+    }
+
+    .plano-col-bar-hdr {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 52px 92px minmax(150px, 1.6fr) 70px 92px 86px 105px 105px;
+        gap: 8px;
+        align-items: center;
+        padding: 0 10px;
+    }
+
+    .plano-vertical-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        width: 100%;
+    }
+
+    /* Cada cama ocupa una fila independiente y se extiende horizontalmente */
+    .plano-cama-row {
+        display: flex;
+        align-items: stretch;
+        gap: 5px;
+        width: 100%;
+        min-height: 25px;
+        height: 26px;
+    }
+
+    /* Columna pequeña a la izquierda del rectángulo con el número de cama */
+    .plano-cama-num {
+        width: 62px;
+        min-width: 62px;
+        background: #0f172a;
+        color: #ffffff;
+        border-radius: 3px;
+        font-size: 0.73rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+        padding: 0 4px;
+        line-height: 1;
+    }
+
+    /* Rectángulo horizontal alargado clicable por cama */
+    .plano-cama-bar {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 52px 92px minmax(150px, 1.6fr) 70px 92px 86px 105px 105px;
+        gap: 8px;
+        align-items: center;
+        padding: 0 10px;
+        border-radius: 3px;
+        border: 1px solid #cbd5e1;
+        cursor: pointer;
+        user-select: none;
+        font-size: 0.73rem;
+        line-height: 1.1;
+        transition: filter 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .plano-cama-bar:hover {
+        filter: brightness(0.96);
+        border-color: #0f172a !important;
+        box-shadow: inset 0 0 0 1px #0f172a;
+    }
+    .plano-cama-row.row-active-cama .plano-cama-bar {
+        outline: 2px solid #2563eb;
+        outline-offset: 0px;
+    }
+
+    /* Verde = Sembrada */
+    .plano-cama-bar.bar-SIEMBRA {
+        background-color: #dcfce7;
+        border-color: #22c55e;
+        border-left: 5px solid #15803d;
+        color: #14532d;
+    }
+    /* Amarillo = Podada */
+    .plano-cama-bar.bar-PODA {
+        background-color: #fef3c7;
+        border-color: #f59e0b;
+        border-left: 5px solid #d97706;
+        color: #78350f;
+    }
+    /* Gris = Tumbada o Vacía */
+    .plano-cama-bar.bar-VACIO {
+        background-color: #e2e8f0;
+        border-color: #94a3b8;
+        border-left: 5px solid #64748b;
+        color: #334155;
+    }
+
+    @media (max-width: 992px) {
+        .plano-col-bar-hdr,
+        .plano-cama-bar {
+            grid-template-columns: 44px 82px 1fr 60px 80px 95px;
+        }
+        .hide-md-plano {
+            display: none !important;
+        }
+    }
+
+    /* ========================================================================
+       5. MODAL / FORMULARIO TPSR DE DIGITACIÓN RÁPIDA Y PARTICIONES
+       ======================================================================== */
+    .partition-builder-box {
+        background: #f8fafc;
+        border: 1.5px solid #94a3b8;
+        border-left: 5px solid #0f172a;
+        border-radius: 7px;
+        padding: 0.6rem 0.75rem;
+    }
+
+    .range-area-summary {
+        background: #0f172a;
+        color: #ffffff;
+        border-radius: 6px;
+        padding: 0.4rem 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        font-size: 0.74rem;
+    }
+
+    .excel-table-container {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background-color: #ffffff;
+        overflow-x: auto;
+        max-height: 410px;
+    }
+    .excel-table {
+        margin-bottom: 0;
+        font-size: 0.74rem;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-variant-numeric: tabular-nums;
+    }
+    .excel-table thead th {
+        background-color: #0f172a;
+        color: #ffffff;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.67rem;
+        letter-spacing: 0.3px;
+        border-bottom: 2px solid #10b981;
+        border-right: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 5px 7px;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .excel-table tbody td {
+        padding: 3px 7px;
+        border-bottom: 1px solid #e2e8f0;
+        border-right: 1px solid #f1f5f9;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .excel-table tbody tr.row-selected {
+        background-color: #ecfdf5 !important;
+    }
+    .excel-input-cell {
+        background-color: #ffffff;
+        border: 1px solid #93c5fd;
+        border-radius: 4px;
+        padding: 2px 5px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #0f172a;
+        text-align: right;
+        width: 78px;
+    }
+    .excel-date-cell {
+        background-color: #ffffff;
+        border: 1px solid #93c5fd;
+        border-radius: 4px;
+        padding: 2px 5px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #0f172a;
+        width: 114px;
+    }
+    .excel-seg-cell {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        padding: 1px 4px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #0f172a;
+        width: 48px;
+        text-align: center;
+        text-transform: uppercase;
+    }
+
+    .badge-segmento {
+        font-weight: 700;
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 0.67rem;
+    }
+    .badge-seg-A { background-color: #e0f2fe; color: #0369a1; }
+    .badge-seg-B { background-color: #fef3c7; color: #b45309; }
+    .badge-seg-C { background-color: #f3e8ff; color: #7e22ce; }
+    .badge-seg-D { background-color: #dcfce7; color: #15803d; }
+    .badge-seg-other { background-color: #f1f5f9; color: #475569; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ============================================================================
+     PARTE SUPERIOR 1: SEMANA AGRÍCOLA + ZONAS (SIEMPRE ARRIBA)
+     ============================================================================ -->
+<div class="tpsr-top-bar">
+    <div class="tpsr-top-left">
+        <!-- Selector compacto de Semana Agrícola -->
+        <div class="week-pill-box">
+            <button type="button" class="week-nav-btn" onclick="navegarSemana(-1)" title="Semana anterior">&lsaquo;</button>
+            <i class="fa-solid fa-calendar-week text-warning"></i>
+            <span>Sem:</span>
+            <select id="selectSemana" onchange="cambioSemanaSeleccionada()" aria-label="Semana Agrícola">
+                {% for s in semanas_cal %}
+                <option value="{{ s.semana_campo }}"
+                        data-abs="{{ s.semana_abs }}"
+                        data-inicio="{{ s.fecha_inicio }}"
+                        data-fin="{{ s.fecha_fin }}"
+                        {% if s.semana_campo == semana_hoy %}selected{% endif %}>
+                    {{ s.semana_campo }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="button" class="week-nav-btn" onclick="navegarSemana(1)" title="Semana siguiente">&rsaquo;</button>
+            <span class="text-white-50 d-none d-xl-inline ms-1" id="lblRangoFechasSemana" style="font-size: 0.69rem;"></span>
+        </div>
+
+        <!-- Botón para habilitar/generar nueva semana -->
+        {% if current_user.role == 'ADMIN' or current_user.has_permission('tpsr') %}
+        <button type="button" class="btn btn-success btn-sm fw-bold d-inline-flex align-items-center gap-1.5 py-1 px-2.5 shadow-sm text-nowrap" style="font-size: 0.74rem; background-color: #10b981; border-color: #059669; color: #ffffff;" onclick="abrirModalHabilitarSemana()" title="Crear o proyectar nueva semana en el ERP con avance de edad">
+            <i class="fa-solid fa-calendar-plus text-white me-1"></i>
+            <span class="fw-bold text-white d-none d-sm-inline">+ Generar Semana</span>
+        </button>
+        {% endif %}
+
+        <!-- Selector de Zonas -->
+        <div class="zone-tabs-inline" role="tablist" aria-label="Zonas de Campo">
+            {% for z in zonas_list %}
+            <button type="button"
+                    class="zone-tab-btn {% if loop.first %}active{% endif %}"
+                    data-zona="{{ z.zona }}"
+                    onclick="seleccionarZonaVisual('{{ z.zona }}')">
+                <span>{{ z.zona }}</span>
+                <span class="zone-cnt-badge">{{ z.total_bloques }}</span>
+            </button>
+            {% endfor %}
+            <button type="button"
+                    class="zone-tab-btn"
+                    data-zona="ALL"
+                    onclick="seleccionarZonaVisual('ALL')">
+                <span>TODAS</span>
+                <span class="zone-cnt-badge">{{ bloques|length }}</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================================
+     PARTE SUPERIOR 2: SELECTOR DE BLOQUES DE LA ZONA (SIEMPRE ARRIBA)
+     ============================================================================ -->
+<div class="tpsr-blocks-top-panel">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="small fw-bold text-dark" style="font-size: 0.74rem;">
+                <i class="fa-solid fa-table-cells-large text-primary me-1"></i>Bloques (<span id="lblZonaActivaTop">{{ zonas_list[0].zona if zonas_list else 'TODAS' }}</span>):
+            </span>
+            <span class="state-legend-pill bg-white border text-dark active-filter" id="leg-ALL" onclick="filtrarPorEstadoColor('ALL')">
+                Todos (<span id="cnt-est-all">0</span>)
+            </span>
+            <span class="state-legend-pill legend-siembra" id="leg-SIEMBRA" onclick="filtrarPorEstadoColor('SIEMBRA')" title="Verde: Sembrado">
+                <i class="fa-solid fa-circle text-success" style="font-size: 0.5rem;"></i> Sembrado (<span id="cnt-est-siembra">0</span>)
+            </span>
+            <span class="state-legend-pill legend-poda" id="leg-PODA" onclick="filtrarPorEstadoColor('PODA')" title="Amarillo: Podado">
+                <i class="fa-solid fa-circle text-warning" style="font-size: 0.5rem;"></i> Podado (<span id="cnt-est-poda">0</span>)
+            </span>
+            <span class="state-legend-pill legend-vacio" id="leg-VACIO" onclick="filtrarPorEstadoColor('VACIO')" title="Gris: Tumbado o Vacío">
+                <i class="fa-solid fa-circle text-secondary" style="font-size: 0.5rem;"></i> Vacío / Tumbado (<span id="cnt-est-vacio">0</span>)
+            </span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <input type="text" id="inputBuscarBloque" class="form-control form-control-sm"
+                   style="width: 190px; height: 25px; font-size: 0.73rem;"
+                   placeholder="Buscar bloque o cultivo..." oninput="aplicarFiltrosCuadriculaBloques(false)">
+            <button type="button" class="btn btn-light border btn-sm py-0 px-2 text-secondary" style="height: 25px; font-size: 0.71rem;" onclick="toggleStripBloques()" id="btnToggleStripBloques">
+                <i class="fa-solid fa-chevron-up me-1"></i>Compactar bloques
+            </button>
+        </div>
+    </div>
+
+    <!-- Tira superior de bloques clicables (Centrados y organizados al estilo ERP) -->
+    <div class="tpsr-blq-strip" id="tpsr-blq-grid">
+        {% for b in bloques %}
+        <div class="tpsr-blq-pill state-{{ b.estado_bloque }}"
+             id="tile-tpsr-{{ b.blq }}"
+             data-blq="{{ b.blq }}"
+             data-zona="{{ b.zona }}"
+             data-estado="{{ b.estado_bloque }}"
+             data-camas="{{ b.camas }}"
+             data-std="{{ b.std }}"
+             data-area-neta="{{ b.area_neta }}"
+             data-area-bruta="{{ b.area_bruta }}"
+             data-pct-veg="{{ b.pct_veg }}"
+             data-pct-prod="{{ b.pct_prod }}"
+             data-ha="{{ b.ha }}"
+             data-segs="{{ b.segs_str }}"
+             data-tecnico="{{ b.tecnico }}"
+             data-search="bl {{ b.blq }} bloque {{ b.blq }} {{ b.zona }} {{ b.productos }}"
+             onclick="abrirBloqueVisual('{{ b.blq }}')"
+             title="BL {{ b.blq }} ({{ b.zona }}) · {{ b.productos }} · Área: {{ b.area_neta }} m² · Veg: {{ b.pct_veg }}% ({{ b.camas_veg }}c) | Prod: {{ b.pct_prod }}% ({{ b.camas_prod }}c)">
+            <div class="w-100 text-center border-bottom pb-1" style="border-color: rgba(15, 23, 42, 0.12) !important;">
+                <span class="blq-header-title tabular-nums">BL {{ b.blq }}</span>
+            </div>
+            <div class="w-100 text-center fw-bold text-dark tabular-nums" style="font-size: 0.67rem;" id="tile-area-{{ b.blq }}">
+                {{ b.area_neta|int }} m² <span class="text-muted fw-semibold">({{ b.camas }}c)</span>
+            </div>
+            <div class="tpsr-mini-stage-grid tabular-nums" id="tile-stages-{{ b.blq }}">
+                <div class="tpsr-mini-stage-box stage-veg" title="Vegetativo: {{ b.camas_veg }} camas ({{ b.area_veg }} m²)">Veg {{ b.pct_veg|int if b.pct_veg == (b.pct_veg|int) else b.pct_veg }}%</div>
+                <div class="tpsr-mini-stage-box stage-prod" title="Productivo: {{ b.camas_prod }} camas ({{ b.area_prod }} m²)">Prod {{ b.pct_prod|int if b.pct_prod == (b.pct_prod|int) else b.pct_prod }}%</div>
+            </div>
+            <div class="d-flex justify-content-center align-items-center gap-2 w-100 tabular-nums" style="font-size: 0.62rem;" id="tile-counts-{{ b.blq }}">
+                <span class="fw-semibold">🟢{{ b.camas_siembra }}</span>
+                <span class="fw-semibold">🟡{{ b.camas_poda }}</span>
+                <span class="fw-semibold">⚪{{ b.camas_vacias }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="tpsr-empty-blocks" class="text-center py-2 small text-muted" style="display: none;">
+        No se encontraron bloques con el filtro actual en esta zona.
+    </div>
+</div>
+
+<!-- ============================================================================
+     PARTE INFERIOR: CABECERA DEL BLOQUE ACTIVO + PLANO VERTICAL DE CAMAS
+     (Oculto por defecto; solo se despliega al seleccionar un bloque)
+     ============================================================================ -->
+<div id="section-tpsr-beds-map" style="display: none;">
+    <!-- Barra de Control del Bloque Seleccionado, Filtro Desplegable de Variedades y Botón de Digitación Rápida TPSR -->
+    <div class="plano-workspace-bar shadow-xs">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <!-- Metadatos Mapeados del Bloque Activo (sin duplicar selector de bloque/zona) -->
+            <div class="d-flex flex-wrap gap-1 align-items-center tabular-nums" style="font-size: 0.72rem;">
+                <span class="badge bg-dark text-white px-2 py-1" style="font-size: 0.76rem;">
+                    BL <strong id="lblBlqActivoHeader">--</strong>
+                </span>
+                <span class="badge bg-light text-dark border"><strong id="infoBlqCamas">0</strong> camas (<strong id="infoBlqStd">0.00</strong> std)</span>
+                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Porcentaje de camas en etapa Vegetativa">
+                    Veg: <strong id="infoBlqPctVeg">0%</strong>
+                </span>
+                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Porcentaje de camas en etapa Productiva">
+                    Prod: <strong id="infoBlqPctProd">0%</strong>
+                </span>
+                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Área Neta Mapeada del Bloque">
+                    Área Neta: <strong id="infoBlqAreaNeta">0.0</strong> m²
+                </span>
+                <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" title="Área Bruta Mapeada del Bloque">
+                    Área Bruta: <strong id="infoBlqAreaBruta">0.0</strong> m²
+                </span>
+                <span class="badge bg-light text-dark border">Part.: <strong id="infoBlqSegs">A</strong></span>
+                <span class="badge bg-light text-dark border">Riego: <strong id="infoBlqRiego">N/A</strong></span>
+
+                <!-- Filtro desplegable de Variedades del Bloque (compacto, sin chips en pantalla) -->
+                <select id="selectFiltroVariedadPlano"
+                        class="form-select form-select-sm fw-semibold border-secondary-subtle ms-1"
+                        style="height: 25px; width: auto; min-width: 175px; font-size: 0.72rem; padding-top: 1px; padding-bottom: 1px;"
+                        onchange="onCambioFiltroVariedadPlano(this.value)"
+                        aria-label="Filtrar camas por variedad">
+                    <option value="">Variedad: Todas</option>
+                </select>
+            </div>
+
+            <!-- BOTÓN PRINCIPAL DE DIGITACIÓN RÁPIDA TPSR (POR RANGOS / PARTICIONES / TODO EL BLOQUE) -->
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm px-3" style="font-size: 0.76rem;" onclick="abrirFormularioTodoElBloque()">
+                    <i class="fa-solid fa-bolt me-1"></i> Digitación Rápida TPSR / Llenar Bloque y Particiones
+                </button>
+
+                <button type="button" class="btn btn-outline-success btn-sm py-1 px-2" style="font-size: 0.72rem;" onclick="exportarExcelTPSR()" title="Exportar plano de camas del bloque a Excel">
+                    <i class="fa-solid fa-file-excel me-1"></i>Excel
+                </button>
+
+                {% if current_user.role == 'ADMIN' %}
+                <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.72rem;" onclick="abrirModalHistorial()" title="Historial y anulación de eventos">
+                    <i class="fa-solid fa-clock-rotate-left me-1"></i>Historial / Anular
+                </button>
+                <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2" style="font-size: 0.72rem;" onclick="abrirModalNuevaCama()" title="Añadir cama física al bloque">
+                    <i class="fa-solid fa-plus me-1"></i>+ Cama
+                </button>
+                {% endif %}
+
+                <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" style="font-size: 0.72rem;" onclick="cerrarPlanoBloqueVisual()" title="Cerrar plano de camas">
+                    <i class="fa-solid fa-xmark me-1"></i>Cerrar plano
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PLANO ESQUEMÁTICO VERTICAL DE CAMAS HORIZONTALES APILADAS -->
+    <div class="plano-vertical-wrapper shadow-xs">
+        <div class="plano-header-row">
+            <div class="plano-col-num-hdr"># CAMA</div>
+            <div class="plano-col-bar-hdr">
+                <span>PART.</span>
+                <span>ESTADO</span>
+                <span>PRODUCTO &bull; VARIEDAD ACTUAL</span>
+                <span class="text-center">EDAD</span>
+                <span class="text-end">PLANTAS</span>
+                <span class="text-end hide-md-plano">CAMA STD</span>
+                <span class="text-end">ÁREA NETA</span>
+                <span class="text-end hide-md-plano">ÁREA BRUTA</span>
+            </div>
+        </div>
+
+        <!-- Lista vertical de rectángulos horizontales (Cama 1 fila 1, Cama 2 fila 2, etc.) -->
+        <div class="plano-vertical-list" id="plano-vertical-list">
+            <!-- Generado dinámicamente por JS en orden físico estricto: num_cama ASC, sufijo ASC -->
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================================
+     MODAL DE FORMULARIO TPSR (POR CAMA, POR RANGO 1..N, PARTICIONES O BLOQUE COMPLETO)
+     ============================================================================ -->
+<div class="modal fade" id="modalFormularioTPSR" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 1220px;">
+        <div class="modal-content border-0 shadow-lg">
+            <!-- Encabezado con el Bloque Preseleccionado Intrínseco -->
+            <div class="modal-header bg-dark text-white py-2 px-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge bg-success fw-bold"><i class="fa-solid fa-bolt me-1"></i>FORMULARIO TPSR</span>
+                    <h6 class="modal-title fw-bold mb-0 tabular-nums" id="lblTituloFormulario">
+                        BL -- &bull; Llenado de Camas
+                    </h6>
+                    <span class="badge bg-secondary-subtle text-dark fw-bold tabular-nums" id="lblSubtituloBloqueModal"></span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fw-bold" id="btnExpandirTodoBloqueForm" style="font-size: 0.72rem; display: none;" onclick="expandirATodoElBloqueEnModal()">
+                        <i class="fa-solid fa-expand me-1"></i>Ver todas las camas del bloque (1 a <span id="lblMaxCamaExpand">N</span>)
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+            </div>
+
+            <div class="modal-body p-3 bg-light">
+                <!-- CONSTRUCTOR RÁPIDO DE RANGOS Y PARTICIONES (EJ. CAMA 1 A 70, PARTICIÓN A/B/C, ÁREA NETA Y BRUTA) -->
+                <div class="partition-builder-box mb-2 shadow-xs">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pb-1 border-bottom">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="fw-bold text-dark" style="font-size: 0.78rem;">
+                                <i class="fa-solid fa-sliders text-primary me-1"></i>Digitación Rápida por Rango de Camas y Particiones (Bloque <span id="lblBlqIntrinseco" class="text-primary fw-bolder">--</span>):
+                            </span>
+                        </div>
+                        <!-- Selector de Tipo de Evento: SIEMBRA | PODA | TUMBA -->
+                        <div class="btn-group btn-group-sm shadow-xs" role="group">
+                            <input type="radio" class="btn-check" name="tipo_accion" id="btnAccionSiembra" value="SIEMBRA" checked onchange="actualizarModoAccion()">
+                            <label class="btn btn-outline-success fw-bold py-0 px-3" style="font-size: 0.74rem;" for="btnAccionSiembra">
+                                <i class="fa-solid fa-seedling me-1"></i> SIEMBRA
+                            </label>
+
+                            <input type="radio" class="btn-check" name="tipo_accion" id="btnAccionPoda" value="PODA" onchange="actualizarModoAccion()">
+                            <label class="btn btn-outline-warning text-dark fw-bold py-0 px-3" style="font-size: 0.74rem;" for="btnAccionPoda">
+                                <i class="fa-solid fa-scissors me-1"></i> PODA
+                            </label>
+
+                            <input type="radio" class="btn-check" name="tipo_accion" id="btnAccionTumba" value="TUMBA" onchange="actualizarModoAccion()">
+                            <label class="btn btn-outline-secondary fw-bold py-0 px-3" style="font-size: 0.74rem;" for="btnAccionTumba">
+                                <i class="fa-solid fa-trash-can me-1"></i> TUMBA / VACIADO
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Fila de Rango de Camas (De Cama X a Cama Y) + Partición + Fecha + Producto Maestro + Plantas Estándar -->
+                    <div class="row g-2 align-items-end">
+                        <div class="col-6 col-sm-2 col-md-2">
+                            <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.7rem;">Desde Cama</label>
+                            <input type="number" id="inputRangoDesde" class="form-control form-control-sm fw-bold text-center tabular-nums" min="1" value="1" oninput="onCambioRangoCamasModal()" onchange="onCambioRangoCamasModal()">
+                        </div>
+                        <div class="col-6 col-sm-2 col-md-2">
+                            <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.7rem;">Hasta Cama</label>
+                            <input type="number" id="inputRangoHasta" class="form-control form-control-sm fw-bold text-center tabular-nums" min="1" value="1" oninput="onCambioRangoCamasModal()" onchange="onCambioRangoCamasModal()">
+                        </div>
+                        <div class="col-6 col-sm-3 col-md-2">
+                            <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.7rem;" title="Filtra o asigna la letra de partición/segmento a este rango de camas">Partición (Seg.)</label>
+                            <div class="input-group input-group-sm">
+                                <select id="selectFiltroSegRango" class="form-select form-select-sm px-1" onchange="onCambioRangoCamasModal()" title="Filtrar camas del rango por segmento actual">
+                                    <option value="ALL">Todas</option>
+                                </select>
+                                <select id="selectAsignarParticion" class="form-select form-select-sm fw-bold text-primary px-1" onchange="aplicarParticionMasiva(this.value)" title="Asignar nueva partición (A, B, C...) a las camas del rango">
+                                    <option value="">= Seg</option>
+                                    <option value="A">&rarr; Seg A</option>
+                                    <option value="B">&rarr; Seg B</option>
+                                    <option value="C">&rarr; Seg C</option>
+                                    <option value="D">&rarr; Seg D</option>
+                                    <option value="E">&rarr; Seg E</option>
+                                    <option value="F">&rarr; Seg F</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-6 col-sm-3 col-md-2">
+                            <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.7rem;">Fecha Evento</label>
+                            <input type="date" id="inputFechaMasiva" class="form-control form-control-sm fw-semibold" value="{{ hoy }}" onchange="aplicarFechaMasiva()">
+                        </div>
+
+                        <!-- Campos de Producto Maestro y Densidad Base (la Variedad se selecciona directamente por fila en cada cama) -->
+                        <div class="col-12 col-sm-6 col-md-2" id="colProductoRango">
+                            <label class="form-label fw-bold text-success mb-1" style="font-size: 0.7rem;">Producto Maestro</label>
+                            <select id="selectProducto" class="form-select form-select-sm fw-semibold" onchange="onCambioProductoSiembra()">
+                                <option value="">-- Producto --</option>
+                                {% for prod in productos %}
+                                <option value="{{ prod }}">{{ prod }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-2" id="colDensidadRango">
+                            <label class="form-label fw-bold text-success mb-1" style="font-size: 0.7rem;" title="Densidad sugerida por cama (ej. 400 en Gypso). También puede editarse manualmente cama a cama en la tabla.">Plantas / Cama (Base)</label>
+                            <input type="number" id="inputDensidadRapida" class="form-control form-control-sm fw-bold text-end tabular-nums" placeholder="Ej. 400" min="0" oninput="aplicarDensidadMasiva(this.value)">
+                        </div>
+                    </div>
+
+                    <!-- Barra de Mapeo de Área (Neta, Bruta, Std) del Rango Seleccionado + Botones de Aplicación Rápida -->
+                    <div class="range-area-summary mt-2">
+                        <div class="d-flex align-items-center flex-wrap gap-3 tabular-nums">
+                            <span>
+                                <i class="fa-solid fa-arrows-left-right-to-line text-warning me-1"></i>
+                                Rango <strong>Cama <span id="prevRangoIni">1</span> a <span id="prevRangoFin">1</span></strong>:
+                                <span class="badge bg-warning text-dark ms-1"><span id="prevRangoCamas">0</span> camas</span>
+                            </span>
+                            <span class="border-start border-secondary ps-2">
+                                Camas Std: <strong class="text-info" id="prevRangoStd">0.00</strong>
+                            </span>
+                            <span class="border-start border-secondary ps-2">
+                                Área Neta Mapeada: <strong class="text-success-emphasis bg-success-subtle px-1 rounded" id="prevRangoNeta">0.0 m²</strong>
+                            </span>
+                            <span class="border-start border-secondary ps-2">
+                                Área Bruta Mapeada: <strong class="text-primary-emphasis bg-primary-subtle px-1 rounded" id="prevRangoBruta">0.0 m²</strong>
+                            </span>
+                            <span class="border-start border-secondary ps-2 d-none d-md-inline">
+                                Ha: <strong id="prevRangoHa">0.0000</strong>
+                            </span>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <button type="button" class="btn btn-primary btn-sm py-0 px-2 fw-bold" style="height: 26px; font-size: 0.72rem;" onclick="aplicarParametrosARango(true)" title="Carga y marca las camas de este rango aplicando Producto, Fecha, Partición y Densidad base">
+                                <i class="fa-solid fa-check me-1"></i>Cargar / Aplicar Rango
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm py-0 px-2" style="height: 26px; font-size: 0.71rem;" onclick="seleccionarRangoTodoElBloque()">
+                                Todo el Bloque (1 a <span id="lblBtnTodoMax">N</span>)
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm py-0 px-2" style="height: 26px; font-size: 0.71rem;" onclick="deseleccionarTodas()">
+                                Desmarcar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla estilo Excel de las Camas del Bloque (Con Producto, Desplegable de Variedad por Cama y Plantas editables por Cama) -->
+                <div class="excel-table-container">
+                    <table class="table excel-table align-middle" id="tablaCamas">
+                        <thead>
+                            <tr>
+                                <th style="width: 34px;" class="text-center">
+                                    <input type="checkbox" class="form-check-input" id="checkMaster" onchange="toggleMasterCheck(this.checked)">
+                                </th>
+                                <th style="width: 52px;" class="text-center">Blq</th>
+                                <th style="width: 56px;" class="text-center">Partición</th>
+                                <th style="width: 56px;" class="text-center"># Cama</th>
+                                <th style="min-width: 125px;">Variedad Actual</th>
+                                <th style="width: 88px;">Estado Actual</th>
+                                <th style="width: 56px;" class="text-center">Edad</th>
+                                <th style="width: 115px;">Producto</th>
+                                <th style="min-width: 195px;">Variedad a Guardar</th>
+                                <th style="width: 98px;" class="text-center">Pl. / Cama</th>
+                                <th style="width: 118px;" class="text-center">Fecha Ejecución</th>
+                                <th style="width: 64px;" class="text-end">Cama Std</th>
+                                <th style="width: 78px;" class="text-end">Área Neta</th>
+                                <th style="width: 78px;" class="text-end">Área Bruta</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyCamas"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pie del Modal con Totales de Área Neta, Área Bruta, Camas Std, Plantas y Botón Guardar -->
+            <div class="modal-footer bg-white py-2 px-3 border-top justify-content-between">
+                <div class="d-flex flex-wrap align-items-center gap-3 tabular-nums" style="font-size: 0.75rem;">
+                    <div>
+                        <span class="text-muted">Camas marcadas:</span>
+                        <span class="badge bg-primary px-2 py-1 ms-1" id="lblCamasSeleccionadas">0</span>
+                        <span class="text-muted">de <span id="lblTotalCamasBloque">0</span></span>
+                    </div>
+                    <div class="border-start ps-3">
+                        <span class="text-muted">Camas Std:</span>
+                        <strong class="text-dark ms-1" id="lblTotalStdSeleccionadas">0.00</strong>
+                    </div>
+                    <div class="border-start ps-3">
+                        <span class="text-muted">Área Neta:</span>
+                        <strong class="text-success ms-1" id="lblTotalM2Seleccionados">0.0 m²</strong>
+                    </div>
+                    <div class="border-start ps-3">
+                        <span class="text-muted">Área Bruta:</span>
+                        <strong class="text-primary ms-1" id="lblTotalM2BrutosSeleccionados">0.0 m²</strong>
+                    </div>
+                    <div class="border-start ps-3">
+                        <span class="text-muted">Total Plantas:</span>
+                        <strong class="text-dark ms-1" id="lblTotalPlantasSeleccionadas">0</strong>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-success btn-sm px-4 py-1 shadow-sm fw-bold" id="btnGuardarEvento" onclick="confirmarYGuardarEvento()" disabled>
+                        <i class="fa-solid fa-cloud-arrow-up me-1"></i>Guardar Registro TPSR
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Historial y Corrección de Eventos (Solo Admin) -->
+<div class="modal fade" id="modalHistorialEventos" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white py-2">
+                <h6 class="modal-title fw-bold">
+                    <i class="fa-solid fa-clock-rotate-left me-2"></i>Historial de Eventos & Anulación de Errores (Admin)
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-warning py-1 px-2 small mb-3">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <strong>Atención:</strong> Al anular un evento registrado por error, la cama regresará inmediatamente a su estado de cultivo previo.
+                </div>
+                <div class="table-responsive" style="max-height: 480px;">
+                    <table class="table table-hover table-sm align-middle small mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th># ID</th>
+                                <th>Fecha</th>
+                                <th>Semana</th>
+                                <th>Bloque</th>
+                                <th>ID Cama</th>
+                                <th>Evento</th>
+                                <th>Poda</th>
+                                <th>Producto / Variedad</th>
+                                <th class="text-end">Plantas</th>
+                                <th>Registrado</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyHistorialEventos"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Agregar Cama al Bloque (Solo Admin) -->
+<div class="modal fade" id="modalNuevaCama" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold">
+                    <i class="fa-solid fa-plus me-2"></i>Agregar / Aumentar Cama en Bloque
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <form id="formNuevaCama" onsubmit="event.preventDefault(); guardarNuevaCama();">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Bloque Base:</label>
+                            <input type="text" id="ncBloque" class="form-control form-control-sm font-monospace fw-bold" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Sufijo (Partición):</label>
+                            <input type="text" id="ncSufijo" class="form-control form-control-sm font-monospace text-uppercase" value="A" required maxlength="5">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Número de Cama (#):</label>
+                            <input type="number" id="ncNumCama" class="form-control form-control-sm" required min="1" max="999">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Cama Estándar:</label>
+                            <input type="number" id="ncCamaStd" class="form-control form-control-sm" value="1.0" step="0.01" min="0.01">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Metros Cuadrados Netos (m²):</label>
+                        <input type="number" id="ncM2Netos" class="form-control form-control-sm" value="30.0" step="0.1" min="1">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold shadow-sm" id="btnSubmitNuevaCama">
+                            <i class="fa-solid fa-save me-1"></i>Crear Cama en Base de Datos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL HABILITAR NUEVA SEMANA (GOBERNANZA DE ESTADO DE CULTIVO) -->
+<div class="modal fade" id="modalHabilitarSemana" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white py-2">
+                <h6 class="modal-title fw-bold">
+                    <i class="fa-solid fa-calendar-plus text-success me-2"></i>Generar / Habilitar Nueva Semana en el ERP
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-info py-2 px-3 small mb-3">
+                    <i class="fa-solid fa-circle-info me-1"></i>
+                    <strong>Gobernanza de Cultivo:</strong> Al habilitar una nueva semana, el ERP proyecta las camas sumando el diferencial de semanas a la edad real desde el último corte base (Semana <span id="lblPrevWeekCorte" class="fw-bold font-monospace">--</span>), desbloqueando la semana para que los operarios registren Siembras, Podas y Tumbas.
+                </div>
+                <form id="formHabilitarSemana" onsubmit="event.preventDefault(); confirmarHabilitarSemana();">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Semana Agrícola a Habilitar / Proyectar:</label>
+                        <input type="text" id="inputSemanaHabilitar" class="form-control form-control-lg font-monospace fw-bold text-primary text-center" placeholder="Ej: 2641 o 2026-41" required>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
+                            Siguiente semana sugerida: <strong id="lblSiguienteSugerida" class="text-success font-monospace">--</strong>
+                        </small>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-sm fw-bold shadow-sm text-white py-2" id="btnSubmitHabilitarSemana" style="background-color: #10b981; border-color: #059669;">
+                            <i class="fa-solid fa-wand-magic-sparkles me-1 text-white"></i> Confirmar & Generar Semana
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const calendarioSemanas = {{ (semanas_cal or []) | tojson }};
+let semanaAbsActual = {{ semana_abs_hoy or 0 }};
+const semanaHoyCodigo = {{ semana_hoy or 0 }};
+const fechaHoyDefecto = "{{ hoy or '' }}";
+const mapaDensidades = {{ (densidades_plantas or {}) | tojson }};
+const mapaVariedadesPorProducto = {{ (variedades_por_producto or {}) | tojson }};
+
+function abrirModalHabilitarSemana() {
+    const sel = document.getElementById('selectSemana');
+    let maxSc = 2640;
+    if (calendarioSemanas && calendarioSemanas.length > 0) {
+        maxSc = Math.max(...calendarioSemanas.map(s => parseInt(s.semana_campo) || 0));
+    }
+    const nextSc = maxSc ? (maxSc + 1) : 2641;
+
+    const prevLbl = document.getElementById('lblPrevWeekCorte');
+    if (prevLbl) prevLbl.textContent = maxSc;
+
+    const sugLbl = document.getElementById('lblSiguienteSugerida');
+    if (sugLbl) sugLbl.textContent = nextSc;
+
+    const inp = document.getElementById('inputSemanaHabilitar');
+    if (inp) inp.value = nextSc;
+
+    const modalEl = document.getElementById('modalHabilitarSemana');
+    if (modalEl) {
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+    }
+}
+
+async function confirmarHabilitarSemana() {
+    const inp = document.getElementById('inputSemanaHabilitar');
+    const sem = inp ? inp.value.trim() : '';
+    if (!sem) return;
+
+    const btn = document.getElementById('btnSubmitHabilitarSemana');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Proyectando camas...';
+    }
+
+    try {
+        const res = await fetch("{{ url_for('tpsr.api_habilitar_semana') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ semana: sem })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'No se pudo habilitar la semana'));
+        }
+    } catch (e) {
+        alert('Error de conexión: ' + e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles me-1 text-white"></i> Confirmar & Generar Semana';
+        }
+    }
+}
+
+let zonaActiva = "{{ zonas_list[0].zona if zonas_list else 'ALL' }}";
+let filtroColorEstado = 'ALL'; // 'ALL' | 'SIEMBRA' | 'PODA' | 'VACIO'
+let bloqueActivo = '';
+let camasData = [];
+let filtroVariedadActivo = null;
+let camaIndividualFiltroId = null; // null = mostrar camas según el rango Desde..Hasta; id_cama = modo cama individual inicial
+let estadoFilasModal = {}; // Guarda ediciones por cama (variedad, plantas, manualPlantas, fecha, sufijo, checked) al cambiar de rango
+let modalTPSRInstance = null;
+let stripBloquesCompacto = false;
+
+function getBadgeSegClass(seg) {
+    if (seg === 'A') return 'badge-seg-A';
+    if (seg === 'B') return 'badge-seg-B';
+    if (seg === 'C') return 'badge-seg-C';
+    if (seg === 'D') return 'badge-seg-D';
+    return 'badge-seg-other';
+}
+
+function getModalTPSR() {
+    const el = document.getElementById('modalFormularioTPSR');
+    if (!el) return null;
+    if (!modalTPSRInstance) {
+        modalTPSRInstance = new bootstrap.Modal(el);
+    }
+    return modalTPSRInstance;
+}
+
+function toggleStripBloques() {
+    const strip = document.getElementById('tpsr-blq-grid');
+    const btn = document.getElementById('btnToggleStripBloques');
+    if (!strip || !btn) return;
+    stripBloquesCompacto = !stripBloquesCompacto;
+    if (stripBloquesCompacto) {
+        strip.style.display = 'none';
+        btn.innerHTML = '<i class="fa-solid fa-chevron-down me-1"></i>Mostrar bloques';
+    } else {
+        strip.style.display = 'grid';
+        btn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Compactar bloques';
+    }
+}
+
+function formatearRangoSemana(fIniStr, fFinStr) {
+    if (!fIniStr || !fFinStr) return '';
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const pIni = fIniStr.split('-');
+    const pFin = fFinStr.split('-');
+    const diaIni = parseInt(pIni[2], 10);
+    const mesIni = meses[parseInt(pIni[1], 10) - 1];
+    const diaFin = parseInt(pFin[2], 10);
+    const mesFin = meses[parseInt(pFin[1], 10) - 1];
+    const anioFin = pFin[0];
+    return `${diaIni} ${mesIni} - ${diaFin} ${mesFin} ${anioFin}`;
+}
+
+function navegarSemana(delta) {
+    const select = document.getElementById('selectSemana');
+    let idx = select.selectedIndex + delta;
+    if (idx >= 0 && idx < select.options.length) {
+        select.selectedIndex = idx;
+        cambioSemanaSeleccionada();
+    }
+}
+
+function cambioSemanaSeleccionada() {
+    const select = document.getElementById('selectSemana');
+    const opt = select.options[select.selectedIndex];
+    if (opt) {
+        semanaAbsActual = parseInt(opt.getAttribute('data-abs')) || semanaAbsActual;
+        const fIni = opt.getAttribute('data-inicio');
+        const fFin = opt.getAttribute('data-fin');
+        const semCampo = parseInt(opt.value);
+
+        const lbl = document.getElementById('lblRangoFechasSemana');
+        if (lbl) lbl.innerText = formatearRangoSemana(fIni, fFin);
+
+        const inputMasiva = document.getElementById('inputFechaMasiva');
+        if (inputMasiva && fIni) {
+            inputMasiva.value = (semCampo === semanaHoyCodigo) ? fechaHoyDefecto : fIni;
+        }
+
+        if (camasData && camasData.length > 0) {
+            renderizarPlanoVerticalCamas();
+            recalcularEdadesDinamicas();
+        }
+    }
+}
+
+/* ============================================================================
+   1. NAVEGACIÓN POR ZONAS Y BLOQUES (SIEMPRE EN LA PARTE SUPERIOR)
+   ============================================================================ */
+function cerrarPlanoBloqueVisual() {
+    bloqueActivo = '';
+    camasData = [];
+    document.querySelectorAll('.tpsr-blq-pill').forEach(el => el.classList.remove('active-blq'));
+    const secMap = document.getElementById('section-tpsr-beds-map');
+    if (secMap) secMap.style.display = 'none';
+}
+
+function seleccionarZonaVisual(zona) {
+    zonaActiva = zona;
+    document.querySelectorAll('.zone-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-zona') === zona);
+    });
+    const lblZ = document.getElementById('lblZonaActivaTop');
+    if (lblZ) lblZ.innerText = (zona === 'ALL') ? 'TODAS LAS ZONAS' : zona;
+
+    // Por defecto al cambiar de zona no cargar ningún bloque inferior hasta que el usuario seleccione uno
+    cerrarPlanoBloqueVisual();
+    aplicarFiltrosCuadriculaBloques(false);
+}
+
+function filtrarPorEstadoColor(estado) {
+    filtroColorEstado = estado;
+    ['ALL', 'SIEMBRA', 'PODA', 'VACIO'].forEach(st => {
+        const el = document.getElementById(`leg-${st}`);
+        if (el) el.classList.toggle('active-filter', st === estado);
+    });
+    aplicarFiltrosCuadriculaBloques(false);
+    if (bloqueActivo && camasData.length > 0) {
+        renderizarPlanoVerticalCamas();
+    }
+}
+
+function aplicarFiltrosCuadriculaBloques(autoSelectFirst = false) {
+    const q = (document.getElementById('inputBuscarBloque')?.value || '').toLowerCase().trim();
+    let visibles = 0;
+    let cntAll = 0, cntS = 0, cntP = 0, cntV = 0;
+    let primerBloqueVisible = null;
+    let bloqueActivoSigueVisible = false;
+
+    document.querySelectorAll('.tpsr-blq-pill').forEach(tile => {
+        const z = tile.getAttribute('data-zona');
+        const est = tile.getAttribute('data-estado');
+        const blqCode = tile.getAttribute('data-blq');
+        const search = (tile.getAttribute('data-search') || '').toLowerCase();
+
+        const matchZona = (zonaActiva === 'ALL' || z === zonaActiva);
+        const matchQ = (!q || search.includes(q));
+
+        if (matchZona && matchQ) {
+            cntAll++;
+            if (est === 'SIEMBRA') cntS++;
+            else if (est === 'PODA') cntP++;
+            else cntV++;
+        }
+
+        const matchEst = (filtroColorEstado === 'ALL' || est === filtroColorEstado);
+        const show = matchZona && matchQ && matchEst;
+        tile.style.display = show ? 'flex' : 'none';
+        if (show) {
+            visibles++;
+            if (!primerBloqueVisible) primerBloqueVisible = blqCode;
+            if (String(blqCode) === String(bloqueActivo)) bloqueActivoSigueVisible = true;
+        }
+    });
+
+    document.getElementById('cnt-est-all').innerText = cntAll;
+    document.getElementById('cnt-est-siembra').innerText = cntS;
+    document.getElementById('cnt-est-poda').innerText = cntP;
+    document.getElementById('cnt-est-vacio').innerText = cntV;
+
+    const emptyEl = document.getElementById('tpsr-empty-blocks');
+    if (emptyEl) emptyEl.style.display = (visibles === 0) ? 'block' : 'none';
+
+    if (bloqueActivo && !bloqueActivoSigueVisible) {
+        cerrarPlanoBloqueVisual();
+    } else if (autoSelectFirst && primerBloqueVisible) {
+        abrirBloqueVisual(primerBloqueVisible);
+    }
+}
+
+function navegarBloqueAdyacente(dir) {
+    const tiles = Array.from(document.querySelectorAll('.tpsr-blq-pill')).filter(t => t.style.display !== 'none');
+    if (!tiles.length) return;
+    const codes = tiles.map(t => t.getAttribute('data-blq'));
+    const idx = codes.indexOf(String(bloqueActivo));
+    let nextIdx = idx + dir;
+    if (nextIdx < 0) nextIdx = codes.length - 1;
+    if (nextIdx >= codes.length) nextIdx = 0;
+    abrirBloqueVisual(codes[nextIdx]);
+}
+
+/* ============================================================================
+   2. CARGAR BLOQUE Y RENDERIZAR PLANO VERTICAL DE CAMAS (RECTÁNGULOS HORIZONTALES)
+   ============================================================================ */
+async function abrirBloqueVisual(blq) {
+    if (!blq) return;
+    bloqueActivo = String(blq);
+
+    const secMap = document.getElementById('section-tpsr-beds-map');
+    if (secMap) secMap.style.display = 'block';
+
+    // Resaltar píldora del bloque activo arriba con borde fluorescente
+    document.querySelectorAll('.tpsr-blq-pill').forEach(el => {
+        el.classList.toggle('active-blq', el.getAttribute('data-blq') === bloqueActivo);
+    });
+
+    const lblHdr = document.getElementById('lblBlqActivoHeader');
+    if (lblHdr) lblHdr.innerText = bloqueActivo;
+
+    const tile = document.getElementById(`tile-tpsr-${bloqueActivo}`);
+    if (tile) {
+        document.getElementById('infoBlqCamas').innerText = tile.getAttribute('data-camas') || '0';
+        document.getElementById('infoBlqStd').innerText = Number(tile.getAttribute('data-std') || 0).toFixed(2);
+        document.getElementById('infoBlqAreaNeta').innerText = Number(tile.getAttribute('data-area-neta') || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        document.getElementById('infoBlqAreaBruta').innerText = Number(tile.getAttribute('data-area-bruta') || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        document.getElementById('infoBlqPctVeg').innerText = `${tile.getAttribute('data-pct-veg') || 0}%`;
+        document.getElementById('infoBlqPctProd').innerText = `${tile.getAttribute('data-pct-prod') || 0}%`;
+        document.getElementById('infoBlqSegs').innerText = tile.getAttribute('data-segs') || 'A';
+        document.getElementById('infoBlqRiego').innerText = tile.getAttribute('data-tecnico') || 'N/A';
+    }
+
+    const listEl = document.getElementById('plano-vertical-list');
+    listEl.innerHTML = `<div class="text-center py-4 text-muted w-100"><i class="fa-solid fa-spinner fa-spin me-2"></i>Cargando plano vertical de camas del Bloque ${bloqueActivo}...</div>`;
+
+    filtroVariedadActivo = null;
+    camaIndividualFiltroId = null;
+
+    try {
+        const resp = await fetch(`/tpsr/api/bloque-camas/${encodeURIComponent(bloqueActivo)}`);
+        const rawCamas = await resp.json();
+
+        // Ordenar estrictamente por número físico de cama (num_cama ASC) y luego sufijo ASC (nunca orden alfabético)
+        camasData = (rawCamas || []).sort((a, b) => {
+            const nA = parseInt(a.num_cama, 10) || 0;
+            const nB = parseInt(b.num_cama, 10) || 0;
+            if (nA !== nB) return nA - nB;
+            return String(a.sufijo || 'A').localeCompare(String(b.sufijo || 'A'));
+        });
+
+        construirChipsVariedades();
+        renderizarPlanoVerticalCamas();
+        actualizarTileBloqueEnMemoria(bloqueActivo, camasData);
+        inicializarControlesRangoBloque();
+    } catch (e) {
+        console.error("Error al cargar camas del bloque:", e);
+        listEl.innerHTML = `<div class="text-center py-4 text-danger w-100">Error al consultar las camas del bloque ${bloqueActivo}.</div>`;
+    }
+}
+
+function obtenerEstadoColorCama(cama) {
+    if (cama.esta_vacia) return 'VACIO';
+    if (cama.ultimo_evento === 'PODA') return 'PODA';
+    return 'SIEMBRA';
+}
+
+function renderizarPlanoVerticalCamas() {
+    const listEl = document.getElementById('plano-vertical-list');
+    if (!listEl) return;
+
+    if (!camasData || camasData.length === 0) {
+        listEl.innerHTML = `<div class="border rounded bg-light text-center py-4 text-muted w-100">No hay camas registradas en este bloque.</div>`;
+        return;
+    }
+
+    // Contar cuántas particiones tiene cada num_cama para saber si mostrar sufijo junto al número de cama
+    const conteoPorNum = {};
+    camasData.forEach(c => {
+        conteoPorNum[c.num_cama] = (conteoPorNum[c.num_cama] || 0) + 1;
+    });
+
+    const filtradas = camasData.filter(cama => {
+        const estColor = obtenerEstadoColorCama(cama);
+        if (filtroColorEstado !== 'ALL' && estColor !== filtroColorEstado) return false;
+        if (filtroVariedadActivo === '__VACIAS__' && !cama.esta_vacia) return false;
+        if (filtroVariedadActivo && filtroVariedadActivo !== '__VACIAS__' && cama.variedad !== filtroVariedadActivo) return false;
+        return true;
+    });
+
+    if (filtradas.length === 0) {
+        listEl.innerHTML = `<div class="border rounded bg-light text-center py-3 text-muted w-100 small">Ninguna cama coincide con el filtro seleccionado.</div>`;
+        return;
+    }
+
+    listEl.innerHTML = filtradas.map(cama => {
+        const estColor = obtenerEstadoColorCama(cama);
+        const edad = calcularEdadDinamica(cama);
+        const edadTxt = (edad !== null) ? `${edad} sem` : '-';
+        const isSelected = (camaIndividualFiltroId && String(camaIndividualFiltroId) === String(cama.id_cama));
+
+        let estadoLbl = 'TUMBADO / VACÍO';
+        if (estColor === 'SIEMBRA') estadoLbl = 'SIEMBRA';
+        else if (estColor === 'PODA') estadoLbl = `PODA ${cama.num_poda || 1}`;
+
+        const prodVarTxt = cama.esta_vacia
+            ? '<span class=" opacity-75">-- DISPONIBLE / VACÍO --</span>'
+            : `<strong>${cama.producto || ''}</strong> &bull; ${cama.variedad || ''}`;
+
+        const plantasTxt = cama.esta_vacia ? '0 pl.' : `${Number(cama.num_plantas || 0).toLocaleString()} pl.`;
+        const stdTxt = `${Number(cama.cama_estandar || 0).toFixed(2)} std`;
+        const netaTxt = `${Number(cama.metros_netos || 0).toFixed(1)} m²`;
+        const brutaTxt = `${Number(cama.metros_brutos || 0).toFixed(1)} m²`;
+
+        // Columna izquierda: número de cama físico (1, 2, 3...) y si está particionada (ej. 3A, 3B)
+        const numLabel = (conteoPorNum[cama.num_cama] > 1)
+            ? `${cama.num_cama}<span class="text-warning" style="font-size:0.63rem;">${cama.sufijo}</span>`
+            : `${cama.num_cama}`;
+
+        return `
+            <div class="plano-cama-row ${isSelected ? 'row-active-cama' : ''}" id="rect-cama-${cama.id_cama}">
+                <div class="plano-cama-num" title="Cama Física #${cama.num_cama} (Partición ${cama.sufijo})">
+                    ${numLabel}
+                </div>
+                <div class="plano-cama-bar bar-${estColor}"
+                     onclick="alHacerClickRectanguloCama('${cama.id_cama}')"
+                     title="Clic para abrir formulario TPSR de Cama #${cama.num_cama} (Seg ${cama.sufijo}) · Área Neta: ${netaTxt} · Área Bruta: ${brutaTxt}">
+                    <div>
+                        <span class="badge-segmento ${getBadgeSegClass(cama.sufijo)}">${cama.sufijo}</span>
+                    </div>
+                    <div class="fw-bold" style="font-size: 0.7rem;">
+                        ${estadoLbl}
+                    </div>
+                    <div class="text-truncate">
+                        ${prodVarTxt}
+                    </div>
+                    <div class="text-center fw-bold tabular-nums">
+                        ${edadTxt}
+                    </div>
+                    <div class="text-end fw-semibold tabular-nums">
+                        ${plantasTxt}
+                    </div>
+                    <div class="text-end tabular-nums hide-md-plano opacity-85">
+                        ${stdTxt}
+                    </div>
+                    <div class="text-end fw-bold tabular-nums">
+                        ${netaTxt}
+                    </div>
+                    <div class="text-end tabular-nums hide-md-plano opacity-85">
+                        ${brutaTxt}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function actualizarTileBloqueEnMemoria(blq, listaCamas) {
+    const tile = document.getElementById(`tile-tpsr-${blq}`);
+    if (!tile || !listaCamas) return;
+
+    let cS = 0, cP = 0, cV = 0;
+    let cVeg = 0, cProd = 0;
+    let sumNeta = 0, sumBruta = 0, sumStd = 0, areaVeg = 0, areaProd = 0;
+    const prodsSet = new Set();
+    const segsSet = new Set();
+
+    listaCamas.forEach(c => {
+        const est = obtenerEstadoColorCama(c);
+        if (est === 'SIEMBRA') cS++;
+        else if (est === 'PODA') cP++;
+        else cV++;
+
+        const mNeta = Number(c.metros_netos || 0);
+        sumNeta += mNeta;
+        sumBruta += Number(c.metros_brutos || 0);
+        sumStd += Number(c.cama_estandar || 0);
+
+        if (!c.esta_vacia) {
+            const edadDin = calcularEdadDinamica(c);
+            const vegMax = Number(c.veg_max_age !== undefined ? c.veg_max_age : 9);
+            const edadUse = (edadDin !== null && edadDin !== undefined) ? edadDin : Number(c.edad_semanas || 0);
+            if (edadUse <= vegMax) {
+                cVeg++;
+                areaVeg += mNeta;
+            } else {
+                cProd++;
+                areaProd += mNeta;
+            }
+        }
+
+        if (c.sufijo) segsSet.add(c.sufijo);
+        if (!c.esta_vacia && c.producto && c.producto !== 'VACIO') prodsSet.add(c.producto);
+    });
+
+    const totalCamas = listaCamas.length;
+    const pctVeg = totalCamas > 0 ? Math.round((cVeg / totalCamas) * 1000) / 10 : 0;
+    const pctProd = totalCamas > 0 ? Math.round((cProd / totalCamas) * 1000) / 10 : 0;
+    const fmtPct = (v) => Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
+
+    let estBlq = 'VACIO';
+    if ((cS + cP) === 0 || (cV > cS && cV > cP)) estBlq = 'VACIO';
+    else if (cP > cS) estBlq = 'PODA';
+    else estBlq = 'SIEMBRA';
+
+    tile.setAttribute('data-estado', estBlq);
+    tile.setAttribute('data-pct-veg', pctVeg);
+    tile.setAttribute('data-pct-prod', pctProd);
+    tile.classList.remove('state-SIEMBRA', 'state-PODA', 'state-VACIO');
+    tile.classList.add(`state-${estBlq}`);
+
+    const areaEl = document.getElementById(`tile-area-${blq}`);
+    if (areaEl) {
+        areaEl.innerHTML = `${Math.round(sumNeta)} m² <span class="text-muted fw-semibold">(${totalCamas}c)</span>`;
+    }
+
+    const stagesEl = document.getElementById(`tile-stages-${blq}`);
+    if (stagesEl) {
+        stagesEl.innerHTML = `<div class="tpsr-mini-stage-box stage-veg" title="Vegetativo: ${cVeg} camas (${areaVeg.toFixed(1)} m²)">Veg ${fmtPct(pctVeg)}</div><div class="tpsr-mini-stage-box stage-prod" title="Productivo: ${cProd} camas (${areaProd.toFixed(1)} m²)">Prod ${fmtPct(pctProd)}</div>`;
+    }
+
+    const countsEl = document.getElementById(`tile-counts-${blq}`);
+    if (countsEl) {
+        countsEl.innerHTML = `<span class="fw-semibold">🟢${cS}</span><span class="fw-semibold">🟡${cP}</span><span class="fw-semibold">⚪${cV}</span>`;
+    }
+
+    // Actualizar metadatos de la cabecera del bloque activo
+    if (String(blq) === String(bloqueActivo)) {
+        document.getElementById('infoBlqCamas').innerText = totalCamas;
+        document.getElementById('infoBlqStd').innerText = sumStd.toFixed(2);
+        document.getElementById('infoBlqAreaNeta').innerText = sumNeta.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        document.getElementById('infoBlqAreaBruta').innerText = sumBruta.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        document.getElementById('infoBlqPctVeg').innerText = fmtPct(pctVeg);
+        document.getElementById('infoBlqPctProd').innerText = fmtPct(pctProd);
+        document.getElementById('infoBlqSegs').innerText = Array.from(segsSet).sort().join(', ') || 'A';
+    }
+}
+
+/* ============================================================================
+   3. FORMULARIO TPSR: RANGOS (CAMA 1 A 70), PARTICIONES Y MAPEO DE ÁREA NETA/BRUTA
+   ============================================================================ */
+function inicializarControlesRangoBloque() {
+    if (!camasData || camasData.length === 0) return;
+    const nums = camasData.map(c => parseInt(c.num_cama, 10) || 1);
+    const minC = Math.min(...nums);
+    const maxC = Math.max(...nums);
+
+    const inDesde = document.getElementById('inputRangoDesde');
+    const inHasta = document.getElementById('inputRangoHasta');
+    if (inDesde) { inDesde.min = minC; inDesde.max = maxC; inDesde.value = minC; }
+    if (inHasta) { inHasta.min = minC; inHasta.max = maxC; inHasta.value = maxC; }
+
+    const lblMax = document.getElementById('lblBtnTodoMax');
+    if (lblMax) lblMax.innerText = maxC;
+    const lblMaxExp = document.getElementById('lblMaxCamaExpand');
+    if (lblMaxExp) lblMaxExp.innerText = maxC;
+    const lblBlqInt = document.getElementById('lblBlqIntrinseco');
+    if (lblBlqInt) lblBlqInt.innerText = `BL ${bloqueActivo}`;
+
+    // Poblar selector de segmentos existentes en este bloque
+    const segs = Array.from(new Set(camasData.map(c => c.sufijo || 'A'))).sort();
+    const selSeg = document.getElementById('selectFiltroSegRango');
+    if (selSeg) {
+        selSeg.innerHTML = '<option value="ALL">Todos Segs</option>' +
+            segs.map(s => `<option value="${s}">Solo Seg ${s}</option>`).join('');
+    }
+
+    actualizarPrevisualizacionRango();
+}
+
+function obtenerCamasEnRangoActual() {
+    if (!camasData || camasData.length === 0) return [];
+    const d = parseInt(document.getElementById('inputRangoDesde')?.value, 10) || 1;
+    const h = parseInt(document.getElementById('inputRangoHasta')?.value, 10) || d;
+    const minC = Math.min(d, h);
+    const maxC = Math.max(d, h);
+    const segFiltro = document.getElementById('selectFiltroSegRango')?.value || 'ALL';
+
+    return camasData.filter(c => {
+        const n = parseInt(c.num_cama, 10) || 0;
+        if (n < minC || n > maxC) return false;
+        if (segFiltro !== 'ALL' && (c.sufijo || 'A') !== segFiltro) return false;
+        return true;
+    });
+}
+
+function obtenerVariedadesDeProducto(prodName, extraVar = '') {
+    const pKey = String(prodName || '').trim().toUpperCase();
+    const baseList = (pKey && mapaVariedadesPorProducto[pKey]) ? [...mapaVariedadesPorProducto[pKey]] : [];
+    const ext = String(extraVar || '').trim();
+    if (ext && !['VACIO', 'DISPONIBLE', 'ERRADICADO', 'DESCONOCIDA', 'NAN'].includes(ext.toUpperCase()) && !baseList.includes(ext)) {
+        baseList.unshift(ext);
+    }
+    return baseList;
+}
+
+function construirOpcionesVariedadSelect(prodName, selectedVar = '') {
+    const pKey = String(prodName || '').trim().toUpperCase();
+    if (!pKey || pKey === 'VACIO') {
+        return `<option value="">-- Elija Producto Maestro --</option>`;
+    }
+    const lista = obtenerVariedadesDeProducto(pKey, selectedVar);
+    const selClean = String(selectedVar || '').trim();
+    let html = `<option value="">-- Seleccione Variedad (${lista.length}) --</option>`;
+    lista.forEach(v => {
+        const isSel = (selClean && v.toUpperCase() === selClean.toUpperCase()) ? 'selected' : '';
+        html += `<option value="${v}" ${isSel}>${v}</option>`;
+    });
+    return html;
+}
+
+function sincronizarEstadoFilasDesdeDOM() {
+    document.querySelectorAll('#tbodyCamas tr[id^="fila-cama-"]').forEach(tr => {
+        const idStr = tr.id.replace('fila-cama-', '');
+        const chk = document.querySelector(`.check-cama[data-id="${idStr}"]`);
+        const selVar = document.getElementById(`select-var-${idStr}`);
+        const inPlantas = document.getElementById(`input-plantas-${idStr}`);
+        const inFecha = document.getElementById(`input-fecha-${idStr}`);
+        const inSeg = document.getElementById(`input-seg-${idStr}`);
+        const cellProd = document.getElementById(`cell-prod-${idStr}`);
+
+        const prev = estadoFilasModal[idStr] || {};
+        estadoFilasModal[idStr] = {
+            checked: chk ? chk.checked : true,
+            prod: cellProd ? (cellProd.getAttribute('data-prod') || '') : (prev.prod || ''),
+            variedad: selVar ? selVar.value : (prev.variedad || ''),
+            plantas: inPlantas ? inPlantas.value : (prev.plantas !== undefined ? prev.plantas : ''),
+            manualPlantas: inPlantas ? (inPlantas.getAttribute('data-manual') === '1') : Boolean(prev.manualPlantas),
+            fecha: inFecha ? inFecha.value : (prev.fecha || ''),
+            sufijo: inSeg ? inSeg.value : (prev.sufijo || '')
+        };
+    });
+}
+
+function actualizarPrevisualizacionRango() {
+    const d = parseInt(document.getElementById('inputRangoDesde')?.value, 10) || 1;
+    const h = parseInt(document.getElementById('inputRangoHasta')?.value, 10) || d;
+    const minC = Math.min(d, h);
+    const maxC = Math.max(d, h);
+
+    document.getElementById('prevRangoIni').innerText = minC;
+    document.getElementById('prevRangoFin').innerText = maxC;
+
+    const enRango = obtenerCamasEnRangoActual();
+    let sumStd = 0, sumNeta = 0, sumBruta = 0, sumHa = 0;
+    enRango.forEach(c => {
+        sumStd += Number(c.cama_estandar || 0);
+        sumNeta += Number(c.metros_netos || 0);
+        sumBruta += Number(c.metros_brutos || 0);
+        sumHa += Number(c.ha || 0);
+    });
+
+    document.getElementById('prevRangoCamas').innerText = enRango.length;
+    document.getElementById('prevRangoStd').innerText = sumStd.toFixed(2);
+    document.getElementById('prevRangoNeta').innerText = `${sumNeta.toFixed(1)} m²`;
+    document.getElementById('prevRangoBruta').innerText = `${sumBruta.toFixed(1)} m²`;
+    document.getElementById('prevRangoHa').innerText = sumHa.toFixed(4);
+}
+
+/* Al cambiar Desde Cama, Hasta Cama o Partición en el modal, carga inmediatamente las camas del rango en la tabla */
+function onCambioRangoCamasModal() {
+    sincronizarEstadoFilasDesdeDOM();
+    if (camaIndividualFiltroId !== null) {
+        camaIndividualFiltroId = null;
+        const btnExpand = document.getElementById('btnExpandirTodoBloqueForm');
+        if (btnExpand) btnExpand.style.display = 'inline-block';
+    }
+    actualizarPrevisualizacionRango();
+    const enRango = obtenerCamasEnRangoActual();
+    enRango.forEach(c => {
+        const idStr = String(c.id_cama);
+        if (!estadoFilasModal[idStr]) {
+            estadoFilasModal[idStr] = { checked: true };
+        } else {
+            estadoFilasModal[idStr].checked = true;
+        }
+    });
+
+    const d = parseInt(document.getElementById('inputRangoDesde')?.value, 10) || 1;
+    const h = parseInt(document.getElementById('inputRangoHasta')?.value, 10) || d;
+    const lblTitulo = document.getElementById('lblTituloFormulario');
+    if (lblTitulo) {
+        lblTitulo.innerHTML = `BL ${bloqueActivo} &bull; Camas ${Math.min(d, h)} a ${Math.max(d, h)} (${enRango.length} camas en ventana)`;
+    }
+
+    renderizarCamas(true);
+}
+
+function seleccionarRangoTodoElBloque() {
+    if (!camasData || camasData.length === 0) return;
+    sincronizarEstadoFilasDesdeDOM();
+    camaIndividualFiltroId = null;
+    const nums = camasData.map(c => parseInt(c.num_cama, 10) || 1);
+    document.getElementById('inputRangoDesde').value = Math.min(...nums);
+    document.getElementById('inputRangoHasta').value = Math.max(...nums);
+    document.getElementById('selectFiltroSegRango').value = 'ALL';
+    onCambioRangoCamasModal();
+}
+
+/* Cuando se hace clic en un rectángulo horizontal del plano vertical */
+function alHacerClickRectanguloCama(idCama) {
+    estadoFilasModal = {};
+    camaIndividualFiltroId = idCama;
+    const camaObj = camasData.find(c => String(c.id_cama) === String(idCama));
+
+    document.querySelectorAll('.plano-cama-row').forEach(el => {
+        el.classList.toggle('row-active-cama', el.id === `rect-cama-${idCama}`);
+    });
+
+    // Si la cama ya tiene un cultivo activo, pre-seleccionar el Producto Maestro si el selector está vacío
+    const selProd = document.getElementById('selectProducto');
+    if (selProd && !selProd.value && camaObj && camaObj.producto && camaObj.producto !== 'VACIO') {
+        for (let i = 0; i < selProd.options.length; i++) {
+            if (selProd.options[i].value.toUpperCase() === camaObj.producto.toUpperCase()) {
+                selProd.selectedIndex = i;
+                break;
+            }
+        }
+        const dens = obtenerDensidadIdeal(selProd.value, null);
+        const inDens = document.getElementById('inputDensidadRapida');
+        if (inDens && dens !== null) inDens.value = dens;
+    }
+
+    if (camaObj) {
+        document.getElementById('inputRangoDesde').value = camaObj.num_cama;
+        document.getElementById('inputRangoHasta').value = camaObj.num_cama;
+        actualizarPrevisualizacionRango();
+    }
+
+    const btnExpand = document.getElementById('btnExpandirTodoBloqueForm');
+    if (btnExpand) btnExpand.style.display = 'inline-block';
+
+    const lblTitulo = document.getElementById('lblTituloFormulario');
+    if (lblTitulo && camaObj) {
+        lblTitulo.innerHTML = `BL ${bloqueActivo} &bull; Cama #${camaObj.num_cama} (Partición ${camaObj.sufijo})`;
+    }
+    const lblSub = document.getElementById('lblSubtituloBloqueModal');
+    if (lblSub && camaObj) {
+        lblSub.innerText = `Área Neta: ${Number(camaObj.metros_netos || 0).toFixed(1)} m² | Bruta: ${Number(camaObj.metros_brutos || 0).toFixed(1)} m²`;
+    }
+
+    renderizarCamas(true);
+    const modal = getModalTPSR();
+    if (modal) modal.show();
+}
+
+/* Cuando se hace clic en el botón principal "Digitación Rápida TPSR / Llenar Bloque y Particiones" */
+function abrirFormularioTodoElBloque() {
+    estadoFilasModal = {};
+    camaIndividualFiltroId = null;
+    document.querySelectorAll('.plano-cama-row.row-active-cama').forEach(el => el.classList.remove('row-active-cama'));
+
+    // Si en el bloque predomina un producto y el selector de Producto Maestro está vacío, pre-seleccionarlo
+    const selProd = document.getElementById('selectProducto');
+    const primeraConCultivo = (camasData || []).find(c => !c.esta_vacia && c.producto && c.producto !== 'VACIO');
+    if (selProd && !selProd.value && primeraConCultivo) {
+        for (let i = 0; i < selProd.options.length; i++) {
+            if (selProd.options[i].value.toUpperCase() === primeraConCultivo.producto.toUpperCase()) {
+                selProd.selectedIndex = i;
+                break;
+            }
+        }
+        const dens = obtenerDensidadIdeal(selProd.value, null);
+        const inDens = document.getElementById('inputDensidadRapida');
+        if (inDens && dens !== null) inDens.value = dens;
+    }
+
+    inicializarControlesRangoBloque();
+
+    const btnExpand = document.getElementById('btnExpandirTodoBloqueForm');
+    if (btnExpand) btnExpand.style.display = 'none';
+
+    let sumNeta = 0, sumBruta = 0;
+    camasData.forEach(c => {
+        sumNeta += Number(c.metros_netos || 0);
+        sumBruta += Number(c.metros_brutos || 0);
+    });
+
+    const lblTitulo = document.getElementById('lblTituloFormulario');
+    if (lblTitulo) {
+        lblTitulo.innerHTML = `BL ${bloqueActivo} &bull; Digitación Rápida por Rangos / Particiones (${camasData.length} camas)`;
+    }
+    const lblSub = document.getElementById('lblSubtituloBloqueModal');
+    if (lblSub) {
+        lblSub.innerText = `Total Bloque: Neta ${sumNeta.toFixed(1)} m² | Bruta ${sumBruta.toFixed(1)} m²`;
+    }
+
+    renderizarCamas(true);
+    const modal = getModalTPSR();
+    if (modal) modal.show();
+}
+
+function expandirATodoElBloqueEnModal() {
+    sincronizarEstadoFilasDesdeDOM();
+    camaIndividualFiltroId = null;
+    inicializarControlesRangoBloque();
+    const btnExpand = document.getElementById('btnExpandirTodoBloqueForm');
+    if (btnExpand) btnExpand.style.display = 'none';
+
+    const lblTitulo = document.getElementById('lblTituloFormulario');
+    if (lblTitulo) {
+        lblTitulo.innerHTML = `BL ${bloqueActivo} &bull; Digitación Rápida por Rangos / Particiones (${camasData.length} camas)`;
+    }
+    renderizarCamas(true);
+}
+
+/* Aplica los parámetros del constructor de rango (Cama Desde..Hasta, Partición, Producto, Fecha, Plantas base) */
+function aplicarParametrosARango(limpiarPrevias = true) {
+    sincronizarEstadoFilasDesdeDOM();
+    camaIndividualFiltroId = null;
+
+    const accion = document.querySelector('input[name="tipo_accion"]:checked').value;
+    const prod = document.getElementById('selectProducto')?.value || '';
+    const fMasiva = document.getElementById('inputFechaMasiva')?.value || fechaHoyDefecto;
+    const nuevaParticion = document.getElementById('selectAsignarParticion')?.value || '';
+    const densidadInput = document.getElementById('inputDensidadRapida')?.value;
+    const densidadVal = (densidadInput !== '' && !isNaN(parseInt(densidadInput, 10)))
+        ? parseInt(densidadInput, 10)
+        : obtenerDensidadIdeal(prod, null);
+
+    const camasRango = obtenerCamasEnRangoActual();
+    const idsEnRango = new Set(camasRango.map(c => String(c.id_cama)));
+
+    camasData.forEach(cama => {
+        const idStr = String(cama.id_cama);
+        if (!idsEnRango.has(idStr)) {
+            if (limpiarPrevias && estadoFilasModal[idStr]) {
+                estadoFilasModal[idStr].checked = false;
+            }
+            return;
+        }
+        const st = estadoFilasModal[idStr] || {};
+        st.checked = true;
+        if (fMasiva) st.fecha = fMasiva;
+        if (nuevaParticion) st.sufijo = nuevaParticion;
+        if (prod && accion !== 'TUMBA') st.prod = prod;
+        if (accion !== 'TUMBA' && densidadVal !== null && densidadVal !== undefined && !st.manualPlantas) {
+            st.plantas = densidadVal;
+        }
+        estadoFilasModal[idStr] = st;
+    });
+
+    renderizarCamas(true);
+}
+
+function construirChipsVariedades() {
+    const sel = document.getElementById('selectFiltroVariedadPlano');
+    if (!sel) return;
+    if (!camasData || camasData.length === 0) {
+        sel.innerHTML = '<option value="">Variedad: Todas (0)</option>';
+        return;
+    }
+
+    const conteo = {};
+    let vacias = 0;
+    camasData.forEach(c => {
+        if (c.esta_vacia) vacias++;
+        else {
+            const v = c.variedad || 'DESCONOCIDA';
+            conteo[v] = (conteo[v] || 0) + 1;
+        }
+    });
+
+    let optsHtml = `<option value="" ${filtroVariedadActivo === null ? 'selected' : ''}>Variedad: Todas (${camasData.length})</option>`;
+    Object.keys(conteo).sort().forEach(varName => {
+        const isSel = (filtroVariedadActivo === varName) ? 'selected' : '';
+        optsHtml += `<option value="${varName}" ${isSel}>${varName} (${conteo[varName]} camas)</option>`;
+    });
+    if (vacias > 0) {
+        const isSel = (filtroVariedadActivo === '__VACIAS__') ? 'selected' : '';
+        optsHtml += `<option value="__VACIAS__" ${isSel}>-- Vacías / Tumbadas (${vacias}) --</option>`;
+    }
+    sel.innerHTML = optsHtml;
+}
+
+function onCambioFiltroVariedadPlano(val) {
+    filtroVariedadActivo = val ? val : null;
+    renderizarPlanoVerticalCamas();
+}
+
+function calcularEdadDinamica(cama) {
+    if (cama.esta_vacia || !cama.semana_abs_ultimo_evento) return null;
+    const edad = semanaAbsActual - cama.semana_abs_ultimo_evento;
+    return edad >= 0 ? edad : 0;
+}
+
+function recalcularEdadesDinamicas() {
+    camasData.forEach(cama => {
+        const spanEdad = document.getElementById(`edad-cama-${cama.id_cama}`);
+        if (spanEdad) {
+            const nuevaEdad = calcularEdadDinamica(cama);
+            spanEdad.innerText = (nuevaEdad === null) ? '-' : `${nuevaEdad} sem`;
+        }
+    });
+}
+
+function obtenerDensidadIdeal(prod, varName) {
+    if (!prod) return null;
+    const p = prod.toUpperCase().trim();
+    if (!mapaDensidades[p]) return null;
+    if (varName) {
+        const v = varName.toUpperCase().trim();
+        if (mapaDensidades[p][v] !== undefined) return mapaDensidades[p][v];
+    }
+    if (mapaDensidades[p]['__DEFAULT__'] !== undefined) return mapaDensidades[p]['__DEFAULT__'];
+    return null;
+}
+
+function actualizarModoAccion() {
+    sincronizarEstadoFilasDesdeDOM();
+    const accion = document.querySelector('input[name="tipo_accion"]:checked').value;
+    const colProd = document.getElementById('colProductoRango');
+    const colDens = document.getElementById('colDensidadRango');
+    const btnGuardar = document.getElementById('btnGuardarEvento');
+
+    if (accion === 'SIEMBRA') {
+        if (colProd) colProd.style.display = 'block';
+        if (colDens) colDens.style.display = 'block';
+        btnGuardar.className = 'btn btn-success btn-sm px-4 py-1 shadow-sm fw-bold';
+        btnGuardar.innerHTML = '<i class="fa-solid fa-seedling me-1"></i>Guardar Siembras TPSR';
+    } else if (accion === 'TUMBA') {
+        if (colProd) colProd.style.display = 'none';
+        if (colDens) colDens.style.display = 'none';
+        btnGuardar.className = 'btn btn-secondary btn-sm px-4 py-1 shadow-sm fw-bold';
+        btnGuardar.innerHTML = '<i class="fa-solid fa-trash-can me-1"></i>Ejecutar Tumbas / Vaciado';
+    } else {
+        if (colProd) colProd.style.display = 'block';
+        if (colDens) colDens.style.display = 'block';
+        btnGuardar.className = 'btn btn-warning text-dark btn-sm px-4 py-1 shadow-sm fw-bold';
+        btnGuardar.innerHTML = '<i class="fa-solid fa-scissors me-1"></i>Guardar Podas TPSR';
+    }
+
+    if (camasData && camasData.length > 0) {
+        renderizarCamas(true);
+    }
+}
+
+async function onCambioProductoSiembra() {
+    sincronizarEstadoFilasDesdeDOM();
+    const prod = document.getElementById('selectProducto')?.value || '';
+    const pKey = prod.trim().toUpperCase();
+
+    // Si por alguna razón el producto aún no está en mapaVariedadesPorProducto, consultarlo por API
+    if (pKey && (!mapaVariedadesPorProducto[pKey] || mapaVariedadesPorProducto[pKey].length === 0)) {
+        try {
+            const resp = await fetch(`/tpsr/api/variedades/${encodeURIComponent(prod)}`);
+            const varsApi = await resp.json();
+            if (Array.isArray(varsApi)) {
+                mapaVariedadesPorProducto[pKey] = varsApi;
+            }
+        } catch (e) {}
+    }
+
+    const densidad = obtenerDensidadIdeal(prod, null);
+    const inputRapido = document.getElementById('inputDensidadRapida');
+    if (inputRapido) {
+        inputRapido.value = (densidad !== null) ? densidad : '';
+    }
+
+    // Actualizar las filas en pantalla con el nuevo Producto Maestro y repoblar el desplegable de Variedad de cada cama
+    document.querySelectorAll('#tbodyCamas tr[id^="fila-cama-"]').forEach(tr => {
+        const idStr = tr.id.replace('fila-cama-', '');
+        const st = estadoFilasModal[idStr] || {};
+        if (prod) {
+            st.prod = prod;
+        }
+        if (densidad !== null && !st.manualPlantas) {
+            st.plantas = densidad;
+            const inPl = document.getElementById(`input-plantas-${idStr}`);
+            if (inPl) inPl.value = densidad;
+        }
+        estadoFilasModal[idStr] = st;
+
+        const cellProd = document.getElementById(`cell-prod-${idStr}`);
+        if (cellProd && prod) {
+            cellProd.setAttribute('data-prod', prod);
+            cellProd.innerHTML = `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${prod}</span>`;
+        }
+
+        const selVar = document.getElementById(`select-var-${idStr}`);
+        if (selVar) {
+            const prevVar = selVar.value;
+            selVar.innerHTML = construirOpcionesVariedadSelect(prod, prevVar);
+        }
+    });
+
+    actualizarContadoresTotales();
+}
+
+function onCambioVariedadFila(idCama, nuevaVariedad) {
+    const idStr = String(idCama);
+    const cellProd = document.getElementById(`cell-prod-${idStr}`);
+    const prodFila = (cellProd?.getAttribute('data-prod') || document.getElementById('selectProducto')?.value || '').trim();
+
+    if (!estadoFilasModal[idStr]) estadoFilasModal[idStr] = {};
+    estadoFilasModal[idStr].variedad = nuevaVariedad;
+    estadoFilasModal[idStr].prod = prodFila;
+
+    // Si existe una densidad específica para esta variedad y el usuario no ha editado manualmente las plantas de esta cama
+    const inPl = document.getElementById(`input-plantas-${idStr}`);
+    const isManual = inPl && inPl.getAttribute('data-manual') === '1';
+    if (!isManual && prodFila && nuevaVariedad) {
+        const densVar = obtenerDensidadIdeal(prodFila, nuevaVariedad);
+        if (densVar !== null && inPl) {
+            inPl.value = densVar;
+            estadoFilasModal[idStr].plantas = densVar;
+        }
+    }
+
+    // Asegurar que la fila quede marcada al elegir variedad
+    const chk = document.querySelector(`.check-cama[data-id="${idStr}"]`);
+    if (chk && !chk.checked && nuevaVariedad) {
+        chk.checked = true;
+        toggleFilaSeleccionada(idStr, true);
+    } else {
+        actualizarContadoresTotales();
+    }
+}
+
+/* Botón ⇊ en cada fila para copiar la variedad de esa cama a las camas siguientes en la tabla */
+function copiarVariedadHaciaAbajo(idCamaOrigen) {
+    const selOrigen = document.getElementById(`select-var-${idCamaOrigen}`);
+    if (!selOrigen || !selOrigen.value) return;
+    const varCopiar = selOrigen.value;
+    const cellProdOrigen = document.getElementById(`cell-prod-${idCamaOrigen}`);
+    const prodOrigen = cellProdOrigen?.getAttribute('data-prod') || document.getElementById('selectProducto')?.value || '';
+
+    const filas = Array.from(document.querySelectorAll('#tbodyCamas tr[id^="fila-cama-"]'));
+    let encontrado = false;
+    filas.forEach(tr => {
+        const idStr = tr.id.replace('fila-cama-', '');
+        if (String(idStr) === String(idCamaOrigen)) {
+            encontrado = true;
+            return;
+        }
+        if (!encontrado) return;
+
+        const chk = document.querySelector(`.check-cama[data-id="${idStr}"]`);
+        if (chk && !chk.checked) return;
+
+        const cellProd = document.getElementById(`cell-prod-${idStr}`);
+        if (cellProd && prodOrigen) {
+            cellProd.setAttribute('data-prod', prodOrigen);
+            cellProd.innerHTML = `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${prodOrigen}</span>`;
+        }
+
+        const selVar = document.getElementById(`select-var-${idStr}`);
+        if (selVar) {
+            selVar.innerHTML = construirOpcionesVariedadSelect(prodOrigen, varCopiar);
+            selVar.value = varCopiar;
+            onCambioVariedadFila(idStr, varCopiar);
+        }
+    });
+}
+
+function onCambioPlantasManualFila(idCama, val) {
+    const idStr = String(idCama);
+    const inPl = document.getElementById(`input-plantas-${idStr}`);
+    if (inPl) inPl.setAttribute('data-manual', '1');
+    if (!estadoFilasModal[idStr]) estadoFilasModal[idStr] = {};
+    estadoFilasModal[idStr].plantas = val;
+    estadoFilasModal[idStr].manualPlantas = true;
+    actualizarContadoresTotales();
+}
+
+function aplicarDensidadMasiva(val) {
+    const dens = parseInt(val, 10);
+    if (isNaN(dens) || dens < 0) return;
+    document.querySelectorAll('.check-cama:checked').forEach(chk => {
+        const idStr = chk.getAttribute('data-id');
+        const inPl = document.getElementById(`input-plantas-${idStr}`);
+        if (inPl) {
+            inPl.value = dens;
+            inPl.setAttribute('data-manual', '0');
+        }
+        if (!estadoFilasModal[idStr]) estadoFilasModal[idStr] = {};
+        estadoFilasModal[idStr].plantas = dens;
+        estadoFilasModal[idStr].manualPlantas = false;
+    });
+    actualizarContadoresTotales();
+}
+
+function aplicarParticionMasiva(nuevaParticion) {
+    if (!nuevaParticion) return;
+    document.querySelectorAll('.check-cama:checked').forEach(chk => {
+        const idStr = chk.getAttribute('data-id');
+        const inSeg = document.getElementById(`input-seg-${idStr}`);
+        if (inSeg) inSeg.value = nuevaParticion;
+        if (!estadoFilasModal[idStr]) estadoFilasModal[idStr] = {};
+        estadoFilasModal[idStr].sufijo = nuevaParticion;
+    });
+}
+
+function renderizarCamas(autoCheckSelection = false) {
+    const tbody = document.getElementById('tbodyCamas');
+    const accion = document.querySelector('input[name="tipo_accion"]:checked').value;
+    tbody.innerHTML = '';
+
+    if (!camasData || camasData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="14" class="text-center py-3 text-muted">No hay camas registradas en este bloque.</td></tr>';
+        document.getElementById('lblTotalCamasBloque').innerText = '0';
+        actualizarContadoresTotales();
+        return;
+    }
+
+    const prodSeleccionado = document.getElementById('selectProducto')?.value || '';
+    const densRapidaVal = document.getElementById('inputDensidadRapida')?.value;
+    const densidadBase = (densRapidaVal !== '' && densRapidaVal !== undefined && !isNaN(parseInt(densRapidaVal, 10)))
+        ? parseInt(densRapidaVal, 10)
+        : obtenerDensidadIdeal(prodSeleccionado, null);
+    const fMasiva = document.getElementById('inputFechaMasiva')?.value || fechaHoyDefecto;
+
+    // Mostrar las camas del rango activo (Desde Cama .. Hasta Cama) o la cama individual si no se ha cambiado el rango
+    const camasEnRango = obtenerCamasEnRangoActual();
+    const idsEnRango = new Set(camasEnRango.map(c => String(c.id_cama)));
+
+    const filasMostrar = camasData.filter(cama => {
+        if (camaIndividualFiltroId && String(cama.id_cama) === String(camaIndividualFiltroId)) return true;
+        return idsEnRango.has(String(cama.id_cama));
+    });
+
+    document.getElementById('lblTotalCamasBloque').innerText = filasMostrar.length;
+
+    filasMostrar.forEach(cama => {
+        const idStr = String(cama.id_cama);
+        const st = estadoFilasModal[idStr] || {};
+
+        let badgeEstado = '';
+        if (cama.esta_vacia) {
+            badgeEstado = '<span class="badge bg-secondary text-white">Vacío</span>';
+        } else if (cama.ultimo_evento === 'PODA') {
+            badgeEstado = `<span class="badge bg-warning text-dark">Poda ${cama.num_poda}</span>`;
+        } else {
+            badgeEstado = '<span class="badge bg-success">Siembra</span>';
+        }
+
+        const edadDin = calcularEdadDinamica(cama);
+        const edadStr = (edadDin !== null) ? `${edadDin} sem` : '-';
+
+        // Determinar Producto Maestro de esta fila
+        const prodCamaActual = (!cama.esta_vacia && cama.producto && cama.producto !== 'VACIO') ? cama.producto : '';
+        let defaultProd = '';
+        if (accion === 'PODA') {
+            defaultProd = st.prod || prodSeleccionado || prodCamaActual;
+        } else if (accion === 'SIEMBRA') {
+            defaultProd = prodSeleccionado || st.prod || prodCamaActual;
+        }
+
+        // Determinar Variedad de esta fila
+        const varCamaActual = (!cama.esta_vacia && cama.variedad && !['DISPONIBLE', 'VACIO', 'ERRADICADO'].includes(cama.variedad.toUpperCase()))
+            ? cama.variedad
+            : '';
+        let defaultVar = '';
+        if (accion === 'PODA') {
+            defaultVar = st.variedad !== undefined && st.variedad !== '' ? st.variedad : varCamaActual;
+        } else if (accion === 'SIEMBRA') {
+            defaultVar = st.variedad !== undefined && st.variedad !== '' ? st.variedad : varCamaActual;
+        }
+
+        // Determinar Plantas de esta fila (respeta edición manual cama a cama; si no, usa densidad estándar en Siembra o plantas actuales en Poda)
+        let valorPlantasNuevas = '';
+        const isManualPl = Boolean(st.manualPlantas);
+        if (isManualPl && st.plantas !== undefined) {
+            valorPlantasNuevas = st.plantas;
+        } else if (accion === 'PODA') {
+            valorPlantasNuevas = (st.plantas !== undefined && st.plantas !== '') ? st.plantas : (cama.num_plantas ? cama.num_plantas : (densidadBase !== null ? densidadBase : ''));
+        } else if (accion === 'SIEMBRA') {
+            const densEspecifica = obtenerDensidadIdeal(defaultProd, defaultVar);
+            valorPlantasNuevas = (densidadBase !== null) ? densidadBase : (densEspecifica !== null ? densEspecifica : (cama.num_plantas || ''));
+        }
+
+        const shouldCheck = (st.checked !== undefined) ? Boolean(st.checked) : (autoCheckSelection ? true : false);
+        const fechaFila = st.fecha || fMasiva;
+        const sufijoFila = st.sufijo || cama.sufijo || 'A';
+
+        const inputPlantasHtml = (accion === 'TUMBA')
+            ? '<span class="text-muted small">0 (vaciado)</span>'
+            : `<input type="number"
+                      id="input-plantas-${cama.id_cama}"
+                      class="excel-input-cell input-plantas"
+                      data-id="${cama.id_cama}"
+                      data-manual="${isManualPl ? '1' : '0'}"
+                      value="${valorPlantasNuevas}"
+                      placeholder="Plantas"
+                      min="0"
+                      title="Número de plantas para la Cama #${cama.num_cama} (editable manualmente por cama)"
+                      oninput="onCambioPlantasManualFila('${cama.id_cama}', this.value)">`;
+
+        const inputFechaHtml = `
+            <input type="date"
+                   id="input-fecha-${cama.id_cama}"
+                   class="excel-date-cell input-fecha"
+                   data-id="${cama.id_cama}"
+                   value="${fechaFila}">
+        `;
+
+        const inputSegHtml = `
+            <input type="text"
+                   id="input-seg-${cama.id_cama}"
+                   class="excel-seg-cell"
+                   data-id="${cama.id_cama}"
+                   value="${sufijoFila}"
+                   maxlength="4"
+                   title="Sufijo / Partición de la cama">
+        `;
+
+        const prodCellHtml = (accion === 'TUMBA')
+            ? `<span class="badge bg-secondary">VACIO</span>`
+            : (defaultProd
+                ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${defaultProd}</span>`
+                : `<span class="text-muted small">-- Elija Prod. --</span>`);
+
+        const varCellHtml = (accion === 'TUMBA')
+            ? `<span class="badge bg-secondary">ERRADICADO / TUMBA</span>`
+            : `<div class="d-flex align-items-center gap-1">
+                   <select id="select-var-${cama.id_cama}"
+                           class="form-select form-select-sm py-0 px-2 fw-semibold"
+                           style="height: 26px; font-size: 0.72rem;"
+                           onchange="onCambioVariedadFila('${cama.id_cama}', this.value)">
+                       ${construirOpcionesVariedadSelect(defaultProd, defaultVar)}
+                   </select>
+                   <button type="button"
+                           class="btn btn-light border btn-sm py-0 px-1 text-secondary"
+                           style="height: 26px; font-size: 0.68rem;"
+                           onclick="copiarVariedadHaciaAbajo('${cama.id_cama}')"
+                           title="Copiar esta variedad a las camas siguientes hacia abajo">
+                       <i class="fa-solid fa-angles-down"></i>
+                   </button>
+               </div>`;
+
+        const tr = document.createElement('tr');
+        tr.id = `fila-cama-${cama.id_cama}`;
+        if (shouldCheck) tr.classList.add('row-selected');
+        tr.innerHTML = `
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input check-cama" data-id="${cama.id_cama}" ${shouldCheck ? 'checked' : ''} onchange="toggleFilaSeleccionada('${cama.id_cama}', this.checked)">
+            </td>
+            <td class="text-center fw-bold text-secondary">${cama.blq}</td>
+            <td class="text-center">${inputSegHtml}</td>
+            <td class="text-center fw-bold text-dark">#${cama.num_cama}</td>
+            <td class="fw-semibold">
+                ${cama.variedad !== 'DISPONIBLE' && !cama.esta_vacia
+                    ? `<span class="badge bg-light text-dark border">${cama.variedad}</span>`
+                    : '<span class="text-muted small">-- VACÍO --</span>'}
+            </td>
+            <td>${badgeEstado}</td>
+            <td class="text-center fw-bold text-primary" id="edad-cama-${cama.id_cama}">${edadStr}</td>
+            <td id="cell-prod-${cama.id_cama}" data-prod="${defaultProd || ''}">${prodCellHtml}</td>
+            <td id="cell-var-${cama.id_cama}">${varCellHtml}</td>
+            <td class="text-center">${inputPlantasHtml}</td>
+            <td class="text-center">${inputFechaHtml}</td>
+            <td class="text-end text-secondary">${Number(cama.cama_estandar || 0).toFixed(2)}</td>
+            <td class="text-end fw-semibold text-dark">${Number(cama.metros_netos || 0).toFixed(1)} m²</td>
+            <td class="text-end text-muted">${Number(cama.metros_brutos || 0).toFixed(1)} m²</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    actualizarContadoresTotales();
+}
+
+function toggleFilaSeleccionada(idCama, isChecked) {
+    const tr = document.getElementById(`fila-cama-${idCama}`);
+    if (tr) tr.classList.toggle('row-selected', isChecked);
+    if (!estadoFilasModal[String(idCama)]) estadoFilasModal[String(idCama)] = {};
+    estadoFilasModal[String(idCama)].checked = isChecked;
+    actualizarContadoresTotales();
+}
+
+function deseleccionarTodas() {
+    document.querySelectorAll('.check-cama').forEach(c => {
+        c.checked = false;
+        toggleFilaSeleccionada(c.getAttribute('data-id'), false);
+    });
+    actualizarContadoresTotales();
+}
+
+function toggleMasterCheck(isChecked) {
+    document.querySelectorAll('.check-cama:not(:disabled)').forEach(c => {
+        c.checked = isChecked;
+        toggleFilaSeleccionada(c.getAttribute('data-id'), isChecked);
+    });
+    actualizarContadoresTotales();
+}
+
+function aplicarFechaMasiva() {
+    const fVal = document.getElementById('inputFechaMasiva').value;
+    if (!fVal) return;
+    document.querySelectorAll('.check-cama:checked').forEach(c => {
+        const id = c.getAttribute('data-id');
+        const input = document.getElementById(`input-fecha-${id}`);
+        if (input) input.value = fVal;
+        if (!estadoFilasModal[String(id)]) estadoFilasModal[String(id)] = {};
+        estadoFilasModal[String(id)].fecha = fVal;
+    });
+}
+
+function actualizarContadoresTotales() {
+    const checks = document.querySelectorAll('.check-cama:checked');
+    const totalCamas = checks.length;
+    document.getElementById('lblCamasSeleccionadas').innerText = totalCamas;
+
+    let sumaStd = 0;
+    let sumaM2Netos = 0;
+    let sumaM2Brutos = 0;
+    let sumaPlantas = 0;
+    const accion = document.querySelector('input[name="tipo_accion"]:checked').value;
+
+    checks.forEach(c => {
+        const id = c.getAttribute('data-id');
+        const cama = camasData.find(item => String(item.id_cama) === String(id));
+        if (cama) {
+            sumaStd += Number(cama.cama_estandar || 0);
+            sumaM2Netos += Number(cama.metros_netos || 0);
+            sumaM2Brutos += Number(cama.metros_brutos || 0);
+            if (accion !== 'TUMBA') {
+                const input = document.getElementById(`input-plantas-${id}`);
+                const pVal = input && input.value !== '' ? parseInt(input.value, 10) : (cama.num_plantas || 0);
+                sumaPlantas += (!isNaN(pVal) ? pVal : 0);
+            }
+        }
+    });
+
+    document.getElementById('lblTotalStdSeleccionadas').innerText = sumaStd.toFixed(2);
+    document.getElementById('lblTotalM2Seleccionados').innerText = `${sumaM2Netos.toFixed(1)} m²`;
+    document.getElementById('lblTotalM2BrutosSeleccionados').innerText = `${sumaM2Brutos.toFixed(1)} m²`;
+    document.getElementById('lblTotalPlantasSeleccionadas').innerText = Number(sumaPlantas).toLocaleString();
+    document.getElementById('btnGuardarEvento').disabled = (totalCamas === 0);
+
+    const checkMaster = document.getElementById('checkMaster');
+    const allChecks = document.querySelectorAll('.check-cama');
+    if (checkMaster) {
+        if (allChecks.length > 0 && totalCamas === allChecks.length) {
+            checkMaster.checked = true;
+            checkMaster.indeterminate = false;
+        } else if (totalCamas > 0) {
+            checkMaster.checked = false;
+            checkMaster.indeterminate = true;
+        } else {
+            checkMaster.checked = false;
+            checkMaster.indeterminate = false;
+        }
+    }
+}
+
+async function confirmarYGuardarEvento() {
+    const accion = document.querySelector('input[name="tipo_accion"]:checked').value;
+    const blq = bloqueActivo || document.getElementById('selectBloque')?.value || '';
+    const semana = document.getElementById('selectSemana').value;
+    const prodGlobal = document.getElementById('selectProducto')?.value || '';
+
+    if (!blq) {
+        alert("Seleccione primero un bloque.");
+        return;
+    }
+
+    const checks = document.querySelectorAll('.check-cama:checked');
+    if (checks.length === 0) {
+        alert("Marque al menos una cama en el formulario.");
+        return;
+    }
+
+    const camasPayload = [];
+    const camasSinVariedad = [];
+
+    checks.forEach(c => {
+        const id = c.getAttribute('data-id');
+        const cama = camasData.find(item => String(item.id_cama) === String(id));
+        const inputPlantas = document.getElementById(`input-plantas-${id}`);
+        const inputFecha = document.getElementById(`input-fecha-${id}`);
+        const inputSeg = document.getElementById(`input-seg-${id}`);
+        const cellProd = document.getElementById(`cell-prod-${id}`);
+        const selVar = document.getElementById(`select-var-${id}`);
+
+        const filaProd = (cellProd?.getAttribute('data-prod') || '').trim() || prodGlobal || (cama && cama.producto !== 'VACIO' ? cama.producto : '');
+        const filaVar = (selVar?.value || '').trim() || (accion === 'PODA' && cama && !cama.esta_vacia && cama.variedad !== 'DISPONIBLE' ? cama.variedad : '');
+
+        if (accion !== 'TUMBA' && (!filaProd || !filaVar)) {
+            camasSinVariedad.push(cama ? `#${cama.num_cama}` : id);
+        }
+
+        const plantas = inputPlantas && inputPlantas.value !== '' ? parseInt(inputPlantas.value, 10) || 0 : (cama ? cama.num_plantas : 0);
+        const fechaCama = inputFecha ? inputFecha.value : fechaHoyDefecto;
+        const sufijoCama = inputSeg ? inputSeg.value.trim().toUpperCase() : (cama ? cama.sufijo : 'A');
+
+        camasPayload.push({
+            id_cama: id,
+            codigo_bloque: cama ? cama.codigo_bloque : blq,
+            sufijo: sufijoCama,
+            fecha_evento: fechaCama,
+            num_plantas: accion === 'TUMBA' ? 0 : plantas,
+            producto: accion === 'TUMBA' ? 'VACIO' : filaProd,
+            variedad: accion === 'TUMBA' ? 'ERRADICADO' : filaVar
+        });
+    });
+
+    if (camasSinVariedad.length > 0) {
+        alert(`Seleccione el Producto Maestro y la Variedad en cada fila marcada (Falta en cama(s): ${camasSinVariedad.join(', ')}).`);
+        return;
+    }
+
+    if (!confirm(`¿Confirma guardar ${camasPayload.length} registro(s) de ${accion} en el Bloque ${blq} (Semana ${semana})?`)) {
+        return;
+    }
+
+    const btnGuardar = document.getElementById('btnGuardarEvento');
+    const originalHtml = btnGuardar.innerHTML;
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Guardando...';
+
+    try {
+        const resp = await fetch('/tpsr/api/guardar-evento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tipo_evento: accion,
+                blq: blq,
+                semana_campo: semana,
+                producto_maestro: prodGlobal,
+                variedad: '',
+                camas: camasPayload
+            })
+        });
+        const res = await resp.json();
+        if (res.success) {
+            alert(res.message);
+            const modal = getModalTPSR();
+            if (modal) modal.hide();
+
+            const rCamas = await fetch(`/tpsr/api/bloque-camas/${encodeURIComponent(blq)}`);
+            const rawCamas = await rCamas.json();
+            camasData = (rawCamas || []).sort((a, b) => {
+                const nA = parseInt(a.num_cama, 10) || 0;
+                const nB = parseInt(b.num_cama, 10) || 0;
+                if (nA !== nB) return nA - nB;
+                return String(a.sufijo || 'A').localeCompare(String(b.sufijo || 'A'));
+            });
+            construirChipsVariedades();
+            renderizarPlanoVerticalCamas();
+            actualizarTileBloqueEnMemoria(blq, camasData);
+        } else {
+            alert("Error: " + res.error);
+        }
+    } catch (e) {
+        alert("Ocurrió un error al comunicarse con el servidor.");
+    } finally {
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = originalHtml;
+    }
+}
+
+function exportarExcelTPSR() {
+    if (!camasData || camasData.length === 0) {
+        alert("Seleccione primero un bloque con camas para exportar.");
+        return;
+    }
+    const blq = bloqueActivo || document.getElementById('selectBloque')?.value || 'BLOQUE';
+    const semana = document.getElementById('selectSemana')?.value || 'SEMANA';
+
+    let html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"></head>
+    <body>
+    <table border="1">
+        <thead>
+            <tr style="background-color: #065f46; color: #ffffff; font-weight: bold;">
+                <th>Bloque</th><th>Particion</th><th>Cama</th><th>Producto</th><th>Variedad Actual</th><th>Estado Cultivo</th>
+                <th>Poda Actual</th><th>Edad Semanas</th><th>Plantas</th><th>Fecha Ultimo Evento</th>
+                <th>Cama Estandar</th><th>Area Neta m2</th><th>Area Bruta m2</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+    camasData.forEach(c => {
+        const edad = (c.edad_semanas !== null && c.edad_semanas !== undefined) ? c.edad_semanas : '';
+        html += `
+        <tr>
+            <td>${c.blq || ''}</td><td>${c.sufijo || 'A'}</td><td>${c.num_cama || ''}</td>
+            <td>${c.producto || ''}</td><td>${c.variedad || ''}</td><td>${c.estado_cultivo || ''}</td><td>${c.num_poda || 0}</td>
+            <td>${edad}</td><td>${c.num_plantas || 0}</td><td>${c.fecha_ultimo_evento || ''}</td>
+            <td>${c.cama_estandar || 1.0}</td><td>${c.metros_netos || 0}</td><td>${c.metros_brutos || 0}</td>
+        </tr>`;
+    });
+    html += `</tbody></table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TPSR_Bloque_${blq}_Semana_${semana}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+let modalHistorialInstance = null;
+async function abrirModalHistorial() {
+    const modalEl = document.getElementById('modalHistorialEventos');
+    if (!modalEl) return;
+    if (!modalHistorialInstance) modalHistorialInstance = new bootstrap.Modal(modalEl);
+    modalHistorialInstance.show();
+
+    const blq = bloqueActivo || document.getElementById('selectBloque')?.value || '';
+    const tbody = document.getElementById('tbodyHistorialEventos');
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Cargando historial...</td></tr>';
+
+    try {
+        const resp = await fetch(`/tpsr/api/historial-eventos?blq=${encodeURIComponent(blq)}`);
+        const eventos = await resp.json();
+        if (!eventos || eventos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">No se registraron eventos recientes para este bloque.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = eventos.map(ev => {
+            const isActivo = ev.estado_evento === 'ACTIVO';
+            const badgeClass = isActivo ? 'bg-success' : 'bg-secondary';
+            const actionBtn = isActivo
+                ? `<button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-bold" onclick="anularEvento(${ev.id_evento}, '${ev.tipo_evento}', '${ev.id_cama}')">Anular</button>`
+                : `<span class="badge bg-light text-muted border">Anulado</span>`;
+            return `
+            <tr class="${isActivo ? '' : 'table-light opacity-50'}">
+                <td class="font-monospace fw-bold">#${ev.id_evento}</td>
+                <td>${ev.fecha_evento || '-'}</td>
+                <td><span class="badge bg-light text-dark border">Sem ${ev.semana_campo || '-'}</span></td>
+                <td class="fw-bold">${ev.codigo_bloque}</td>
+                <td class="font-monospace">${ev.id_cama}</td>
+                <td><span class="badge ${ev.tipo_evento === 'PODA' ? 'bg-warning text-dark' : (ev.tipo_evento === 'SIEMBRA' ? 'bg-success' : 'bg-secondary')}">${ev.tipo_evento}</span></td>
+                <td>${ev.num_poda !== null ? ev.num_poda : '-'}</td>
+                <td class="small"><strong>${ev.producto_maestro || ''}</strong> ${ev.variedad || ''}</td>
+                <td class="text-end fw-bold">${(ev.num_plantas || 0).toLocaleString()}</td>
+                <td class="small text-muted">${ev.fecha_registro || '-'}</td>
+                <td><span class="badge ${badgeClass}">${ev.estado_evento}</span></td>
+                <td class="text-end">${actionBtn}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-danger">Error al cargar el historial.</td></tr>';
+    }
+}
+
+async function anularEvento(idEvento, tipo, cama) {
+    if (!confirm(`¿Está seguro de que desea anular el evento #${idEvento} (${tipo} en la cama ${cama})?`)) return;
+    const motivo = prompt("Motivo de la anulación (opcional):", "Error de digitación en campo");
+    try {
+        const resp = await fetch('/tpsr/api/anular-evento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_evento: idEvento, motivo: motivo || 'Anulado por Admin' })
+        });
+        const res = await resp.json();
+        if (res.success) {
+            alert(res.message);
+            abrirModalHistorial();
+            if (bloqueActivo) await abrirBloqueVisual(bloqueActivo);
+        } else {
+            alert("Error: " + res.error);
+        }
+    } catch (e) {
+        alert("Ocurrió un error al intentar anular el evento.");
+    }
+}
+
+let modalNuevaCamaInstance = null;
+function abrirModalNuevaCama() {
+    const modalEl = document.getElementById('modalNuevaCama');
+    if (!modalEl) return;
+    if (!modalNuevaCamaInstance) modalNuevaCamaInstance = new bootstrap.Modal(modalEl);
+    document.getElementById('ncBloque').value = bloqueActivo || '';
+    modalNuevaCamaInstance.show();
+}
+
+async function guardarNuevaCama() {
+    const blq = document.getElementById('ncBloque').value.trim();
+    const sufijo = document.getElementById('ncSufijo').value.trim().toUpperCase() || 'A';
+    const numCama = parseInt(document.getElementById('ncNumCama').value, 10);
+    const camaStd = parseFloat(document.getElementById('ncCamaStd').value) || 1.0;
+    const m2Netos = parseFloat(document.getElementById('ncM2Netos').value) || 30.0;
+
+    if (!blq || !numCama) {
+        alert("Ingrese el bloque y el número de cama.");
+        return;
+    }
+
+    const btn = document.getElementById('btnSubmitNuevaCama');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Creando...';
+
+    try {
+        const resp = await fetch('/tpsr/api/crear-cama', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blq, sufijo, num_cama: numCama, cama_estandar: camaStd, metros_netos: m2Netos })
+        });
+        const res = await resp.json();
+        if (res.success) {
+            alert(res.message);
+            if (modalNuevaCamaInstance) modalNuevaCamaInstance.hide();
+            if (bloqueActivo) await abrirBloqueVisual(bloqueActivo);
+        } else {
+            alert("Error: " + res.error);
+        }
+    } catch (e) {
+        alert("Ocurrió un error al crear la nueva cama.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-save me-1"></i>Crear Cama en Base de Datos';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    cambioSemanaSeleccionada();
+    actualizarModoAccion();
+    // Por defecto mostrar solo las tarjetas de bloques sin cargar la tabla inferior hasta que el usuario seleccione un bloque
+    cerrarPlanoBloqueVisual();
+    aplicarFiltrosCuadriculaBloques(false);
+});
+</script>
+{% endblock %}

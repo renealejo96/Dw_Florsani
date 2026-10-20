@@ -1,0 +1,336 @@
+{% extends 'base.html' %}
+
+{% block title %}Fenogramas - Gestor de Reglas de Matriz{% endblock %}
+
+{% block page_header %}
+<div class="d-flex align-items-center gap-2">
+    <i class="fa-solid fa-list-check text-warning"></i>
+    <span>Ciclos & Fenología &bull; Gestor de Reglas de Matriz</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+        <div>
+            <h1 class="h4 fw-bold text-dark mb-1">
+                <i class="fa-solid fa-list-check text-warning me-2"></i>Gestor en Vivo de Matriz Fenogramas
+            </h1>
+            <p class="text-muted small mb-0">
+                Configura las labores programadas por edad (semana), producto y actividad, asigna supervisores o realiza reemplazos masivos.
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="openReplaceModal()">
+                <i class="fa-solid fa-arrows-rotate me-1"></i> Reemplazo Masivo
+            </button>
+            <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="addMatrixRow()">
+                <i class="fa-solid fa-plus me-1"></i> Nueva Labor
+            </button>
+            <button type="button" id="btn-save-matrix" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="saveMatrixChanges()">
+                <i class="fa-solid fa-floppy-disk text-success me-1"></i> Guardar y Recalcular
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="bento-card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary mb-1">Producto:</label>
+                <select id="prod-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
+                    <option value="">-- Todos los Productos --</option>
+                    {% for p in productos_list %}
+                        <option value="{{ p }}">{{ p }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary mb-1">Tipo:</label>
+                <select id="tipo-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
+                    <option value="">-- Todos --</option>
+                    <option value="Siembra">Siembra</option>
+                    <option value="Poda">Poda</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary mb-1">Supervisor:</label>
+                <select id="sup-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
+                    <option value="">-- Todos --</option>
+                    {% for s in supervisores_list %}
+                        <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary mb-1">Auxiliar:</label>
+                <select id="aux-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
+                    <option value="">-- Todos --</option>
+                    {% for a in auxiliares_list %}
+                        <option value="{{ a }}">{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary mb-1">Buscar Texto:</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                    <input type="text" id="search-matrix" class="form-control" placeholder="Labor o nombre..." onkeyup="filterMatrixTable()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Matrix Table -->
+    <div class="bento-card">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold small text-dark">
+                Reglas Registradas: <span id="total-rules-count" class="badge bg-primary">{{ rules|length }}</span>
+            </span>
+            <span class="text-muted small">Haz doble clic o edita directamente en los campos y presiona Guardar.</span>
+        </div>
+
+        <div class="table-responsive" style="max-height: 65vh; overflow-y: auto;">
+            <table class="table table-sm table-hover align-middle mb-0 small" id="table-matrix">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th style="width: 15%;">Producto</th>
+                        <th style="width: 10%;">Tipo</th>
+                        <th style="width: 8%;">Edad (Sem)</th>
+                        <th style="width: 32%;">Labor Fenograma</th>
+                        <th style="width: 16%;">Auxiliar</th>
+                        <th style="width: 15%;">Supervisor</th>
+                        <th style="width: 4%; text-align: center;"></th>
+                    </tr>
+                </thead>
+                <tbody id="matrix-tbody">
+                    {% for r in rules %}
+                        <tr class="matrix-row" data-search="{{ r.producto }} {{ r.actividad_tipo }} {{ r.labor }} {{ r.auxiliar }} {{ r.supervisor }}">
+                            <td>
+                                <input type="text" class="form-control form-control-sm m-prod" value="{{ r.producto }}" required>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm m-tipo">
+                                    <option value="Siembra" {% if r.actividad_tipo == 'Siembra' %}selected{% endif %}>Siembra</option>
+                                    <option value="Poda" {% if r.actividad_tipo == 'Poda' %}selected{% endif %}>Poda</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm m-semana" value="{{ r.semana }}" min="0" max="60" required>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark" value="{{ r.labor }}" required>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm m-aux" value="{{ r.auxiliar or '' }}">
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm m-sup" value="{{ r.supervisor or '' }}">
+                            </td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)" title="Eliminar regla">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Reemplazo Masivo -->
+<div class="modal fade" id="modalReplace" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white py-3">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-arrows-rotate me-2"></i>Reemplazo Masivo de Personal</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Tipo de Campo a Reemplazar:</label>
+                    <select id="replace-field" class="form-select form-select-sm">
+                        <option value="supervisor">Supervisor</option>
+                        <option value="auxiliar">Auxiliar</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Nombre Actual (Exacto o Parcial):</label>
+                    <input type="text" id="replace-old" class="form-control form-control-sm" placeholder="Ej: MARIA DOLORES">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Nuevo Nombre Asignado:</label>
+                    <input type="text" id="replace-new" class="form-control form-control-sm" placeholder="Ej: Maria Dolores Perugachi">
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="executeMassReplace()">
+                    Aplicar en Tabla
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterMatrixTable() {
+    const prod = document.getElementById('prod-filter').value.toLowerCase();
+    const tipo = document.getElementById('tipo-filter').value.toLowerCase();
+    const sup = document.getElementById('sup-filter').value.toLowerCase();
+    const aux = document.getElementById('aux-filter').value.toLowerCase();
+    const q = document.getElementById('search-matrix').value.toLowerCase();
+
+    const rows = document.querySelectorAll('.matrix-row');
+    let visibleCount = 0;
+
+    rows.forEach(r => {
+        const rowProd = r.querySelector('.m-prod').value.toLowerCase();
+        const rowTipo = r.querySelector('.m-tipo').value.toLowerCase();
+        const rowSup = r.querySelector('.m-sup').value.toLowerCase();
+        const rowAux = r.querySelector('.m-aux').value.toLowerCase();
+        const rowLabor = r.querySelector('.m-labor').value.toLowerCase();
+
+        const matchProd = !prod || rowProd.includes(prod);
+        const matchTipo = !tipo || rowTipo === tipo;
+        const matchSup = !sup || rowSup.includes(sup);
+        const matchAux = !aux || rowAux.includes(aux);
+        const matchQ = !q || (rowLabor.includes(q) || rowProd.includes(q) || rowSup.includes(q) || rowAux.includes(q));
+
+        if (matchProd && matchTipo && matchSup && matchAux && matchQ) {
+            r.style.display = '';
+            visibleCount++;
+        } else {
+            r.style.display = 'none';
+        }
+    });
+
+    document.getElementById('total-rules-count').innerText = visibleCount;
+}
+
+function addMatrixRow() {
+    const tbody = document.getElementById('matrix-tbody');
+    const tr = document.createElement('tr');
+    tr.className = 'matrix-row bg-warning-subtle';
+    tr.innerHTML = `
+        <td><input type="text" class="form-control form-control-sm m-prod" value="GYPSO XLENCE" required></td>
+        <td>
+            <select class="form-select form-select-sm m-tipo">
+                <option value="Siembra">Siembra</option>
+                <option value="Poda">Poda</option>
+            </select>
+        </td>
+        <td><input type="number" class="form-control form-control-sm m-semana" value="1" min="0" max="60" required></td>
+        <td><input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark" placeholder="Nueva labor..." required></td>
+        <td><input type="text" class="form-control form-control-sm m-aux" placeholder="Auxiliar"></td>
+        <td><input type="text" class="form-control form-control-sm m-sup" placeholder="Supervisor"></td>
+        <td style="text-align: center;">
+            <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </td>
+    `;
+    tbody.prepend(tr);
+    document.getElementById('total-rules-count').innerText = document.querySelectorAll('.matrix-row').length;
+}
+
+function deleteMatrixRow(btn) {
+    if (confirm('¿Eliminar esta fila de regla fenológica?')) {
+        const row = btn.closest('tr');
+        row.remove();
+        document.getElementById('total-rules-count').innerText = document.querySelectorAll('.matrix-row').length;
+    }
+}
+
+function openReplaceModal() {
+    new bootstrap.Modal(document.getElementById('modalReplace')).show();
+}
+
+function executeMassReplace() {
+    const field = document.getElementById('replace-field').value;
+    const oldVal = document.getElementById('replace-old').value.trim().toLowerCase();
+    const newVal = document.getElementById('replace-new').value.trim();
+
+    if (!oldVal || !newVal) {
+        alert('Por favor digita el valor actual y el nuevo.');
+        return;
+    }
+
+    const cls = field === 'supervisor' ? '.m-sup' : '.m-aux';
+    let changed = 0;
+
+    document.querySelectorAll(cls).forEach(inp => {
+        if (inp.value.toLowerCase().includes(oldVal)) {
+            inp.value = newVal;
+            inp.closest('tr').classList.add('bg-warning-subtle');
+            changed++;
+        }
+    });
+
+    bootstrap.Modal.getInstance(document.getElementById('modalReplace')).hide();
+    alert(`Se modificaron ${changed} registros en la tabla. Presiona "Guardar y Recalcular" para persistir.`);
+}
+
+function saveMatrixChanges() {
+    const rows = document.querySelectorAll('.matrix-row');
+    const items = [];
+
+    rows.forEach(r => {
+        const prod = r.querySelector('.m-prod').value.trim();
+        const tipo = r.querySelector('.m-tipo').value;
+        const sem = parseInt(r.querySelector('.m-semana').value) || 0;
+        const labor = r.querySelector('.m-labor').value.trim();
+        const aux = r.querySelector('.m-aux').value.trim();
+        const sup = r.querySelector('.m-sup').value.trim();
+
+        if (prod && labor) {
+            items.push({
+                producto: prod,
+                actividad_tipo: tipo,
+                semana: sem,
+                labor: labor,
+                auxiliar: aux,
+                supervisor: sup
+            });
+        }
+    });
+
+    if (items.length === 0) {
+        alert('No hay filas válidas para guardar.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-save-matrix');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Guardando...';
+
+    fetch("{{ url_for('fenogramas.api_guardar_matriz') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items, semana: 30 })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk text-success me-1"></i> Guardar y Recalcular';
+        if (data.success) {
+            alert(`✅ ${items.length} reglas guardadas correctamente.`);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(e => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk text-success me-1"></i> Guardar y Recalcular';
+        alert('Error de red al guardar matriz.');
+    });
+}
+</script>
+{% endblock %}

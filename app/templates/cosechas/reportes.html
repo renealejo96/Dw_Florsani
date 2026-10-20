@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+
+{% block title %}Reportes y Analítica de Cosecha | Florícola{% endblock %}
+
+{% block extra_css %}
+<style>
+    .slicer-menu {
+        min-width: 320px;
+        max-height: 340px;
+        overflow: auto;
+        padding: 0.5rem;
+    }
+    .slicer-actions {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 2;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+        margin-bottom: 0.5rem;
+    }
+    .slicer-item {
+        padding: 0.25rem 0;
+    }
+    .pbi-option {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.35rem 0.45rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.15s;
+    }
+    .pbi-option:hover {
+        background: #f8f9fa;
+        border-color: #e9ecef;
+    }
+    .pbi-option.active {
+        background: #e8f5ee;
+        border-color: #b7e4cd;
+    }
+    .pbi-check {
+        width: 14px;
+        height: 14px;
+        border: 1.5px solid #6c757d;
+        border-radius: 3px;
+        background: #fff;
+        flex: 0 0 14px;
+        position: relative;
+    }
+    .pbi-option.active .pbi-check {
+        border-color: #0c5d3f;
+        background: #0c5d3f;
+    }
+    .pbi-option.active .pbi-check::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 4px;
+        height: 8px;
+        border: solid #fff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+    }
+    .pbi-label {
+        font-size: 0.88rem;
+        line-height: 1.2;
+    }
+    .week-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.4rem;
+    }
+    .week-chip {
+        border: 1px solid #ced4da;
+        border-radius: 999px;
+        padding: 0.25rem 0.5rem;
+        text-align: center;
+        cursor: pointer;
+        background: #fff;
+        font-size: 0.8rem;
+        user-select: none;
+        transition: all 0.15s;
+    }
+    .week-chip.active {
+        border-color: #0c5d3f;
+        background: #d4edda;
+        color: #0c5d3f;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-chart-pie text-primary me-2"></i>
+                Tablero Analítico de Cosecha
+            </h2>
+            <p class="text-muted small mb-0">Segmentadores dinámicos tipo Power BI, curva de corte por semana y reportes detallados.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('cosechas.exportar_excel') }}" class="btn btn-outline-success btn-sm d-flex align-items-center gap-2 shadow-xs">
+                <i class="fa-solid fa-file-excel"></i>
+                <span>Descargar Base Excel</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Power BI Slicer Board Card with Plotly -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+        <div class="card-header bg-dark text-white py-3 px-4 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-chart-line text-warning"></i>
+                <span class="fw-bold">Tablero Semanal Interactivo (Plotly Engine)</span>
+            </div>
+            <span class="badge bg-secondary">Segmentador Multi-Filtro</span>
+        </div>
+        <div class="card-body p-4">
+            <!-- Slicers Row -->
+            <div class="row g-3 align-items-end mb-4">
+                <div class="col-12 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary mb-1">
+                        <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Producto Maestro
+                    </label>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="btnSlicerProducto" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            <span>Seleccionar producto...</span>
+                        </button>
+                        <div class="dropdown-menu slicer-menu shadow-sm" aria-labelledby="btnSlicerProducto">
+                            <div class="slicer-actions d-flex gap-2">
+                                <button type="button" class="btn btn-xs btn-success btn-sm py-0" id="producto_select_all">Todo</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm py-0" id="producto_clear">Limpiar</button>
+                            </div>
+                            <div id="producto_list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary mb-1">
+                        <i class="fa-solid fa-seedling me-1 text-success"></i> Variedad
+                    </label>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="btnSlicerVariedad" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            <span>Seleccionar variedad...</span>
+                        </button>
+                        <div class="dropdown-menu slicer-menu shadow-sm" aria-labelledby="btnSlicerVariedad">
+                            <div class="slicer-actions d-flex gap-2">
+                                <button type="button" class="btn btn-xs btn-success btn-sm py-0" id="variedad_select_all">Todo</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm py-0" id="variedad_clear">Limpiar</button>
+                            </div>
+                            <div id="variedad_list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="form-label small fw-semibold text-secondary mb-1">
+                        <i class="fa-solid fa-calendar-week me-1 text-warning"></i> Semanas Agrícolas
+                    </label>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="btnSlicerSemana" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            <span>Seleccionar semanas...</span>
+                        </button>
+                        <div class="dropdown-menu slicer-menu shadow-sm" aria-labelledby="btnSlicerSemana">
+                            <div class="slicer-actions d-flex gap-2">
+                                <button type="button" class="btn btn-xs btn-success btn-sm py-0" id="semana_select_all">Todas</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm py-0" id="semana_clear">Limpiar</button>
+                            </div>
+                            <div id="semana_grid" class="week-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-2 d-flex gap-2">
+                    <button type="button" class="btn btn-primary btn-sm flex-grow-1" id="aplicar_filtros_tablero">
+                        <i class="fa-solid fa-filter me-1"></i> Aplicar
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="limpiar_filtros_tablero" title="Restablecer">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Summary Cards (Bento Style) -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
+                    <div class="kpi-tile kpi-accent-green">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> Total Tallos</span>
+                            <span class="kpi-icon-badge kpi-icon-green" style="width:30px; height:30px; font-size: 0.85rem;"><i class="fa-solid fa-chart-simple"></i></span>
+                        </div>
+                        <div class="kpi-value text-success tabular-nums" id="kpi_total_tallos">0</div>
+                        <div class="kpi-subtext">Tallos filtrados en selección</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="kpi-tile kpi-accent-blue">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="kpi-label"><i class="fa-solid fa-calendar-week text-primary me-1"></i> Semanas</span>
+                            <span class="kpi-icon-badge kpi-icon-blue" style="width:30px; height:30px; font-size: 0.85rem;"><i class="fa-solid fa-calendar"></i></span>
+                        </div>
+                        <div class="kpi-value text-primary tabular-nums" id="kpi_total_semanas">0</div>
+                        <div class="kpi-subtext">Semanas activas en curva</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="kpi-tile kpi-accent-amber">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="kpi-label"><i class="fa-solid fa-calculator text-warning me-1"></i> Promedio</span>
+                            <span class="kpi-icon-badge kpi-icon-amber" style="width:30px; height:30px; font-size: 0.85rem;"><i class="fa-solid fa-chart-line"></i></span>
+                        </div>
+                        <div class="kpi-value text-warning tabular-nums" id="kpi_promedio_semanal">0</div>
+                        <div class="kpi-subtext">Tallos promedio / semana</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="kpi-tile kpi-accent-rose">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="kpi-label"><i class="fa-solid fa-arrow-trend-up text-danger me-1"></i> Pico Semanal</span>
+                            <span class="kpi-icon-badge kpi-icon-rose" style="width:30px; height:30px; font-size: 0.85rem;"><i class="fa-solid fa-fire"></i></span>
+                        </div>
+                        <div class="kpi-value text-danger tabular-nums" id="kpi_pico_semanal">0</div>
+                        <div class="kpi-subtext">Máximo corte en una semana</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Div -->
+            <div id="grafico_curva_semanal" style="min-height: 400px; width: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- Date Range Query Card -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+            <h5 class="card-title fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                <i class="fa-solid fa-calendar-days text-primary"></i>
+                Filtro por Rango de Fechas Específico
+            </h5>
+        </div>
+        <div class="card-body p-4">
+            <form method="GET" class="row g-3 align-items-end mb-3">
+                <div class="col-12 col-md-4">
+                    <label for="fecha_desde" class="form-label small fw-semibold text-secondary">Fecha Desde:</label>
+                    <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde }}">
+                </div>
+                <div class="col-12 col-md-4">
+                    <label for="fecha_hasta" class="form-label small fw-semibold text-secondary">Fecha Hasta:</label>
+                    <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta }}">
+                </div>
+                <div class="col-12 col-md-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="fa-solid fa-magnifying-glass me-1"></i> Filtrar Período
+                    </button>
+                    <a href="{{ url_for('cosechas.reportes') }}" class="btn btn-outline-secondary">
+                        <i class="fa-solid fa-eraser"></i>
+                    </a>
+                </div>
+            </form>
+
+            {% if mostrar_resultados %}
+            <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <i class="fa-solid fa-circle-check text-success me-2"></i>
+                    Resultados desde <strong>{{ fecha_desde }}</strong> hasta <strong>{{ fecha_hasta }}</strong>:
+                </div>
+                <div class="d-flex gap-3">
+                    <span>Total Tallos: <strong>{{ total_tallos|format_number(0) }}</strong></span>
+                    <span>Total Mallas: <strong>{{ total_mallas|format_number(0) }}</strong></span>
+                    <span>Variedades: <strong>{{ variedades_unicas }}</strong></span>
+                </div>
+            </div>
+
+            <!-- Variety Summary Table -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-uppercase text-secondary small">
+                        <tr>
+                            <th class="ps-3 py-3">Variedad</th>
+                            <th class="text-center">Total Registros</th>
+                            <th class="text-center">Total Mallas</th>
+                            <th class="text-center">Promedio Tallos/Reg</th>
+                            <th class="text-end pe-3">Total Tallos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in resumen_variedad %}
+                        <tr>
+                            <td class="ps-3 fw-semibold text-dark">{{ row.variedad }}</td>
+                            <td class="text-center">{{ row.total_registros }}</td>
+                            <td class="text-center">{{ row.total_mallas }}</td>
+                            <td class="text-center">{{ row.promedio_tallos|format_number(1) }}</td>
+                            <td class="text-end pe-3 fw-bold text-success">{{ row.total_tallos|format_number(0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="fa-regular fa-calendar-xmark fs-2 opacity-50 mb-2"></i>
+                <div class="small">Seleccione una fecha inicial y final para consultar el acumulado por variedad.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Plotly JS library -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btnAplicar = document.getElementById('aplicar_filtros_tablero');
+    const btnLimpiar = document.getElementById('limpiar_filtros_tablero');
+    const btnSlicerProducto = document.getElementById('btnSlicerProducto');
+    const btnSlicerVariedad = document.getElementById('btnSlicerVariedad');
+    const btnSlicerSemana = document.getElementById('btnSlicerSemana');
+    const productoList = document.getElementById('producto_list');
+    const variedadList = document.getElementById('variedad_list');
+    const semanaGrid = document.getElementById('semana_grid');
+
+    let state = {
+        productosDisponibles: [],
+        variedadesDisponibles: [],
+        semanasDisponibles: [],
+        productosConVariedades: {},
+        selectedProductos: new Set(),
+        selectedVariedades: new Set(),
+        selectedSemanas: new Set()
+    };
+
+    function formatSlicerTitle(base, selectedCount, totalCount) {
+        if (selectedCount === 0) return `${base}: ninguno`;
+        if (selectedCount === totalCount) return `${base}: todos (${totalCount})`;
+        return `${base}: ${selectedCount} selec.`;
+    }
+
+    function updateSlicerTitles() {
+        if (btnSlicerProducto) btnSlicerProducto.innerHTML = `<span>${formatSlicerTitle('Producto', state.selectedProductos.size, state.productosDisponibles.length)}</span>`;
+        if (btnSlicerVariedad) btnSlicerVariedad.innerHTML = `<span>${formatSlicerTitle('Variedad', state.selectedVariedades.size, state.variedadesDisponibles.length)}</span>`;
+        if (btnSlicerSemana) btnSlicerSemana.innerHTML = `<span>${formatSlicerTitle('Semanas', state.selectedSemanas.size, state.semanasDisponibles.length)}</span>`;
+    }
+
+    function getVariedadesPermitidasPorProducto() {
+        if (state.selectedProductos.size === 0) {
+            return new Set(state.variedadesDisponibles);
+        }
+        const permitidas = new Set();
+        state.selectedProductos.forEach((p) => {
+            (state.productosConVariedades[p] || []).forEach((v) => permitidas.add(v));
+        });
+        return permitidas;
+    }
+
+    function renderProductoSlicer() {
+        if (!productoList) return;
+        productoList.innerHTML = '';
+        state.productosDisponibles.forEach((producto) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = `slicer-item pbi-option ${state.selectedProductos.has(producto) ? 'active' : ''}`;
+            wrapper.innerHTML = `
+                <span class="pbi-check"></span>
+                <span class="pbi-label">${producto}</span>
+            `;
+            wrapper.addEventListener('click', () => {
+                if (state.selectedProductos.has(producto)) {
+                    state.selectedProductos.delete(producto);
+                } else {
+                    state.selectedProductos.add(producto);
+                }
+                renderVariedadSlicer();
+                renderProductoSlicer();
+                updateSlicerTitles();
+            });
+            productoList.appendChild(wrapper);
+        });
+    }
+
+    function renderVariedadSlicer() {
+        if (!variedadList) return;
+        const permitidas = getVariedadesPermitidasPorProducto();
+        state.selectedVariedades = new Set(
+            Array.from(state.selectedVariedades).filter((v) => permitidas.has(v))
+        );
+
+        variedadList.innerHTML = '';
+        state.variedadesDisponibles.forEach((variedad) => {
+            if (!permitidas.has(variedad)) return;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = `slicer-item pbi-option ${state.selectedVariedades.has(variedad) ? 'active' : ''}`;
+            wrapper.innerHTML = `
+                <span class="pbi-check"></span>
+                <span class="pbi-label">${variedad}</span>
+            `;
+            wrapper.addEventListener('click', () => {
+                if (state.selectedVariedades.has(variedad)) {
+                    state.selectedVariedades.delete(variedad);
+                } else {
+                    state.selectedVariedades.add(variedad);
+                }
+                renderVariedadSlicer();
+                updateSlicerTitles();
+            });
+            variedadList.appendChild(wrapper);
+        });
+    }
+
+    function renderSemanaSlicer() {
+        if (!semanaGrid) return;
+        semanaGrid.innerHTML = '';
+        state.semanasDisponibles.forEach((semana) => {
+            const chip = document.createElement('div');
+            chip.className = `week-chip ${state.selectedSemanas.has(semana) ? 'active' : ''}`;
+            chip.textContent = semana;
+            chip.addEventListener('click', () => {
+                if (state.selectedSemanas.has(semana)) {
+                    state.selectedSemanas.delete(semana);
+                } else {
+                    state.selectedSemanas.add(semana);
+                }
+                chip.classList.toggle('active', state.selectedSemanas.has(semana));
+                updateSlicerTitles();
+            });
+            semanaGrid.appendChild(chip);
+        });
+    }
+
+    function actualizarKpis(curvaSemanal) {
+        const totals = curvaSemanal.map((item) => item.total_tallos || 0);
+        const total = totals.reduce((acc, value) => acc + value, 0);
+        const semanas = curvaSemanal.length;
+        const promedio = semanas > 0 ? total / semanas : 0;
+        const pico = semanas > 0 ? Math.max(...totals) : 0;
+
+        document.getElementById('kpi_total_tallos').textContent = total.toLocaleString('es-EC');
+        document.getElementById('kpi_total_semanas').textContent = semanas.toLocaleString('es-EC');
+        document.getElementById('kpi_promedio_semanal').textContent = promedio.toLocaleString('es-EC', { maximumFractionDigits: 1 });
+        document.getElementById('kpi_pico_semanal').textContent = pico.toLocaleString('es-EC');
+    }
+
+    function renderGrafico(curvaSemanal) {
+        const x = curvaSemanal.map((_, index) => index);
+        const xLabels = curvaSemanal.map((item) => String(item.semana));
+        const y = curvaSemanal.map((item) => item.total_tallos || 0);
+
+        const trace = {
+            x,
+            y,
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: {
+                color: '#059669',
+                width: 3.5,
+                shape: 'spline',
+                smoothing: 0.6
+            },
+            marker: {
+                color: '#10b981',
+                size: 9,
+                line: { color: '#064e3b', width: 2 }
+            },
+            fill: 'tozeroy',
+            fillcolor: 'rgba(16, 185, 129, 0.12)',
+            hovertemplate: '<b>Semana %{text}</b><br>Tallos cortados: <b>%{y:,}</b><extra></extra>',
+            text: xLabels
+        };
+
+        const layout = {
+            margin: { l: 65, r: 25, t: 25, b: 50 },
+            paper_bgcolor: '#ffffff',
+            plot_bgcolor: '#ffffff',
+            font: { family: 'Plus Jakarta Sans, Inter, sans-serif', color: '#334155' },
+            hoverlabel: {
+                bgcolor: '#0f172a',
+                font: { family: 'Fira Code', color: '#ffffff', size: 12 },
+                bordercolor: '#334155'
+            },
+            xaxis: {
+                title: { text: 'Semana Agrícola (AASS)', font: { family: 'Plus Jakarta Sans', size: 12, weight: '600', color: '#475569' } },
+                type: 'linear',
+                tickmode: 'array',
+                tickvals: x,
+                ticktext: xLabels,
+                tickfont: { family: 'Fira Code', size: 11, color: '#64748b' },
+                showgrid: true,
+                gridcolor: '#f1f5f9'
+            },
+            yaxis: {
+                title: { text: 'Tallos Cosechados', font: { family: 'Plus Jakarta Sans', size: 12, weight: '600', color: '#475569' } },
+                tickfont: { family: 'Fira Code', size: 11, color: '#64748b' },
+                separatethousands: true,
+                showgrid: true,
+                gridcolor: '#f1f5f9'
+            }
+        };
+
+        Plotly.newPlot('grafico_curva_semanal', [trace], layout, { responsive: true, displaylogo: false });
+    }
+
+    async function cargarTablero(usarFiltrosActuales = false) {
+        const params = new URLSearchParams();
+
+        if (usarFiltrosActuales) {
+            Array.from(state.selectedProductos).forEach((p) => params.append('producto_maestro', p));
+            Array.from(state.selectedVariedades).forEach((v) => params.append('variedad', v));
+            Array.from(state.selectedSemanas).forEach((s) => params.append('semana', s));
+        }
+
+        try {
+            const response = await fetch(`{{ url_for('cosechas.api_reportes_tablero') }}?${params.toString()}`);
+            const data = await response.json();
+
+            state.productosDisponibles = data.productos_disponibles || [];
+            state.variedadesDisponibles = data.variedades_disponibles || [];
+            state.semanasDisponibles = data.semanas_disponibles || [];
+            state.productosConVariedades = data.productos_con_variedades || {};
+            state.selectedProductos = new Set(data.filtros_activos?.productos || []);
+            state.selectedVariedades = new Set(data.filtros_activos?.variedades || []);
+            state.selectedSemanas = new Set(data.filtros_activos?.semanas || []);
+
+            renderProductoSlicer();
+            renderVariedadSlicer();
+            renderSemanaSlicer();
+            updateSlicerTitles();
+
+            renderGrafico(data.curva_semanal || []);
+            actualizarKpis(data.curva_semanal || []);
+        } catch (e) {
+            console.error("Error cargando tablero:", e);
+        }
+    }
+
+    document.getElementById('producto_select_all')?.addEventListener('click', () => {
+        state.selectedProductos = new Set(state.productosDisponibles);
+        renderProductoSlicer();
+        renderVariedadSlicer();
+        updateSlicerTitles();
+    });
+
+    document.getElementById('producto_clear')?.addEventListener('click', () => {
+        state.selectedProductos.clear();
+        renderProductoSlicer();
+        renderVariedadSlicer();
+        updateSlicerTitles();
+    });
+
+    document.getElementById('variedad_select_all')?.addEventListener('click', () => {
+        state.selectedVariedades = new Set(getVariedadesPermitidasPorProducto());
+        renderVariedadSlicer();
+        updateSlicerTitles();
+    });
+
+    document.getElementById('variedad_clear')?.addEventListener('click', () => {
+        state.selectedVariedades.clear();
+        renderVariedadSlicer();
+        updateSlicerTitles();
+    });
+
+    document.getElementById('semana_select_all')?.addEventListener('click', () => {
+        state.selectedSemanas = new Set(state.semanasDisponibles);
+        renderSemanaSlicer();
+        updateSlicerTitles();
+    });
+
+    document.getElementById('semana_clear')?.addEventListener('click', () => {
+        state.selectedSemanas.clear();
+        renderSemanaSlicer();
+        updateSlicerTitles();
+    });
+
+    btnAplicar?.addEventListener('click', () => cargarTablero(true));
+    btnLimpiar?.addEventListener('click', () => cargarTablero(false));
+
+    cargarTablero(false);
+});
+</script>
+{% endblock %}

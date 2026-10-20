@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Módulo Desinfecciones | AgroFumigación{% endblock %}
+{% block page_header %}Supermódulo 4 &bull; Desinfección de Suelos e Instalaciones{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-top border-4 border-warning">
+    <div class="card-body p-5 text-center">
+        <div class="bg-warning-subtle text-warning d-inline-block p-4 rounded-circle mb-3">
+            <i class="fa-solid fa-spray-can-sparkles fs-1"></i>
+        </div>
+        <h3 class="fw-bold text-dark mb-2">Supermódulo de Desinfecciones</h3>
+        <p class="text-muted mx-auto" style="max-width: 600px;">
+            Módulo base preparado para la gestión de sanitización, solarización, vaporización, desinfección química de suelo en renovación de camas, reservorios de agua y poscosecha.
+        </p>
+
+        <div class="row g-3 justify-content-center my-4" style="max-width: 800px; margin: 0 auto;">
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-broom text-warning me-1"></i> Sanitización de Camas</div>
+                    <div class="small text-muted mt-1">Cálculo de volumen de desinfectante por metro lineal de cama en replante.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-water text-info me-1"></i> Tratamiento de Aguas</div>
+                    <div class="small text-muted mt-1">Dosificación de cloro, dióxido de cloro o peróxidos en reservorios.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-start h-100">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-warehouse text-primary me-1"></i> Poscosecha y Herramientas</div>
+                    <div class="small text-muted mt-1">Protocolos de inocuidad e higiene para tijeras y mesas de empaque.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

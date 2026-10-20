@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Tabla de Litrajes por Cama | AgroFumigación{% endblock %}
+{% block page_header %}Configuración de Litrajes de Aplicación por Cultivo y Edad{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="fa-solid fa-droplet text-info me-2"></i>Tabla de Litrajes</h4>
+        <p class="text-muted mb-0 small">Configuración de litros requeridos por cama estándar según el cultivo y la edad real de la planta.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-info text-white btn-sm fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddLitraje">
+            <i class="fa-solid fa-plus me-1"></i> Agregar Regla de Litraje
+        </button>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <select name="crop" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- Todos los cultivos --</option>
+                    {% for c in unique_crops %}
+                    <option value="{{ c }}" {% if selected_crop == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                {% if selected_crop %}
+                <a href="{{ url_for('litrajes.index') }}" class="btn btn-outline-secondary btn-sm">Ver Todos</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Litrajes Table -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="fw-bold"><i class="fa-solid fa-table me-2 text-info"></i>Reglas de Litrajes Registradas</span>
+        <span class="badge bg-info-subtle text-dark">{{ litrajes|length }} Registros</span>
+    </div>
+    <div class="card-body p-0">
+        {% if litrajes %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Cultivo / Variedad</th>
+                        <th>Edad (Semanas)</th>
+                        <th>Litros por Cama Estándar</th>
+                        <th class="text-end">Modificar Litros</th>
+                        <th class="text-end">Eliminar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lit in litrajes %}
+                    <tr>
+                        <td class="fw-bold text-dark">{{ lit.crop_name }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border fs-6">
+                                Semana {{ lit.age }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-primary fs-6">{{ lit.liters_per_bed|format_number(1) }} L / cama</span>
+                        </td>
+                        <td class="text-end">
+                            <form action="{{ url_for('litrajes.edit', litraje_id=lit.id) }}" method="POST" class="d-inline-flex align-items-center justify-content-end gap-1">
+                                <input type="number" step="0.1" min="0" name="liters_per_bed" class="form-control form-control-sm text-end" value="{{ lit.liters_per_bed }}" style="width: 90px;" required>
+                                <button type="submit" class="btn btn-outline-primary btn-sm" title="Guardar Cambio">
+                                    <i class="fa-solid fa-check"></i>
+                                </button>
+                            </form>
+                        </td>
+                        <td class="text-end">
+                            <form action="{{ url_for('litrajes.delete', litraje_id=lit.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta regla de litraje?');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
+                                    <i class="fa-regular fa-trash-can"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fa-solid fa-droplet fs-1 text-secondary mb-3"></i>
+            <h5>No hay reglas de litrajes para mostrar</h5>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Add Litraje -->
+<div class="modal fade" id="modalAddLitraje" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('litrajes.create') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-info"><i class="fa-solid fa-droplet me-2"></i>Agregar Regla de Litraje</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Cultivo / Variedad <span class="text-danger">*</span></label>
+                        <input type="text" name="crop_name" class="form-control text-uppercase" placeholder="ej. HYPERICUM, VERONICA, XLENCE" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Edad de la Planta (en semanas) <span class="text-danger">*</span></label>
+                        <input type="number" min="0" max="150" name="age" class="form-control" placeholder="ej. 10" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Litros por Cama Estándar <span class="text-danger">*</span></label>
+                        <input type="number" step="0.1" min="0" name="liters_per_bed" class="form-control" placeholder="ej. 5.5" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-info text-white btn-sm fw-semibold">Guardar Regla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

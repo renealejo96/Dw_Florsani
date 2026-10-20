@@ -1,0 +1,3025 @@
+{% extends "base.html" %}
+
+{% block title %}Rotación Semana {{ rotation.week }} (v{{ rotation.version }}) | AgroFumigación{% endblock %}
+{% block page_header %}Fumigación &bull; Plan Semanal {{ rotation.week }} (v{{ rotation.version }}){% endblock %}
+
+{% block extra_css %}
+<style>
+.step-nav-tab {
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 10px 10px !important;
+}
+.step-nav-tab.active {
+    border-bottom: 3px solid #16a34a !important;
+    color: #16a34a !important;
+    background-color: #f0fdf4 !important;
+}
+.review-clean-table th {
+    background-color: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    font-size: 0.725rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3px 2px !important;
+    text-align: center;
+}
+.review-clean-table td {
+    border: 1px solid #e2e8f0;
+    padding: 1px 2px !important;
+    vertical-align: middle;
+    font-size: 0.775rem !important;
+}
+.review-clean-table .form-control, .review-clean-table .form-select {
+    padding: 1px 3px !important;
+    font-size: 0.775rem !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    line-height: 1.2 !important;
+    border-radius: 3px !important;
+}
+.row-state-veg {
+    background-color: #ffffff;
+}
+.row-state-prod {
+    background-color: #f8fafc;
+}
+.row-state-extra {
+    background-color: #fff1f2;
+}
+.row-mix-custom {
+    background-color: #fffbeb !important;
+}
+.prod-matrix-box {
+    min-height: 32px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 2px 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+.diff-cell-superavit {
+    background-color: #22c55e !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.diff-cell-deficit {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.diff-cell-neutral {
+    background-color: #f8fafc !important;
+    color: #475569 !important;
+    font-weight: 600 !important;
+}
+/* Cuadre de Camas Table Styles */
+.cuadre-table th {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    font-size: 0.70rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3.5px 2px !important;
+    text-align: center;
+    border: 1px solid #334155 !important;
+}
+.cuadre-table td {
+    border: 1px solid #e2e8f0;
+    padding: 2px 3px !important;
+    vertical-align: middle;
+    font-size: 0.75rem !important;
+}
+.row-highlight-matching {
+    background-color: #fef08a !important;
+    outline: 2px solid #eab308;
+    animation: pulseYellow 1.5s infinite;
+}
+@keyframes pulseYellow {
+    0% { background-color: #fef08a; }
+    50% { background-color: #fde047; }
+    100% { background-color: #fef08a; }
+}
+.row-active-focus {
+    background-color: #dbeafe !important;
+    font-weight: 600;
+}
+.row-has-difference {
+    border-left: 4px solid #f59e0b !important;
+}
+/* Subtle green tint for reviewed / adjusted rows */
+.row-modified {
+    background-color: #ecfdf5 !important;
+    border-left: 4px solid #10b981 !important;
+}
+.row-modified td {
+    background-color: #ecfdf5 !important;
+}
+/* Red alert for duplicate / divided block pieces */
+.row-duplicated {
+    background-color: #fee2e2 !important;
+    border-left: 4px solid #dc2626 !important;
+}
+.row-duplicated td {
+    background-color: #fee2e2 !important;
+}
+/* Drag & Drop Reordering Styles */
+.drag-handle-cell {
+    cursor: grab !important;
+    user-select: none;
+    touch-action: none;
+}
+.drag-handle-cell:active {
+    cursor: grabbing !important;
+}
+.cuadre-row.is-dragging {
+    opacity: 0.40 !important;
+    background-color: #dbeafe !important;
+    outline: 2px dashed #2563eb;
+}
+.cuadre-row.drag-over-top {
+    border-top: 3.5px solid #2563eb !important;
+}
+.cuadre-row.drag-over-bottom {
+    border-bottom: 3.5px solid #2563eb !important;
+}
+.cuadre-table {
+    font-size: 0.69rem !important;
+}
+.cuadre-table th {
+    padding: 3px 2px !important;
+    font-size: 0.67rem !important;
+    white-space: nowrap;
+}
+.cuadre-table td {
+    padding: 2px 2px !important;
+}
+.cuadre-table input.form-control {
+    font-size: 0.68rem !important;
+    padding: 0px 2px !important;
+    height: 20px !important;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+}
+.cuadre-table input.form-control:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+    background-color: #ffffff !important;
+}
+.cuadre-table select.form-select {
+    font-size: 0.65rem !important;
+    padding: 0 2px !important;
+    height: 20px !important;
+}
+.cuadre-table .btn {
+    padding: 0 3px !important;
+    height: 20px !important;
+    font-size: 0.65rem !important;
+    line-height: 18px;
+}
+.btn-crop-pill {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+.btn-crop-pill.active {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('fumigacion.rotaciones_index') }}" class="text-decoration-none text-muted small">
+        <i class="fa-solid fa-arrow-left me-1"></i> Volver al listado de rotaciones
+    </a>
+</div>
+
+<!-- Header Card -->
+<div class="card mb-4 shadow-sm border-start border-4 {% if rotation.status == 'APROBADA' %}border-success{% else %}border-warning{% endif %}">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <h3 class="fw-bold text-dark mb-0 font-monospace">
+                        <i class="fa-solid fa-calendar-check text-success me-2"></i>SEMANA {{ rotation.week }}
+                    </h3>
+                    <span class="badge bg-light text-dark border font-monospace fs-6">Versión {{ rotation.version }}</span>
+                    {% if rotation.status == 'APROBADA' %}
+                    <span class="badge bg-success fs-6" title="Rotación oficial aprobada y enviada a campo"><i class="fa-solid fa-circle-check me-1"></i> APROBADA (Vigente)</span>
+                    {% elif rotation.status == 'BORRADOR' %}
+                    <span class="badge bg-warning text-dark fs-6" title="Rotación en fase de ajuste y calibración"><i class="fa-solid fa-pen-ruler me-1"></i> BORRADOR (En planificación)</span>
+                    {% elif rotation.status == 'ANULADA' %}
+                    <span class="badge bg-secondary fs-6" title="Rotación reemplazada por una nueva versión"><i class="fa-solid fa-ban me-1"></i> ANULADA</span>
+                    {% endif %}
+                </div>
+                <h5 class="text-secondary fw-normal mb-2">{{ rotation.title or ('Planificación de Fumigación - Semana ' ~ rotation.week) }}</h5>
+                <div class="text-muted small">
+                    <span class="me-3"><i class="fa-regular fa-user me-1"></i> Responsable: <strong>{{ rotation.created_by }}</strong></span>
+                    <span class="me-3"><i class="fa-regular fa-clock me-1"></i> Creado: {{ rotation.created_at|format_local_datetime }}</span>
+                    {% if rotation.status == 'APROBADA' and rotation.approved_by %}
+                    <span class="me-3 text-success"><i class="fa-solid fa-stamp me-1"></i> Aprobado por: <strong class="badge bg-success-subtle text-success border border-success">{{ rotation.approved_by }}</strong> ({{ rotation.approved_at|format_local_datetime }})</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ url_for('fumigacion.ver_salidas', rotation_id=rotation.id) }}" class="btn btn-info btn-sm fw-semibold text-white">
+                    <i class="fa-solid fa-dolly me-1"></i> Ver Salidas de Productos
+                </a>
+                {% if rotation.status != 'APROBADA' %}
+                <a href="{{ url_for('fumigacion.rotacion_editar', rotation_id=rotation.id) }}" class="btn btn-primary btn-sm fw-bold">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Editar Matriz & Productos
+                </a>
+                <form action="{{ url_for('fumigacion.rotacion_aprobar', rotation_id=rotation.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="return confirm('¿Aprobar esta versión de rotación como la oficial para la semana {{ rotation.week }}? Al aprobarla, se habilitará la Revisión & Calibración de Camas y la Generación de Programas.');">
+                        <i class="fa-solid fa-circle-check me-1"></i> Aprobar Rotación
+                    </button>
+                </form>
+                {% else %}
+                <form action="{{ url_for('fumigacion.rotacion_desaprobar', rotation_id=rotation.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" onclick="return confirm('¿Desaprobar esta rotación y devolverla a BORRADOR para poder editar la matriz y productos?');" title="Volver al modo borrador y reabrir el editor Drag and Drop">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Desaprobar (Pasar a Borrador)
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if rotation.notes %}
+        <div class="mt-3 p-2 bg-light rounded border text-muted small">
+            <strong><i class="fa-regular fa-comment-dots me-1"></i> Observaciones:</strong> {{ rotation.notes }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sequential Navigation Tabs -->
+<ul class="nav nav-tabs nav-fill mb-3 shadow-xs bg-white rounded" id="mainWorkflowTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active step-nav-tab text-dark" id="tab-paso1" data-bs-toggle="tab" data-bs-target="#content-paso1" type="button" role="tab">
+            <span class="badge bg-warning text-dark me-1">1</span> Matriz de Rotación & Productos
+        </button>
+    </li>
+    {% if rotation.status == 'APROBADA' %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link step-nav-tab text-success" id="tab-paso2" data-bs-toggle="tab" data-bs-target="#content-paso2" type="button" role="tab">
+            <span class="badge bg-success me-1">2</span> Revisión & Calibración de Camas
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link step-nav-tab text-primary" id="tab-paso3" data-bs-toggle="tab" data-bs-target="#content-paso3" type="button" role="tab">
+            <span class="badge bg-primary me-1">3</span> Almacén / Estadística (Programas Asignados: {{ orders|length }})
+        </button>
+    </li>
+    {% endif %}
+</ul>
+
+<div class="tab-content" id="mainWorkflowTabsContent">
+
+    <!-- ==================== PASO 1: MATRIZ DE ROTACIÓN & PRODUCTOS (EXCEL STYLE) ==================== -->
+    <div class="tab-pane fade show active" id="content-paso1" role="tabpanel">
+        <div class="mb-3">
+            <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-table-cells text-warning me-2"></i>Matriz de Asignación de Agroquímicos por Vuelta</h5>
+        </div>
+
+        <!-- Visual Table of Products Assigned per Crop / Stage / Vuelta -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0" style="font-size: 0.85rem;">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th style="width: 110px;">Semana</th>
+                                <th style="width: 140px;">Cultivo</th>
+                                <th style="width: 140px;">Estado</th>
+                                {% for r in rotation.rounds %}
+                                <th style="min-width: 220px;">
+                                    <div class="fw-bold">{{ r.name }}</div>
+                                    <div class="text-muted small fw-normal">{{ r.scheduled_day }}</div>
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in active_crops %}
+                            {% for stage in ['VEGETATIVO', 'PRODUCTIVO'] %}
+                            <tr>
+                                <td class="text-center font-monospace fw-bold text-primary">{{ rotation.week }}</td>
+                                <td class="fw-bold">{{ c.name }}</td>
+                                <td>
+                                    <span class="badge {% if stage == 'VEGETATIVO' %}bg-success-subtle text-success border border-success{% else %}bg-primary-subtle text-primary border border-primary{% endif %}">
+                                        {{ stage }}
+                                    </span>
+                                </td>
+                                {% for r in rotation.rounds %}
+                                <td>
+                                    <div class="prod-matrix-box">
+                                        {% set cell_items = [] %}
+                                        {% for it in r.items %}
+                                            {% if it.crop_name == c.name and it.phenological_stage == stage %}
+                                                <span class="badge bg-light text-dark border p-1 d-inline-flex align-items-center gap-1" title="{{ it.product.commercial_name if it.product else '' }} (Dosis: {{ it.dose_applied }} {{ it.dose_unit }}/L)">
+                                                    <strong class="text-primary">{{ it.product.code if it.product else '' }}</strong>
+                                                    <span class="text-muted small">({{ it.dose_applied }} {{ it.dose_unit }})</span>
+                                                </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consolidated Summary Cards for Each Vuelta (Estimated Baseline for Purchase Plan) -->
+        <h6 class="fw-bold text-muted text-uppercase mb-3"><i class="fa-solid fa-boxes-stacked me-1"></i> Resumen Estimado de Litros y Requerimiento de Mezcla por Vuelta (Plan de Compra 15 Días):</h6>
+        <div class="row g-4 mb-4">
+            {% for item in rounds_base_calculated %}
+            {% set r = item.round %}
+            {% set calc = item.calc %}
+            <div class="col-lg-6">
+                <div class="card h-100 shadow-sm border-top border-4 border-success">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0">{{ r.name }} &bull; {{ r.scheduled_day }}</h6>
+                            <span class="text-muted small">Litros Totales de Aplicación:</span>
+                        </div>
+                        <span class="badge bg-success fs-6">{{ calc.totals.total_liters|format_number(1) }} L</span>
+                    </div>
+                    <div class="card-body p-2">
+                        {% if calc.product_summaries %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered align-middle mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre Comercial</th>
+                                        <th>Dosis</th>
+                                        <th class="text-end">Cantidad Total</th>
+                                        <th>Plaga / Blanco</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in calc.product_summaries %}
+                                    <tr>
+                                        <td class="fw-bold text-primary">{{ p.product_code }}</td>
+                                        <td>{{ p.commercial_name }}</td>
+                                        <td>{{ p.dose }} {{ p.dose_unit }}/L</td>
+                                        <td class="text-end fw-bold text-success">{{ p.total_required_quantity|format_product(p.dose_unit) }} {{ p.dose_unit }}</td>
+                                        <td class="small text-muted">{{ p.pest or '-' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-2 text-muted small">No hay agroquímicos asignados a esta vuelta.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if rotation.status != 'APROBADA' %}
+        <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between p-3 mb-4 shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="fa-solid fa-lock text-warning fs-3 me-3"></i>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">Rotación en Estado BORRADOR</h6>
+                    <div class="text-muted small">
+                        Para habilitar el <strong>Paso 2: Revisión & Calibración de Camas</strong> y el <strong>Paso 3: Programas & Órdenes de Fumigación</strong>, primero debes <strong>Aprobar la Rotación</strong> con el botón verde superior.
+                    </div>
+                </div>
+            </div>
+            <form action="{{ url_for('fumigacion.rotacion_aprobar', rotation_id=rotation.id) }}" method="POST" class="ms-3">
+                <button type="submit" class="btn btn-success fw-bold shadow-sm px-3" onclick="return confirm('¿Aprobar esta versión de rotación para habilitar la calibración de camas y órdenes de fumigación?');">
+                    <i class="fa-solid fa-circle-check me-1"></i> Aprobar Rotación Ahora
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if rotation.status == 'APROBADA' %}
+    <!-- ==================== PASO 2: AJUSTE Y CUADRE DE CAMAS (ESCRITORIO DIGITAL DE COMPARACIÓN) ==================== -->
+    <div class="tab-pane fade" id="content-paso2" role="tabpanel">
+        
+        <!-- 1. Resumen Superior de Cultivos Asignados con Rotación Programada -->
+        <div id="crop-summary-wrapper">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-seedling text-success me-2"></i>Cultivos Asignados en esta Rotación (Semana {{ rotation.week }})</h6>
+                    <div class="text-muted small">Haga clic en un cultivo para abrir su mesa de trabajo y calibrar sus camas por bloque.</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-muted border font-monospace">{{ rotation_crops|length }} cultivo(s) con químicos</span>
+                </div>
+            </div>
+
+            <div class="row g-2 mb-3" id="crop-summary-deck">
+                {% for c_name in rotation_crops %}
+                <div class="col-md-4 col-sm-6">
+                    <div class="card h-100 shadow-xs border crop-summary-card" data-crop="{{ c_name }}" style="cursor: pointer; transition: all 0.2s;">
+                        <div class="card-body p-2 d-flex flex-column justify-content-between">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-dark fs-6 font-monospace"><i class="fa-solid fa-leaf text-success me-1"></i>{{ c_name }}</span>
+                                </div>
+                                <span class="badge bg-light text-muted border pill-crop-status" data-crop="{{ c_name }}">Censo</span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-1 mb-1 crop-assigned-vueltas-badges" data-crop="{{ c_name }}">
+                                {% set st = crop_status_map[c_name] if crop_status_map and c_name in crop_status_map else None %}
+                                {% if st and st.assigned_rounds %}
+                                    {% for r_info in st.assigned_rounds %}
+                                    <span class="badge bg-success-subtle text-success border border-success fw-semibold font-monospace" style="font-size: 0.68rem;" title="Orden Oficial: {{ r_info.order_number }}">
+                                        <i class="fa-solid fa-circle-check me-1"></i>{{ r_info.round_name }} ({{ r_info.day }})
+                                    </span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.65rem;">
+                                        <i class="fa-regular fa-clock me-1"></i>Pendiente asignar vuelta
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="row g-1 text-center font-monospace small my-1">
+                                <div class="col-4 bg-white rounded p-1 border">
+                                    <div class="text-muted" style="font-size: 0.65rem;">BLOQUES</div>
+                                    <strong class="text-dark card-crop-blocks" data-crop="{{ c_name }}">-</strong>
+                                </div>
+                                <div class="col-4 bg-white rounded p-1 border">
+                                    <div class="text-muted" style="font-size: 0.65rem;">CAMAS STD</div>
+                                    <strong class="text-primary card-crop-beds" data-crop="{{ c_name }}">-</strong>
+                                </div>
+                                <div class="col-4 bg-white rounded p-1 border">
+                                    <div class="text-muted" style="font-size: 0.65rem;">LITROS EST.</div>
+                                    <strong class="text-success card-crop-liters" data-crop="{{ c_name }}">-</strong>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm py-1 fw-bold w-100 mt-1 btn-card-calibrate" data-crop="{{ c_name }}">
+                                <i class="fa-solid fa-sliders me-1"></i> Abrir Mesa de Calibración
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 2. Placeholder cuando ningún cultivo ha sido seleccionado aún -->
+        <div id="no-crop-selected-placeholder" class="card border border-dashed text-center py-4 my-2 bg-light shadow-xs">
+            <div class="card-body py-4">
+                <i class="fa-solid fa-hand-pointer fa-2x text-primary mb-2"></i>
+                <h6 class="fw-bold text-dark mb-1">Seleccione un cultivo arriba para abrir su mesa de calibración</h6>
+                <p class="text-muted small mb-0">Haga clic en la tarjeta de cualquier cultivo asignado para visualizar y modificar sus camas en Vegetativo y Productivo.</p>
+            </div>
+        </div>
+
+        <!-- 3. Contenedor de Mesa de Trabajo (Se muestra al seleccionar un cultivo) -->
+        <div id="crop-workspace-container" style="display: none;">
+            
+            <!-- Hidden inputs to preserve JS binding without cluttering UI -->
+            <select id="filter-cuadre-round" style="display: none;">
+                {% for r_item in rounds_calculated %}
+                <option value="{{ r_item.round.id }}" {% if loop.first %}selected{% endif %}>
+                    {{ r_item.round.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <select id="filter-cuadre-crop" style="display: none;">
+                {% for c_name in rotation_crops %}
+                <option value="{{ c_name }}" {% if loop.first %}selected{% endif %}>{{ c_name }}</option>
+                {% endfor %}
+                {% if rotation_crops|length > 1 %}
+                <option value="ALL">ALL</option>
+                {% endif %}
+            </select>
+
+            <!-- Header Workspace Control Bar -->
+            <div class="card mb-2 shadow-sm border bg-white">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <!-- Left: Search Block + Active Crop Indicator + Active Vuelta Selector -->
+                        <div class="d-flex align-items-center gap-2 flex-grow-1 flex-wrap" style="max-width: 620px;">
+                            <div class="input-group input-group-sm" style="max-width: 230px;">
+                                <span class="input-group-text bg-light text-secondary border-end-0"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                <input type="text" id="filter-cuadre-block-search" class="form-control form-control-sm fw-bold border-start-0" placeholder="Buscar bloque físico...">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-clear-search" title="Limpiar búsqueda">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <span class="badge bg-primary text-white font-monospace fs-6 px-3 py-1 shadow-xs d-none d-sm-inline-flex align-items-center" id="workspace-active-crop-badge">
+                                <i class="fa-solid fa-seedling me-1"></i> <span id="workspace-active-crop-name">CULTIVO</span>
+                            </span>
+                            <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold shadow-xs" id="btn-toggle-crops-deck" onclick="toggleCropsDeck();" title="Mostrar u ocultar tarjetas de cultivos para cambiar de cultivo">
+                                <i class="fa-solid fa-table-cells-large text-primary me-1"></i> <span id="toggle-crops-deck-text">Cambiar Cultivo</span>
+                            </button>
+
+                        </div>
+
+                        <!-- Right: Action Buttons spanning nicely across the right side -->
+                        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" id="btn-undo-action" title="Deshacer última acción (Ctrl+Z)" disabled>
+                                    <i class="fa-solid fa-rotate-left me-1"></i> Deshacer
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="btn-redo-action" title="Rehacer acción (Ctrl+Y)" disabled>
+                                    <i class="fa-solid fa-rotate-right me-1"></i> Rehacer
+                                </button>
+                            </div>
+                            {% if current_user.role == 'ADMIN' %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btn-reset-census" title="Restablecer camas y bloques originales desde el Censo">
+                                <i class="fa-solid fa-arrows-rotate me-1 text-primary"></i> Restablecer Censo
+                            </button>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btn-save-draft-review" title="Guardar borrador de trabajo">
+                                <i class="fa-solid fa-floppy-disk me-1"></i> Borrador
+                            </button>
+                            <button type="button" class="btn btn-success btn-sm fw-bold px-3 shadow-sm" id="btn-open-assign-modal" title="Validar y asignar a vuelta">
+                                <i class="fa-solid fa-calendar-check me-1"></i> Asignar a Vuelta
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="btn-close-crop-workspace" title="Cerrar mesa y volver al resumen">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Quick Filters & Validation Status Bar -->
+                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top flex-wrap gap-2 small">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="cb-filter-coincident">
+                                <label class="form-check-label small text-primary fw-semibold" for="cb-filter-coincident">
+                                    <i class="fa-solid fa-code-compare text-primary me-1"></i> Solo bloques en ambos lados (Veg y Prod)
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="cb-filter-duplicates">
+                                <label class="form-check-label small text-danger fw-semibold" for="cb-filter-duplicates">
+                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Solo bloques divididos / con duplicados
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="cb-filter-modified">
+                                <label class="form-check-label small text-success fw-bold" for="cb-filter-modified">
+                                    <i class="fa-solid fa-pen-to-square text-success me-1"></i> Solo bloques modificados (<span id="count-modified-badge">0</span>)
+                                </label>
+                            </div>
+                        </div>
+                        <div id="cuadre-validation-status" class="d-flex align-items-center gap-2">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                <i class="fa-solid fa-circle-check me-1"></i> Sin camas duplicadas
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Visual Comparison Bar (Appears when clicking or focusing on a block) -->
+            <div id="visual-comparison-card" class="card mb-2 shadow-sm border-primary" style="display: none; background: #f0fdf4;">
+                <div class="card-body py-1 px-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary fs-6 font-monospace" id="comp-block-name">BL 16</span>
+                            <span class="fw-bold text-dark" id="comp-crop-name">GYPSOPHILA</span>
+                            <span class="text-muted small" id="comp-zone-name">(ZONA 1)</span>
+                        </div>
+                        <button type="button" class="btn-close btn-close-sm" onclick="document.getElementById('visual-comparison-card').style.display='none';"></button>
+                    </div>
+                    <div class="row g-2 align-items-center small">
+                        <div class="col-md-6 border-end">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary text-white">🟦 VEGETATIVO</span>
+                                <span class="font-monospace fw-bold text-dark" id="comp-veg-beds">Camas: -</span>
+                                <span class="text-muted" id="comp-veg-info"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-warning text-dark">🟨 PRODUCTIVO</span>
+                                <span class="font-monospace fw-bold text-dark" id="comp-prod-beds">Camas: -</span>
+                                <span class="text-muted" id="comp-prod-info"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TWO WORKING PANELS SIDE BY SIDE: 🟦 VEGETATIVO (Left) | 🟨 PRODUCTIVO (Right) -->
+            <div class="row g-2">
+                <!-- LEFT PANEL: 🟦 VEGETATIVO -->
+                <div class="col-lg-6">
+                    <div class="card shadow-sm border-top border-4 border-primary h-100">
+                        <div class="card-header bg-primary text-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fs-6 fw-bold">🟦 VEGETATIVO</span>
+                                <span class="badge bg-white text-primary fw-bold" id="veg-panel-count">0 bloques</span>
+                                <button type="button" class="btn btn-sm btn-light text-primary fw-bold py-0 px-2 btn-add-block-stage shadow-xs" data-stage="VEGETATIVO" title="Añadir un nuevo bloque a Vegetativo">
+                                    <i class="fa-solid fa-plus me-1"></i> Añadir Bloque
+                                </button>
+                                <div id="bulk-actions-veg" class="d-flex align-items-center gap-1 ms-1" style="display: none !important;">
+                                    <button type="button" class="btn btn-danger btn-sm py-0 px-2 fw-bold btn-bulk-delete" data-stage="VEGETATIVO" title="Eliminar los bloques seleccionados">
+                                        <i class="fa-solid fa-trash-can me-1"></i> Borrar (<span id="bulk-count-veg">0</span>)
+                                    </button>
+                                    <button type="button" class="btn btn-warning btn-sm py-0 px-2 fw-bold text-dark btn-bulk-move" data-stage="VEGETATIVO" data-target="PRODUCTIVO" title="Mover bloques seleccionados a Productivo">
+                                        <i class="fa-solid fa-arrow-right me-1"></i> A Prod (<span id="bulk-move-count-veg">0</span>)
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-3 small font-monospace">
+                                <span>Camas: <strong id="veg-panel-beds" class="text-white">0.00</strong></span>
+                                <span>Litros: <strong id="veg-panel-liters" class="text-white">0.0 L</strong></span>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 580px; min-height: 250px;">
+                                <table class="table table-hover table-sm align-middle mb-0 cuadre-table" id="table-veg-cuadre">
+                                    <thead class="table-light sticky-top text-center">
+                                        <tr>
+                                            <th style="width: 18px;" class="text-center" title="Arrastrar y soltar para ordenar"><i class="fa-solid fa-grip-vertical text-muted" style="font-size: 0.72rem;"></i></th>
+                                            <th style="width: 24px;" class="text-center"><input type="checkbox" class="form-check-input select-all-checkbox" data-stage="VEGETATIVO" title="Seleccionar todos en Vegetativo"></th>
+                                            <th style="width: 72px;" title="Bloque físico de campo (ej. 103, 38C, 11A)">Bloque</th>
+                                            <th style="width: 26px;" title="Segmento / Sufijo del bloque">Seg</th>
+                                            <th style="width: 88px;">Variedad</th>
+                                            <th style="width: 96px;">Camas (Ini-Fin)</th>
+                                            <th style="width: 62px;" title="Camas estándar">Std</th>
+                                            <th style="width: 38px;" title="Edad fenológica">Edad</th>
+                                            <th style="width: 42px;" title="Litros por cama">L/Cam</th>
+                                            <th style="width: 74px;">Lanza</th>
+                                            <th style="width: 88px;" class="text-end">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-veg-cuadre">
+                                        <!-- Dynamic rows loaded via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT PANEL: 🟨 PRODUCTIVO -->
+                <div class="col-lg-6">
+                    <div class="card shadow-sm border-top border-4 border-warning h-100">
+                        <div class="card-header bg-warning text-dark py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fs-6 fw-bold">🟨 PRODUCTIVO</span>
+                                <span class="badge bg-dark text-white fw-bold" id="prod-panel-count">0 bloques</span>
+                                <button type="button" class="btn btn-sm btn-dark text-white fw-bold py-0 px-2 btn-add-block-stage shadow-xs" data-stage="PRODUCTIVO" title="Añadir un nuevo bloque a Productivo">
+                                    <i class="fa-solid fa-plus me-1"></i> Añadir Bloque
+                                </button>
+                                <div id="bulk-actions-prod" class="d-flex align-items-center gap-1 ms-1" style="display: none !important;">
+                                    <button type="button" class="btn btn-danger btn-sm py-0 px-2 fw-bold btn-bulk-delete" data-stage="PRODUCTIVO" title="Eliminar los bloques seleccionados">
+                                        <i class="fa-solid fa-trash-can me-1"></i> Borrar (<span id="bulk-count-prod">0</span>)
+                                    </button>
+                                    <button type="button" class="btn btn-primary btn-sm py-0 px-2 fw-bold btn-bulk-move" data-stage="PRODUCTIVO" data-target="VEGETATIVO" title="Mover bloques seleccionados a Vegetativo">
+                                        <i class="fa-solid fa-arrow-left me-1"></i> A Veg (<span id="bulk-move-count-prod">0</span>)
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-3 small font-monospace text-dark">
+                                <span>Camas: <strong id="prod-panel-beds" class="text-dark">0.00</strong></span>
+                                <span>Litros: <strong id="prod-panel-liters" class="text-dark">0.0 L</strong></span>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 580px; min-height: 250px;">
+                                <table class="table table-hover table-sm align-middle mb-0 cuadre-table" id="table-prod-cuadre">
+                                    <thead class="table-light sticky-top text-center">
+                                        <tr>
+                                            <th style="width: 18px;" class="text-center" title="Arrastrar y soltar para ordenar"><i class="fa-solid fa-grip-vertical text-muted" style="font-size: 0.72rem;"></i></th>
+                                            <th style="width: 24px;" class="text-center"><input type="checkbox" class="form-check-input select-all-checkbox" data-stage="PRODUCTIVO" title="Seleccionar todos en Productivo"></th>
+                                            <th style="width: 72px;" title="Bloque físico de campo (ej. 103, 38C, 11A)">Bloque</th>
+                                            <th style="width: 26px;" title="Segmento / Sufijo del bloque">Seg</th>
+                                            <th style="width: 88px;">Variedad</th>
+                                            <th style="width: 96px;">Camas (Ini-Fin)</th>
+                                            <th style="width: 62px;" title="Camas estándar">Std</th>
+                                            <th style="width: 38px;" title="Edad fenológica">Edad</th>
+                                            <th style="width: 42px;" title="Litros por cama">L/Cam</th>
+                                            <th style="width: 74px;">Lanza</th>
+                                            <th style="width: 88px;" class="text-end">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-prod-cuadre">
+                                        <!-- Dynamic rows loaded via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==================== PASO 3: ALMACÉN / ESTADÍSTICA (PROGRAMAS ASIGNADOS) ==================== -->
+    <div class="tab-pane fade" id="content-paso3" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+                <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-boxes-packing text-primary me-2"></i>Paso 3: Almacén / Estadística &bull; Programas Oficiales Generados</h5>
+                <div class="text-muted small">Programas oficiales generados automáticamente al calibrar y <strong>Asignar a Vuelta</strong> en el Paso 2, listos para impresión en Estadística y pesaje en Bodega.</div>
+            </div>
+            {% if not orders %}
+            <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="document.getElementById('tab-paso2').click();">
+                <i class="fa-solid fa-arrow-left me-1"></i> Ir al Paso 2 para Calibrar y Asignar
+            </button>
+            {% endif %}
+        </div>
+
+        {% if orders %}
+        <div class="row g-3">
+            {% for ord in orders %}
+            <div class="col-12">
+                <div class="card shadow-sm border-start border-4 border-success bg-white">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-success-subtle text-success p-3 rounded text-center" style="min-width: 60px;">
+                                    <i class="fa-solid fa-file-signature fs-4"></i>
+                                </div>
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="badge {% if ord.status == 'APROBADA' %}bg-success{% elif ord.status == 'EJECUTADA' %}bg-primary{% else %}bg-secondary{% endif %} font-monospace">
+                                            {% if ord.status == 'APROBADA' %}<i class="fa-solid fa-circle-check me-1"></i> APROBADA
+                                            {% elif ord.status == 'EJECUTADA' %}<i class="fa-solid fa-spray-can me-1"></i> EJECUTADA
+                                            {% else %}{{ ord.status }}{% endif %}
+                                        </span>
+                                        <span class="badge bg-light text-dark border font-monospace">{{ ord.order_number }}</span>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ ord.round_name }}</span>
+                                    </div>
+                                    <h5 class="fw-bold text-dark mb-1 font-monospace">{{ ord.display_title }}</h5>
+                                    <div class="text-muted small">
+                                        <span class="me-3"><strong>Día Programado:</strong> {{ ord.scheduled_day }}</span>
+                                        <span class="me-3"><strong>Mezcla Total:</strong> <strong class="text-primary font-monospace">{{ ord.total_liters|format_number(1) }} L</strong></span>
+                                        <span class="me-3"><strong>Camas Estándar:</strong> {{ ord.total_standard_beds|format_number(2) }}</span>
+                                        <span><strong>Bloques Asignados:</strong> {{ ord.details|length }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 flex-wrap align-items-center">
+                                <a href="{{ url_for('fumigacion.orden_detalle', order_id=ord.id) }}" class="btn btn-success btn-sm fw-bold shadow-sm" title="Imprimir Hoja de Campo">
+                                    <i class="fa-solid fa-print me-1"></i> Imprimir Hoja de Campo
+                                </a>
+                                <a href="{{ url_for('fumigacion.ver_salidas', rotation_id=rotation.id, order_id=ord.id) }}" class="btn btn-outline-info btn-sm fw-semibold" title="Ver Salidas de Bodega">
+                                    <i class="fa-solid fa-warehouse me-1"></i> Salidas Bodega
+                                </a>
+                                <a href="{{ url_for('fumigacion.orden_exportar_excel', order_id=ord.id) }}" class="btn btn-outline-primary btn-sm fw-semibold" title="Descargar Excel">
+                                    <i class="fa-solid fa-file-excel me-1"></i> Excel
+                                </a>
+                                {% if ord.round_id %}
+                                <form action="{{ url_for('fumigacion.generar_orden', round_id=ord.round_id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Deseas regenerar la orden {{ ord.round_name }} con los últimos cambios de camas?');">
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Regenerar orden con la calibración actual">
+                                        <i class="fa-solid fa-rotate me-1"></i> Regenerar
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card shadow-xs text-center py-5 px-3 bg-white">
+            <i class="fa-regular fa-clipboard fs-1 text-secondary mb-3"></i>
+            <h5 class="fw-bold text-dark">Aún no se han generado órdenes de fumigación</h5>
+            <p class="text-muted small mx-auto" style="max-width: 500px;">
+                Para generar una orden oficial imprimible, ve al <strong>Paso 2: Revisión & Calibración de Camas</strong>, revisa los bloques/litros y haz clic en <strong>"Asignar a Vuelta"</strong>.
+            </p>
+            <div>
+                <button type="button" class="btn btn-primary btn-sm fw-bold shadow-xs px-4" onclick="document.getElementById('tab-paso2').click();">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Ir a Paso 2: Revisión de Camas
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ==================== MODAL: AJUSTAR Y DIVIDIR BLOQUE (CUADRE DE CAMAS) ==================== -->
+<div class="modal fade" id="modalAdjustBlock" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header bg-dark text-white py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-sliders text-warning fs-5"></i>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0">Ajuste y Cuadre de Bloque: <span id="m-adj-block-title" class="text-warning font-monospace">BL 16</span></h6>
+                        <span class="small text-muted" id="m-adj-block-subtitle">HYPERICUM &bull; ZONA 1 &bull; Total Camas Finca: 1 - 19</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div id="m-adj-alert-container"></div>
+                
+                <div class="table-responsive mb-2">
+                    <table class="table table-sm table-bordered align-middle mb-0" id="table-modal-adjust-segments" style="font-size: 0.78rem;">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th style="width: 60px;">Cama Ini</th>
+                                <th style="width: 60px;">Cama Fin</th>
+                                <th style="width: 120px;">Estado</th>
+                                <th style="width: 75px;">Edad</th>
+                                <th style="width: 65px;">Camas Std</th>
+                                <th style="width: 60px;">L/Cama</th>
+                                <th style="width: 70px;">Litros</th>
+                                <th style="width: 110px;">Lanza</th>
+                                <th style="width: 35px;" class="text-center">🗑</th>
+                            </tr>
+                        </thead>
+                        <tbody id="m-adj-tbody">
+                            <!-- Dynamic Segment Rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" id="btn-m-adj-add-seg">
+                        <i class="fa-solid fa-plus me-1"></i> + Agregar Segmento
+                    </button>
+                    <div class="small text-muted font-monospace" id="m-adj-summary-beds">
+                        Total camas configuradas: <strong>0</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2 bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" id="btn-m-adj-save">
+                    <i class="fa-solid fa-check me-1"></i> Guardar Cambios del Bloque
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Asignar Camas a Vuelta -->
+<div class="modal fade" id="modalAssignRound" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-calendar-check me-2"></i> Asignar Configuración de Camas a Vuelta</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Active Crop Indicator -->
+                <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded border">
+                    <span class="small fw-bold text-dark"><i class="fa-solid fa-seedling text-success me-1"></i> Cultivo a Calibrar:</span>
+                    <span class="badge bg-dark fs-6 font-monospace" id="modal-assign-crop-badge">CULTIVO</span>
+                </div>
+
+                <!-- Round Selector -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="fa-solid fa-rotate text-primary me-1"></i> ¿A qué vuelta deseas asignar esta calibración?:
+                    </label>
+                    <select id="modal-assign-round-select" class="form-select fw-bold border-primary shadow-sm">
+                        {% for item in rounds_calculated %}
+                        <option value="{{ item.round.id }}">
+                            {{ item.round.name }} &bull; (Día: {{ item.round.scheduled_day }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+
+
+                <!-- Products Display Box for this Round & Crop -->
+                <div class="card mb-3 border bg-light shadow-none">
+                    <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center">
+                        <span class="small fw-bold text-secondary">
+                            <i class="fa-solid fa-flask text-primary me-1"></i> Agroquímicos a aplicar en esta Vuelta:
+                        </span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary font-monospace small" id="modal-products-round-label">Vuelta 1</span>
+                    </div>
+                    <div class="card-body p-2" id="modal-assign-products-list">
+                        <div class="text-center py-2 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Cargando químicos...</div>
+                    </div>
+                </div>
+
+                <!-- Reassignment / Overwrite Alert -->
+                <div id="modal-assign-overwrite-warning" class="alert alert-warning py-2 px-3 small mb-3 d-none">
+                    <div class="fw-bold text-dark"><i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> ¡Cultivo previamente asignado a esta vuelta!</div>
+                    <div class="text-muted mt-1" id="modal-assign-overwrite-text">
+                        El cultivo <strong id="modal-overwrite-crop-name">CULTIVO</strong> ya tiene una Orden Oficial generada en esta vuelta. Al confirmar, se sobreescribirán y actualizarán sus camas, litrajes y requerimiento de agroquímicos.
+                    </div>
+                </div>
+
+                <div class="alert alert-info py-2 px-3 small mb-0">
+                    <i class="fa-solid fa-circle-info me-1"></i> Al hacer clic en <strong>Confirmar y Asignar</strong>, se guardará la calibración y <strong>se generará inmediatamente la Orden de Fumigación Oficial</strong> para esta vuelta, lista para imprimir en el <strong>Paso 3</strong>.
+                </div>
+            </div>
+            <div class="modal-footer py-2 bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" id="btn-confirm-assign-round">
+                    <i class="fa-solid fa-check me-1"></i> Confirmar y Asignar a la Vuelta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Mezcla / Productos por Bloque -->
+<div class="modal fade" id="modalEditBlockProducts" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold" id="modal-eb-title-header">
+                    <i class="fa-solid fa-flask me-2"></i>Editar Agroquímicos para Bloque: <span id="modal-eb-title"></span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning py-1 px-3 small mb-2" id="modal-eb-alert-custom" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <strong>Aviso:</strong> Este bloque tiene asignaciones que no coinciden con la fórmula original de la rotación (se retiró o modificó algún producto).
+                </div>
+
+                <div class="alert alert-info py-2 px-3 small mb-3">
+                    <i class="fa-solid fa-circle-info me-1"></i>
+                    Puedes <strong>quitar cualquier producto</strong> para este bloque (ej. por pH del agua, fitotoxicidad o calibración), cambiar la dosis o agregar otro agroquímico.
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold text-dark small mb-0"><i class="fa-solid fa-list-check me-1 text-primary"></i> Productos Actuales en la Mezcla de este Bloque:</h6>
+                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fw-semibold" id="btn-modal-eb-restore" title="Restaurar los productos originales de rotación para este cultivo y estado">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Restaurar Fórmula Original de Rotación
+                    </button>
+                </div>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered align-middle mb-0" id="table-modal-eb-products">
+                        <thead class="table-light text-center small">
+                            <tr>
+                                <th style="width: 120px;">Código</th>
+                                <th>Nombre Comercial</th>
+                                <th style="width: 110px;">Dosis (/L)</th>
+                                <th style="width: 70px;">U.M</th>
+                                <th>Plaga / Blanco</th>
+                                <th style="width: 80px;">Quitar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-eb-tbody">
+                            <!-- Dynamic rows loaded via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Add New Product to this Block -->
+                <div class="card bg-light border">
+                    <div class="card-body p-2">
+                        <span class="small fw-bold text-dark d-block mb-1"><i class="fa-solid fa-plus me-1 text-success"></i> Agregar otro agroquímico a este bloque:</span>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-6">
+                                <select id="modal-eb-new-product" class="form-select form-select-sm">
+                                    <option value="">-- Seleccionar Agroquímico --</option>
+                                    {% for p in active_products %}
+                                    <option value="{{ p.id }}" data-code="{{ p.code }}" data-name="{{ p.commercial_name or p.code }}" data-unit="{{ p.unit or 'CC' }}" data-dose="{{ p.dose_fumigation or 1.0 }}" data-pest="{{ p.pest or '' }}" data-ia="{{ p.active_ingredient or '' }}" data-ct="{{ p.toxicological_category or '' }}">
+                                        {{ p.code }} - {{ p.commercial_name }} ({{ p.unit or 'CC' }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.001" id="modal-eb-new-dose" class="form-control" placeholder="Dosis">
+                                    <span class="input-group-text" id="modal-eb-new-unit">CC</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-primary btn-sm w-100 fw-bold" id="btn-modal-eb-add-prod">
+                                    <i class="fa-solid fa-plus me-1"></i> Añadir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold" id="btn-modal-eb-save">
+                    <i class="fa-solid fa-check me-1"></i> Aplicar Cambios al Bloque
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Add Camas / Bloque Manual -->
+<div class="modal fade" id="modalSiembraPoda" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-circle-plus me-2"></i> Añadir Bloque al Plan de Calibración</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <p class="small text-muted mb-2">
+                    Ingresa los datos del bloque a incorporar (ej. un bloque de Gypsophila quedado de edad 16, siembra nueva o fuera de regla).
+                </p>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-dark mb-0">Bloque:</label>
+                        <input type="text" id="modal-sp-block" class="form-control form-control-sm fw-bold font-monospace text-primary" placeholder="ej. BL 16" required list="block-datalist">
+                        <datalist id="block-datalist">
+                            {% for b_name, b_info in block_zone_map.items() %}
+                            <option value="{{ b_name }}">{{ b_name }} ({{ b_info.zone }} - {{ b_info.crop }})</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-dark mb-0">Zona:</label>
+                        <input type="text" id="modal-sp-zone" class="form-control form-control-sm bg-light font-monospace" placeholder="ej. ZONA 1" value="ZONA 1">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-dark mb-0">Cultivo:</label>
+                        <select id="modal-sp-crop" class="form-select form-select-sm fw-bold">
+                            {% for c in active_crops %}
+                            <option value="{{ c.name }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-dark mb-0">Estado Fenológico:</label>
+                        <select id="modal-sp-stage" class="form-select form-select-sm fw-bold">
+                            <option value="VEGETATIVO">🟦 VEGETATIVO</option>
+                            <option value="PRODUCTIVO">🟨 PRODUCTIVO</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-bold text-dark mb-0">Edad (sem):</label>
+                        <input type="text" id="modal-sp-age" class="form-control form-control-sm text-center font-monospace" value="16" placeholder="ej. 16">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-bold text-dark mb-0">Cama Ini:</label>
+                        <input type="number" id="modal-sp-bed-start" class="form-control form-control-sm text-center font-monospace" value="1" min="1">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-bold text-dark mb-0">Cama Fin:</label>
+                        <input type="number" id="modal-sp-bed-end" class="form-control form-control-sm text-center font-monospace" value="32" min="1">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-bold text-dark mb-0">Sufijo:</label>
+                        <input type="text" id="modal-sp-suffix" class="form-control form-control-sm text-center fw-bold font-monospace" value="A">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-bold text-dark mb-0">Camas Std:</label>
+                        <input type="number" step="0.01" id="modal-sp-std-beds" class="form-control form-control-sm text-end fw-bold font-monospace" value="32.00">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-bold text-dark mb-0">L/Cama:</label>
+                        <input type="number" step="0.5" id="modal-sp-liters-bed" class="form-control form-control-sm text-end font-monospace" value="5.5">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-dark mb-0">Tipo de Lanza / Boquilla:</label>
+                        <select id="modal-sp-lance" class="form-select form-select-sm fw-semibold">
+                            <option value="Lanza de 3 salidas (C35)">Lanza de 3 salidas (C35)</option>
+                            <option value="Aguilón Solidago">Aguilón Solidago</option>
+                            <option value="Aguilón 5 salidas (2D35-3C35)">Aguilón 5 salidas (2D35-3C35)</option>
+                            <option value="Aguilón 4 salidas (1D35-3C35)">Aguilón 4 salidas (1D35-3C35)</option>
+                            <option value="Lanza Veronica">Lanza Veronica</option>
+                        </select>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <div class="p-2 bg-light border rounded d-flex justify-content-between align-items-center">
+                            <span class="small fw-bold text-secondary">Litros Totales Calculados:</span>
+                            <span class="fs-6 fw-bold font-monospace text-success" id="modal-sp-total-liters-badge">176.0 L</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2 bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" id="btn-confirm-add-siembra-poda">
+                    <i class="fa-solid fa-plus me-1"></i> Insertar Bloque al Plan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BLOCK_ZONE_MAP = {{ (block_zone_map or {})|tojson }};
+const ACTIVE_PRODUCTS = [
+    {% for p in active_products %}
+    { 
+        id: {{ p.id }}, 
+        code: "{{ p.code }}", 
+        name: "{{ p.commercial_name or p.code }}", 
+        unit: "{{ p.unit or 'CC' }}", 
+        dose: {{ p.dose_fumigation or 1.0 }}, 
+        pest: "{{ p.pest or '' }}",
+        ia: "{{ p.active_ingredient or '' }}",
+        ct: "{{ p.toxicological_category or '' }}"
+    },
+    {% endfor %}
+];
+const ROTATION_FORMULAS_MAP = {{ (rotation_formulas_map or {})|tojson }};
+const ROUND_CROP_PRODUCTS_MAP = {{ (round_crop_products_map or {})|tojson }};
+const CROP_STATUS_MAP = {{ (crop_status_map or {})|tojson }};
+
+// Map of calibrated segments per round
+const ROUND_SEGMENTS_MAP = {
+    {% for r_item in rounds_calculated %}
+    "{{ r_item.round.id }}": [
+        {% for s in r_item.calc.segments %}
+        {
+            uid: "seg_{{ loop.index }}_{{ r_item.round.id }}_{{ s.block_name|replace(' ', '_') }}",
+            zone: "{{ s.zone or '' }}",
+            block_name: "{{ s.block_name }}",
+            suffix: "{{ s.suffix or 'A' }}",
+            crop_name: "{{ s.crop_name }}",
+            variety: "{{ s.variety or s.crop_name }}",
+            phenological_stage: "{{ s.phenological_stage or 'VEGETATIVO' }}",
+            real_age: "{{ s.real_age|format_age }}",
+            bed_start: {{ s.bed_start or 1 }},
+            bed_end: {{ s.bed_end or 1 }},
+            standard_beds: {{ s.standard_beds or 1.0 }},
+            liters_per_bed: {{ s.liters_per_bed or 5.5 }},
+            total_liters: {{ s.total_liters or 0.0 }},
+            spray_lance: "{{ s.spray_lance or 'Lanza de 3 salidas (C35)' }}",
+            products: {{ (s.products_detail or s.products or [])|tojson }},
+            is_custom_mix: {{ "true" if s.is_custom_mix else "false" }},
+            is_additional: {{ "true" if s.is_additional else "false" }},
+            is_modified: {{ "true" if s.is_modified else "false" }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+const DRAFT_SEGMENTS = {{ (draft_segments or [])|tojson if draft_segments else "null" }};
+let currentActiveRoundId = "{{ rounds_calculated[0].round.id if rounds_calculated else '' }}";
+let masterSegments = [];
+if (DRAFT_SEGMENTS && Array.isArray(DRAFT_SEGMENTS) && DRAFT_SEGMENTS.length > 0) {
+    masterSegments = JSON.parse(JSON.stringify(DRAFT_SEGMENTS));
+} else {
+    masterSegments = JSON.parse(JSON.stringify(ROUND_SEGMENTS_MAP[currentActiveRoundId] || []));
+}
+
+// Ensure unique uids and required fields
+let uidCounter = 1000;
+masterSegments.forEach(s => {
+    if (!s.uid) {
+        s.uid = 'seg_' + (++uidCounter) + '_' + (s.block_name || '').replace(/\s+/g, '_');
+    }
+    if (!s.spray_lance) {
+        s.spray_lance = 'Lanza de 3 salidas (C35)';
+    }
+    s.is_modified = !!s.is_modified;
+});
+
+// History stacks for Undo / Redo
+let undoStack = [];
+let redoStack = [];
+
+function pushState() {
+    undoStack.push(JSON.parse(JSON.stringify(masterSegments)));
+    if (undoStack.length > 40) undoStack.shift();
+    redoStack = [];
+    updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+    const btnUndo = document.getElementById('btn-undo-action');
+    const btnRedo = document.getElementById('btn-redo-action');
+    if (btnUndo) btnUndo.disabled = (undoStack.length === 0);
+    if (btnRedo) btnRedo.disabled = (redoStack.length === 0);
+}
+
+function roundToTank20(liters) {
+    const val = parseFloat(liters) || 0;
+    if (val <= 0) return 0;
+    const rem = val % 20;
+    const base = Math.floor(val / 20) * 20;
+    // Regla de aproximación a múltiplos de 20: si el residuo supera 10 (ej. 111) sube a 120; si es <= 10 (ej. 107 o 110) se queda en 100
+    return rem > 10 ? base + 20 : (base === 0 ? 20 : base);
+}
+
+function normalizeCropName(name) {
+    if (!name) return '';
+    let n = name.toString().trim().toUpperCase();
+    n = n.replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I').replace(/Ó/g, 'O').replace(/Ú/g, 'U');
+    return n;
+}
+
+function cleanBlockName(name, suffix) {
+    if (!name) return '';
+    return String(name).trim();
+}
+
+function getDefaultFormula(cropName, stage) {
+    const cropK = normalizeCropName(cropName);
+    const stageK = (stage || 'VEGETATIVO').toString().trim().toUpperCase();
+    const key = `${cropK}__${stageK}`;
+    return ROTATION_FORMULAS_MAP[key] || [];
+}
+
+let activeFocusedBlock = null;
+let currentEditingSeg = null;
+let currentBlockProducts = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Restore active tab
+    const savedTab = sessionStorage.getItem('active_workflow_tab');
+    if (savedTab) {
+        const triggerEl = document.getElementById(savedTab);
+        if (triggerEl) {
+            const tab = new bootstrap.Tab(triggerEl);
+            tab.show();
+        }
+        sessionStorage.removeItem('active_workflow_tab');
+    } else if (window.location.hash) {
+        const hashTab = document.querySelector(`[data-bs-target="${window.location.hash}"]`) || document.getElementById(window.location.hash.replace('#', ''));
+        if (hashTab) {
+            const tab = new bootstrap.Tab(hashTab);
+            tab.show();
+        }
+    }
+
+    document.querySelectorAll('.step-nav-tab').forEach(t => {
+        t.addEventListener('shown.bs.tab', function(e) {
+            sessionStorage.setItem('last_active_tab', e.target.id);
+        });
+    });
+
+    // ==================== VARIETY NAVIGATION & PROGRESS ====================
+    const cropSelect = document.getElementById('filter-cuadre-crop');
+    const prevVarBtn = document.getElementById('btn-prev-variety');
+    const nextVarBtn = document.getElementById('btn-next-variety');
+    const varProgressBadge = document.getElementById('variety-progress-badge');
+
+    function updateVarietyProgress() {
+        if (!cropSelect || !varProgressBadge) return;
+        const totalOpts = cropSelect.options.length;
+        const currentIdx = cropSelect.selectedIndex;
+        const currentVal = cropSelect.value;
+        if (currentVal === 'ALL') {
+            varProgressBadge.textContent = 'Todas (' + totalOpts + ')';
+        } else {
+            varProgressBadge.textContent = `${currentIdx + 1} de ${totalOpts - 1}`;
+        }
+    }
+
+    if (cropSelect) {
+        cropSelect.addEventListener('change', function() {
+            sessionStorage.setItem('fumigacion_filter_crop', this.value);
+            updateVarietyProgress();
+            document.querySelectorAll('.btn-crop-pill').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.crop === this.value);
+            });
+            document.querySelectorAll('.crop-summary-card').forEach(card => {
+                const isMatch = (normalizeCropName(card.dataset.crop) === normalizeCropName(this.value));
+                card.classList.toggle('border-primary', isMatch);
+                card.classList.toggle('bg-primary-subtle', isMatch);
+            });
+            renderCuadrePanels();
+        });
+    }
+
+    function switchActiveRound(newRoundId) {
+        if (!newRoundId || newRoundId === currentActiveRoundId) return;
+        // Save state of current round in map before switching
+        ROUND_SEGMENTS_MAP[currentActiveRoundId] = JSON.parse(JSON.stringify(masterSegments));
+        currentActiveRoundId = newRoundId;
+        
+        // Sync selectors
+        const filterRoundSel = document.getElementById('filter-cuadre-round');
+        if (filterRoundSel && filterRoundSel.value !== newRoundId) filterRoundSel.value = newRoundId;
+        
+        masterSegments = JSON.parse(JSON.stringify(ROUND_SEGMENTS_MAP[newRoundId] || []));
+        undoStack = [];
+        redoStack = [];
+        updateUndoRedoButtons();
+        renderCuadrePanels();
+    }
+
+    const roundFilterSelect = document.getElementById('filter-cuadre-round');
+    if (roundFilterSelect) {
+        roundFilterSelect.addEventListener('change', function() {
+            switchActiveRound(this.value);
+        });
+    }
+
+
+
+    function openCropWorkspace(cropName) {
+        const placeholder = document.getElementById('no-crop-selected-placeholder');
+        const workspace = document.getElementById('crop-workspace-container');
+        if (placeholder) placeholder.style.display = 'none';
+        if (workspace) workspace.style.display = 'block';
+
+        // Ocultar automáticamente las tarjetas superiores para maximizar el espacio de trabajo (Hypericum, Gypsophila, etc.)
+        const cardsWrapper = document.getElementById('crop-summary-wrapper');
+        if (cardsWrapper) cardsWrapper.style.display = 'none';
+        const toggleBtnText = document.getElementById('toggle-crops-deck-text');
+        if (toggleBtnText) toggleBtnText.textContent = 'Cambiar Cultivo';
+
+        const cropBadge = document.getElementById('workspace-active-crop-name');
+        if (cropBadge) cropBadge.textContent = cropName.toUpperCase();
+
+        if (cropSelect) {
+            // Try exact match first, then case-insensitive match
+            let matched = false;
+            for (let i = 0; i < cropSelect.options.length; i++) {
+                if (cropSelect.options[i].value.toUpperCase().trim() === cropName.toUpperCase().trim()) {
+                    cropSelect.selectedIndex = i;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) cropSelect.value = cropName;
+            sessionStorage.setItem('fumigacion_filter_crop', cropSelect.value || cropName);
+            updateVarietyProgress();
+        }
+        document.querySelectorAll('.btn-crop-pill').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.crop === cropName);
+        });
+        document.querySelectorAll('.crop-summary-card').forEach(card => {
+            const isMatch = (normalizeCropName(card.dataset.crop) === normalizeCropName(cropName));
+            card.classList.toggle('border-primary', isMatch);
+            card.classList.toggle('bg-primary-subtle', isMatch);
+        });
+        renderCuadrePanels();
+    }
+
+    function closeCropWorkspace() {
+        const placeholder = document.getElementById('no-crop-selected-placeholder');
+        const workspace = document.getElementById('crop-workspace-container');
+        if (placeholder) placeholder.style.display = 'block';
+        if (workspace) workspace.style.display = 'none';
+        const cardsWrapper = document.getElementById('crop-summary-wrapper');
+        if (cardsWrapper) cardsWrapper.style.display = 'block';
+        document.querySelectorAll('.crop-summary-card').forEach(card => {
+            card.classList.remove('border-primary', 'bg-primary-subtle');
+        });
+        sessionStorage.removeItem('fumigacion_filter_crop');
+    }
+
+    window.toggleCropsDeck = function() {
+        const cardsWrapper = document.getElementById('crop-summary-wrapper');
+        const toggleBtnText = document.getElementById('toggle-crops-deck-text');
+        if (!cardsWrapper) return;
+        if (cardsWrapper.style.display === 'none') {
+            cardsWrapper.style.display = 'block';
+            if (toggleBtnText) toggleBtnText.textContent = 'Ocultar Tarjetas';
+            cardsWrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            cardsWrapper.style.display = 'none';
+            if (toggleBtnText) toggleBtnText.textContent = 'Cambiar Cultivo';
+        }
+    };
+
+    document.getElementById('btn-close-crop-workspace')?.addEventListener('click', closeCropWorkspace);
+
+    // Crop Pills Click
+    document.querySelectorAll('.btn-crop-pill').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const crop = this.dataset.crop;
+            if (!crop) return;
+            openCropWorkspace(crop);
+        });
+    });
+
+    // Crop Summary Deck Cards Click
+    document.querySelectorAll('.crop-summary-card, .btn-card-calibrate').forEach(el => {
+        el.addEventListener('click', function(e) {
+            const crop = this.dataset.crop;
+            if (!crop) return;
+            openCropWorkspace(crop);
+        });
+    });
+
+    if (prevVarBtn && cropSelect) {
+        prevVarBtn.addEventListener('click', function() {
+            if (cropSelect.selectedIndex > 0) {
+                cropSelect.selectedIndex--;
+                cropSelect.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    if (nextVarBtn && cropSelect) {
+        nextVarBtn.addEventListener('click', function() {
+            if (cropSelect.selectedIndex < cropSelect.options.length - 1) {
+                cropSelect.selectedIndex++;
+                cropSelect.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    // ==================== GLOBAL SEARCH & FILTERS ====================
+    const searchInput = document.getElementById('filter-cuadre-block-search');
+    const clearSearchBtn = document.getElementById('btn-clear-search');
+    const filterCoincidentCb = document.getElementById('cb-filter-coincident');
+    const filterDuplicatesCb = document.getElementById('cb-filter-duplicates');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            renderCuadrePanels();
+            const q = this.value.trim().toUpperCase();
+            if (q) {
+                highlightAndFocusBlock(q);
+            }
+        });
+    }
+
+    if (clearSearchBtn && searchInput) {
+        clearSearchBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            renderCuadrePanels();
+        });
+    }
+
+    if (filterCoincidentCb) filterCoincidentCb.addEventListener('change', renderCuadrePanels);
+    if (filterDuplicatesCb) filterDuplicatesCb.addEventListener('change', renderCuadrePanels);
+    const filterModifiedCb = document.getElementById('cb-filter-modified');
+    if (filterModifiedCb) filterModifiedCb.addEventListener('change', renderCuadrePanels);
+
+    // ==================== UNDO / REDO LISTENERS ====================
+    document.getElementById('btn-undo-action')?.addEventListener('click', function() {
+        if (undoStack.length > 0) {
+            redoStack.push(JSON.parse(JSON.stringify(masterSegments)));
+            masterSegments = undoStack.pop();
+            updateUndoRedoButtons();
+            renderCuadrePanels();
+        }
+    });
+
+    document.getElementById('btn-redo-action')?.addEventListener('click', function() {
+        if (redoStack.length > 0) {
+            undoStack.push(JSON.parse(JSON.stringify(masterSegments)));
+            masterSegments = redoStack.pop();
+            updateUndoRedoButtons();
+            renderCuadrePanels();
+        }
+    });
+
+    // Keyboard Shortcuts (Ctrl+Z / Ctrl+Y)
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            if (e.shiftKey) {
+                document.getElementById('btn-redo-action')?.click();
+            } else {
+                document.getElementById('btn-undo-action')?.click();
+            }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+            document.getElementById('btn-redo-action')?.click();
+        }
+    });
+
+    // ==================== RENDER CUADRE PANELS (VEGETATIVO & PRODUCTIVO) ====================
+    function renderCuadrePanels() {
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const searchQ = (searchInput ? searchInput.value : '').trim().toUpperCase().replace(/\s+/g, '');
+        const onlyCoincident = filterCoincidentCb ? filterCoincidentCb.checked : false;
+        const onlyDuplicates = filterDuplicatesCb ? filterDuplicatesCb.checked : false;
+        const filterModifiedCb = document.getElementById('cb-filter-modified');
+        const onlyModified = filterModifiedCb ? filterModifiedCb.checked : false;
+
+        const tbodyVeg = document.getElementById('tbody-veg-cuadre');
+        const tbodyProd = document.getElementById('tbody-prod-cuadre');
+
+        tbodyVeg.innerHTML = '';
+        tbodyProd.innerHTML = '';
+
+        let vegCount = 0, vegBeds = 0, vegLiters = 0;
+        let prodCount = 0, prodBeds = 0, prodLiters = 0;
+        let modifiedInCurrentCropCount = 0;
+
+        // Group segments by block to calculate occurrences and differences
+        const blockSummary = {};
+        const vegBlockCounts = {};
+        const prodBlockCounts = {};
+
+        masterSegments.forEach(s => {
+            const bKey = cleanBlockName(s.block_name, s.suffix).trim().toUpperCase();
+            const sCrop = normalizeCropName(s.crop_name);
+            const matchCrop = (selectedCrop === 'ALL' || selectedCrop === 'ALL' || sCrop === selectedCrop || sCrop.startsWith(selectedCrop) || selectedCrop.startsWith(sCrop));
+            if (matchCrop && s.is_modified) {
+                modifiedInCurrentCropCount++;
+            }
+
+            if (!blockSummary[bKey]) {
+                blockSummary[bKey] = { count: 0, veg: 0, prod: 0, crops: new Set() };
+            }
+            blockSummary[bKey].count++;
+            if (s.phenological_stage === 'VEGETATIVO') {
+                blockSummary[bKey].veg++;
+                vegBlockCounts[bKey] = (vegBlockCounts[bKey] || 0) + 1;
+            }
+            if (s.phenological_stage === 'PRODUCTIVO') {
+                blockSummary[bKey].prod++;
+                prodBlockCounts[bKey] = (prodBlockCounts[bKey] || 0) + 1;
+            }
+            blockSummary[bKey].crops.add(s.crop_name);
+        });
+
+        const countModBadge = document.getElementById('count-modified-badge');
+        if (countModBadge) countModBadge.textContent = modifiedInCurrentCropCount;
+
+        // Filter and sort master segments
+        const vegSegments = [];
+        const prodSegments = [];
+
+        masterSegments.forEach(s => {
+            const sCrop = normalizeCropName(s.crop_name);
+            const bKey = cleanBlockName(s.block_name, s.suffix).trim().toUpperCase();
+            const sBlock = bKey.replace(/\s+/g, '');
+            const bInfo = blockSummary[bKey] || { veg: 0, prod: 0, count: 0 };
+            const isDuplicated = (s.phenological_stage === 'VEGETATIVO' && vegBlockCounts[bKey] > 1) || (s.phenological_stage === 'PRODUCTIVO' && prodBlockCounts[bKey] > 1);
+
+            const matchCrop = (selectedCrop === 'ALL' || selectedCrop === 'ALL' || sCrop === selectedCrop || sCrop.startsWith(selectedCrop) || selectedCrop.startsWith(sCrop));
+            const matchSearch = (!searchQ || sBlock.includes(searchQ));
+            const matchCoincident = (!onlyCoincident || (bInfo.veg > 0 && bInfo.prod > 0));
+            const matchDuplicates = (!onlyDuplicates || isDuplicated);
+            const matchModified = (!onlyModified || s.is_modified);
+
+            if (matchCrop && matchSearch && matchCoincident && matchDuplicates && matchModified) {
+                if (s.phenological_stage === 'VEGETATIVO') {
+                    vegSegments.push({ seg: s, isDuplicated: isDuplicated });
+                } else {
+                    prodSegments.push({ seg: s, isDuplicated: isDuplicated });
+                }
+            }
+        });
+
+        // Retain exact user-defined sequence from masterSegments (e.g. custom Drag & Drop ordering)
+
+        // Render Vegetativo Rows
+        vegSegments.forEach(item => {
+            const s = item.seg;
+            vegCount++;
+            vegBeds += parseFloat(s.standard_beds || 0);
+            vegLiters += parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0);
+            tbodyVeg.appendChild(createSegmentRowElement(s, 'VEGETATIVO', blockSummary, item.isDuplicated));
+        });
+
+        // Render Productivo Rows
+        prodSegments.forEach(item => {
+            const s = item.seg;
+            prodCount++;
+            prodBeds += parseFloat(s.standard_beds || 0);
+            prodLiters += parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0);
+            tbodyProd.appendChild(createSegmentRowElement(s, 'PRODUCTIVO', blockSummary, item.isDuplicated));
+        });
+
+        // Update Panel Summaries
+        document.getElementById('veg-panel-count').textContent = `${vegCount} registros`;
+        document.getElementById('veg-panel-beds').textContent = vegBeds.toFixed(2);
+        document.getElementById('veg-panel-liters').textContent = vegLiters.toFixed(1) + ' L';
+
+        document.getElementById('prod-panel-count').textContent = `${prodCount} registros`;
+        document.getElementById('prod-panel-beds').textContent = prodBeds.toFixed(2);
+        document.getElementById('prod-panel-liters').textContent = prodLiters.toFixed(1) + ' L';
+
+        document.querySelectorAll('.select-all-checkbox').forEach(cb => { cb.checked = false; });
+        updateBulkActionBars();
+        updateCropCardsAndPillsStatus();
+        validateMasterSegments();
+    }
+
+    // ==================== MULTI-SELECT & BULK ACTIONS ====================
+    function updateBulkActionBars() {
+        const vegChecked = document.querySelectorAll('#tbody-veg-cuadre .row-select-checkbox:checked');
+        const prodChecked = document.querySelectorAll('#tbody-prod-cuadre .row-select-checkbox:checked');
+
+        const bulkVeg = document.getElementById('bulk-actions-veg');
+        const bulkProd = document.getElementById('bulk-actions-prod');
+        const countVeg = document.getElementById('bulk-count-veg');
+        const countMoveVeg = document.getElementById('bulk-move-count-veg');
+        const countProd = document.getElementById('bulk-count-prod');
+        const countMoveProd = document.getElementById('bulk-move-count-prod');
+
+        if (bulkVeg) {
+            if (vegChecked.length > 0) {
+                bulkVeg.style.setProperty('display', 'flex', 'important');
+                if (countVeg) countVeg.textContent = vegChecked.length;
+                if (countMoveVeg) countMoveVeg.textContent = vegChecked.length;
+            } else {
+                bulkVeg.style.setProperty('display', 'none', 'important');
+            }
+        }
+
+        if (bulkProd) {
+            if (prodChecked.length > 0) {
+                bulkProd.style.setProperty('display', 'flex', 'important');
+                if (countProd) countProd.textContent = prodChecked.length;
+                if (countMoveProd) countMoveProd.textContent = prodChecked.length;
+            } else {
+                bulkProd.style.setProperty('display', 'none', 'important');
+            }
+        }
+    }
+
+    document.querySelectorAll('.select-all-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const stage = this.dataset.stage;
+            const tbody = (stage === 'VEGETATIVO') ? document.getElementById('tbody-veg-cuadre') : document.getElementById('tbody-prod-cuadre');
+            if (tbody) {
+                tbody.querySelectorAll('.row-select-checkbox').forEach(rowCb => {
+                    rowCb.checked = cb.checked;
+                });
+            }
+            updateBulkActionBars();
+        });
+    });
+
+    document.querySelectorAll('.btn-bulk-delete').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const stage = this.dataset.stage;
+            const tbody = (stage === 'VEGETATIVO') ? document.getElementById('tbody-veg-cuadre') : document.getElementById('tbody-prod-cuadre');
+            if (!tbody) return;
+            const checkedBoxes = tbody.querySelectorAll('.row-select-checkbox:checked');
+            if (checkedBoxes.length === 0) return;
+
+            const uidsToDelete = new Set(Array.from(checkedBoxes).map(c => c.dataset.uid));
+            pushState();
+            masterSegments = masterSegments.filter(x => !uidsToDelete.has(x.uid));
+            renderCuadrePanels();
+        });
+    });
+
+    document.querySelectorAll('.btn-bulk-move').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const stage = this.dataset.stage;
+            const targetStage = this.dataset.target;
+            const tbody = (stage === 'VEGETATIVO') ? document.getElementById('tbody-veg-cuadre') : document.getElementById('tbody-prod-cuadre');
+            if (!tbody) return;
+            const checkedBoxes = tbody.querySelectorAll('.row-select-checkbox:checked');
+            if (checkedBoxes.length === 0) return;
+
+            const uidsToMove = new Set(Array.from(checkedBoxes).map(c => c.dataset.uid));
+            pushState();
+            masterSegments.forEach(x => {
+                if (uidsToMove.has(x.uid)) {
+                    x.phenological_stage = targetStage;
+                    x.is_modified = true;
+                }
+            });
+            renderCuadrePanels();
+        });
+    });
+
+    function updateCropCardsAndPillsStatus() {
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+
+        const cropTotals = {};
+        masterSegments.forEach(s => {
+            const cNorm = normalizeCropName(s.crop_name);
+            if (!cropTotals[cNorm]) {
+                cropTotals[cNorm] = { blocks: new Set(), stdBeds: 0, liters: 0, isModified: false };
+            }
+            if (s.block_name) cropTotals[cNorm].blocks.add((s.block_name || '').trim().toUpperCase());
+            const std = parseFloat(s.standard_beds) || 0;
+            const lit = parseFloat(s.total_liters) || roundToTank20(std * (parseFloat(s.liters_per_bed) || 5.5));
+            cropTotals[cNorm].stdBeds += std;
+            cropTotals[cNorm].liters += lit;
+            if (s.is_modified) cropTotals[cNorm].isModified = true;
+        });
+
+        // Update summary deck cards
+        document.querySelectorAll('.crop-summary-card').forEach(card => {
+            const crop = card.dataset.crop;
+            if (!crop) return;
+            const cNorm = normalizeCropName(crop);
+            const data = cropTotals[cNorm] || { blocks: new Set(), stdBeds: 0, liters: 0, isModified: false };
+
+            const blkEl = card.querySelector('.card-crop-blocks');
+            if (blkEl) blkEl.textContent = `${data.blocks.size} blk`;
+
+            const bedEl = card.querySelector('.card-crop-beds');
+            if (bedEl) bedEl.textContent = data.stdBeds.toFixed(2);
+
+            const litEl = card.querySelector('.card-crop-liters');
+            if (litEl) litEl.textContent = data.liters.toFixed(0) + ' L';
+
+            const cStatus = (typeof CROP_STATUS_MAP !== 'undefined' && CROP_STATUS_MAP[crop]) ? CROP_STATUS_MAP[crop] : null;
+            const hasAssigned = cStatus && cStatus.assigned_rounds && cStatus.assigned_rounds.length > 0;
+
+            const statusEl = card.querySelector('.pill-crop-status');
+            if (statusEl) {
+                if (hasAssigned) {
+                    const rNames = cStatus.assigned_rounds.map(r => r.round_name).join(', ');
+                    statusEl.className = 'badge bg-success text-white border pill-crop-status';
+                    statusEl.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>Asignado (${cStatus.assigned_rounds.length})`;
+                    statusEl.title = `Asignado a: ${rNames}`;
+                } else if (data.isModified || (cStatus && cStatus.is_draft_modified)) {
+                    statusEl.className = 'badge bg-warning-subtle text-dark border border-warning pill-crop-status';
+                    statusEl.innerHTML = '<i class="fa-solid fa-pen-to-square me-1"></i>Borrador Editado';
+                    statusEl.title = 'Tiene ajustes de camas guardados en borrador';
+                } else {
+                    statusEl.className = 'badge bg-light text-muted border pill-crop-status';
+                    statusEl.innerHTML = 'Censo Base';
+                    statusEl.title = 'Camas y bloques tomados directamente del censo';
+                }
+            }
+
+            const isCurrent = (selectedCrop === cNorm || selectedCrop === crop.toUpperCase());
+            card.classList.toggle('border-primary', isCurrent);
+            card.classList.toggle('bg-primary-subtle', isCurrent);
+        });
+
+        // Update pills
+        document.querySelectorAll('.btn-crop-pill').forEach(btn => {
+            const crop = btn.dataset.crop;
+            if (!crop) return;
+            const cNorm = normalizeCropName(crop);
+            const data = cropTotals[cNorm] || { isModified: false };
+            const cStatus = (typeof CROP_STATUS_MAP !== 'undefined' && CROP_STATUS_MAP[crop]) ? CROP_STATUS_MAP[crop] : null;
+            const hasAssigned = cStatus && cStatus.assigned_rounds && cStatus.assigned_rounds.length > 0;
+
+            const statusEl = btn.querySelector('.pill-crop-status');
+            if (statusEl) {
+                if (hasAssigned) {
+                    statusEl.className = 'badge bg-success text-white border ms-1 pill-crop-status';
+                    statusEl.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>Asignado';
+                } else if (data.isModified || (cStatus && cStatus.is_draft_modified)) {
+                    statusEl.className = 'badge bg-warning-subtle text-dark border border-warning ms-1 pill-crop-status';
+                    statusEl.innerHTML = '<i class="fa-solid fa-pen-to-square me-1"></i>Modif';
+                } else {
+                    statusEl.className = 'badge bg-light text-muted border ms-1 pill-crop-status';
+                    statusEl.innerHTML = 'Censo';
+                }
+            }
+        });
+    }
+
+    function updatePanelSummaries() {
+        let vegCount = 0, vegBeds = 0, vegLiters = 0;
+        let prodCount = 0, prodBeds = 0, prodLiters = 0;
+
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+
+        masterSegments.forEach(s => {
+            const sCrop = normalizeCropName(s.crop_name);
+            const matchCrop = (selectedCrop === 'ALL' || selectedCrop === 'ALL' || sCrop === selectedCrop || sCrop.startsWith(selectedCrop) || selectedCrop.startsWith(sCrop));
+            if (matchCrop) {
+                const std = parseFloat(s.standard_beds) || 0;
+                const lit = parseFloat(s.total_liters) || roundToTank20(std * (parseFloat(s.liters_per_bed) || 5.5));
+                if (s.phenological_stage === 'VEGETATIVO') {
+                    vegCount++;
+                    vegBeds += std;
+                    vegLiters += lit;
+                } else {
+                    prodCount++;
+                    prodBeds += std;
+                    prodLiters += lit;
+                }
+            }
+        });
+
+        document.getElementById('veg-panel-count').textContent = `${vegCount} registros`;
+        document.getElementById('veg-panel-beds').textContent = vegBeds.toFixed(2);
+        document.getElementById('veg-panel-liters').textContent = vegLiters.toFixed(1) + ' L';
+
+        document.getElementById('prod-panel-count').textContent = `${prodCount} registros`;
+        document.getElementById('prod-panel-beds').textContent = prodBeds.toFixed(2);
+        document.getElementById('prod-panel-liters').textContent = prodLiters.toFixed(1) + ' L';
+
+        updateCropCardsAndPillsStatus();
+    }
+
+    function markSegmentModified(s, tr) {
+        s.is_modified = true;
+        tr.classList.add('row-modified');
+        const blockBadge = tr.querySelector('.badge-block-name');
+        if (blockBadge && !blockBadge.querySelector('.mod-check')) {
+            const span = document.createElement('span');
+            span.className = 'text-success ms-1 mod-check';
+            span.title = 'Bloque modificado manualmente por el agrónomo';
+            span.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+            blockBadge.appendChild(span);
+        }
+        updatePanelSummaries();
+    }
+
+    function createSegmentRowElement(s, panelType, blockSummary, isDuplicated) {
+        const tr = document.createElement('tr');
+        let rowClasses = `cuadre-row ${panelType === 'VEGETATIVO' ? 'row-state-veg' : 'row-state-prod'}`;
+        if (s.is_modified) rowClasses += ' row-modified';
+        if (isDuplicated) rowClasses += ' row-duplicated';
+        tr.className = rowClasses;
+
+        const cleanBlk = cleanBlockName(s.block_name, s.suffix);
+        tr.id = `row-${s.uid}`;
+        tr.dataset.uid = s.uid;
+        tr.dataset.block = cleanBlk;
+        tr.dataset.crop = s.crop_name;
+        tr.dataset.zone = s.zone;
+        tr.dataset.stage = panelType;
+        tr.draggable = true;
+
+        const bKey = cleanBlk.toUpperCase();
+        const bInfo = blockSummary[bKey];
+        if (bInfo && bInfo.veg > 0 && bInfo.prod > 0) {
+            tr.classList.add('row-has-difference');
+        }
+
+        const isCustomMix = s.is_custom_mix;
+        const totalLiters = parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0).toFixed(1);
+
+        const dupBadge = isDuplicated ? '<i class="fa-solid fa-triangle-exclamation text-danger ms-1" title="Bloque dividido / fraccionado en múltiples pedazos" style="font-size: 0.72rem;"></i>' : '';
+        const modCheck = s.is_modified ? '<span class="text-success ms-1 mod-check" title="Bloque modificado manualmente por el agrónomo"><i class="fa-solid fa-pen-to-square"></i></span>' : '';
+
+        tr.innerHTML = `
+            <td class="text-center align-middle drag-handle-cell" style="width: 18px; cursor: grab;" title="Arrastrar y soltar para reordenar">
+                <i class="fa-solid fa-grip-vertical text-muted drag-handle-icon" style="font-size: 0.75rem;"></i>
+            </td>
+            <td class="text-center" style="width: 24px;">
+                <input type="checkbox" class="form-check-input row-select-checkbox" data-uid="${s.uid}" data-stage="${panelType}">
+            </td>
+            <td class="text-center fw-bold font-monospace text-dark cursor-pointer" style="width: 72px;" title="Bloque ${cleanBlk}">
+                <span class="badge ${panelType === 'VEGETATIVO' ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-warning-subtle text-dark border border-warning-subtle'} font-monospace badge-block-name py-1 px-2" style="font-size: 0.85rem; letter-spacing: 0.3px;">
+                    ${cleanBlk}${modCheck}${dupBadge}
+                </span>
+            </td>
+            <td class="text-center fw-bold" style="font-size: 0.72rem; width: 26px;" title="Segmento ${s.suffix || 'A'}">
+                <span class="badge bg-light text-secondary border px-1">${s.suffix || 'A'}</span>
+            </td>
+            <td class="text-truncate" style="width: 88px; max-width: 88px; font-weight: 500;" title="${s.variety || s.crop_name}">${s.variety || s.crop_name}</td>
+            <td class="text-center text-nowrap" style="width: 96px;">
+                <div class="d-flex align-items-center justify-content-center gap-1">
+                    <input type="number" min="1" class="form-control form-control-sm text-center row-bed-start font-monospace" style="width: 42px;" value="${s.bed_start || 1}" title="Cama inicio">
+                    <span class="text-muted small">-</span>
+                    <input type="number" min="1" class="form-control form-control-sm text-center row-bed-end font-monospace" style="width: 42px;" value="${s.bed_end || 1}" title="Cama fin">
+                </div>
+            </td>
+            <td class="text-end" style="width: 62px;">
+                <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-end fw-bold row-std-beds font-monospace" style="width: 60px; padding: 2px 4px;" value="${parseFloat(s.standard_beds || 1).toFixed(2)}" title="Camas estándar">
+            </td>
+            <td class="text-center" style="width: 38px;">
+                <input type="text" class="form-control form-control-sm text-center row-age font-monospace" style="width: 36px;" value="${s.real_age || ''}" placeholder="ej. 6" title="Edad fenológica">
+            </td>
+            <td class="text-end" style="width: 42px;">
+                <input type="number" step="0.5" min="0.1" class="form-control form-control-sm text-end row-lit-bed font-monospace" style="width: 40px;" value="${parseFloat(s.liters_per_bed || 5.5).toFixed(1)}" title="Litros por cama">
+            </td>
+            <td class="text-center" style="width: 74px;">
+                <select class="form-select form-select-sm select-row-lance" style="width: 72px;" title="${s.spray_lance}">
+                    <option value="Lanza de 3 salidas (C35)" ${s.spray_lance === 'Lanza de 3 salidas (C35)' ? 'selected' : ''}>3 sal (C35)</option>
+                    <option value="Aguilón Solidago" ${s.spray_lance === 'Aguilón Solidago' ? 'selected' : ''}>Ag. Solidago</option>
+                    <option value="Aguilón 5 salidas (2D35-3C35)" ${s.spray_lance === 'Aguilón 5 salidas (2D35-3C35)' ? 'selected' : ''}>Ag. 5 sal</option>
+                    <option value="Aguilón 4 salidas (1D35-3C35)" ${s.spray_lance === 'Aguilón 4 salidas (1D35-3C35)' ? 'selected' : ''}>Ag. 4 sal</option>
+                    <option value="Lanza Veronica" ${s.spray_lance === 'Lanza Veronica' ? 'selected' : ''}>Lanza Veronica</option>
+                </select>
+            </td>
+            <td class="text-end text-nowrap" style="width: 88px;">
+                <button type="button" class="btn btn-outline-success btn-sm btn-row-duplicate" title="Dividir / Agregar otra fracción a este bloque">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <button type="button" class="btn ${panelType === 'VEGETATIVO' ? 'btn-outline-warning text-dark' : 'btn-outline-primary'} btn-sm btn-row-toggle-stage" title="${panelType === 'VEGETATIVO' ? '→ Pasar bloque a Productivo' : '← Pasar bloque a Vegetativo'}">
+                    ${panelType === 'VEGETATIVO' ? '→' : '←'}
+                </button>
+                <button type="button" class="btn btn-outline-info btn-sm btn-row-mix" title="Editar mezcla de químicos para este bloque">
+                    <i class="fa-solid fa-flask"></i>${isCustomMix ? '<span class="text-warning small">*</span>' : ''}
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-row-delete" title="Eliminar este segmento / bloque">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </td>
+        `;
+
+        // Checkbox listener
+        tr.querySelector('.row-select-checkbox')?.addEventListener('change', function() {
+            updateBulkActionBars();
+        });
+
+        // Row Click: highlight matching block in both panels and open comparison card
+        tr.addEventListener('click', function(e) {
+            if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) {
+                return; // Ignore clicks inside interactive inputs
+            }
+            highlightAndFocusBlock(cleanBlk);
+        });
+
+        // Inline Bed Range Change (bed_start / bed_end)
+        const onBedRangeChange = function() {
+            pushState();
+            const startVal = parseInt(tr.querySelector('.row-bed-start').value) || 1;
+            let endVal = parseInt(tr.querySelector('.row-bed-end').value) || startVal;
+            if (endVal < startVal) {
+                endVal = startVal;
+                tr.querySelector('.row-bed-end').value = endVal;
+            }
+            s.bed_start = startVal;
+            s.bed_end = endVal;
+
+            // DO NOT modify standard_beds or total liters on bed range change.
+            // Standard beds is independent (e.g. 31.52) and controlled directly by the user.
+            markSegmentModified(s, tr);
+        };
+
+        tr.querySelector('.row-bed-start')?.addEventListener('change', onBedRangeChange);
+        tr.querySelector('.row-bed-end')?.addEventListener('change', onBedRangeChange);
+
+        // Inline Standard Beds Change
+        tr.querySelector('.row-std-beds')?.addEventListener('change', function() {
+            pushState();
+            const val = parseFloat(this.value) || 1.0;
+            s.standard_beds = val;
+            const litBed = parseFloat(tr.querySelector('.row-lit-bed').value) || (parseFloat(s.liters_per_bed) || 5.5);
+            s.total_liters = val * litBed;
+            const litCell = tr.querySelector('.row-total-liters-cell');
+            if (litCell) litCell.textContent = s.total_liters.toFixed(1);
+            markSegmentModified(s, tr);
+        });
+
+        // Inline Age Change
+        tr.querySelector('.row-age')?.addEventListener('change', function() {
+            pushState();
+            s.real_age = this.value.trim();
+            markSegmentModified(s, tr);
+        });
+
+        // Inline Liters Per Bed Change
+        tr.querySelector('.row-lit-bed')?.addEventListener('change', function() {
+            pushState();
+            const val = parseFloat(this.value) || 5.5;
+            s.liters_per_bed = val;
+            const stdVal = parseFloat(tr.querySelector('.row-std-beds').value) || (parseFloat(s.standard_beds) || 1.0);
+            s.total_liters = stdVal * val;
+            const litCell = tr.querySelector('.row-total-liters-cell');
+            if (litCell) litCell.textContent = s.total_liters.toFixed(1);
+            markSegmentModified(s, tr);
+        });
+
+        // Change Spray Lance
+        tr.querySelector('.select-row-lance')?.addEventListener('change', function() {
+            pushState();
+            s.spray_lance = this.value;
+            markSegmentModified(s, tr);
+        });
+
+        // Duplicate / Add another segment fraction for this block
+        tr.querySelector('.btn-row-duplicate')?.addEventListener('click', function() {
+            pushState();
+            const nextStart = (parseInt(s.bed_end) || 1) + 1;
+            const newSeg = {
+                uid: 'seg_' + (++uidCounter),
+                zone: s.zone || '',
+                block_name: s.block_name,
+                suffix: s.suffix || 'A',
+                crop_name: s.crop_name,
+                variety: s.variety || s.crop_name,
+                phenological_stage: s.phenological_stage || 'VEGETATIVO',
+                real_age: s.real_age || '',
+                bed_start: nextStart,
+                bed_end: nextStart + 5,
+                standard_beds: 6,
+                liters_per_bed: s.liters_per_bed || 5.5,
+                total_liters: 6 * (s.liters_per_bed || 5.5),
+                spray_lance: s.spray_lance || 'Lanza de 3 salidas (C35)',
+                products: JSON.parse(JSON.stringify(s.products || [])),
+                is_custom_mix: s.is_custom_mix || false,
+                is_additional: false,
+                is_modified: true
+            };
+            const curIdx = masterSegments.findIndex(x => x.uid === s.uid);
+            if (curIdx >= 0) {
+                masterSegments.splice(curIdx + 1, 0, newSeg);
+            } else {
+                masterSegments.push(newSeg);
+            }
+            renderCuadrePanels();
+            highlightAndFocusBlock(s.block_name);
+        });
+
+        // Toggle Stage (Pasar a Prod / Pasar a Veg)
+        tr.querySelector('.btn-row-toggle-stage')?.addEventListener('click', function() {
+            pushState();
+            s.phenological_stage = (s.phenological_stage === 'VEGETATIVO') ? 'PRODUCTIVO' : 'VEGETATIVO';
+            s.is_modified = true;
+            renderCuadrePanels();
+            highlightAndFocusBlock(s.block_name);
+        });
+
+        // Edit Mix
+        tr.querySelector('.btn-row-mix')?.addEventListener('click', function() {
+            openEditBlockMixModalFromSegment(s);
+        });
+
+        // Instant Delete Segment (No blocking modal, with Undo support)
+        tr.querySelector('.btn-row-delete')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            pushState();
+            masterSegments = masterSegments.filter(x => x.uid !== s.uid);
+            renderCuadrePanels();
+        });
+
+        return tr;
+    }
+
+    // ==================== CROSS-HIGHLIGHTING & VISUAL COMPARISON CARD ====================
+    function highlightAndFocusBlock(blockName) {
+        if (!blockName) return;
+        activeFocusedBlock = cleanBlockName(blockName).trim().toUpperCase();
+
+        // Clear previous highlights
+        document.querySelectorAll('.cuadre-row').forEach(r => {
+            r.classList.remove('row-highlight-matching', 'row-active-focus');
+        });
+
+        // Find matching segments across both panels
+        const matchingSegs = masterSegments.filter(s => cleanBlockName(s.block_name, s.suffix).trim().toUpperCase() === activeFocusedBlock);
+        if (matchingSegs.length === 0) return;
+
+        // Highlight matching rows
+        document.querySelectorAll(`.cuadre-row[data-block="${activeFocusedBlock}"]`).forEach(r => {
+            r.classList.add('row-highlight-matching');
+        });
+
+        // Update Visual Comparison Card
+        const compCard = document.getElementById('visual-comparison-card');
+        const compTitle = document.getElementById('comp-block-name');
+        const compCrop = document.getElementById('comp-crop-name');
+        const compZone = document.getElementById('comp-zone-name');
+        const compVegBeds = document.getElementById('comp-veg-beds');
+        const compVegInfo = document.getElementById('comp-veg-info');
+        const compProdBeds = document.getElementById('comp-prod-beds');
+        const compProdInfo = document.getElementById('comp-prod-info');
+
+        const first = matchingSegs[0];
+        compTitle.textContent = cleanBlockName(first.block_name, first.suffix);
+        compCrop.textContent = first.variety || first.crop_name;
+        compZone.textContent = `(${first.zone || 'SIN ZONA'})`;
+
+        const vegSegs = matchingSegs.filter(s => s.phenological_stage === 'VEGETATIVO');
+        const prodSegs = matchingSegs.filter(s => s.phenological_stage === 'PRODUCTIVO');
+
+        if (vegSegs.length > 0) {
+            const ranges = vegSegs.map(s => `${s.bed_start}-${s.bed_end}`).join(', ');
+            const totBeds = vegSegs.reduce((acc, s) => acc + parseFloat(s.standard_beds || 0), 0);
+            const totLit = vegSegs.reduce((acc, s) => acc + parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0), 0);
+            const ages = [...new Set(vegSegs.map(s => s.real_age))].join(', ');
+            compVegBeds.textContent = `Camas: ${ranges}`;
+            compVegInfo.textContent = `(${totBeds.toFixed(1)} camas | Edad ${ages || '-'} | ${totLit.toFixed(1)} L)`;
+        } else {
+            compVegBeds.textContent = 'Sin camas';
+            compVegInfo.textContent = '(0 camas)';
+        }
+
+        if (prodSegs.length > 0) {
+            const ranges = prodSegs.map(s => `${s.bed_start}-${s.bed_end}`).join(', ');
+            const totBeds = prodSegs.reduce((acc, s) => acc + parseFloat(s.standard_beds || 0), 0);
+            const totLit = prodSegs.reduce((acc, s) => acc + parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0), 0);
+            const ages = [...new Set(prodSegs.map(s => s.real_age))].join(', ');
+            compProdBeds.textContent = `Camas: ${ranges}`;
+            compProdInfo.textContent = `(${totBeds.toFixed(1)} camas | Edad ${ages || '-'} | ${totLit.toFixed(1)} L)`;
+        } else {
+            compProdBeds.textContent = 'Sin camas';
+            compProdInfo.textContent = '(0 camas)';
+        }
+
+        if (compCard) compCard.style.display = 'block';
+    }
+
+    // ==================== VALIDATION CHECKS ====================
+    function validateMasterSegments() {
+        const statusContainer = document.getElementById('cuadre-validation-status');
+        if (!statusContainer) return;
+
+        // Group by block to detect duplicate beds
+        const blockBedsMap = {};
+        let duplicateErrors = [];
+
+        masterSegments.forEach(s => {
+            const bKey = (s.block_name || '').trim().toUpperCase();
+            if (!blockBedsMap[bKey]) blockBedsMap[bKey] = [];
+
+            const start = parseInt(s.bed_start);
+            const end = parseInt(s.bed_end);
+            if (start > end) {
+                duplicateErrors.push(`Bloque ${bKey}: Cama inicio (${start}) mayor que fin (${end}).`);
+            }
+
+            for (let b = start; b <= end; b++) {
+                if (blockBedsMap[bKey].includes(b)) {
+                    duplicateErrors.push(`Bloque ${bKey}: Cama ${b} está duplicada en más de un segmento.`);
+                } else {
+                    blockBedsMap[bKey].push(b);
+                }
+            }
+        });
+
+        if (duplicateErrors.length > 0) {
+            statusContainer.innerHTML = `
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold" title="${duplicateErrors.join('\n')}">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i> ${duplicateErrors.length} alerta(s) de camas duplicadas
+                </span>
+            `;
+        } else {
+            statusContainer.innerHTML = `
+                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    <i class="fa-solid fa-circle-check me-1"></i> Sin camas duplicadas
+                </span>
+            `;
+        }
+    }
+
+    // ==================== MODAL: AJUSTAR Y DIVIDIR BLOQUE ====================
+    let modalBlockKey = null;
+    let modalBlockSegments = [];
+
+    function openAdjustBlockModal(blockName) {
+        modalBlockKey = blockName.trim().toUpperCase();
+        const segs = masterSegments.filter(s => (s.block_name || '').trim().toUpperCase() === modalBlockKey);
+        if (segs.length === 0) return;
+
+        modalBlockSegments = JSON.parse(JSON.stringify(segs));
+
+        const first = segs[0];
+        document.getElementById('m-adj-block-title').textContent = first.block_name;
+        document.getElementById('m-adj-block-subtitle').textContent = `${first.variety || first.crop_name} • ${first.zone || 'ZONA'} • ${modalBlockSegments.length} segmento(s)`;
+
+        renderModalAdjustRows();
+
+        const modal = new bootstrap.Modal(document.getElementById('modalAdjustBlock'));
+        modal.show();
+    }
+
+    function renderModalAdjustRows() {
+        const tbody = document.getElementById('m-adj-tbody');
+        tbody.innerHTML = '';
+
+        let totalConfiguredBeds = 0;
+
+        modalBlockSegments.forEach((s, idx) => {
+            const tr = document.createElement('tr');
+            const stdBeds = parseFloat(s.standard_beds || (s.bed_end - s.bed_start + 1) || 1);
+            const litersBed = parseFloat(s.liters_per_bed || 5.5);
+            const totalLit = parseFloat(s.total_liters || (stdBeds * litersBed)).toFixed(1);
+            totalConfiguredBeds += stdBeds;
+
+            tr.innerHTML = `
+                <td class="text-center py-1">
+                    <input type="number" class="form-control form-control-sm text-center py-0 m-adj-bed-start" data-idx="${idx}" value="${s.bed_start || 1}" min="1" style="width: 55px;">
+                </td>
+                <td class="text-center py-1">
+                    <input type="number" class="form-control form-control-sm text-center py-0 m-adj-bed-end" data-idx="${idx}" value="${s.bed_end || 1}" min="1" style="width: 55px;">
+                </td>
+                <td class="text-center py-1">
+                    <select class="form-select form-select-sm py-0 m-adj-stage" data-idx="${idx}" style="font-weight: 600;">
+                        <option value="VEGETATIVO" ${s.phenological_stage === 'VEGETATIVO' ? 'selected' : ''}>VEGETATIVO</option>
+                        <option value="PRODUCTIVO" ${s.phenological_stage === 'PRODUCTIVO' ? 'selected' : ''}>PRODUCTIVO</option>
+                    </select>
+                </td>
+                <td class="text-center py-1">
+                    <input type="text" class="form-control form-control-sm text-center py-0 m-adj-age" data-idx="${idx}" value="${s.real_age || ''}" placeholder="ej. 6-7" style="width: 70px;">
+                </td>
+                <td class="text-end py-1">
+                    <input type="number" step="0.01" class="form-control form-control-sm text-end fw-bold py-0 m-adj-std-beds" data-idx="${idx}" value="${stdBeds}" style="width: 60px;">
+                </td>
+                <td class="text-end py-1">
+                    <input type="number" step="0.5" class="form-control form-control-sm text-end py-0 m-adj-lit-bed" data-idx="${idx}" value="${litersBed}" style="width: 55px;">
+                </td>
+                <td class="text-end py-1">
+                    <input type="number" step="0.1" class="form-control form-control-sm text-end fw-bold text-success py-0 m-adj-total-liters" data-idx="${idx}" value="${totalLit}" style="width: 65px;">
+                </td>
+                <td class="text-center py-1">
+                    <select class="form-select form-select-sm py-0 m-adj-lance fw-semibold" data-idx="${idx}" style="font-size: 0.72rem;">
+                        <option value="Lanza de 3 salidas (C35)" ${s.spray_lance === 'Lanza de 3 salidas (C35)' ? 'selected' : ''}>Lanza de 3 salidas (C35)</option>
+                        <option value="Aguilón Solidago" ${s.spray_lance === 'Aguilón Solidago' ? 'selected' : ''}>Aguilón Solidago</option>
+                        <option value="Aguilón 5 salidas (2D35-3C35)" ${s.spray_lance === 'Aguilón 5 salidas (2D35-3C35)' ? 'selected' : ''}>Aguilón 5 salidas (2D35-3C35)</option>
+                        <option value="Aguilón 4 salidas (1D35-3C35)" ${s.spray_lance === 'Aguilón 4 salidas (1D35-3C35)' ? 'selected' : ''}>Aguilón 4 salidas (1D35-3C35)</option>
+                        <option value="Lanza Veronica" ${s.spray_lance === 'Lanza Veronica' ? 'selected' : ''}>Lanza Veronica</option>
+                    </select>
+                </td>
+                <td class="text-center py-1">
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 m-adj-btn-del" data-idx="${idx}" title="Quitar segmento">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('m-adj-summary-beds').innerHTML = `Total camas configuradas: <strong>${totalConfiguredBeds.toFixed(2)}</strong>`;
+
+        // Attach listeners inside modal
+        tbody.querySelectorAll('.m-adj-bed-start, .m-adj-bed-end').forEach(inp => {
+            inp.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                const start = parseInt(tbody.querySelector(`.m-adj-bed-start[data-idx="${idx}"]`).value) || 1;
+                const end = parseInt(tbody.querySelector(`.m-adj-bed-end[data-idx="${idx}"]`).value) || start;
+                modalBlockSegments[idx].bed_start = start;
+                modalBlockSegments[idx].bed_end = end;
+                // Keep standard_beds unchanged so user controls it manually
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-stage').forEach(sel => {
+            sel.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments[idx].phenological_stage = this.value;
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-age').forEach(inp => {
+            inp.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments[idx].real_age = this.value;
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-std-beds').forEach(inp => {
+            inp.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments[idx].standard_beds = parseFloat(this.value) || 1.0;
+                modalBlockSegments[idx].total_liters = modalBlockSegments[idx].standard_beds * (parseFloat(modalBlockSegments[idx].liters_per_bed) || 5.5);
+                renderModalAdjustRows();
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-lit-bed').forEach(inp => {
+            inp.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments[idx].liters_per_bed = parseFloat(this.value) || 5.5;
+                modalBlockSegments[idx].total_liters = (parseFloat(modalBlockSegments[idx].standard_beds) || 1.0) * modalBlockSegments[idx].liters_per_bed;
+                renderModalAdjustRows();
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-total-liters').forEach(inp => {
+            inp.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments[idx].total_liters = parseFloat(this.value) || 0.0;
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-lance').forEach(sel => {
+            sel.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments[idx].spray_lance = this.value;
+            });
+        });
+
+        tbody.querySelectorAll('.m-adj-btn-del').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.idx);
+                modalBlockSegments.splice(idx, 1);
+                renderModalAdjustRows();
+            });
+        });
+
+        validateModalAdjustSegments();
+    }
+
+    function validateModalAdjustSegments() {
+        const alertBox = document.getElementById('m-adj-alert-container');
+        alertBox.innerHTML = '';
+        let errors = [];
+        let bedsSeen = [];
+
+        modalBlockSegments.forEach((s, idx) => {
+            const start = parseInt(s.bed_start) || 1;
+            const end = parseInt(s.bed_end) || 1;
+            if (start > end) {
+                errors.push(`Fila ${idx + 1}: Cama inicio (${start}) no puede ser mayor que fin (${end}).`);
+            }
+            for (let b = start; b <= end; b++) {
+                if (bedsSeen.includes(b)) {
+                    errors.push(`Cama ${b} está repetida en múltiples segmentos de este bloque.`);
+                } else {
+                    bedsSeen.push(b);
+                }
+            }
+        });
+
+        if (errors.length > 0) {
+            alertBox.innerHTML = `
+                <div class="alert alert-warning py-1 px-2 small mb-2">
+                    <i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>
+                    <strong>Atención:</strong> ${errors.join(' &bull; ')}
+                </div>
+            `;
+        }
+    }
+
+    // Add Segment Button inside Adjust Modal
+    document.getElementById('btn-m-adj-add-seg')?.addEventListener('click', function() {
+        let nextStart = 1;
+        if (modalBlockSegments.length > 0) {
+            const maxEnd = Math.max(...modalBlockSegments.map(s => parseInt(s.bed_end) || 0));
+            nextStart = maxEnd + 1;
+        }
+        const base = modalBlockSegments[0] || {};
+        modalBlockSegments.push({
+            uid: 'seg_' + (++uidCounter),
+            zone: base.zone || '',
+            block_name: modalBlockKey,
+            suffix: base.suffix || 'A',
+            crop_name: base.crop_name || '',
+            variety: base.variety || base.crop_name || '',
+            phenological_stage: 'PRODUCTIVO',
+            real_age: base.real_age || '',
+            bed_start: nextStart,
+            bed_end: nextStart + 5,
+            standard_beds: 6,
+            liters_per_bed: base.liters_per_bed || 5.5,
+            total_liters: 6 * (base.liters_per_bed || 5.5),
+            spray_lance: base.spray_lance || 'Lanza de 3 salidas (C35)',
+            products: JSON.parse(JSON.stringify(base.products || [])),
+            is_custom_mix: base.is_custom_mix || false,
+            is_additional: false
+        });
+        renderModalAdjustRows();
+    });
+
+    // Save Adjust Modal Changes to Master Segments
+    document.getElementById('btn-m-adj-save')?.addEventListener('click', function() {
+        pushState();
+        // Remove existing segments for this block
+        masterSegments = masterSegments.filter(s => (s.block_name || '').trim().toUpperCase() !== modalBlockKey);
+        // Append updated segments
+        modalBlockSegments.forEach(s => masterSegments.push(s));
+        
+        bootstrap.Modal.getInstance(document.getElementById('modalAdjustBlock')).hide();
+        renderCuadrePanels();
+        highlightAndFocusBlock(modalBlockKey);
+    });
+
+    // ==================== AGROCHEMICAL MIX MODAL ====================
+    function openEditBlockMixModalFromSegment(seg) {
+        currentEditingSeg = seg;
+        document.getElementById('modal-eb-title').textContent = `${seg.block_name} (${seg.suffix || 'A'}) - ${seg.variety || seg.crop_name} [${seg.phenological_stage}]`;
+
+        let products = Array.isArray(seg.products) ? JSON.parse(JSON.stringify(seg.products)) : [];
+        if (products.length === 0) {
+            const defs = getDefaultFormula(seg.crop_name, seg.phenological_stage);
+            products = JSON.parse(JSON.stringify(defs));
+        }
+
+        currentBlockProducts = products;
+        renderModalBlockProducts(seg.crop_name, seg.phenological_stage);
+
+        const modal = new bootstrap.Modal(document.getElementById('modalEditBlockProducts'));
+        modal.show();
+    }
+
+    function renderModalBlockProducts(cropName, stage) {
+        const tbody = document.getElementById('modal-eb-tbody');
+        tbody.innerHTML = '';
+
+        if (currentBlockProducts.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-2">Sin agroquímicos asignados.</td></tr>`;
+            return;
+        }
+
+        currentBlockProducts.forEach((p, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="fw-bold text-primary py-1">${p.product_code || '-'}</td>
+                <td class="py-1">${p.commercial_name || p.product_code || '-'}</td>
+                <td class="py-1">
+                    <input type="number" step="0.001" class="form-control form-control-sm text-end fw-bold py-0 eb-prod-dose" data-idx="${idx}" value="${p.dose || 0}">
+                </td>
+                <td class="text-center font-monospace py-1">${p.dose_unit || 'CC'}</td>
+                <td class="small text-muted py-1 text-truncate" style="max-width: 130px;" title="${p.pest || ''}">${p.pest || '-'}</td>
+                <td class="text-center py-1">
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 eb-prod-del" data-idx="${idx}">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        tbody.querySelectorAll('.eb-prod-dose').forEach(inp => {
+            inp.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                currentBlockProducts[idx].dose = parseFloat(this.value) || 0.0;
+            });
+        });
+
+        tbody.querySelectorAll('.eb-prod-del').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.idx);
+                currentBlockProducts.splice(idx, 1);
+                renderModalBlockProducts(cropName, stage);
+            });
+        });
+    }
+
+    // Add Product in Mix Modal
+    document.getElementById('btn-modal-eb-add-prod')?.addEventListener('click', function() {
+        const sel = document.getElementById('modal-eb-new-product');
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !sel.value) {
+            alert('Selecciona un agroquímico de la lista.');
+            return;
+        }
+
+        const pId = parseInt(sel.value);
+        const pCode = opt.dataset.code;
+        const pName = opt.dataset.name;
+        const pUnit = opt.dataset.unit || 'CC';
+        const doseInput = parseFloat(document.getElementById('modal-eb-new-dose').value);
+        const pDose = isNaN(doseInput) ? (parseFloat(opt.dataset.dose) || 1.0) : doseInput;
+        const pPest = opt.dataset.pest || '';
+        const pIa = opt.dataset.ia || '';
+        const pCt = opt.dataset.ct || '';
+
+        currentBlockProducts.push({
+            product_id: pId,
+            product_code: pCode,
+            commercial_name: pName,
+            dose: pDose,
+            dose_unit: pUnit,
+            pest: pPest,
+            active_ingredient: pIa,
+            toxicological_category: pCt
+        });
+
+        renderModalBlockProducts(currentEditingSeg.crop_name, currentEditingSeg.phenological_stage);
+        sel.value = '';
+        document.getElementById('modal-eb-new-dose').value = '';
+    });
+
+    document.getElementById('modal-eb-new-product')?.addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        if (opt && this.value) {
+            document.getElementById('modal-eb-new-dose').value = opt.dataset.dose || '1.0';
+            document.getElementById('modal-eb-new-unit').textContent = opt.dataset.unit || 'CC';
+        }
+    });
+
+    // Save Mix Changes to Segment
+    document.getElementById('btn-modal-eb-save')?.addEventListener('click', function() {
+        if (!currentEditingSeg) return;
+        pushState();
+        currentEditingSeg.products = JSON.parse(JSON.stringify(currentBlockProducts));
+        currentEditingSeg.is_custom_mix = true;
+        bootstrap.Modal.getInstance(document.getElementById('modalEditBlockProducts')).hide();
+        renderCuadrePanels();
+        highlightAndFocusBlock(currentEditingSeg.block_name);
+    });
+
+    // ==================== MODAL: AGREGAR BLOQUE MANUAL ====================
+    function updateModalSpTotalLiters() {
+        const std = parseFloat(document.getElementById('modal-sp-std-beds').value) || 0;
+        const litBed = parseFloat(document.getElementById('modal-sp-liters-bed').value) || 0;
+        const tot = roundToTank20(std * litBed);
+        const badge = document.getElementById('modal-sp-total-liters-badge');
+        if (badge) badge.textContent = tot.toFixed(0) + ' L';
+    }
+
+    function openAddBlockModal(stage) {
+        const crop = (cropSelect && cropSelect.value !== 'ALL') ? cropSelect.value : 'GYPSOPHILA';
+        const cropSelectModal = document.getElementById('modal-sp-crop');
+        if (cropSelectModal) {
+            for (let i = 0; i < cropSelectModal.options.length; i++) {
+                if (normalizeCropName(cropSelectModal.options[i].value) === normalizeCropName(crop)) {
+                    cropSelectModal.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        const stageSelect = document.getElementById('modal-sp-stage');
+        if (stageSelect && stage) {
+            stageSelect.value = stage;
+        }
+        updateModalSpTotalLiters();
+        const modal = new bootstrap.Modal(document.getElementById('modalSiembraPoda'));
+        modal.show();
+    }
+
+    document.getElementById('btn-add-siembra-poda')?.addEventListener('click', function() {
+        openAddBlockModal('VEGETATIVO');
+    });
+
+    document.querySelectorAll('.btn-add-block-stage').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const st = this.dataset.stage || 'VEGETATIVO';
+            openAddBlockModal(st);
+        });
+    });
+
+    document.getElementById('modal-sp-block')?.addEventListener('input', function() {
+        const val = this.value.trim().toUpperCase();
+        const info = BLOCK_ZONE_MAP[val];
+        const zoneInput = document.getElementById('modal-sp-zone');
+        if (info && zoneInput) {
+            zoneInput.value = info.zone || 'ZONA 1';
+            if (info.crop) {
+                const cropSelectModal = document.getElementById('modal-sp-crop');
+                if (cropSelectModal) {
+                    for (let i = 0; i < cropSelectModal.options.length; i++) {
+                        if (normalizeCropName(cropSelectModal.options[i].value) === normalizeCropName(info.crop)) {
+                            cropSelectModal.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    document.getElementById('modal-sp-bed-start')?.addEventListener('input', updateModalSpTotalLiters);
+    document.getElementById('modal-sp-bed-end')?.addEventListener('input', updateModalSpTotalLiters);
+    document.getElementById('modal-sp-std-beds')?.addEventListener('input', updateModalSpTotalLiters);
+    document.getElementById('modal-sp-liters-bed')?.addEventListener('input', updateModalSpTotalLiters);
+
+    document.getElementById('btn-confirm-add-siembra-poda')?.addEventListener('click', function() {
+        const block = (document.getElementById('modal-sp-block').value || '').trim().toUpperCase();
+        if (!block) {
+            alert('Por favor ingresa o selecciona el nombre del bloque (ej. BL 16).');
+            return;
+        }
+
+        const zone = (document.getElementById('modal-sp-zone').value || '').trim() || 'ZONA 1';
+        const suffix = (document.getElementById('modal-sp-suffix').value || 'A').trim().toUpperCase() || 'A';
+        const crop = document.getElementById('modal-sp-crop').value;
+        const stage = document.getElementById('modal-sp-stage').value;
+        const age = (document.getElementById('modal-sp-age').value || '16').toString().trim();
+        const bedStart = parseInt(document.getElementById('modal-sp-bed-start').value) || 1;
+        const bedEnd = parseInt(document.getElementById('modal-sp-bed-end').value) || bedStart;
+        const stdBeds = parseFloat(document.getElementById('modal-sp-std-beds').value) || (bedEnd - bedStart + 1);
+        const litBed = parseFloat(document.getElementById('modal-sp-liters-bed').value) || 5.5;
+        const lance = document.getElementById('modal-sp-lance')?.value || 'Lanza de 3 salidas (C35)';
+
+        const defaultProds = getDefaultFormula(crop, stage);
+        const totLit = roundToTank20(stdBeds * litBed);
+
+        pushState();
+        masterSegments.unshift({
+            uid: 'seg_' + (++uidCounter),
+            zone: zone,
+            block_name: block,
+            suffix: suffix,
+            crop_name: crop,
+            variety: crop,
+            phenological_stage: stage,
+            real_age: age,
+            bed_start: bedStart,
+            bed_end: bedEnd,
+            standard_beds: stdBeds,
+            liters_per_bed: litBed,
+            total_liters: totLit,
+            spray_lance: lance,
+            products: JSON.parse(JSON.stringify(defaultProds)),
+            is_custom_mix: false,
+            is_additional: true,
+            is_modified: true
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('modalSiembraPoda')).hide();
+        renderCuadrePanels();
+        highlightAndFocusBlock(block);
+    });
+
+    // ==================== SAVE DRAFT & ASSIGN TO ROUND ====================
+    function prepareSegmentsPayload() {
+        return masterSegments.map(s => {
+            const start = parseInt(s.bed_start) || 1;
+            const end = parseInt(s.bed_end) || start;
+            const std = parseFloat(s.standard_beds) || (end - start + 1);
+            const litBed = parseFloat(s.liters_per_bed) || 5.5;
+            const totLit = roundToTank20(std * litBed);
+
+            return {
+                zone: (s.zone || '').trim(),
+                block_name: (s.block_name || '').trim(),
+                suffix: (s.suffix || 'A').trim().toUpperCase(),
+                crop_name: (s.crop_name || '').trim(),
+                variety: (s.variety || s.crop_name || '').trim(),
+                phenological_stage: (s.phenological_stage || 'VEGETATIVO').trim().toUpperCase(),
+                real_age: (s.real_age || '').toString().trim(),
+                bed_start: start,
+                bed_end: end,
+                standard_beds: std,
+                liters_per_bed: litBed,
+                total_liters: totLit,
+                spray_lance: (s.spray_lance || 'Lanza de 3 salidas (C35)').trim(),
+                products: Array.isArray(s.products) ? s.products : [],
+                is_custom_mix: !!s.is_custom_mix,
+                is_additional: !!s.is_additional,
+                is_modified: !!s.is_modified
+            };
+        });
+    }
+
+    // Save Draft
+    document.getElementById('btn-save-draft-review')?.addEventListener('click', function() {
+        const payload = prepareSegmentsPayload();
+        if (payload.length === 0) {
+            alert('No hay segmentos para guardar.');
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+        fetch('{{ url_for("fumigacion.rotacion_guardar_revision", rotation_id=rotation.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                segments: payload,
+                target_round_id: null
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.success) {
+                btn.innerHTML = '<i class="fa-solid fa-circle-check me-1 text-success"></i> Borrador Guardado';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Borrador';
+                }, 2500);
+            } else {
+                alert('Error al guardar borrador: ' + (data.error || 'Desconocido'));
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Borrador';
+            }
+        })
+        .catch(err => {
+            alert('Error de red al guardar borrador: ' + err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Borrador';
+        });
+    });
+
+    // Reset to Census
+    document.getElementById('btn-reset-census')?.addEventListener('click', function() {
+        if (!confirm('¿Restablecer todas las camas y bloques al Censo / Estado de Cultivo oficial de la semana {{ rotation.week }}?\n\nEsto descartará borradores o ajustes temporales y recargará los bloques originales.')) {
+            return;
+        }
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Restableciendo...';
+
+        fetch('{{ url_for("fumigacion.rotacion_restablecer_censo", rotation_id=rotation.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || 'Censo restablecido exitosamente.');
+                sessionStorage.setItem('active_workflow_tab', 'tab-paso2');
+                window.location.reload();
+            } else {
+                alert('Error al restablecer: ' + (data.error || 'Desconocido'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1 text-primary"></i> Restablecer Censo';
+            }
+        })
+        .catch(err => {
+            alert('Error de red al restablecer censo: ' + err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1 text-primary"></i> Restablecer Censo';
+        });
+    });
+
+    // ==================== MODAL ASSIGN ROUND LOGIC ====================
+    function refreshModalProductsAndAlert(targetRoundId) {
+        const activeCrop = (cropSelect && cropSelect.value !== 'ALL') ? cropSelect.value : 'GYPSOPHILA';
+        const roundSelect = document.getElementById('modal-assign-round-select');
+        const effRoundId = targetRoundId || (roundSelect ? roundSelect.value : currentActiveRoundId);
+        const roundName = roundSelect ? roundSelect.options[roundSelect.selectedIndex]?.text.split('•')[0].trim() : 'Vuelta';
+        
+        // Update header label in card
+        const roundLabelEl = document.getElementById('modal-products-round-label');
+        if (roundLabelEl) roundLabelEl.textContent = roundName;
+
+        const cropBadge = document.getElementById('modal-assign-crop-badge');
+        if (cropBadge) cropBadge.textContent = activeCrop.toUpperCase();
+
+        const scopeCropText = document.getElementById('modal-scope-crop-text');
+        if (scopeCropText) scopeCropText.textContent = activeCrop;
+
+        // Render products from ROUND_CROP_PRODUCTS_MAP
+        const prodsContainer = document.getElementById('modal-assign-products-list');
+        if (prodsContainer) {
+            const roundData = (typeof ROUND_CROP_PRODUCTS_MAP !== 'undefined') ? (ROUND_CROP_PRODUCTS_MAP[String(effRoundId)] || {}) : {};
+            const cropsData = roundData['crops'] || {};
+            // Match normalized, then raw, then uppercase
+            const normCrop = typeof normalizeCropName === 'function' ? normalizeCropName(activeCrop) : activeCrop.toUpperCase();
+            const cropStagesData = cropsData[normCrop] || cropsData[activeCrop] || cropsData[activeCrop.toUpperCase()] || {};
+            const vegProds = cropStagesData['VEGETATIVO'] || [];
+            const prodProds = cropStagesData['PRODUCTIVO'] || [];
+
+            if (vegProds.length === 0 && prodProds.length === 0) {
+                prodsContainer.innerHTML = `
+                    <div class="text-center py-2 text-muted small">
+                        <i class="fa-solid fa-circle-info me-1"></i> No hay productos específicos configurados en la rotación para <strong>${activeCrop}</strong> en esta vuelta.
+                    </div>`;
+            } else {
+                let html = '<div class="row g-2">';
+                if (vegProds.length > 0) {
+                    html += `
+                        <div class="col-12">
+                            <div class="small fw-bold text-primary mb-1"><i class="fa-solid fa-leaf me-1"></i> Vegetativo (${vegProds.length} productos):</div>
+                            <div class="d-flex flex-wrap gap-1">`;
+                    vegProds.forEach(p => {
+                        html += `
+                            <span class="badge bg-light text-dark border p-1 d-inline-flex align-items-center gap-1 font-monospace" style="font-size: 0.72rem;">
+                                <strong class="text-primary">${p.product_code || p.code || ''}</strong> ${p.commercial_name || p.name || ''} 
+                                <span class="text-muted fw-normal">(${p.dose} ${p.unit})</span>
+                            </span>`;
+                    });
+                    html += `</div></div>`;
+                }
+                if (prodProds.length > 0) {
+                    html += `
+                        <div class="col-12 mt-2">
+                            <div class="small fw-bold text-warning-emphasis mb-1"><i class="fa-solid fa-certificate me-1"></i> Productivo (${prodProds.length} productos):</div>
+                            <div class="d-flex flex-wrap gap-1">`;
+                    prodProds.forEach(p => {
+                        html += `
+                            <span class="badge bg-light text-dark border p-1 d-inline-flex align-items-center gap-1 font-monospace" style="font-size: 0.72rem;">
+                                <strong class="text-primary">${p.product_code || p.code || ''}</strong> ${p.commercial_name || p.name || ''} 
+                                <span class="text-muted fw-normal">(${p.dose} ${p.unit})</span>
+                            </span>`;
+                    });
+                    html += `</div></div>`;
+                }
+                html += '</div>';
+                prodsContainer.innerHTML = html;
+            }
+        }
+
+        // Check if activeCrop already has an assigned order in targetRoundId
+        const warningEl = document.getElementById('modal-assign-overwrite-warning');
+        const warningText = document.getElementById('modal-assign-overwrite-text');
+        const normC = typeof normalizeCropName === 'function' ? normalizeCropName(activeCrop) : activeCrop.toUpperCase();
+        const cropStatus = (typeof CROP_STATUS_MAP !== 'undefined') ? (CROP_STATUS_MAP[activeCrop] || CROP_STATUS_MAP[normC] || null) : null;
+        
+        let existingRoundInfo = null;
+        if (cropStatus && cropStatus.assigned_rounds) {
+            existingRoundInfo = cropStatus.assigned_rounds.find(r => String(r.round_id) === String(targetRoundId));
+        }
+
+        if (warningEl) {
+            if (existingRoundInfo) {
+                warningEl.classList.remove('d-none');
+                if (warningText) {
+                    warningText.innerHTML = `
+                        El cultivo <strong>${activeCrop}</strong> ya fue asignado previamente a la <strong>${existingRoundInfo.round_name}</strong> bajo la orden oficial <strong>${existingRoundInfo.order_number}</strong>.<br>
+                        ¿Está seguro de que desea <strong>sobreescribir y reajustar</strong> las camas y litros para esta vuelta?
+                    `;
+                }
+            } else {
+                warningEl.classList.add('d-none');
+            }
+        }
+    }
+
+    document.getElementById('modal-assign-round-select')?.addEventListener('change', function() {
+        refreshModalProductsAndAlert(this.value);
+    });
+
+    // Open Assign Round Modal
+    document.getElementById('btn-open-assign-modal')?.addEventListener('click', function() {
+        const payload = prepareSegmentsPayload();
+        if (payload.length === 0) {
+            alert('No hay segmentos para asignar.');
+            return;
+        }
+        const assignSelect = document.getElementById('modal-assign-round-select');
+        if (assignSelect && currentActiveRoundId) {
+            assignSelect.value = currentActiveRoundId;
+        }
+        const targetRoundId = assignSelect ? assignSelect.value : currentActiveRoundId;
+        refreshModalProductsAndAlert(targetRoundId);
+
+        const modal = new bootstrap.Modal(document.getElementById('modalAssignRound'));
+        modal.show();
+    });
+
+    // Confirm Assign Round
+    document.getElementById('btn-confirm-assign-round')?.addEventListener('click', function() {
+        const roundSelect = document.getElementById('modal-assign-round-select');
+        const targetRoundId = parseInt(roundSelect.value) || parseInt(currentActiveRoundId);
+        if (!targetRoundId) {
+            alert('Por favor selecciona la vuelta.');
+            return;
+        }
+
+        const activeCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const selectedScope = document.querySelector('input[name="modal_assign_scope"]:checked')?.value || 'crop';
+
+        const payload = prepareSegmentsPayload();
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Asignando y calculando...';
+
+        fetch('{{ url_for("fumigacion.rotacion_guardar_revision", rotation_id=rotation.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                segments: payload,
+                target_round_id: targetRoundId,
+                scope: selectedScope,
+                crop_name: activeCrop
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Confirmar y Asignar a la Vuelta';
+            const modalEl = document.getElementById('modalAssignRound');
+            if (modalEl) {
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) modalInstance.hide();
+            }
+
+            if (data.success) {
+                alert(data.message || 'Configuración asignada exitosamente a la vuelta seleccionada.');
+                sessionStorage.setItem('active_workflow_tab', 'tab-paso3');
+                window.location.reload();
+            } else {
+                alert('Error al asignar: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Confirmar y Asignar a la Vuelta';
+            alert('Error de red al asignar a vuelta: ' + err);
+        });
+    });
+
+    // Fullscreen / Collapse Sidebar Handler in Paso 2
+    const btnFullscreen = document.getElementById('btn-toggle-fullscreen');
+    function updateFullscreenButtonUI() {
+        const wrapper = document.getElementById('wrapper');
+        const isCollapsed = wrapper ? wrapper.classList.contains('toggled') : false;
+        if (btnFullscreen) {
+            if (isCollapsed) {
+                btnFullscreen.innerHTML = '<i class="fa-solid fa-compress me-1 text-warning"></i> <span id="lbl-fullscreen-text">Ver Menú Lateral</span>';
+                btnFullscreen.classList.add('btn-dark', 'text-white');
+                btnFullscreen.classList.remove('btn-outline-dark');
+            } else {
+                btnFullscreen.innerHTML = '<i class="fa-solid fa-expand me-1"></i> <span id="lbl-fullscreen-text">Pantalla Completa</span>';
+                btnFullscreen.classList.remove('btn-dark', 'text-white');
+                btnFullscreen.classList.add('btn-outline-dark');
+            }
+        }
+    }
+
+    btnFullscreen?.addEventListener('click', function() {
+        const wrapper = document.getElementById('wrapper');
+        if (wrapper) {
+            wrapper.classList.toggle('toggled');
+            const collapsed = wrapper.classList.contains('toggled');
+            localStorage.setItem('sidebar_collapsed', collapsed ? 'true' : 'false');
+            updateFullscreenButtonUI();
+            window.dispatchEvent(new CustomEvent("sidebartoggled", { detail: { collapsed: collapsed } }));
+        }
+    });
+
+    // ==================== DRAG AND DROP REORDERING ====================
+    let draggedRow = null;
+
+    function syncMasterSegmentsOrderFromDOM() {
+        pushUndoState();
+
+        const vegRows = Array.from(document.querySelectorAll('#tbody-veg-cuadre tr.cuadre-row'));
+        const prodRows = Array.from(document.querySelectorAll('#tbody-prod-cuadre tr.cuadre-row'));
+
+        const visibleUids = [...vegRows.map(r => r.dataset.uid), ...prodRows.map(r => r.dataset.uid)].filter(Boolean);
+        const uidMap = new Map();
+        masterSegments.forEach(s => uidMap.set(s.uid, s));
+
+        const orderedVisible = visibleUids.map(uid => uidMap.get(uid)).filter(Boolean);
+        const visibleSet = new Set(visibleUids);
+        const remaining = masterSegments.filter(s => !visibleSet.has(s.uid));
+
+        masterSegments = [...orderedVisible, ...remaining];
+
+        if (currentActiveRoundId && ROUND_SEGMENTS_MAP[currentActiveRoundId]) {
+            ROUND_SEGMENTS_MAP[currentActiveRoundId] = JSON.parse(JSON.stringify(masterSegments));
+        }
+    }
+
+    function initTableDragAndDrop(tbody) {
+        if (!tbody) return;
+
+        tbody.addEventListener('dragstart', function(e) {
+            const tr = e.target.closest('tr.cuadre-row');
+            if (!tr) return;
+            draggedRow = tr;
+            tr.classList.add('is-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', tr.dataset.uid || '');
+        });
+
+        tbody.addEventListener('dragend', function(e) {
+            const tr = e.target.closest('tr.cuadre-row');
+            if (tr) tr.classList.remove('is-dragging');
+            document.querySelectorAll('.cuadre-row').forEach(r => {
+                r.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+            draggedRow = null;
+        });
+
+        tbody.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (!draggedRow) return;
+
+            const targetRow = e.target.closest('tr.cuadre-row');
+            document.querySelectorAll('.cuadre-row').forEach(r => {
+                r.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+
+            if (targetRow && targetRow !== draggedRow) {
+                const rect = targetRow.getBoundingClientRect();
+                const offset = e.clientY - rect.top;
+                if (offset < rect.height / 2) {
+                    targetRow.classList.add('drag-over-top');
+                } else {
+                    targetRow.classList.add('drag-over-bottom');
+                }
+            }
+        });
+
+        tbody.addEventListener('dragleave', function(e) {
+            const targetRow = e.target.closest('tr.cuadre-row');
+            if (targetRow) {
+                targetRow.classList.remove('drag-over-top', 'drag-over-bottom');
+            }
+        });
+
+        tbody.addEventListener('drop', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.cuadre-row').forEach(r => {
+                r.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+
+            if (!draggedRow) return;
+
+            const targetRow = e.target.closest('tr.cuadre-row');
+            const targetTbody = tbody;
+
+            if (targetRow && targetRow !== draggedRow) {
+                const rect = targetRow.getBoundingClientRect();
+                const offset = e.clientY - rect.top;
+                if (offset < rect.height / 2) {
+                    targetTbody.insertBefore(draggedRow, targetRow);
+                } else {
+                    targetTbody.insertBefore(draggedRow, targetRow.nextSibling);
+                }
+            } else if (!targetRow) {
+                targetTbody.appendChild(draggedRow);
+            }
+
+            // Check if dropped into a different stage
+            const targetStage = targetTbody.id === 'tbody-veg-cuadre' ? 'VEGETATIVO' : 'PRODUCTIVO';
+            const uid = draggedRow.dataset.uid;
+            const seg = masterSegments.find(s => s.uid === uid);
+            if (seg && seg.phenological_stage !== targetStage) {
+                seg.phenological_stage = targetStage;
+                seg.is_modified = true;
+                draggedRow.dataset.stage = targetStage;
+                draggedRow.className = `cuadre-row ${targetStage === 'VEGETATIVO' ? 'row-state-veg' : 'row-state-prod'} row-modified`;
+
+                const badge = draggedRow.querySelector('.badge-block-name');
+                if (badge) {
+                    badge.className = `badge ${targetStage === 'VEGETATIVO' ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-warning-subtle text-dark border border-warning-subtle'} font-monospace badge-block-name py-1 px-1`;
+                }
+                const toggleBtn = draggedRow.querySelector('.btn-row-toggle-stage');
+                if (toggleBtn) {
+                    toggleBtn.className = `btn ${targetStage === 'VEGETATIVO' ? 'btn-outline-warning text-dark' : 'btn-outline-primary'} btn-sm btn-row-toggle-stage`;
+                    toggleBtn.textContent = targetStage === 'VEGETATIVO' ? '→' : '←';
+                    toggleBtn.title = targetStage === 'VEGETATIVO' ? '→ Pasar bloque a Productivo' : '← Pasar bloque a Vegetativo';
+                }
+            }
+
+            syncMasterSegmentsOrderFromDOM();
+            updatePanelSummaries();
+            validateMasterSegments();
+        });
+    }
+
+    initTableDragAndDrop(document.getElementById('tbody-veg-cuadre'));
+    initTableDragAndDrop(document.getElementById('tbody-prod-cuadre'));
+
+    // Initial render
+    updateVarietyProgress();
+    renderCuadrePanels();
+    updateFullscreenButtonUI();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+version: '3.8'
+
+# ==============================================================================
+# PROYECTO: ERP Y DATA WAREHOUSE AGRÍCOLA - GRUPO FLORICULTOR FLORSANI
+# ARCHIVO: docker-compose.yml
+# AMBIENTE: Producción en VPS Ubuntu Hostinger (KVM 4)
+# PUERTOS PERSONALIZADOS:
+#   - Web App: 8095 (Mapeado a 127.0.0.1:8095 para Nginx)
+#   - PostgreSQL: 5438 (Mapeado a 127.0.0.1:5438 para administración/backups)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. BASE DE DATOS POSTGRESQL (Aislada en puerto personalizado 5438)
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: dw_florsani_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-florsani_prod_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-florsani}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Expuesto ÚNICAMENTE en localhost del VPS para evitar colisiones y riesgos externos
+      - "127.0.0.1:${DB_PORT:-5438}:5432"
+    volumes:
+      # Almacenamiento persistente en el disco NVMe de 200 GB del VPS
+      - dw_florsani_pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-florsani}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dw_florsani_network
+
+  # ----------------------------------------------------------------------------
+  # 2. APLICACIÓN WEB BACKEND (Gunicorn + Flask en puerto personalizado 8095)
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dw_florsani_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: ${APP_PORT:-8095}
+      APP_PORT: ${APP_PORT:-8095}
+      SECRET_KEY: ${SECRET_KEY:-florsani-erp-agricola-2026-vps}
+      # Conexión directa a través de la red interna de Docker
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-florsani_prod_secure_2026}@db:5432/${POSTGRES_DB:-florsani}
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+    ports:
+      # Expuesto ÚNICAMENTE a Nginx en localhost del VPS (sin conflicto con 80, 8080, 5000)
+      - "127.0.0.1:${APP_PORT:-8095}:${APP_PORT:-8095}"
+    volumes:
+      # Volumen persistente para archivos Excel subidos (Estado de Cultivo, etc.)
+      - dw_florsani_uploads:/app/uploads
+    networks:
+      - dw_florsani_network
+
+# ------------------------------------------------------------------------------
+# VOLÚMENES PERSISTENTES
+# ------------------------------------------------------------------------------
+volumes:
+  dw_florsani_pgdata:
+    name: dw_florsani_pgdata
+  dw_florsani_uploads:
+    name: dw_florsani_uploads
+
+# ------------------------------------------------------------------------------
+# RED PRIVADA DOCKER
+# ------------------------------------------------------------------------------
+networks:
+  dw_florsani_network:
+    name: dw_florsani_network
+    driver: bridge

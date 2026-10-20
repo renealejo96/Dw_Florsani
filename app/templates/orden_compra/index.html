@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Orden de Compra de Agroquímicos (15 Días) | AgroFumigación{% endblock %}
+{% block page_header %}Abastecimiento &bull; Orden de Compra de Agroquímicos (Planificación a 15 Días){% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-1">
+            <i class="fa-solid fa-cart-shopping text-success me-2"></i>Orden de Compra de Agroquímicos (15 Días)
+        </h4>
+        <p class="text-muted mb-0 small">
+            Cálculo de compra consolidado por número de camas estándar y litrajes presupuestados para la semana objetivo.
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if requisition %}
+        <a href="{{ url_for('orden_compra.exportar_excel', week=selected_week) }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+            <i class="fa-solid fa-file-excel me-1"></i> Exportar Orden de Compra (.xlsx)
+        </a>
+        {% endif %}
+        {% if rotation %}
+        <a href="{{ url_for('fumigacion.rotacion_detalle', rotation_id=rotation.id) }}" class="btn btn-primary btn-sm fw-semibold">
+            <i class="fa-solid fa-rotate me-1"></i> Ir a Rotación Semanal {{ rotation.week }}
+        </a>
+        {% else %}
+        <a href="{{ url_for('fumigacion.rotacion_crear') }}" class="btn btn-warning btn-sm fw-bold shadow-sm">
+            <i class="fa-solid fa-plus me-1"></i> Crear Rotación para Semana {{ selected_week }}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Week Selector Bar -->
+<div class="card mb-4 shadow-sm border-start border-4 border-success">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-dark mb-1">
+                    <i class="fa-solid fa-calendar-check text-success me-1"></i> Seleccionar Semana Objetivo de Compra:
+                </label>
+                <select name="week" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
+                    {% for w in week_options %}
+                    <option value="{{ w.value }}" {% if selected_week == w.value %}selected{% endif %}>
+                        {{ w.label }} {% if w.is_target %}(A 15 días - Objetivo Principal){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <span class="small text-muted d-block">Estado de Planificación:</span>
+                {% if rotation %}
+                <span class="badge {% if rotation.status == 'APROBADA' %}bg-success{% else %}bg-warning text-dark{% endif %} font-monospace fs-6">
+                    <i class="fa-solid fa-circle-check me-1"></i> Rotación Existente ({{ rotation.status }}) - {{ rotation.title }}
+                </span>
+                {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border fs-6">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i> Sin rotación creada aún para la semana {{ selected_week }}
+                </span>
+                {% endif %}
+            </div>
+            <div class="col-md-3 text-end">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">
+                    <i class="fa-solid fa-arrows-rotate me-1"></i> Actualizar Vista
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if requisition and requisition.items %}
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-primary bg-opacity-10 h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">LITROS TOTALES MEZCLA</div>
+                        <h3 class="fw-bold text-primary mb-0">{{ requisition.total_liters|format_number(1) }} L</h3>
+                    </div>
+                    <i class="fa-solid fa-fill-drip fs-1 text-primary opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-success bg-opacity-10 h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">PRODUCTOS A COMPRAR</div>
+                        <h3 class="fw-bold text-success mb-0">{{ requisition.items|length }}</h3>
+                    </div>
+                    <i class="fa-solid fa-flask fs-1 text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-warning bg-opacity-10 h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">SEMANA OBJETIVO</div>
+                        <h3 class="fw-bold text-dark mb-0 font-monospace">{{ selected_week }}</h3>
+                    </div>
+                    <i class="fa-solid fa-clock-rotate-left fs-1 text-warning opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-dark bg-opacity-10 h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">CAMAS EN BASE DE DATOS</div>
+                        <h3 class="fw-bold text-dark mb-0">{{ total_beds_count }}</h3>
+                    </div>
+                    <i class="fa-solid fa-border-all fs-1 text-dark opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table of Products to Purchase -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="fw-bold text-dark"><i class="fa-solid fa-cart-flatbed me-2 text-success"></i>Detalle de Agroquímicos a Comprar para Semana {{ selected_week }}</span>
+        <span class="badge bg-success-subtle text-success fs-6">{{ requisition.items|length }} Agroquímicos</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th style="width: 140px;">Código Producto</th>
+                        <th>Nombre Comercial</th>
+                        <th style="width: 120px;">Dosis Ref. (/L)</th>
+                        <th style="width: 170px;" class="text-end">Cantidad a Comprar (15 Días)</th>
+                        <th style="width: 70px;">Unidad</th>
+                        <th>Blanco Biológico / Plaga</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for it in requisition.items %}
+                    <tr>
+                        <td class="text-center text-muted">{{ loop.index }}</td>
+                        <td class="fw-bold font-monospace text-primary fs-6">{{ it.product_code }}</td>
+                        <td class="fw-semibold">{{ it.commercial_name }}</td>
+                        <td>{{ it.average_dose }}</td>
+                        <td class="text-end fw-bold fs-6 text-dark">{{ it.quantity_forecast|format_product(it.unit) }}</td>
+                        <td><span class="badge bg-light text-dark border font-monospace">{{ it.unit }}</span></td>
+                        <td class="text-muted small">{{ it.pest or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted bg-white border rounded shadow-sm">
+    <i class="fa-solid fa-cart-plus fs-1 text-secondary mb-3"></i>
+    <h5>No hay orden de compra calculada para la semana {{ selected_week }}</h5>
+    <p class="small">Crea o edita la rotación de agroquímicos para la semana <strong>{{ selected_week }}</strong> para generar la orden de compra a 15 días.</p>
+    <a href="{{ url_for('fumigacion.rotacion_crear') }}" class="btn btn-success btn-sm fw-bold">
+        <i class="fa-solid fa-plus me-1"></i> Planificar Rotación y Compra para Semana {{ selected_week }}
+    </a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,906 @@
+{% extends "base.html" %}
+
+{% block title %}Aplicaciones Adicionales y Manchas | AgroFumigación{% endblock %}
+{% block page_header %}Fumigación &bull; Aplicaciones Adicionales, Focos y Manchas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .drag-product-chip {
+        cursor: grab;
+        user-select: none;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .drag-product-chip:active {
+        cursor: grabbing;
+    }
+    .drag-product-chip.dragging {
+        opacity: 0.4;
+        transform: scale(0.95);
+    }
+    .drag-product-chip.drag-over {
+        border: 2px dashed #0d6efd !important;
+        background-color: #e7f1ff !important;
+    }
+    .box-card {
+        transition: border-color 0.2s;
+    }
+    .box-card:hover {
+        border-color: #adb5bd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+            <i class="fa-solid fa-bullseye text-danger"></i> Aplicaciones Extras / Manchas
+        </h4>
+        <div class="text-muted small">Configuración de mezclas especiales, focos y generación automática de órdenes y salidas</div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-pills mb-3 border-bottom pb-2 gap-2" id="extraAppTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold btn-sm py-1 px-3" id="tab-planner-btn" data-bs-toggle="pill" data-bs-target="#tab-planner" type="button" role="tab">
+            <i class="fa-solid fa-layer-group me-1"></i> Planificador por Boxes
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold btn-sm py-1 px-3" id="tab-history-btn" data-bs-toggle="pill" data-bs-target="#tab-history" type="button" role="tab">
+            <i class="fa-solid fa-clock-rotate-left me-1"></i> Historial Registrado (<span id="history-count-badge">{{ recent_apps|length }}</span>)
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="extraAppTabsContent">
+    <!-- TAB 1: BOXES PLANNER -->
+    <div class="tab-pane fade show active" id="tab-planner" role="tabpanel">
+        <!-- Educational Info Alert -->
+        <div class="alert alert-info py-2 px-3 small d-flex align-items-center mb-3 shadow-xs">
+            <div class="me-2 text-primary fs-5"><i class="fa-solid fa-circle-info"></i></div>
+            <div>
+                <strong>¿Qué es un Box?</strong> Cada <strong>Box</strong> representa una <em>receta o mezcla química independiente</em> aplicada a un grupo de bloques (ej. <strong>Box 1</strong> para la mezcla de Hypericum y <strong>Box 2</strong> para la mezcla de Solidago). Puedes añadir tantos boxes como focos o mezclas necesites. Al guardar, el sistema genera automáticamente el programa oficial, la hoja de aplicación imprimible y las salidas de bodega para pesaje y despacho.
+            </div>
+        </div>
+
+        <!-- Global Header Bar -->
+        <div class="card shadow-xs border-top border-3 border-danger mb-3">
+            <div class="card-body py-2 px-3">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small fw-semibold text-secondary mb-1">Semana de Aplicación: <span class="text-danger">*</span></label>
+                        <select id="global-week" class="form-select form-select-sm font-monospace fw-bold text-primary" required>
+                            {% for w in available_weeks %}
+                            <option value="{{ w }}" {% if w == current_week %}selected{% endif %}>
+                                Semana {{ w }} {% if w == current_week %}(Actual){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small fw-semibold text-secondary mb-1">Tipo de Aplicación:</label>
+                        <select id="global-app-type" class="form-select form-select-sm">
+                            <option value="FUMIGACION">Fumigación Foliar</option>
+                            <option value="DRENCH">Drench / Suelo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small fw-semibold text-secondary mb-1">Día Programado:</label>
+                        <select id="global-scheduled-day" class="form-select form-select-sm">
+                            <option value="Lunes">Lunes</option>
+                            <option value="Martes">Martes</option>
+                            <option value="Miércoles" selected>Miércoles</option>
+                            <option value="Jueves">Jueves</option>
+                            <option value="Viernes">Viernes</option>
+                            <option value="Sábado">Sábado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-sm-6 text-end d-flex gap-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-semibold flex-grow-1" id="btn-add-new-box">
+                            <i class="fa-solid fa-plus me-1"></i> + Nuevo Box
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm fw-bold flex-grow-1" id="btn-save-all-boxes">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Lote
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Boxes Container -->
+        <div id="boxes-container" class="d-flex flex-column gap-3">
+            <!-- Box cards dynamically rendered here -->
+        </div>
+
+        <div class="text-center my-3">
+            <button type="button" class="btn btn-outline-danger btn-sm px-4 fw-semibold" id="btn-add-new-box-bottom">
+                <i class="fa-solid fa-plus me-1"></i> Agregar Otro Box de Aplicación
+            </button>
+        </div>
+    </div>
+
+    <!-- TAB 2: HISTORY TABLE -->
+    <div class="tab-pane fade" id="tab-history" role="tabpanel">
+        <div class="card shadow-xs">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3 border-bottom">
+                <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-list-check me-2 text-danger"></i>Historial de Aplicaciones Extras y Focos</h6>
+                <span class="badge bg-light text-dark border font-monospace">{{ recent_apps|length }} Registros</span>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_apps %}
+                <div class="table-responsive" style="max-height: 600px;">
+                    <table class="table table-sm table-hover align-middle mb-0 small">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Semana</th>
+                                <th>Día</th>
+                                <th>Bloque & Sufijo</th>
+                                <th>Cultivo</th>
+                                <th>Camas</th>
+                                <th>Producto</th>
+                                <th class="text-end">Dosis</th>
+                                <th class="text-end">Litros</th>
+                                <th class="text-end">Total Requerido</th>
+                                <th>Motivo / Razón</th>
+                                <th>Operario</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in recent_apps %}
+                            <tr>
+                                <td class="fw-bold text-primary font-monospace">{{ a.week }}</td>
+                                <td class="text-secondary small">{{ a.scheduled_day or '-' }}</td>
+                                <td class="fw-bold">{{ a.block_name }} ({{ a.suffix }})</td>
+                                <td>{{ a.crop_name or '-' }}</td>
+                                <td>{{ a.bed_start }}-{{ a.bed_end }} ({{ a.standard_beds|format_number(1) }} std)</td>
+                                <td class="fw-bold text-danger">{{ a.product_code }}</td>
+                                <td class="text-end">{{ a.dose_applied }} {{ a.dose_unit }}</td>
+                                <td class="text-end fw-bold">{{ a.total_liters|format_number(1) }} L</td>
+                                <td class="text-end fw-bold text-dark">{{ a.total_product|format_product(a.dose_unit) }} {{ a.dose_unit }}</td>
+                                <td><span class="badge bg-danger-subtle text-danger border border-danger">{{ a.reason or 'Mancha' }}</span></td>
+                                <td class="text-muted small">{{ a.operator or '-' }}</td>
+                                <td class="text-end">
+                                    <form action="{{ url_for('fumigacion.aplicaciones_adicionales_eliminar', app_id=a.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta aplicación adicional?');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Eliminar registro">
+                                            <i class="fa-regular fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">No hay aplicaciones adicionales registradas en el sistema.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Didáctico Seleccionar Agroquímico para Mezcla -->
+<div class="modal fade" id="modalPickExtraProduct" tabindex="-1" aria-labelledby="modalPickExtraTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-danger text-white py-2 px-3">
+                <h6 class="modal-title fw-bold" id="modalPickExtraTitle">
+                    <i class="fa-solid fa-flask me-2"></i>Seleccionar Agroquímico para la Mezcla
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Live Search Bar -->
+                <div class="input-group input-group-sm mb-2 shadow-xs">
+                    <span class="input-group-text bg-white text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" id="modal-extra-product-search" class="form-control form-control-sm ps-1 fw-semibold" placeholder="Filtrar por código (ej. ACIDO, AZUFROL), nombre comercial o blanco biológico..." autofocus>
+                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('modal-extra-product-search').value=''; renderModalProductList('');">Limpiar</button>
+                </div>
+
+                <!-- Products Table List -->
+                <div class="table-responsive border rounded mb-3 bg-white" style="max-height: 300px; min-height: 180px;">
+                    <table class="table table-sm table-hover align-middle mb-0" id="table-modal-extra-products" style="font-size: 0.84rem;">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th style="width: 120px;">Código</th>
+                                <th>Nombre Comercial</th>
+                                <th style="width: 60px;" class="text-center">UM</th>
+                                <th style="width: 90px;" class="text-end">Dosis Ref.</th>
+                                <th>Plaga / Blanco</th>
+                                <th style="width: 75px;" class="text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-extra-products-tbody">
+                            <!-- Populated via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Selected Product Preview & Dose Setup -->
+                <div class="card bg-light border-danger-subtle border p-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-5">
+                            <span class="small text-muted d-block" style="font-size: 0.72rem;">Agroquímico Seleccionado:</span>
+                            <div class="fw-bold text-dark text-truncate" id="modal-selected-prod-name">
+                                <span class="text-muted fw-normal fst-italic">Selecciona un producto de la tabla arriba...</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold mb-1" style="font-size: 0.75rem;">Dosis para este Tanque/Mezcla (/L):</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" step="0.001" id="modal-extra-dose-input" class="form-control fw-bold text-end font-monospace" value="1.0">
+                                <span class="input-group-text font-monospace" id="modal-extra-unit-label">CC</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-end pt-2">
+                            <button type="button" class="btn btn-danger btn-sm w-100 fw-bold shadow-xs py-1" id="modal-btn-confirm-add-prod" disabled>
+                                <i class="fa-solid fa-plus me-1"></i> Agregar a Mezcla
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BLOCK_ZONE_MAP = {{ (block_zone_map or {})|tojson }};
+const ACTIVE_PRODUCTS = [
+    {% for p in active_products %}
+    { 
+        id: {{ p.id }}, 
+        code: "{{ p.code }}", 
+        name: "{{ p.commercial_name or p.code }}", 
+        unit: "{{ p.unit or 'CC' }}", 
+        dose: {{ p.dose_fumigation or 1.0 }}, 
+        pest: "{{ p.pest or '' }}",
+        active_ingredient: "{{ p.active_ingredient or '' }}",
+        category: "{{ p.toxicological_category or '' }}"
+    },
+    {% endfor %}
+];
+const ACTIVE_CROPS = [
+    {% for c in active_crops %}
+    "{{ c.name }}",
+    {% endfor %}
+];
+
+let boxCounter = 0;
+let activeBoxCard = null;
+let activeSelectedProduct = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Add initial box
+    addNewBox();
+
+    document.getElementById('btn-add-new-box')?.addEventListener('click', () => addNewBox());
+    document.getElementById('btn-add-new-box-bottom')?.addEventListener('click', () => addNewBox());
+
+    // Search input inside modal
+    const modalSearchInput = document.getElementById('modal-extra-product-search');
+    modalSearchInput.addEventListener('input', function() {
+        renderModalProductList(this.value);
+    });
+
+    // Confirm button in modal
+    document.getElementById('modal-btn-confirm-add-prod').addEventListener('click', function() {
+        if (!activeSelectedProduct || !activeBoxCard) return;
+
+        const dropzone = activeBoxCard.querySelector('.box-products-dropzone');
+        const dose = parseFloat(document.getElementById('modal-extra-dose-input').value) || activeSelectedProduct.dose || 1.0;
+
+        // Check if already in this box
+        const exists = dropzone.querySelector(`.drag-product-chip[data-id="${activeSelectedProduct.id}"]`);
+        if (exists) {
+            alert(`El producto ${activeSelectedProduct.code} ya está en la mezcla de este box.`);
+            return;
+        }
+
+        addProductChip(dropzone, {
+            id: activeSelectedProduct.id,
+            code: activeSelectedProduct.code,
+            name: activeSelectedProduct.name,
+            dose: dose,
+            unit: activeSelectedProduct.unit || 'CC'
+        });
+
+        // Hide modal
+        const modalEl = document.getElementById('modalPickExtraProduct');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    });
+
+    // Save All Boxes Batch
+    document.getElementById('btn-save-all-boxes')?.addEventListener('click', function() {
+        const weekSelect = document.getElementById('global-week');
+        const week = weekSelect.value.trim();
+        if (!week) {
+            alert('Por favor selecciona la semana de aplicación.');
+            weekSelect.focus();
+            return;
+        }
+
+        const appType = document.getElementById('global-app-type').value;
+        const scheduledDay = document.getElementById('global-scheduled-day').value;
+
+        const boxCards = document.querySelectorAll('.box-card');
+        if (boxCards.length === 0) {
+            alert('Debes crear al menos un box de aplicación.');
+            return;
+        }
+
+        const boxesPayload = [];
+        let validationError = null;
+
+        boxCards.forEach((card, idx) => {
+            if (validationError) return;
+
+            const boxName = card.querySelector('.box-title-input')?.value || `Box ${idx + 1}`;
+            const reason = card.querySelector('.box-reason-input')?.value.trim() || 'Mancha / Foco Extra';
+            const crop = card.querySelector('.box-crop-select')?.value || '';
+            const notes = card.querySelector('.box-notes-input')?.value.trim() || '';
+
+            // Get products from chips in DOM order (matching user's drag & drop sequence)
+            const products = [];
+            card.querySelectorAll('.drag-product-chip').forEach(chip => {
+                products.push({
+                    product_id: parseInt(chip.dataset.id),
+                    product_code: chip.dataset.code,
+                    dose: parseFloat(chip.dataset.dose) || 1.0,
+                    unit: chip.dataset.unit || 'CC'
+                });
+            });
+
+            if (products.length === 0) {
+                validationError = `El Box "${boxName}" no tiene ningún producto en su mezcla. Por favor añade al menos un agroquímico.`;
+                return;
+            }
+
+            // Get blocks from rows
+            const blocks = [];
+            card.querySelectorAll('.box-block-row').forEach(row => {
+                const blockName = row.querySelector('.blk-name')?.value.trim() || '';
+                const suffix = row.querySelector('.blk-suffix')?.value.trim().toUpperCase() || 'A';
+                const zone = row.querySelector('.blk-zone')?.value.trim() || 'ZONA1';
+                const bedStart = parseInt(row.querySelector('.blk-bed-start')?.value) || 1;
+                const bedEnd = parseInt(row.querySelector('.blk-bed-end')?.value) || 1;
+                const stdBeds = parseFloat(row.querySelector('.blk-std-beds')?.value) || 1.0;
+                const litBed = parseFloat(row.querySelector('.blk-lit-bed')?.value) || 5.5;
+
+                if (blockName) {
+                    blocks.push({
+                        zone: zone,
+                        block_name: blockName,
+                        suffix: suffix,
+                        crop_name: crop,
+                        bed_start: bedStart,
+                        bed_end: bedEnd,
+                        standard_beds: stdBeds,
+                        liters_per_bed: litBed
+                    });
+                }
+            });
+
+            if (blocks.length === 0) {
+                validationError = `El Box "${boxName}" no tiene bloques asignados. Añade al menos un bloque a tratar.`;
+                return;
+            }
+
+            boxesPayload.push({
+                box_name: boxName,
+                application_type: appType,
+                scheduled_day: scheduledDay,
+                reason: reason,
+                crop_name: crop,
+                notes: notes,
+                products: products,
+                blocks: blocks
+            });
+        });
+
+        if (validationError) {
+            alert(validationError);
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando Lote...';
+
+        fetch('{{ url_for("fumigacion.aplicaciones_adicionales_guardar_lote") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                week: week,
+                boxes: boxesPayload
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar Lote';
+            if (data.success) {
+                alert(data.message || 'Aplicaciones registradas exitosamente. Se generó la orden de fumigación y salidas de bodega.');
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'No se pudo guardar el lote.'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar Lote';
+            alert('Error de conexión: ' + err);
+        });
+    });
+});
+
+// Function to create and append a new Box Card
+function addNewBox(initialData = null) {
+    boxCounter++;
+    const container = document.getElementById('boxes-container');
+    const boxId = `box-${boxCounter}`;
+
+    const card = document.createElement('div');
+    card.className = 'card shadow-sm border box-card';
+    card.id = boxId;
+
+    const boxTitle = initialData?.title || `Box ${boxCounter}: Mancha / Foco Específico`;
+    const boxReason = initialData?.reason || 'Foco de Mancha / Control';
+    const boxCrop = initialData?.crop || (ACTIVE_CROPS[0] || 'GYPSOPHILA');
+
+    let cropsOptionsHtml = ACTIVE_CROPS.map(c => `<option value="${c}" ${c === boxCrop ? 'selected' : ''}>${c}</option>`).join('');
+
+    card.innerHTML = `
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+            <div class="d-flex align-items-center gap-2 flex-grow-1 me-3">
+                <span class="badge bg-danger fs-6"><i class="fa-solid fa-box-open me-1"></i> #${boxCounter}</span>
+                <input type="text" class="form-control form-control-sm fw-bold text-dark box-title-input" value="${boxTitle}" style="max-width: 320px;">
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 btn-clone-box" title="Duplicar este Box">
+                    <i class="fa-regular fa-copy me-1"></i> Duplicar
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 btn-remove-box" title="Eliminar este Box">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-3">
+            <!-- Row 1: Box Settings -->
+            <div class="row g-2 mb-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold mb-1">Motivo / Blanco de Aplicación: <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm box-reason-input" value="${boxReason}" placeholder="ej. Mancha de Botrytis, Control Trips, Drench Rescate">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-1">Cultivo / Variedad:</label>
+                    <select class="form-select form-select-sm box-crop-select">
+                        ${cropsOptionsHtml}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold mb-1">Observaciones / Notas:</label>
+                    <input type="text" class="form-control form-control-sm box-notes-input" placeholder="Equipo, boquilla o detalles...">
+                </div>
+            </div>
+
+            <!-- Row 2: Multi-Product Pool with Didactic Button and Drag & Drop -->
+            <div class="card bg-light border p-2 mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                    <span class="small fw-bold text-dark">
+                        <i class="fa-solid fa-flask text-danger me-1"></i> Mezcla de Agroquímicos:
+                        <span class="text-muted fw-normal" style="font-size: 0.75rem;">(Arrastra los chips para ordenar la secuencia de mezcla de izquierda a derecha)</span>
+                    </span>
+                    <button type="button" class="btn btn-danger btn-sm py-1 px-3 fw-bold btn-open-prod-modal shadow-xs">
+                        <i class="fa-solid fa-plus me-1"></i> + Seleccionar Agroquímico
+                    </button>
+                </div>
+
+                <!-- Product Chips Dropzone -->
+                <div class="d-flex flex-wrap gap-2 align-items-center p-2 bg-white rounded border box-products-dropzone" style="min-height: 48px;">
+                    <!-- Chips inserted here -->
+                </div>
+            </div>
+
+            <!-- Row 3: Fast-Fill Multi-Block Table -->
+            <div class="card border">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <span class="small fw-bold text-dark"><i class="fa-solid fa-table-cells me-1 text-danger"></i> Bloques y Camas a Tratar en este Box:</span>
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 btn-add-block-row">
+                        <i class="fa-solid fa-plus me-1"></i> Añadir Fila de Bloque
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0 small box-blocks-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 120px;">Bloque</th>
+                                    <th style="width: 70px;">Sufijo</th>
+                                    <th style="width: 90px;">Zona</th>
+                                    <th style="width: 130px;" class="text-center">Camas (Ini-Fin)</th>
+                                    <th style="width: 90px;" class="text-end">Camas Std</th>
+                                    <th style="width: 80px;" class="text-end">L/Cama</th>
+                                    <th style="width: 90px;" class="text-end">Litros Est.</th>
+                                    <th style="width: 50px;" class="text-end"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="box-blocks-tbody">
+                                <!-- Block rows inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.appendChild(card);
+
+    // Setup events for this specific box
+    setupBoxEvents(card, initialData);
+}
+
+function setupBoxEvents(card, initialData = null) {
+    const dropzone = card.querySelector('.box-products-dropzone');
+    const btnOpenModal = card.querySelector('.btn-open-prod-modal');
+    const btnAddBlock = card.querySelector('.btn-add-block-row');
+    const tbodyBlocks = card.querySelector('.box-blocks-tbody');
+
+    // Open Modal button
+    btnOpenModal.addEventListener('click', function() {
+        openExtraProductModal(card);
+    });
+
+    // Setup Drag and Drop on dropzone
+    setupDropzoneDragAndDrop(dropzone);
+
+    // Add initial product chips if provided
+    if (initialData?.products && Array.isArray(initialData.products)) {
+        initialData.products.forEach(p => addProductChip(dropzone, p));
+    } else {
+        // Prompt helper in dropzone if empty
+        checkDropzoneEmpty(dropzone);
+    }
+
+    // Add Block Row
+    btnAddBlock.addEventListener('click', function() {
+        addBlockRow(tbodyBlocks);
+    });
+
+    // Add initial block rows if provided
+    if (initialData?.blocks && Array.isArray(initialData.blocks)) {
+        initialData.blocks.forEach(b => addBlockRow(tbodyBlocks, b));
+    } else {
+        addBlockRow(tbodyBlocks);
+    }
+
+    // Remove Box Button
+    card.querySelector('.btn-remove-box').addEventListener('click', function() {
+        if (document.querySelectorAll('.box-card').length === 1) {
+            alert('Debe haber al menos un box de aplicación.');
+            return;
+        }
+        if (confirm('¿Eliminar este box de aplicación completo?')) {
+            card.remove();
+        }
+    });
+
+    // Clone Box Button
+    card.querySelector('.btn-clone-box').addEventListener('click', function() {
+        const title = card.querySelector('.box-title-input').value + ' (Copia)';
+        const reason = card.querySelector('.box-reason-input').value;
+        const crop = card.querySelector('.box-crop-select').value;
+
+        const prods = [];
+        dropzone.querySelectorAll('.drag-product-chip').forEach(c => {
+            prods.push({
+                id: parseInt(c.dataset.id),
+                code: c.dataset.code,
+                name: c.dataset.name,
+                dose: parseFloat(c.dataset.dose),
+                unit: c.dataset.unit
+            });
+        });
+
+        const blocks = [];
+        tbodyBlocks.querySelectorAll('.box-block-row').forEach(r => {
+            blocks.push({
+                blockName: r.querySelector('.blk-name').value,
+                suffix: r.querySelector('.blk-suffix').value,
+                zone: r.querySelector('.blk-zone').value,
+                bedStart: r.querySelector('.blk-bed-start').value,
+                bedEnd: r.querySelector('.blk-bed-end').value,
+                stdBeds: r.querySelector('.blk-std-beds').value,
+                litBed: r.querySelector('.blk-lit-bed').value
+            });
+        });
+
+        addNewBox({
+            title: title,
+            reason: reason,
+            crop: crop,
+            products: prods,
+            blocks: blocks
+        });
+    });
+}
+
+function checkDropzoneEmpty(dropzone) {
+    const chips = dropzone.querySelectorAll('.drag-product-chip');
+    let hint = dropzone.querySelector('.empty-dropzone-hint');
+    if (chips.length === 0) {
+        if (!hint) {
+            hint = document.createElement('span');
+            hint.className = 'text-muted small empty-dropzone-hint';
+            hint.innerHTML = '<i class="fa-solid fa-arrow-up me-1 text-danger"></i> Haz clic en "+ Seleccionar Agroquímico" para armar la mezcla de este Box.';
+            dropzone.appendChild(hint);
+        }
+    } else {
+        if (hint) hint.remove();
+    }
+}
+
+// Modal handling
+function openExtraProductModal(card) {
+    activeBoxCard = card;
+    activeSelectedProduct = null;
+
+    const boxTitle = card.querySelector('.box-title-input')?.value || 'Box de Aplicación';
+    document.getElementById('modalPickExtraTitle').innerHTML = `<i class="fa-solid fa-flask me-2"></i>Agregar Agroquímico • ${boxTitle}`;
+    
+    const searchInput = document.getElementById('modal-extra-product-search');
+    searchInput.value = '';
+    
+    document.getElementById('modal-selected-prod-name').innerHTML = '<span class="text-muted fw-normal fst-italic">Selecciona un producto de la tabla arriba...</span>';
+    document.getElementById('modal-btn-confirm-add-prod').disabled = true;
+
+    renderModalProductList('');
+
+    const modal = new bootstrap.Modal(document.getElementById('modalPickExtraProduct'));
+    modal.show();
+    setTimeout(() => searchInput.focus(), 300);
+}
+
+function renderModalProductList(query) {
+    const tbody = document.getElementById('modal-extra-products-tbody');
+    tbody.innerHTML = '';
+    const q = query.toLowerCase().trim();
+
+    const filtered = ACTIVE_PRODUCTS.filter(p => 
+        p.code.toLowerCase().includes(q) || 
+        p.name.toLowerCase().includes(q) || 
+        p.pest.toLowerCase().includes(q) ||
+        p.active_ingredient.toLowerCase().includes(q)
+    );
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No se encontraron agroquímicos coincidentes</td></tr>';
+        return;
+    }
+
+    filtered.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.className = (activeSelectedProduct && activeSelectedProduct.id === p.id) ? 'table-primary fw-bold' : '';
+
+        tr.innerHTML = `
+            <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">${p.code}</span></td>
+            <td class="fw-semibold">${p.name}</td>
+            <td class="text-center font-monospace">${p.unit}</td>
+            <td class="text-end font-monospace">${p.dose}</td>
+            <td class="small text-muted text-truncate" style="max-width: 150px;" title="${p.pest || 'General'}">${p.pest || '-'}</td>
+            <td class="text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 btn-choose-prod" style="font-size: 0.75rem;">
+                    Elegir
+                </button>
+            </td>
+        `;
+
+        function selectThis() {
+            activeSelectedProduct = p;
+            document.querySelectorAll('#modal-extra-products-tbody tr').forEach(r => r.classList.remove('table-primary', 'fw-bold'));
+            tr.classList.add('table-primary', 'fw-bold');
+
+            document.getElementById('modal-selected-prod-name').innerHTML = `
+                <strong class="text-danger">${p.code}</strong> - ${p.name}
+            `;
+            document.getElementById('modal-extra-dose-input').value = p.dose || 1.0;
+            document.getElementById('modal-extra-unit-label').textContent = p.unit || 'CC';
+            document.getElementById('modal-btn-confirm-add-prod').disabled = false;
+        }
+
+        tr.addEventListener('click', selectThis);
+        tr.addEventListener('dblclick', function() {
+            selectThis();
+            document.getElementById('modal-btn-confirm-add-prod').click();
+        });
+
+        tbody.appendChild(tr);
+    });
+}
+
+// Add Product Chip with Drag and Drop Support
+function addProductChip(dropzone, p) {
+    // Remove empty hint if present
+    const hint = dropzone.querySelector('.empty-dropzone-hint');
+    if (hint) hint.remove();
+
+    const chip = document.createElement('div');
+    chip.className = 'badge bg-primary text-white d-flex align-items-center gap-2 p-2 drag-product-chip shadow-xs';
+    chip.draggable = true;
+    chip.dataset.id = p.id;
+    chip.dataset.code = p.code;
+    chip.dataset.name = p.name || p.code;
+    chip.dataset.dose = p.dose || 1.0;
+    chip.dataset.unit = p.unit || 'CC';
+
+    chip.innerHTML = `
+        <i class="fa-solid fa-grip-vertical text-white-50" style="cursor: grab;"></i>
+        <strong class="fs-6">${p.code}</strong>
+        <span class="badge bg-white text-dark py-1 font-monospace">${p.dose} ${p.unit || 'CC'}/L</span>
+        <button type="button" class="btn-close btn-close-white btn-sm ms-1" style="font-size: 0.65rem;" title="Quitar de este Box"></button>
+    `;
+
+    chip.querySelector('.btn-close').addEventListener('click', function(e) {
+        e.stopPropagation();
+        chip.remove();
+        checkDropzoneEmpty(dropzone);
+    });
+
+    dropzone.appendChild(chip);
+}
+
+// Setup HTML5 Drag and Drop reordering on dropzone
+function setupDropzoneDragAndDrop(dropzone) {
+    let draggedItem = null;
+
+    dropzone.addEventListener('dragstart', function(e) {
+        const chip = e.target.closest('.drag-product-chip');
+        if (chip) {
+            draggedItem = chip;
+            chip.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    });
+
+    dropzone.addEventListener('dragend', function(e) {
+        const chip = e.target.closest('.drag-product-chip');
+        if (chip) {
+            chip.classList.remove('dragging');
+            dropzone.querySelectorAll('.drag-product-chip').forEach(c => c.classList.remove('drag-over'));
+            draggedItem = null;
+        }
+    });
+
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const targetChip = e.target.closest('.drag-product-chip');
+        if (targetChip && targetChip !== draggedItem) {
+            targetChip.classList.add('drag-over');
+        }
+    });
+
+    dropzone.addEventListener('dragleave', function(e) {
+        const targetChip = e.target.closest('.drag-product-chip');
+        if (targetChip) {
+            targetChip.classList.remove('drag-over');
+        }
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        const targetChip = e.target.closest('.drag-product-chip');
+        if (targetChip && draggedItem && targetChip !== draggedItem) {
+            targetChip.classList.remove('drag-over');
+            
+            // Check position: insert before or after depending on mouse coordinates
+            const rect = targetChip.getBoundingClientRect();
+            const midpoint = rect.left + rect.width / 2;
+            if (e.clientX < midpoint) {
+                dropzone.insertBefore(draggedItem, targetChip);
+            } else {
+                dropzone.insertBefore(draggedItem, targetChip.nextSibling);
+            }
+        } else if (draggedItem && !targetChip) {
+            // Dropped on empty dropzone area -> append to the end
+            dropzone.appendChild(draggedItem);
+        }
+    });
+}
+
+// Add Block Row to Table
+function addBlockRow(tbody, bData = null) {
+    const tr = document.createElement('tr');
+    tr.className = 'box-block-row';
+
+    const bName = bData?.blockName || bData?.block_name || '';
+    const suffix = bData?.suffix || 'A';
+    const zone = bData?.zone || (BLOCK_ZONE_MAP[bName]?.zone || 'ZONA1');
+    const bedStart = bData?.bedStart || bData?.bed_start || 1;
+    const bedEnd = bData?.bedEnd || bData?.bed_end || 10;
+    const stdBeds = bData?.stdBeds || bData?.standard_beds || 10.0;
+    const litBed = bData?.litBed || bData?.liters_per_bed || 5.5;
+    const totLit = (parseFloat(stdBeds) * parseFloat(litBed)).toFixed(1);
+
+    tr.innerHTML = `
+        <td>
+            <input type="text" class="form-control form-control-sm fw-bold blk-name py-0" value="${bName}" placeholder="ej. BL  15" list="extra-block-datalist">
+            <datalist id="extra-block-datalist">
+                {% for b_n, b_i in block_zone_map.items() %}
+                <option value="{{ b_n }}">{{ b_n }} ({{ b_i.zone }})</option>
+                {% endfor %}
+            </datalist>
+        </td>
+        <td class="text-center">
+            <input type="text" class="form-control form-control-sm text-center fw-bold blk-suffix py-0" value="${suffix}" style="width: 45px;">
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm text-center blk-zone py-0 bg-light" value="${zone}" readonly style="width: 75px;">
+        </td>
+        <td class="text-center">
+            <div class="d-flex align-items-center justify-content-center gap-1">
+                <input type="number" class="form-control form-control-sm text-center blk-bed-start py-0" value="${bedStart}" style="width: 50px;">
+                <span>-</span>
+                <input type="number" class="form-control form-control-sm text-center blk-bed-end py-0" value="${bedEnd}" style="width: 50px;">
+            </div>
+        </td>
+        <td class="text-end">
+            <input type="number" step="0.01" class="form-control form-control-sm text-end fw-bold blk-std-beds py-0" value="${stdBeds}" style="width: 75px;">
+        </td>
+        <td class="text-end">
+            <input type="number" step="0.5" class="form-control form-control-sm text-end blk-lit-bed py-0" value="${litBed}" style="width: 65px;">
+        </td>
+        <td class="text-end fw-bold text-primary blk-total-liters">
+            ${totLit} L
+        </td>
+        <td class="text-end">
+            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 btn-del-blk-row" title="Quitar fila">
+                <i class="fa-regular fa-trash-can"></i>
+            </button>
+        </td>
+    `;
+
+    // Auto-update zone on block input
+    const nameInput = tr.querySelector('.blk-name');
+    nameInput.addEventListener('input', function() {
+        const val = this.value.trim().toUpperCase();
+        if (BLOCK_ZONE_MAP[val]) {
+            tr.querySelector('.blk-zone').value = BLOCK_ZONE_MAP[val].zone || 'ZONA1';
+        }
+    });
+
+    // Auto calculate liters
+    const stdInput = tr.querySelector('.blk-std-beds');
+    const litInput = tr.querySelector('.blk-lit-bed');
+    const totSpan = tr.querySelector('.blk-total-liters');
+
+    function calcLit() {
+        const s = parseFloat(stdInput.value) || 0;
+        const l = parseFloat(litInput.value) || 0;
+        totSpan.textContent = (s * l).toFixed(1) + ' L';
+    }
+
+    stdInput.addEventListener('input', calcLit);
+    litInput.addEventListener('input', calcLit);
+
+    // Delete row
+    tr.querySelector('.btn-del-blk-row').addEventListener('click', function() {
+        if (tbody.querySelectorAll('tr').length === 1) {
+            alert('Debe haber al menos un bloque en el box.');
+            return;
+        }
+        tr.remove();
+    });
+
+    tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

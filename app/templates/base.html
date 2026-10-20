@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestión Agrícola | Florícola{% endblock %}</title>
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts: Plus Jakarta Sans, Inter & Fira Code (UI/UX Pro Max) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if current_user %}
+    <div class="d-flex" id="wrapper">
+        <script>
+            // Restore sidebar state only on desktop to prevent layout issues on mobile
+            if (window.innerWidth >= 992 && localStorage.getItem("sidebar_collapsed") === "true") {
+                document.getElementById("wrapper")?.classList.add("toggled");
+            }
+        </script>
+        <!-- Sidebar -->
+        <aside id="sidebar-wrapper" class="bg-dark text-white">
+            <div class="sidebar-heading text-center py-3 primary-text fs-5 fw-bold border-bottom border-secondary position-relative px-4">
+                <div class="d-flex align-items-center justify-content-center" style="text-transform: none;">
+                    <i class="fa-solid fa-leaf text-success me-2"></i> AgroEz
+                </div>
+                <div class="small fw-semibold text-uppercase tracking-wider mt-1" style="font-size: 0.68rem; letter-spacing: 0.08em; color: #cbd5e1 !important;">PLATAFORMA FLORÍCOLA</div>
+                <!-- Desktop Collapse Button -->
+                <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-50 end-0 translate-middle-y me-2 d-none d-lg-flex align-items-center justify-content-center text-white-50 border-0 p-1" id="sidebar-collapse-inside" title="Ocultar barra lateral (Alt + S)" style="width: 28px; height: 28px;">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <!-- Mobile Close Button -->
+                <button type="button" class="btn btn-sm btn-outline-light position-absolute top-50 end-0 translate-middle-y me-2 d-lg-none d-flex align-items-center justify-content-center p-1" id="sidebar-close-mobile" title="Cerrar menú" style="width: 30px; height: 30px; border-radius: 6px;">
+                    <i class="fa-solid fa-xmark fs-6"></i>
+                </button>
+            </div>
+
+            <div class="list-group list-group-flush my-3">
+                <a href="{{ url_for('dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if request.path == '/' %}active-nav{% endif %}">
+                    <i class="fa-solid fa-gauge-high me-2 text-info"></i> Dashboard
+                </a>
+
+                <!-- 1. Gestión de Campo (TPSR) -->
+                {% if current_user.has_permission('tpsr') or current_user.has_permission('estado_cultivo') or current_user.has_permission('importador') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">1</span>
+                    <span class="module-title">Gestión de Campo</span>
+                </div>
+                <!-- Registro de Campo -->
+                {% if current_user.has_permission('tpsr') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('tpsr.registro') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/tpsr/registro' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-map-location-dot me-2 text-primary"></i> Mapping / Registro Campo
+                </a>
+                <!-- Avance Semanal -->
+                <a href="{{ url_for('tpsr.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/tpsr' in request.path and not '/tpsr/registro' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-chart-line me-2 text-success"></i> Avance Semanal (TPSR)
+                </a>
+                {% endif %}
+                <!-- Estado de Cultivo Camas -->
+                {% if current_user.has_permission('estado_cultivo') or current_user.has_permission('tpsr') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('estado_cultivo.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'estado-cultivo' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-layer-group me-2 text-light"></i> Estado de Cultivo (Camas)
+                </a>
+                {% endif %}
+                <!-- Importador Excel -->
+                {% if current_user.has_permission('importador') or current_user.has_permission('tpsr') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('importador.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'importador' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-file-excel me-2 text-warning"></i> Importador Semanal Excel
+                </a>
+                {% endif %}
+                {% endif %}
+
+                <!-- 2. Gestión de Cosechas -->
+                {% if current_user.has_permission('cosechas') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">2</span>
+                    <span class="module-title">Gestión de Cosechas</span>
+                </div>
+                <a href="{{ url_for('cosechas.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if request.path == '/cosechas' or request.path == '/cosechas/' %}active-nav{% endif %}">
+                    <i class="fa-solid fa-scissors me-2 text-warning"></i> Registros de Cosecha
+                </a>
+                <a href="{{ url_for('cosechas.nuevo_registro') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/cosechas/nuevo' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-circle-plus me-2 text-success"></i> Nuevo Registro
+                </a>
+                <a href="{{ url_for('cosechas.resumen') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/cosechas/resumen' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-calendar-week me-2 text-info"></i> Resumen Semanal
+                </a>
+                <a href="{{ url_for('cosechas.estimados') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/cosechas/estimados' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-chart-line me-2 text-primary"></i> Estimados Semanales
+                </a>
+                <a href="{{ url_for('cosechas.reportes') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/cosechas/reportes' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-chart-pie me-2 text-danger"></i> Reportes y Tablero
+                </a>
+                <a href="{{ url_for('cosechas.catalogos') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/cosechas/catalogos' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-boxes-stacked me-2 text-secondary"></i> Catálogos Cosecha
+                </a>
+                {% endif %}
+
+                <!-- 3. Fumigación & Planificación -->
+                {% if current_user.has_permission('fumigacion') or current_user.has_permission('orden_compra') or current_user.has_permission('aplicaciones_extras') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">3</span>
+                    <span class="module-title">Fumigación & Planes</span>
+                </div>
+                
+                <!-- 1. Rotaciones Semanales -->
+                {% if current_user.has_permission('fumigacion') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('fumigacion.rotaciones_index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/fumigacion/rotaciones' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-rotate me-2 text-success"></i> Rotaciones Semanales
+                </a>
+                {% endif %}
+
+                <!-- 2. Compras & Abastecimiento -->
+                {% if current_user.has_permission('orden_compra') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('orden_compra.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/orden-compra' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-cart-shopping me-2 text-warning"></i> Compras & Abastecimiento
+                </a>
+                {% endif %}
+
+                <!-- 3. Programas Extras / Manchas -->
+                {% if current_user.has_permission('aplicaciones_extras') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('fumigacion.aplicaciones_adicionales') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'aplicaciones-adicionales' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-bullseye me-2 text-danger"></i> Aplicaciones Extras / Manchas
+                </a>
+                {% endif %}
+                {% endif %}
+
+                <!-- 4. Almacén & Estadística (Bodega) -->
+                {% if current_user.has_permission('bodega') or current_user.has_permission('salidas_ver') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">4</span>
+                    <span class="module-title">Almacén & Bodega</span>
+                </div>
+                
+                <!-- Salidas y Despachos para Estadística (Kelly) -->
+                {% if current_user.has_permission('salidas_ver') or current_user.has_permission('bodega') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('bodega.salidas') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/bodega/salidas' in request.path or request.path == '/bodega/' or request.path == '/bodega' or 'fumigacion/ordenes' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-dolly me-2 text-warning"></i> Salidas y Despachos (Estadística)
+                </a>
+                {% endif %}
+
+                <!-- Pesaje y Programas para Bodega (Almacén Físico) -->
+                {% if current_user.has_permission('bodega') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('bodega.ordenes') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if '/bodega/orden' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-scale-balanced me-2 text-success"></i> Pesaje y Programas (Bodega)
+                </a>
+                {% endif %}
+                {% endif %}
+
+                <!-- 5. Catálogos y Datos Maestros -->
+                {% if current_user.has_permission('catalogos') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">5</span>
+                    <span class="module-title">Catálogos & Maestros</span>
+                </div>
+                <a href="{{ url_for('productos.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'productos' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-flask-vial me-2 text-primary"></i> Productos y Dosis
+                </a>
+                <a href="{{ url_for('cultivos.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'cultivos' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-seedling me-2 text-success"></i> Cultivos y Rangos
+                </a>
+                <a href="{{ url_for('litrajes.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'litrajes' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-droplet me-2 text-info"></i> Tabla de Litrajes
+                </a>
+                {% endif %}
+
+                <!-- 6. Gestión de Fertilización -->
+                {% if current_user.has_permission('fertilizacion') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">6</span>
+                    <span class="module-title">Gestión de Fertilización</span>
+                </div>
+                <a href="{{ url_for('fertilizacion.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fertilizacion' in request.path and not 'reportes' in request.path and not 'configuracion' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-droplet me-2 text-success"></i> Checklist & Aplicaciones
+                </a>
+                <a href="{{ url_for('fertilizacion.reportes') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fertilizacion/reportes' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-chart-pie me-2 text-info"></i> Rendimientos & Reportes
+                </a>
+                <a href="{{ url_for('fertilizacion.configuracion') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fertilizacion/configuracion' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-sliders me-2 text-warning"></i> Catálogos & Bloques
+                </a>
+                {% endif %}
+
+                <!-- 7. Otros Módulos Agronómicos -->
+                {% if current_user.has_permission('drench') or current_user.has_permission('trichos') or current_user.has_permission('desinfecciones') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">7</span>
+                    <span class="module-title">Otros Agronómicos</span>
+                </div>
+                {% if current_user.has_permission('drench') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('drench.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'drench' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-faucet-drip me-2 text-secondary"></i> Drench / Suelo <span class="badge bg-secondary ms-1">Base</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('trichos') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('trichos.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'trichos' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-bacteria me-2 text-secondary"></i> Trichos / Biológicos <span class="badge bg-secondary ms-1">Base</span>
+                </a>
+                {% endif %}
+                {% if current_user.has_permission('desinfecciones') or current_user.role == 'ADMIN' %}
+                <a href="{{ url_for('desinfecciones.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'desinfecciones' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-spray-can-sparkles me-2 text-secondary"></i> Desinfecciones <span class="badge bg-secondary ms-1">Base</span>
+                </a>
+                {% endif %}
+                {% endif %}
+
+                <!-- 8. Ciclos & Fenología (Fenogramas) -->
+                {% if current_user.has_permission('fenogramas') or current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">8</span>
+                    <span class="module-title">Ciclos & Fenología</span>
+                </div>
+                <a href="{{ url_for('fenogramas.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas' in request.path and not 'dashboard' in request.path and not 'matriz' in request.path and not 'incumplidas' in request.path and not 'sin-match' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-table-list me-2 text-success"></i> Calificación Operarios
+                </a>
+                <a href="{{ url_for('fenogramas.dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/dashboard' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-chart-pie me-2 text-info"></i> Dashboard Ejecutivo
+                </a>
+                <a href="{{ url_for('fenogramas.matriz') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/matriz' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-list-check me-2 text-warning"></i> Reglas Matriz Fenograma
+                </a>
+                <a href="{{ url_for('fenogramas.incumplidas') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/incumplidas' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-circle-xmark me-2 text-danger"></i> Fallas Operativas (0s)
+                </a>
+                <a href="{{ url_for('fenogramas.sin_match') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/sin-match' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i> Camas Sin Match
+                </a>
+                {% endif %}
+
+                <!-- 9. Administración -->
+                {% if current_user.role == 'ADMIN' %}
+                <div class="sidebar-module-heading">
+                    <span class="module-num-badge">9</span>
+                    <span class="module-title">Administración</span>
+                </div>
+                <a href="{{ url_for('auth.usuarios') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'usuarios' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-users-gear me-2 text-warning"></i> Gestión de Usuarios
+                </a>
+                {% endif %}
+            </div>
+
+            <div class="mt-auto p-3 text-center text-muted small border-top border-secondary">
+                <div>v1.0.0 &bull; Sistema Florícola</div>
+                <div>Fumigación y Aplicaciones</div>
+            </div>
+        </aside>
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper" class="w-100">
+            <!-- Sidebar Mobile Backdrop Overlay -->
+            <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+            <!-- Top Navigation Bar -->
+            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm px-3 py-2">
+                <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-xs" id="sidebar-toggle" title="Ocultar / Mostrar Barra Lateral (Alt + S)">
+                    <i class="fa-solid fa-bars"></i>
+                    <span class="d-none d-md-inline small fw-semibold">Menú</span>
+                </button>
+
+                <div class="ms-3 fw-semibold text-secondary">
+                    {% block page_header %}Gestión de Fumigación Agrícola{% endblock %}
+                </div>
+
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <span class="badge bg-success-subtle text-success border border-success me-2">
+                        <i class="fa-solid fa-circle-check me-1"></i> Finca Florícola Activa
+                    </span>
+                    <div class="dropdown">
+                        <button class="btn btn-light btn-sm dropdown-toggle fw-semibold text-dark border shadow-sm" type="button" data-bs-toggle="dropdown">
+                            <i class="fa-solid fa-user-circle text-primary me-1"></i> {{ current_user.full_name }}
+                            <span class="badge {% if current_user.role == 'ADMIN' %}bg-danger{% else %}bg-primary{% endif %} ms-1" style="font-size: 0.65rem;">{{ current_user.role }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li><h6 class="dropdown-header">Usuario: @{{ current_user.username }}</h6></li>
+                            {% if current_user.role == 'ADMIN' %}
+                            <li><a class="dropdown-item small" href="{{ url_for('auth.usuarios') }}"><i class="fa-solid fa-users-gear me-2 text-primary"></i>Gestión de Usuarios</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li><a class="dropdown-item small text-danger" href="{{ url_for('auth.logout') }}"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar Sesión</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Body Container -->
+            <main class="container-fluid px-4 py-4">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                                {% if category == 'success' %}
+                                    <i class="fa-solid fa-circle-check me-2"></i>
+                                {% elif category == 'danger' %}
+                                    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                                {% elif category == 'warning' %}
+                                    <i class="fa-solid fa-circle-exclamation me-2"></i>
+                                {% else %}
+                                    <i class="fa-solid fa-circle-info me-2"></i>
+                                {% endif %}
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    {% else %}
+    <!-- Public / Login View (No Sidebar, Clean Centered Layout) -->
+    <div class="min-vh-100 d-flex flex-column justify-content-center align-items-center bg-light py-5">
+        <div class="container" style="max-width: 500px;">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mb-4" role="alert">
+                            {% if category == 'success' %}
+                                <i class="fa-solid fa-circle-check me-2"></i>
+                            {% elif category == 'danger' %}
+                                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                            {% elif category == 'warning' %}
+                                <i class="fa-solid fa-circle-exclamation me-2"></i>
+                            {% else %}
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                            {% endif %}
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content_login %}{% endblock %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bootstrap 5.3 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% if current_user %}
+    <script>
+        (function() {
+            const wrapper = document.getElementById("wrapper");
+            const toggleBtn = document.getElementById("sidebar-toggle");
+            const closeInsideBtn = document.getElementById("sidebar-collapse-inside");
+            const closeMobileBtn = document.getElementById("sidebar-close-mobile");
+            const backdrop = document.getElementById("sidebar-backdrop");
+
+            function toggleSidebar() {
+                if (!wrapper) return;
+                wrapper.classList.toggle("toggled");
+                const collapsed = wrapper.classList.contains("toggled");
+                if (window.innerWidth >= 992) {
+                    localStorage.setItem("sidebar_collapsed", collapsed ? "true" : "false");
+                }
+                window.dispatchEvent(new CustomEvent("sidebartoggled", { detail: { collapsed: collapsed } }));
+            }
+
+            function closeSidebarMobile() {
+                if (window.innerWidth < 992 && wrapper) {
+                    wrapper.classList.remove("toggled");
+                }
+            }
+
+            toggleBtn?.addEventListener("click", function(e) {
+                e.preventDefault();
+                toggleSidebar();
+            });
+
+            closeInsideBtn?.addEventListener("click", function(e) {
+                e.preventDefault();
+                toggleSidebar();
+            });
+
+            closeMobileBtn?.addEventListener("click", function(e) {
+                e.preventDefault();
+                closeSidebarMobile();
+            });
+
+            backdrop?.addEventListener("click", function(e) {
+                closeSidebarMobile();
+            });
+
+            // Sidebar scroll preservation & active module focus (Emil Kowalski / Apple UX)
+            const sidebar = document.getElementById("sidebar-wrapper");
+            const STORAGE_KEY = "florsani_sidebar_scroll";
+
+            function saveSidebarScroll() {
+                if (sidebar) {
+                    sessionStorage.setItem(STORAGE_KEY, sidebar.scrollTop);
+                }
+            }
+
+            // 1. Immediately restore saved scroll position
+            const savedScroll = sessionStorage.getItem(STORAGE_KEY);
+            if (sidebar && savedScroll !== null) {
+                sidebar.scrollTop = parseInt(savedScroll, 10);
+            }
+
+            // 2. Ensure active nav item is visible and smoothly brought into view
+            const activeNav = sidebar ? sidebar.querySelector(".active-nav") : null;
+            if (activeNav && sidebar) {
+                // If it is off-screen or near edges, bring it into view smoothly
+                const sRect = sidebar.getBoundingClientRect();
+                const aRect = activeNav.getBoundingClientRect();
+                if (aRect.top < sRect.top + 30 || aRect.bottom > sRect.bottom - 30) {
+                    setTimeout(function() {
+                        activeNav.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                    }, 50);
+                }
+            }
+
+            // 3. Save scroll position on scroll, click and page unload
+            if (sidebar) {
+                sidebar.addEventListener("scroll", saveSidebarScroll, { passive: true });
+            }
+            window.addEventListener("beforeunload", saveSidebarScroll);
+
+            // Automatically close sidebar when clicking any navigation link on mobile & save scroll
+            document.querySelectorAll("#sidebar-wrapper a.list-group-item").forEach(function(link) {
+                link.addEventListener("click", function() {
+                    saveSidebarScroll();
+                    closeSidebarMobile();
+                });
+            });
+
+            // Global shortcut: Alt + S
+            document.addEventListener("keydown", function(e) {
+                if (e.altKey && (e.key === "s" || e.key === "S")) {
+                    e.preventDefault();
+                    toggleSidebar();
+                }
+            });
+        })();
+    </script>
+    {% endif %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

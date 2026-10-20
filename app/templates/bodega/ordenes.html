@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Programas Oficiales de Fumigación | Bodega & Almacén | AgroFumigación{% endblock %}
+{% block page_header %}Bodega &bull; Programas Oficiales de Fumigación{% endblock %}
+
+{% block content %}
+<!-- Top Header Card -->
+<div class="card mb-4 border-0 shadow-sm bg-white">
+    <div class="card-body p-3 p-md-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-primary-subtle text-primary border border-primary fw-bold">
+                        <i class="fa-solid fa-warehouse me-1"></i> Bodega & Almacén
+                    </span>
+                    <span class="badge bg-success"><i class="fa-solid fa-stamp me-1"></i> Programas Oficiales</span>
+                </div>
+                <h3 class="fw-bold text-dark mb-0 font-monospace">
+                    <i class="fa-solid fa-clipboard-check text-success me-2"></i>Programas Oficiales de Fumigación
+                </h3>
+                <p class="text-muted small mb-0 mt-1">
+                    Listado de programas oficiales aprobados por Agronomía para pesaje, entrega de mezcla y aplicación en campo.
+                </p>
+            </div>
+
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <!-- Week Filter -->
+                {% if approved_weeks %}
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text bg-light text-muted fw-semibold"><i class="fa-solid fa-filter me-1"></i> Filtrar Semana:</span>
+                    <select class="form-select form-select-sm fw-bold text-primary" onchange="window.location.href='{{ url_for('bodega.ordenes') }}' + (this.value ? '?week=' + this.value : '');">
+                        <option value="">-- Todas las Semanas Oficiales --</option>
+                        {% for w in approved_weeks %}
+                        <option value="{{ w }}" {% if selected_week == w %}selected{% endif %}>
+                            Semana {{ w }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <a href="{{ url_for('bodega.salidas') }}" class="btn btn-outline-primary btn-sm fw-semibold">
+                    <i class="fa-solid fa-dolly me-1"></i> Ir a Salidas de Bodega
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Bar for Programs -->
+<div class="card mb-4 shadow-sm border-0 bg-white">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-8">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-primary"></i></span>
+                    <input type="text" id="live-search-bodega-programs" class="form-control form-control-sm border-start-0 ps-0 fw-semibold" placeholder="Buscar programa por nombre (ej. Botrytis, Vuelta 1), código, semana o producto a pesar...">
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <span class="badge bg-light text-dark border small" id="bodega-count-badge">{{ orders|length }} programas oficiales disponibles</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Orders List (Full-Width Cards) -->
+{% if orders and orders|length > 0 %}
+<div class="row g-3 mb-4" id="programs-grid-container">
+    {% for ord in orders %}
+    <div class="col-12 program-card-col" 
+         data-search="{{ (ord.display_title or '')|lower }} {{ (ord.order_number or '')|lower }} {{ (ord.week or '')|lower }} {{ (ord.scheduled_day or '')|lower }} {% for ps in ord.products_summary %}{{ ps.product_code|lower }} {{ ps.commercial_name|lower }} {% endfor %}">
+        <div class="card shadow-sm border-0 border-start border-4 border-success bg-white">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="bg-success-subtle text-success p-3 rounded text-center d-none d-md-block" style="min-width: 60px;">
+                            <i class="fa-solid fa-file-circle-check fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <span class="badge bg-success"><i class="fa-solid fa-stamp me-1"></i> OFICIAL</span>
+                                <span class="badge bg-light text-dark border font-monospace">{{ ord.order_number }}</span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">Semana {{ ord.week }}</span>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-1 font-monospace">{{ ord.display_title }}</h5>
+                            <div class="text-muted small">
+                                <span class="me-3"><strong>Vuelta / Día:</strong> {{ ord.round_name }} &bull; {{ ord.scheduled_day }}</span>
+                                <span class="me-3"><strong>Mezcla Total:</strong> <strong class="text-primary font-monospace fs-6">{{ ord.total_liters|format_number(1) }} L</strong></span>
+                                <span class="me-3"><strong>Camas:</strong> {{ ord.total_standard_beds|format_number(1) }}</span>
+                                <span><strong>Filas:</strong> {{ ord.details|length }} registros</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <a href="{{ url_for('bodega.orden_detalle', order_id=ord.id) }}" class="btn btn-primary btn-sm fw-bold shadow-sm">
+                            <i class="fa-solid fa-scale-balanced me-1"></i> Ver Pesaje por Zonas
+                        </a>
+                        <a href="{{ url_for('bodega.orden_exportar_excel', order_id=ord.id) }}" class="btn btn-outline-success btn-sm fw-bold" title="Descargar Excel de la Orden">
+                            <i class="fa-solid fa-file-excel me-1"></i> Excel
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Products Summary Badges -->
+                <div class="p-2 bg-light rounded border mt-3">
+                    <div class="small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.72rem;">
+                        <i class="fa-solid fa-flask-vial me-1 text-primary"></i> Agroquímicos a Pesar en Balanza / Bodega (Sin decimales en CC):
+                    </div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for ps in ord.products_summary %}
+                        <span class="badge bg-white text-dark border p-1" title="{{ ps.commercial_name }}">
+                            <strong class="text-primary font-monospace">{{ ps.product_code }}</strong>:
+                            {{ ps.total_required_quantity|format_product(ps.dose_unit) }} {{ ps.dose_unit }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card shadow-sm border-0 py-5 text-center bg-white">
+    <div class="card-body">
+        <i class="fa-solid fa-warehouse fs-1 text-muted mb-3 opacity-50"></i>
+        <h5 class="fw-bold text-dark">No hay programas de fumigación oficiales {% if selected_week %}para la Semana {{ selected_week }}{% endif %}</h5>
+        <p class="text-muted small mb-0">
+            Los programas aparecerán automáticamente aquí cuando el agrónomo o asistente los marque como oficiales / aprobados.
+        </p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const searchBodegaInput = document.getElementById('live-search-bodega-programs');
+const bodegaCountBadge = document.getElementById('bodega-count-badge');
+
+searchBodegaInput?.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    let visibleCount = 0;
+
+    document.querySelectorAll('.program-card-col').forEach(card => {
+        const searchContent = card.getAttribute('data-search') || '';
+        if (!q || searchContent.includes(q)) {
+            card.style.display = '';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    if (bodegaCountBadge) {
+        bodegaCountBadge.innerText = `${visibleCount} programas oficiales encontrados`;
+    }
+});
+</script>
+{% endblock %}

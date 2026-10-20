@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Flask & Secrets
+.env
+.env.*
+!.env.production.example
+!.env.example
+instance/
+.pytest_cache/
+
+# Large Datasets & Client Excels
+estados de cultivo/
+uploads/
+app/uploads/*
+!app/uploads/.gitkeep
+backups/
+*.xlsx
+*.xls
+*.csv
+
+# Database & Cache
+*.sqlite
+*.sqlite3
+*.db
+
+# Agent & Dev
+.agent/
+.agents/
+.codex/
+skills-lock.json
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Logs
+*.log

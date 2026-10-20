@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Registro de Cosecha #{{ registro.id }} | Florícola{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-2 border-bottom">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb small mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('cosechas.index') }}" class="text-decoration-none text-muted">Cosechas</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Editar Registro #{{ registro.id }}</li>
+                </ol>
+            </nav>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-pen-to-square text-primary me-2"></i>
+                Modificar Registro de Cosecha
+            </h2>
+            <p class="text-muted small mb-0">Actualiza las mallas, módulo o variedad para este registro de campo.</p>
+        </div>
+        <div>
+            <a href="{{ url_for('cosechas.index') }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span>Volver al listado</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-8">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+                <div class="card-header bg-primary text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="fa-solid fa-scissors me-2"></i> Registro #{{ registro.id }} - {{ registro.variedad }}</span>
+                    <span class="badge bg-white text-primary">Hora orig: {{ registro.hora.strftime('%H:%M') if registro.hora else '--:--' }}</span>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST">
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-md-4">
+                                <label for="fecha" class="form-label small fw-semibold text-secondary">Fecha *</label>
+                                <input type="date" class="form-control" id="fecha" name="fecha" value="{{ registro.fecha.strftime('%Y-%m-%d') }}" required>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label for="semana" class="form-label small fw-semibold text-secondary">Semana *</label>
+                                <input type="number" class="form-control" id="semana" name="semana" value="{{ registro.semana }}" required>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label for="viaje" class="form-label small fw-semibold text-secondary">Viaje *</label>
+                                <input type="text" class="form-control" id="viaje" name="viaje" value="{{ registro.viaje }}" required>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label for="responsable" class="form-label small fw-semibold text-secondary">
+                                    <i class="fa-solid fa-user-check me-1 text-info"></i> Responsable / Monitor *
+                                </label>
+                                <select class="form-select fw-semibold" id="responsable" name="responsable" required>
+                                    <optgroup label="Monitores y Usuarios del Sistema">
+                                        {% for m in monitores_sistema %}
+                                        <option value="{{ m.nombre }}" {% if m.nombre == registro.responsable %}selected{% endif %}>
+                                            {{ m.nombre }} {% if m.username %}(@{{ m.username }} &bull; {{ m.role }}){% endif %}
+                                        </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% if registro.responsable not in responsables %}
+                                    <optgroup label="Asignado Actualmente">
+                                        <option value="{{ registro.responsable }}" selected>{{ registro.responsable }}</option>
+                                    </optgroup>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="modulo" class="form-label small fw-semibold text-secondary">Módulo *</label>
+                                <select class="form-select" id="modulo" name="modulo" required>
+                                    {% for mod in modulos %}
+                                    <option value="{{ mod }}" {% if mod == registro.modulo %}selected{% endif %}>{{ mod }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="variedad" class="form-label small fw-semibold text-secondary">Variedad *</label>
+                                <select class="form-select fw-semibold" id="variedad" name="variedad" required>
+                                    {% for var in variedades %}
+                                    <option value="{{ var }}" {% if var == registro.variedad %}selected{% endif %}>{{ var }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-6">
+                                <label for="mallas" class="form-label small fw-semibold text-secondary">Cantidad de Mallas *</label>
+                                <input type="number" class="form-control form-control-lg fw-bold" id="mallas" name="mallas" value="{{ registro.mallas }}" min="1" required>
+                            </div>
+                            <div class="col-6">
+                                <label for="tallos" class="form-label small fw-semibold text-secondary">Tallos por Malla *</label>
+                                <select class="form-select form-select-lg fw-bold" id="tallos" name="tallos" required>
+                                    <option value="10" {% if registro.tallos == 10 %}selected{% endif %}>10 tallos</option>
+                                    <option value="15" {% if registro.tallos == 15 %}selected{% endif %}>15 tallos</option>
+                                    <option value="25" {% if registro.tallos == 25 %}selected{% endif %}>25 tallos</option>
+                                    <option value="30" {% if registro.tallos == 30 %}selected{% endif %}>30 tallos</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Total Computed Alert -->
+                        <div class="alert alert-info d-flex align-items-center justify-content-between p-3 rounded-3 mb-4">
+                            <div>
+                                <span class="fw-bold">Total Calculado:</span>
+                                <span class="h4 fw-bolder mb-0 ms-2 text-primary" id="totalDisplay">{{ registro.total_tallos|format_number(0) }}</span> tallos
+                            </div>
+                            <span class="text-muted small">Mallas &times; Tallos</span>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ url_for('cosechas.index') }}" class="btn btn-outline-secondary px-4">Cancelar</a>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                                <i class="fa-solid fa-floppy-disk me-1"></i> Actualizar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const mallas = document.getElementById('mallas');
+    const tallos = document.getElementById('tallos');
+    const display = document.getElementById('totalDisplay');
+
+    function calc() {
+        const m = parseInt(mallas.value) || 0;
+        const t = parseInt(tallos.value) || 0;
+        display.textContent = (m * t).toLocaleString();
+    }
+
+    mallas.addEventListener('input', calc);
+    tallos.addEventListener('change', calc);
+});
+</script>
+{% endblock %}

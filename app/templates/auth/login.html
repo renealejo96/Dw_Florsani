@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión | AgroFumigación{% endblock %}
+
+{% block content_login %}
+<div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+    <div class="card-header bg-dark text-white text-center py-4 border-0">
+        <div class="d-inline-flex align-items-center justify-content-center bg-success bg-gradient text-white rounded-circle mb-2" style="width: 54px; height: 54px;">
+            <i class="fa-solid fa-leaf fs-3"></i>
+        </div>
+        <h4 class="fw-bold mb-0 text-white">AgroFumigación</h4>
+        <p class="text-light opacity-75 small mb-0 mt-1">Gestión Florícola &bull; Control Fitosanitario</p>
+    </div>
+
+    <div class="card-body p-4 p-md-4">
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label small fw-bold text-secondary">Nombre de Usuario:</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-user"></i></span>
+                    <input type="text" name="username" class="form-control border-start-0 ps-0" placeholder="Nombre de usuario" required autofocus>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-secondary">Contraseña:</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-lock"></i></span>
+                    <input type="password" name="password" class="form-control border-start-0 ps-0" placeholder="••••••••" required>
+                </div>
+            </div>
+
+            <div class="d-grid mb-3">
+                <button type="submit" class="btn btn-success btn-lg fw-bold py-2 shadow-sm">
+                    <i class="fa-solid fa-right-to-bracket me-2"></i> Iniciar Sesión
+                </button>
+            </div>
+
+            <div class="text-center text-muted small mt-3 border-top pt-3">
+                <i class="fa-solid fa-shield-halved text-success me-1"></i> Acceso seguro al sistema empresarial Florsani
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

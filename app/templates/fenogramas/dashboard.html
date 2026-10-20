@@ -1,0 +1,1469 @@
+{% extends 'base.html' %}
+
+{% block title %}Fenogramas - Panel Ejecutivo de Calidad y Fenología{% endblock %}
+
+{% block page_header %}
+<div class="d-flex align-items-center gap-2">
+    <i class="fa-solid fa-chart-pie text-success"></i>
+    <span>Ciclos & Fenología &bull; Panel Ejecutivo de Fenogramas</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ============================================================================
+   HIGH-TECH EXECUTIVE DASHBOARD STYLES (FLORSANI PROJECT PALETTE)
+   ============================================================================ */
+.kpi-bento {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #10b981;
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.kpi-bento:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.09);
+}
+.kpi-bento.accent-blue { border-left-color: #2563eb; }
+.kpi-bento.accent-emerald { border-left-color: #059669; }
+.kpi-bento.accent-red { border-left-color: #ef4444; }
+.kpi-bento.accent-amber { border-left-color: #d97706; }
+
+.kpi-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+/* Tarjetas de Gráficos con Bordes Llamativos del Proyecto */
+.dash-chart-card {
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+    position: relative;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.dash-chart-card:hover {
+    box-shadow: 0 10px 26px -4px rgba(15, 23, 42, 0.11);
+}
+.dash-chart-card.border-emerald {
+    border-top: 4px solid #059669;
+}
+.dash-chart-card.border-blue {
+    border-top: 4px solid #2563eb;
+}
+.dash-chart-card.border-amber {
+    border-top: 4px solid #d97706;
+}
+.dash-chart-card.border-purple {
+    border-top: 4px solid #7c3aed;
+}
+
+.dash-card-header {
+    padding: 0.85rem 1.15rem;
+    background: linear-gradient(90deg, #f8fafc 0%, #ffffff 100%);
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Resumen de Supervisores bajo la gráfica */
+.sup-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+    gap: 0.5rem;
+    padding: 0.65rem 1rem 0.9rem 1rem;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+}
+.sup-stat-pill {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-left: 3.5px solid #2563eb;
+    border-radius: 8px;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.76rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.sup-stat-pill.sup-high { border-left-color: #10b981; }
+.sup-stat-pill.sup-mid  { border-left-color: #f59e0b; }
+.sup-stat-pill.sup-low  { border-left-color: #ef4444; }
+
+/* ============================================================================
+   MATRIZ INTERACTIVA ESTILO POWER BI (AUXILIAR x CULTIVO + DRILL-DOWN)
+   ============================================================================ */
+.pbi-matrix-wrap {
+    max-height: 540px;
+    overflow: auto;
+    border-top: 1px solid #cbd5e1;
+}
+.pbi-matrix-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.78rem;
+}
+.pbi-matrix-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.71rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.55rem 0.6rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 2px solid #10b981;
+    white-space: nowrap;
+}
+.pbi-matrix-table thead th.sticky-col-left {
+    position: sticky;
+    left: 0;
+    z-index: 15;
+    background: #0f172a;
+}
+.pbi-matrix-table tbody td.sticky-col-left {
+    position: sticky;
+    left: 0;
+    z-index: 8;
+    background: #ffffff;
+    border-right: 2px solid #cbd5e1;
+}
+.pbi-matrix-table tbody tr:nth-child(even) td.sticky-col-left {
+    background: #f8fafc;
+}
+.pbi-matrix-table tbody tr:hover td {
+    background-color: #f1f5f9;
+}
+.pbi-matrix-table tbody td {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Celdas interactivas de Cultivo en la Matriz Power BI */
+.pbi-cell-clickable {
+    cursor: pointer;
+    transition: background-color 0.14s ease, box-shadow 0.14s ease, transform 0.1s ease;
+    position: relative;
+    min-width: 112px;
+}
+.pbi-cell-clickable:hover {
+    background-color: #ecfdf5 !important;
+    box-shadow: inset 0 0 0 1.5px #059669;
+}
+.pbi-cell-clickable.pbi-cell-active {
+    background-color: #eff6ff !important;
+    box-shadow: inset 0 0 0 2.5px #2563eb !important;
+}
+.pbi-mini-bar {
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 3px;
+}
+.pbi-mini-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+}
+
+/* Panel de Drill-Down (Detalle de Tareas que se Quedaron) */
+.pbi-drilldown-box {
+    background: #f8fafc;
+    border-top: 3px solid #2563eb;
+    padding: 1rem 1.15rem;
+    display: none;
+}
+.pbi-drilldown-box.show {
+    display: block;
+}
+
+.trend-pill {
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+.trend-sube { background: #dcfce7; color: #15803d; }
+.trend-baja { background: #fee2e2; color: #b91c1c; }
+.trend-igual { background: #f1f5f9; color: #475569; }
+</style>
+
+<div class="container-fluid py-2">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+        <div>
+            <h1 class="h4 fw-bold text-dark mb-1">
+                <i class="fa-solid fa-chart-pie text-success me-2"></i>Panel Ejecutivo de Calidad y Fenogramas
+            </h1>
+            <p class="text-muted small mb-0">
+                 Analítica general de finca, desempeño por supervisor, matriz interactiva por auxiliar/cultivo y evolución histórica.
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-1 bg-white p-1 px-2 border rounded shadow-xs">
+                <span class="small fw-bold text-secondary">Semana:</span>
+                <select id="semana-select" class="form-select form-select-sm border-0 fw-bold" style="width: auto;" onchange="window.location.href='{{ url_for('fenogramas.dashboard') }}?semana=' + this.value">
+                    {% for s in semanas %}
+                        <option value="{{ s.semana_anio }}" {% if s.semana_anio == semana %}selected{% endif %}>
+                            Semana {{ s.semana_anio }} {% if s.estado == 'CERRADA' %}(Cerrada 🔒){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-sm fw-bold shadow-xs" onclick="openGenerarFactModal()">
+                <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Generar desde Censo Local
+            </button>
+
+            <button type="button" class="btn btn-outline-dark btn-sm fw-semibold" onclick="openUploadModal()">
+                <i class="fa-solid fa-file-excel text-success me-1"></i> Subir Excel E4
+            </button>
+            <button type="button" class="btn btn-outline-dark btn-sm fw-semibold" onclick="openUploadMatrixModal()">
+                <i class="fa-solid fa-list-check text-warning me-1"></i> Subir Matriz
+            </button>
+
+            <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" onclick="openConfigModal()">
+                <i class="fa-solid fa-sliders me-1"></i> Alias
+            </button>
+
+            {% if semana_estado == 'ABIERTA' %}
+                <button type="button" class="btn btn-danger btn-sm fw-bold" onclick="cerrarCalificaciones({{ semana }})">
+                    <i class="fa-solid fa-lock me-1"></i> Cerrar Semana
+                </button>
+            {% else %}
+                <span class="badge bg-secondary p-2 small">
+                    <i class="fa-solid fa-lock me-1"></i> Semana Cerrada ({{ fecha_cierre or '' }})
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- KPI Bento Grid -->
+    <div class="row g-3 mb-3">
+        <!-- % Cumplimiento Global -->
+        <div class="col-md-3 col-sm-6">
+            <div class="kpi-bento accent-emerald">
+                <div class="kpi-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #059669;">
+                    <i class="fa-solid fa-percent"></i>
+                </div>
+                <div>
+                    <h3 class="h4 fw-bold mb-0 tabular-nums {% if pct_cumplimiento >= 85 %}text-success{% elif pct_cumplimiento >= 70 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ pct_cumplimiento }}%
+                    </h3>
+                    <div class="text-muted small fw-semibold">% Cumplimiento Finca (Sem. {{ semana }})</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Programadas -->
+        <div class="col-md-2 col-sm-6">
+            <div class="kpi-bento accent-blue">
+                <div class="kpi-icon-box" style="background: rgba(37, 99, 235, 0.14); color: #2563eb;">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+                <div>
+                    <h3 class="h4 fw-bold mb-0 text-dark tabular-nums">{{ kpi_global.total_evaluables or 0 }}</h3>
+                    <div class="text-muted small fw-semibold">Programadas</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cumplidas (1) -->
+        <div class="col-md-2 col-sm-6">
+            <div class="kpi-bento accent-emerald">
+                <div class="kpi-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div>
+                    <h3 class="h4 fw-bold mb-0 text-success tabular-nums">{{ kpi_global.cumplidas or 0 }}</h3>
+                    <div class="text-muted small fw-semibold">Cumplidas (1)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Incumplidas (0) -->
+        <div class="col-md-2 col-sm-6">
+            <div class="kpi-bento accent-red">
+                <div class="kpi-icon-box" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </div>
+                <div>
+                    <h3 class="h4 fw-bold mb-0 text-danger tabular-nums">{{ kpi_global.incumplidas or 0 }}</h3>
+                    <div class="text-muted small fw-semibold">Incumplidas (0)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Camas Sin Match -->
+        <div class="col-md-3 col-sm-6">
+            <div class="kpi-bento accent-amber" style="cursor: pointer;" onclick="window.location.href='{{ url_for('fenogramas.sin_match', semana=semana) }}'">
+                <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #d97706;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <h3 class="h4 fw-bold mb-0 text-warning tabular-nums">{{ sin_match_count }}</h3>
+                    <div class="text-muted small fw-semibold">Sin Match &rarr; Ver Auditoría</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================
+         FILA 1 DE GRÁFICOS: TENDENCIA GENERAL DE FINCA + DESEMPEÑO POR SUPERVISOR
+         ======================================================================== -->
+    <div class="row g-3 mb-3">
+        <!-- LÍNEA DE TENDENCIA GENERAL DE LA FINCA -->
+        <div class="col-lg-5">
+            <div class="dash-chart-card border-emerald h-100 d-flex flex-column">
+                <div class="dash-card-header">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-chart-line text-success me-2"></i>Tendencia General del Fenograma (Finca)
+                        </h6>
+                        <span class="text-muted" style="font-size: 0.73rem;">Histórico semana a semana del % de cumplimiento global y labores ejecutadas</span>
+                    </div>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold tabular-nums">
+                        Actual: {{ pct_cumplimiento }}%
+                    </span>
+                </div>
+                <div class="p-3 flex-grow-1 d-flex align-items-center">
+                    <div id="chart-tendencia-finca" style="width: 100%; min-height: 290px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DESEMPEÑO POR SUPERVISOR (ACTIVIDADES TOTALES, CUMPLIDAS Y %) -->
+        <div class="col-lg-7">
+            <div class="dash-chart-card border-blue h-100 d-flex flex-column">
+                <div class="dash-card-header">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-user-tie text-primary me-2"></i>Cumplimiento por Supervisor (Semana {{ semana }})
+                        </h6>
+                        <span class="text-muted" style="font-size: 0.73rem;">Comparativa de actividades programadas, cumplidas y porcentaje alcanzado por supervisor</span>
+                    </div>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold tabular-nums">
+                        {{ por_supervisor|length }} Supervisores
+                    </span>
+                </div>
+                <div class="px-3 pt-2 flex-grow-1">
+                    <div id="chart-supervisores" style="width: 100%; min-height: 245px;"></div>
+                </div>
+                {% if por_supervisor %}
+                <div class="sup-stat-grid">
+                    {% for sup in por_supervisor %}
+                    <div class="sup-stat-pill {% if sup.pct >= 85 %}sup-high{% elif sup.pct >= 70 %}sup-mid{% else %}sup-low{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-dark text-truncate" title="{{ sup.supervisor }}">{{ sup.supervisor }}</span>
+                            <span class="fw-bold tabular-nums {% if sup.pct >= 85 %}text-success{% elif sup.pct >= 70 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ sup.pct }}%
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted tabular-nums" style="font-size: 0.7rem;">
+                            <span>Cumpl.: <strong class="text-success">{{ sup.cumplidas }}</strong> / {{ sup.total }}</span>
+                            <span>Quedaron: <strong class="{% if sup.quedaron > 0 %}text-danger{% else %}text-muted{% endif %}">{{ sup.quedaron }}</strong></span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================
+         FILA 2 DE GRÁFICOS: CUMPLIMIENTO POR ZONA Y POR CULTIVO
+         ======================================================================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="dash-chart-card border-amber h-100">
+                <div class="dash-card-header">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-map-location-dot text-warning me-2"></i>% Cumplimiento por Zona (Semana {{ semana }})
+                        </h6>
+                        <span class="text-muted" style="font-size: 0.73rem;">Desempeño operativo por cada zona de producción</span>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div id="chart-zona" style="width: 100%; min-height: 260px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="dash-chart-card border-purple h-100">
+                <div class="dash-card-header">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-seedling text-success me-2"></i>% Cumplimiento por Cultivo / Producto Maestro
+                        </h6>
+                        <span class="text-muted" style="font-size: 0.73rem;">Efectividad de labores fenológicas por especie floral</span>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div id="chart-producto" style="width: 100%; min-height: 260px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================
+         MATRIZ INTERACTIVA ESTILO POWER BI: AUXILIAR × CULTIVO + DRILL-DOWN
+         ======================================================================== -->
+    <div class="dash-chart-card border-emerald mb-4" id="pbi-matrix-card">
+        <div class="dash-card-header">
+            <div>
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-table-cells text-success me-2"></i>Matriz Interactiva por Auxiliar y Cultivo (Semana {{ semana }})
+                </h6>
+                <span class="text-muted" style="font-size: 0.74rem;">
+                    Haz clic en cualquier celda de <strong>Cultivo</strong> o fila de <strong>Auxiliar</strong> para inspeccionar qué tareas se quedaron sin cumplir (Drill-Down estilo Power BI).
+                </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <select id="pbi-filter-sup" class="form-select form-select-sm" style="width: auto; font-size: 0.76rem;" onchange="filterPbiMatrix()">
+                    <option value="ALL">Supervisor: Todos</option>
+                    {% for sup in por_supervisor %}
+                    <option value="{{ sup.supervisor }}">{{ sup.supervisor }}</option>
+                    {% endfor %}
+                </select>
+
+                <input type="text" id="pbi-search-aux" class="form-control form-control-sm" style="width: 210px; font-size: 0.76rem;"
+                       placeholder="Buscar auxiliar..." oninput="filterPbiMatrix()">
+
+                <div class="form-check form-switch mb-0 ms-1">
+                    <input class="form-check-input" type="checkbox" id="pbi-only-quedaron" onchange="filterPbiMatrix()">
+                    <label class="form-check-label small fw-semibold text-secondary" for="pbi-only-quedaron" style="font-size: 0.75rem;">
+                        Solo con tareas pendientes/0
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="pbi-matrix-wrap">
+            <table class="pbi-matrix-table" id="pbi-matrix-table">
+                <thead>
+                    <tr>
+                        <th class="sticky-col-left" style="min-width: 210px;">Auxiliar / Supervisor</th>
+                        <th class="text-center" style="min-width: 120px;">Tareas Cumplidas</th>
+                        <th class="text-center" style="min-width: 110px;">% Global</th>
+                        {% for cult in cultivos_columnas %}
+                        <th class="text-center">{{ cult }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in matriz_auxiliares %}
+                    {% set aux_idx = loop.index0 %}
+                    <tr class="pbi-aux-row"
+                        data-auxiliar="{{ row.auxiliar|lower }}"
+                        data-supervisor="{{ row.supervisor }}"
+                        data-quedaron="{{ row.quedaron }}">
+
+                        <!-- Columna Sticky: Auxiliar + Supervisor -->
+                        <td class="sticky-col-left pbi-cell-clickable"
+                            onclick="openPbiDrilldown({{ aux_idx }}, null, this)"
+                            title="Clic para ver todas las tareas que se quedaron de {{ row.auxiliar }}">
+                            <div class="fw-bold text-dark">{{ row.auxiliar }}</div>
+                            <div class="text-muted" style="font-size: 0.69rem;">
+                                <i class="fa-solid fa-user-tie me-1"></i>{{ row.supervisor }}
+                            </div>
+                        </td>
+
+                        <!-- Tareas Cumplidas / Total + Quedaron -->
+                        <td class="text-center pbi-cell-clickable"
+                            onclick="openPbiDrilldown({{ aux_idx }}, null, this)"
+                            title="Clic para inspeccionar las {{ row.quedaron }} tareas que se quedaron">
+                            <span class="fw-bold text-success">{{ row.cumplidas }}</span>
+                            <span class="text-muted">/ {{ row.total }}</span>
+                            {% if row.quedaron > 0 %}
+                            <div>
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.65rem;">
+                                    {{ row.quedaron }} quedaron
+                                </span>
+                            </div>
+                            {% else %}
+                            <div>
+                                <span class="badge bg-success-subtle text-success" style="font-size: 0.65rem;">Al día</span>
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- % Global del Auxiliar -->
+                        <td class="text-center pbi-cell-clickable"
+                            onclick="openPbiDrilldown({{ aux_idx }}, null, this)">
+                            <div class="fw-bold {% if row.pct_global >= 85 %}text-success{% elif row.pct_global >= 70 %}text-warning{% else %}text-danger{% endif %}" style="font-size: 0.84rem;">
+                                {{ row.pct_global }}%
+                            </div>
+                            <div class="pbi-mini-bar">
+                                <div class="pbi-mini-bar-fill" style="width: {{ row.pct_global }}%; background: {% if row.pct_global >= 85 %}#10b981{% elif row.pct_global >= 70 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+                            </div>
+                        </td>
+
+                        <!-- Columnas dinámicas por Cultivo -->
+                        {% for cult in cultivos_columnas %}
+                        {% set c_info = row.cultivos.get(cult) %}
+                        {% if c_info %}
+                        <td class="text-center pbi-cell-clickable"
+                            onclick="openPbiDrilldown({{ aux_idx }}, {{ cult|tojson }}, this)"
+                            title="{{ row.auxiliar }} · {{ cult }}: {{ c_info.cumplidas }}/{{ c_info.total }} cumplidas ({{ c_info.quedaron }} quedaron). Clic para ver detalle.">
+                            <div class="d-flex justify-content-between align-items-baseline px-1">
+                                <span class="fw-bold {% if c_info.pct >= 85 %}text-success{% elif c_info.pct >= 70 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ c_info.pct }}%
+                                </span>
+                                <span class="text-muted" style="font-size: 0.68rem;">
+                                    {{ c_info.cumplidas }}/{{ c_info.total }}
+                                </span>
+                            </div>
+                            <div class="pbi-mini-bar mx-1">
+                                <div class="pbi-mini-bar-fill" style="width: {{ c_info.pct }}%; background: {% if c_info.pct >= 85 %}#10b981{% elif c_info.pct >= 70 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+                            </div>
+                            {% if c_info.quedaron > 0 %}
+                            <div class="mt-1" style="font-size: 0.65rem;">
+                                <span class="text-danger fw-semibold">
+                                    <i class="fa-solid fa-circle-exclamation"></i> {{ c_info.quedaron }} qued.
+                                </span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        {% else %}
+                        <td class="text-center text-muted" style="background: #f8fafc;">-</td>
+                        {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    {% if not matriz_auxiliares %}
+                    <tr>
+                        <td colspan="{{ 3 + cultivos_columnas|length }}" class="text-center py-4 text-muted">
+                            No hay tareas asignadas a auxiliares en la Semana {{ semana }}.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Nota interactiva al pie de la matriz -->
+        <div class="px-3 py-2 bg-light border-top d-flex justify-content-between align-items-center small text-muted">
+            <span><i class="fa-solid fa-hand-pointer text-primary me-1"></i>Haz clic en cualquier botón de porcentaje o fila de auxiliar para abrir la ventana con todas las labores que no se cumplieron.</span>
+            <span class="fw-semibold text-dark tabular-nums">{{ matriz_auxiliares|length }} Auxiliares evaluados</span>
+        </div>
+    </div>
+
+    <!-- MODAL DINÁMICO: LABORES NO CUMPLIDAS POR AUXILIAR Y CULTIVO (ESTILO POWER BI) -->
+    <div class="modal fade" id="modalPbiDrilldown" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg" style="border-top: 4px solid #2563eb !important;">
+                <div class="modal-header bg-dark text-white py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="badge bg-primary px-2 py-1"><i class="fa-solid fa-magnifying-glass-chart me-1"></i>Detalle de Labores No Cumplidas</span>
+                        <h6 class="modal-title fw-bold mb-0" id="pbi-drill-title">Auxiliar &bull; Cultivo</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <!-- Barra dinámica de filtros dentro de la ventana (Pestañas de Cultivo + Estado + Buscador) -->
+                <div class="bg-light border-bottom px-3 py-2">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                        <!-- Pestañas dinámicas de cultivos del auxiliar -->
+                        <div class="d-flex align-items-center gap-1 flex-wrap" id="pbi-modal-crop-tabs"></div>
+
+                        <!-- Resumen de conteos -->
+                        <div id="pbi-drill-summary-badges" class="d-inline-flex gap-1 flex-wrap"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Filtro estado labor">
+                            <button type="button" class="btn btn-outline-dark active fw-semibold" id="btn-modal-est-all" onclick="setModalTaskStatusFilter('ALL')" style="font-size: 0.73rem;">
+                                Todas las No Cumplidas
+                            </button>
+                            <button type="button" class="btn btn-outline-danger fw-semibold" id="btn-modal-est-inc" onclick="setModalTaskStatusFilter('INCUMPLIDA')" style="font-size: 0.73rem;">
+                                Calificadas en 0 (Incumplidas)
+                            </button>
+                            <button type="button" class="btn btn-outline-warning text-dark fw-semibold" id="btn-modal-est-pen" onclick="setModalTaskStatusFilter('PENDIENTE')" style="font-size: 0.73rem;">
+                                Pendientes sin Calificar
+                            </button>
+                        </div>
+
+                        <div class="input-group input-group-sm" style="max-width: 280px;">
+                            <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                            <input type="text" id="pbi-modal-search" class="form-control" placeholder="Buscar bloque, cama, labor..." oninput="renderModalTasksTable()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-body p-0">
+                    <div class="table-responsive" style="max-height: 62vh;">
+                        <table class="table table-sm table-hover align-middle mb-0 bg-white small" style="font-size: 0.77rem;">
+                            <thead class="table-light" style="position: sticky; top: 0; z-index: 5; border-bottom: 2px solid #cbd5e1;">
+                                <tr>
+                                    <th class="ps-3">Cultivo</th>
+                                    <th>Zona</th>
+                                    <th>Bloque</th>
+                                    <th>Camas</th>
+                                    <th>Tipo</th>
+                                    <th class="text-center">Sem. Edad</th>
+                                    <th>Labor que No se Cumplió</th>
+                                    <th class="text-center">Estado</th>
+                                    <th>Observación</th>
+                                    <th class="text-end pe-3">Ir a Calificar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pbi-drill-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                    <span class="small text-muted" id="pbi-modal-footer-count">0 labores listadas</span>
+                    <button type="button" class="btn btn-secondary btn-sm fw-bold" data-bs-dismiss="modal">Cerrar Ventana</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Week Trend Table por Personal -->
+    <div class="dash-chart-card border-blue mb-4">
+        <div class="dash-card-header">
+            <div>
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-arrow-trend-up text-primary me-2"></i>Evolución Multisemana del % de Cumplimiento por Personal
+                </h6>
+                <span class="text-muted" style="font-size: 0.73rem;">Mapeo histórico de desempeño semana a semana por Supervisor y Auxiliar</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 24%;">Supervisor</th>
+                        <th style="width: 24%;">Auxiliar</th>
+                        {% for s in semanas_todas %}
+                            <th style="text-align: center;">Sem {{ s }}</th>
+                        {% endfor %}
+                        <th style="text-align: center;">Último %</th>
+                        <th style="text-align: center;">Tendencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in tendencia_multisemana %}
+                        <tr>
+                            <td class="fw-bold text-dark"><i class="fa-solid fa-user-tie text-secondary me-1"></i>{{ row.supervisor }}</td>
+                            <td class="fw-semibold text-secondary"><i class="fa-solid fa-user-gear text-muted me-1"></i>{{ row.auxiliar }}</td>
+                            {% for s_val in row.semanas_pct %}
+                                <td style="text-align: center;" class="tabular-nums">
+                                    {% if s_val.pct is not none %}
+                                        <span class="fw-bold {% if s_val.pct >= 85 %}text-success{% elif s_val.pct >= 70 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ s_val.pct }}%
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                            <td style="text-align: center;" class="fw-bold tabular-nums">{{ row.ultimo_pct }}%</td>
+                            <td style="text-align: center;">
+                                <span class="trend-pill {% if row.tendencia == 'Sube' %}trend-sube{% elif row.tendencia == 'Baja' %}trend-baja{% else %}trend-igual{% endif %}">
+                                    {% if row.tendencia == 'Sube' %}↗ Sube{% elif row.tendencia == 'Baja' %}↘ Baja{% else %}= Estable{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    {% if not tendencia_multisemana %}
+                        <tr><td colspan="{{ 4 + semanas_todas|length }}" class="text-center py-4 text-muted">No hay registros de evaluación histórica aún.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 1: Generar desde Censo / Estado Cultivo Local -->
+<div class="modal fade" id="modalGenerarFact" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white py-3">
+                <h6 class="modal-title fw-bold">
+                    <i class="fa-solid fa-wand-magic-sparkles text-success me-2"></i>Generar Plano y Labores desde Censo Local
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">
+                    Este proceso lee la tabla <code>mrt_estado_cultivo_actual</code> / <code>fact_eventos_cultivo</code> local en PostgreSQL, detecta las camas contiguas con la misma edad y producto, genera los segmentos en <code>plano_cultivo</code> y asigna las labores según la <code>matriz_fenogramas</code>.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Semana de Corte / Evaluación:</label>
+                    <input type="number" id="input-semana-corte" class="form-control" value="{{ semana }}" min="1" max="53">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Año:</label>
+                    <input type="number" id="input-anio-corte" class="form-control" value="2026">
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold" onclick="ejecutarGeneracionFact()">
+                    <i class="fa-solid fa-play me-1"></i> Generar Fenograma
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 2: Inyectar Plano Cultivo Excel -->
+<div class="modal fade" id="modalUploadExcel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white py-3">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-file-excel text-success me-2"></i>Inyectar Estado Cultivo (Excel E4)</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="form-upload-excel" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Archivo Estado Cultivo (.xlsx):</label>
+                        <input type="file" name="file_estado_cultivo" class="form-control" accept=".xlsx,.xls" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold">Previsualizar y Cargar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 3: Inyectar Matriz Fenogramas Excel -->
+<div class="modal fade" id="modalUploadMatrix" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white py-3">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-list-check text-warning me-2"></i>Inyectar Matriz de Fenogramas (.xlsx)</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="form-upload-matrix" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Archivo Matriz Fenogramas (.xlsx):</label>
+                        <input type="file" name="file_matriz_fenogramas" class="form-control" accept=".xlsx,.xls" required>
+                    </div>
+                    <input type="hidden" name="semana" value="{{ semana }}">
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold">Reemplazar Matriz</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+const SEMANA_DASH = {{ semana }};
+const FENO_INDEX_URL = "{{ url_for('fenogramas.index') }}";
+
+const TENDENCIA_FINCA = {{ (tendencia_finca or [])|tojson }};
+const POR_SUPERVISOR  = {{ (por_supervisor or [])|tojson }};
+const POR_ZONA        = {{ (por_zona or [])|tojson }};
+const POR_PRODUCTO    = {{ (por_producto or [])|tojson }};
+const MATRIZ_AUX      = {{ (matriz_auxiliares or [])|tojson }};
+
+/* ============================================================================
+   1. GRÁFICA DE TENDENCIA GENERAL DE LA FINCA (ÁREA SPLINE + BORDES PROYECTO)
+   ============================================================================ */
+(function renderTendenciaFinca() {
+    const el = document.getElementById('chart-tendencia-finca');
+    if (!el) return;
+
+    const labels = TENDENCIA_FINCA.map(d => `Sem ${d.semana}`);
+    const pctSeries = TENDENCIA_FINCA.map(d => d.pct);
+
+    const options = {
+        chart: {
+            type: 'area',
+            height: 285,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            toolbar: { show: false },
+            animations: { enabled: true, easing: 'easeinout', speed: 550 }
+        },
+        series: [{
+            name: '% Cumplimiento Finca',
+            data: pctSeries
+        }],
+        xaxis: {
+            categories: labels,
+            labels: { style: { colors: '#334155', fontWeight: 700, fontSize: '11px' } },
+            axisBorder: { color: '#cbd5e1' }
+        },
+        yaxis: {
+            min: 0,
+            max: 100,
+            tickAmount: 5,
+            labels: {
+                formatter: val => `${Math.round(val)}%`,
+                style: { colors: '#475569', fontWeight: 600, fontSize: '11px' }
+            }
+        },
+        colors: ['#059669'],
+        stroke: {
+            curve: 'smooth',
+            width: 3.5,
+            colors: ['#059669']
+        },
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.45,
+                opacityTo: 0.05,
+                stops: [0, 90, 100]
+            }
+        },
+        markers: {
+            size: 6,
+            colors: ['#ffffff'],
+            strokeColors: '#059669',
+            strokeWidth: 3,
+            hover: { size: 8 }
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: val => `${val}%`,
+            offsetY: -8,
+            style: { fontSize: '11px', fontWeight: 800, colors: ['#064e3b'] },
+            background: {
+                enabled: true,
+                foreColor: '#ffffff',
+                padding: 4,
+                borderRadius: 4,
+                borderWidth: 1,
+                borderColor: '#10b981',
+                opacity: 0.95
+            }
+        },
+        grid: {
+            borderColor: '#e2e8f0',
+            strokeDashArray: 4
+        },
+        tooltip: {
+            theme: 'light',
+            custom: function({ series, seriesIndex, dataPointIndex }) {
+                const item = TENDENCIA_FINCA[dataPointIndex] || {};
+                return `
+                    <div class="p-2 small" style="min-width: 175px;">
+                        <div class="fw-bold text-dark border-bottom pb-1 mb-1">Semana ${item.semana} (General Finca)</div>
+                        <div class="d-flex justify-content-between"><span>% Cumplimiento:</span> <strong class="text-success">${item.pct}%</strong></div>
+                        <div class="d-flex justify-content-between"><span>Cumplidas (1):</span> <strong>${item.cumplidas}</strong></div>
+                        <div class="d-flex justify-content-between"><span>Programadas:</span> <strong>${item.total}</strong></div>
+                        <div class="d-flex justify-content-between text-danger"><span>Incumplidas (0):</span> <strong>${item.incumplidas}</strong></div>
+                        <div class="d-flex justify-content-between text-muted"><span>Pendientes:</span> <strong>${item.pendientes}</strong></div>
+                    </div>
+                `;
+            }
+        }
+    };
+
+    new ApexCharts(el, options).render();
+})();
+
+/* ============================================================================
+   2. GRÁFICA DE DESEMPEÑO POR SUPERVISOR (PROGRAMADAS vs CUMPLIDAS + % LÍNEA)
+   ============================================================================ */
+(function renderSupervisoresChart() {
+    const el = document.getElementById('chart-supervisores');
+    if (!el) return;
+
+    const labels = POR_SUPERVISOR.map(s => s.supervisor);
+    const totalData = POR_SUPERVISOR.map(s => s.total);
+    const cumplidasData = POR_SUPERVISOR.map(s => s.cumplidas);
+    const pctData = POR_SUPERVISOR.map(s => s.pct);
+
+    const options = {
+        chart: {
+            height: 255,
+            type: 'line',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            toolbar: { show: false }
+        },
+        series: [
+            {
+                name: 'Programadas',
+                type: 'column',
+                data: totalData
+            },
+            {
+                name: 'Cumplidas (1)',
+                type: 'column',
+                data: cumplidasData
+            },
+            {
+                name: '% Cumplimiento',
+                type: 'line',
+                data: pctData
+            }
+        ],
+        colors: ['#2563eb', '#10b981', '#d97706'],
+        stroke: {
+            width: [1.5, 1.5, 3.5],
+            curve: 'smooth'
+        },
+        plotOptions: {
+            bar: {
+                columnWidth: '48%',
+                borderRadius: 5
+            }
+        },
+        dataLabels: {
+            enabled: true,
+            enabledOnSeries: [1, 2],
+            formatter: function(val, opts) {
+                if (opts.seriesIndex === 2) return `${val}%`;
+                return val;
+            },
+            style: { fontSize: '10.5px', fontWeight: 700 }
+        },
+        xaxis: {
+            categories: labels,
+            labels: {
+                style: { colors: '#1e293b', fontWeight: 700, fontSize: '11px' }
+            }
+        },
+        yaxis: [
+            {
+                title: { text: 'N° Actividades', style: { color: '#475569', fontWeight: 700, fontSize: '11px' } },
+                labels: { style: { colors: '#475569' } }
+            },
+            {
+                show: false
+            },
+            {
+                opposite: true,
+                min: 0,
+                max: 100,
+                tickAmount: 5,
+                title: { text: '% Cumplimiento', style: { color: '#d97706', fontWeight: 700, fontSize: '11px' } },
+                labels: {
+                    formatter: v => `${Math.round(v)}%`,
+                    style: { colors: '#b45309', fontWeight: 700 }
+                }
+            }
+        ],
+        markers: {
+            size: [0, 0, 6],
+            strokeWidth: 2,
+            strokeColors: '#d97706'
+        },
+        grid: {
+            borderColor: '#e2e8f0',
+            strokeDashArray: 4
+        },
+        legend: {
+            position: 'top',
+            horizontalAlign: 'right',
+            fontSize: '11px',
+            fontWeight: 600
+        }
+    };
+
+    new ApexCharts(el, options).render();
+})();
+
+/* ============================================================================
+   3. GRÁFICA DE CUMPLIMIENTO POR ZONA (BARRAS CON BORDES Y COLOR SEMÁNTICO)
+   ============================================================================ */
+(function renderZonaChart() {
+    const el = document.getElementById('chart-zona');
+    if (!el) return;
+
+    const labels = POR_ZONA.map(z => z.zona);
+    const pcts = POR_ZONA.map(z => z.pct);
+    const barColors = pcts.map(p => p >= 85 ? '#10b981' : (p >= 70 ? '#f59e0b' : '#ef4444'));
+
+    const options = {
+        chart: {
+            type: 'bar',
+            height: 260,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            toolbar: { show: false }
+        },
+        series: [{
+            name: '% Cumplimiento',
+            data: pcts
+        }],
+        colors: barColors,
+        plotOptions: {
+            bar: {
+                distributed: true,
+                borderRadius: 6,
+                columnWidth: '52%',
+                dataLabels: { position: 'top' }
+            }
+        },
+        stroke: {
+            show: true,
+            width: 2,
+            colors: ['#0f172a']
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: function(val, opts) {
+                const z = POR_ZONA[opts.dataPointIndex];
+                return z ? `${val}% (${z.cumplidas}/${z.total})` : `${val}%`;
+            },
+            offsetY: -20,
+            style: { fontSize: '10.5px', fontWeight: 800, colors: ['#0f172a'] }
+        },
+        xaxis: {
+            categories: labels,
+            labels: { style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' } }
+        },
+        yaxis: {
+            min: 0,
+            max: 108,
+            labels: { formatter: v => v <= 100 ? `${Math.round(v)}%` : '' }
+        },
+        legend: { show: false },
+        grid: { borderColor: '#e2e8f0', strokeDashArray: 4 }
+    };
+
+    new ApexCharts(el, options).render();
+})();
+
+/* ============================================================================
+   4. GRÁFICA DE CUMPLIMIENTO POR CULTIVO (PRODUCTO MAESTRO)
+   ============================================================================ */
+(function renderProductoChart() {
+    const el = document.getElementById('chart-producto');
+    if (!el) return;
+
+    const labels = POR_PRODUCTO.map(p => p.producto_maestro);
+    const pcts = POR_PRODUCTO.map(p => p.pct);
+
+    const options = {
+        chart: {
+            type: 'bar',
+            height: 260,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            toolbar: { show: false }
+        },
+        series: [{
+            name: '% Cumplimiento',
+            data: pcts
+        }],
+        colors: ['#2563eb'],
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shade: 'light',
+                type: 'vertical',
+                shadeIntensity: 0.35,
+                gradientToColors: ['#059669'],
+                inverseColors: false,
+                opacityFrom: 0.95,
+                opacityTo: 0.85,
+                stops: [0, 100]
+            }
+        },
+        plotOptions: {
+            bar: {
+                borderRadius: 6,
+                columnWidth: '50%',
+                dataLabels: { position: 'top' }
+            }
+        },
+        stroke: {
+            show: true,
+            width: 2,
+            colors: ['#1e3a8a']
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: function(val, opts) {
+                const p = POR_PRODUCTO[opts.dataPointIndex];
+                return p ? `${val}% (${p.cumplidas}/${p.total})` : `${val}%`;
+            },
+            offsetY: -20,
+            style: { fontSize: '10.5px', fontWeight: 800, colors: ['#0f172a'] }
+        },
+        xaxis: {
+            categories: labels,
+            labels: { style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' } }
+        },
+        yaxis: {
+            min: 0,
+            max: 108,
+            labels: { formatter: v => v <= 100 ? `${Math.round(v)}%` : '' }
+        },
+        grid: { borderColor: '#e2e8f0', strokeDashArray: 4 }
+    };
+
+    new ApexCharts(el, options).render();
+})();
+
+/* ============================================================================
+   5. MATRIZ INTERACTIVA ESTILO POWER BI: VENTANA DINÁMICA DE LABORES NO CUMPLIDAS
+   ============================================================================ */
+let modalPbiInstance = null;
+let currentModalAuxIdx = null;
+let currentModalCultivo = null; // null = Todos los cultivos del auxiliar
+let currentModalStatusFilter = 'ALL'; // 'ALL' | 'INCUMPLIDA' | 'PENDIENTE'
+let currentModalTasks = [];
+
+function filterPbiMatrix() {
+    const supVal = document.getElementById('pbi-filter-sup')?.value || 'ALL';
+    const q = (document.getElementById('pbi-search-aux')?.value || '').toLowerCase().trim();
+    const onlyQuedaron = document.getElementById('pbi-only-quedaron')?.checked || false;
+
+    document.querySelectorAll('#pbi-matrix-table .pbi-aux-row').forEach(row => {
+        const rAux = row.getAttribute('data-auxiliar') || '';
+        const rSup = row.getAttribute('data-supervisor') || '';
+        const quedaron = parseInt(row.getAttribute('data-quedaron') || '0', 10);
+
+        const matchSup = (supVal === 'ALL' || rSup.includes(supVal));
+        const matchQ = (!q || rAux.includes(q) || rSup.toLowerCase().includes(q));
+        const matchQued = (!onlyQuedaron || quedaron > 0);
+
+        row.style.display = (matchSup && matchQ && matchQued) ? '' : 'none';
+    });
+}
+
+function escapeHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function openPbiDrilldown(auxIdx, cultivoName, cellEl) {
+    document.querySelectorAll('.pbi-cell-clickable.pbi-cell-active').forEach(el => {
+        el.classList.remove('pbi-cell-active');
+    });
+    if (cellEl) cellEl.classList.add('pbi-cell-active');
+
+    currentModalAuxIdx = auxIdx;
+    currentModalCultivo = cultivoName || null;
+    currentModalStatusFilter = 'ALL';
+
+    const searchInput = document.getElementById('pbi-modal-search');
+    if (searchInput) searchInput.value = '';
+
+    updateModalStatusButtonsUI();
+    refreshModalAuxiliarData();
+
+    const modalEl = document.getElementById('modalPbiDrilldown');
+    if (modalEl) {
+        if (!modalPbiInstance) {
+            modalPbiInstance = new bootstrap.Modal(modalEl);
+        }
+        modalPbiInstance.show();
+    }
+}
+
+function switchModalCultivoTab(cultivoName) {
+    currentModalCultivo = cultivoName || null;
+    refreshModalAuxiliarData();
+}
+
+function setModalTaskStatusFilter(status) {
+    currentModalStatusFilter = status;
+    updateModalStatusButtonsUI();
+    renderModalTasksTable();
+}
+
+function updateModalStatusButtonsUI() {
+    document.getElementById('btn-modal-est-all')?.classList.toggle('active', currentModalStatusFilter === 'ALL');
+    document.getElementById('btn-modal-est-inc')?.classList.toggle('active', currentModalStatusFilter === 'INCUMPLIDA');
+    document.getElementById('btn-modal-est-pen')?.classList.toggle('active', currentModalStatusFilter === 'PENDIENTE');
+}
+
+function refreshModalAuxiliarData() {
+    const auxRow = MATRIZ_AUX[currentModalAuxIdx];
+    if (!auxRow) return;
+
+    const titleEl = document.getElementById('pbi-drill-title');
+    const badgesEl = document.getElementById('pbi-drill-summary-badges');
+    const tabsEl = document.getElementById('pbi-modal-crop-tabs');
+
+    // Construir pestañas dinámicas de cultivos del auxiliar dentro de la ventana
+    const cropKeys = Object.keys(auxRow.cultivos || {}).sort();
+    if (tabsEl) {
+        let tabsHtml = `
+            <button type="button"
+                    class="btn btn-sm py-0 px-2 fw-bold ${currentModalCultivo === null ? 'btn-dark' : 'btn-outline-secondary'}"
+                    style="font-size: 0.73rem; height: 26px;"
+                    onclick="switchModalCultivoTab(null)">
+                Todos (${auxRow.quedaron} no cumpl.)
+            </button>
+        `;
+        cropKeys.forEach(cKey => {
+            const cObj = auxRow.cultivos[cKey];
+            const isAct = (currentModalCultivo === cKey);
+            const escapedKey = escapeHtml(cKey).replace(/'/g, "\\'");
+            tabsHtml += `
+                <button type="button"
+                        class="btn btn-sm py-0 px-2 fw-semibold ${isAct ? 'btn-primary' : 'btn-outline-secondary'}"
+                        style="font-size: 0.73rem; height: 26px;"
+                        onclick="switchModalCultivoTab('${escapedKey}')">
+                    ${escapeHtml(cKey)} (${cObj.pct}% &bull; ${cObj.quedaron} qued.)
+                </button>
+            `;
+        });
+        tabsEl.innerHTML = tabsHtml;
+    }
+
+    let cumplidasCount = 0;
+    let totalCount = 0;
+    currentModalTasks = [];
+
+    if (currentModalCultivo) {
+        const cInfo = auxRow.cultivos[currentModalCultivo];
+        if (cInfo) {
+            cumplidasCount = cInfo.cumplidas;
+            totalCount = cInfo.total;
+            currentModalTasks = (cInfo.tareas_quedaron || []).map(t => ({ ...t, cultivo: currentModalCultivo }));
+        }
+        if (titleEl) {
+            titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">${escapeHtml(currentModalCultivo)}</span>`;
+        }
+    } else {
+        cumplidasCount = auxRow.cumplidas;
+        totalCount = auxRow.total;
+        cropKeys.forEach(cKey => {
+            const cInfo = auxRow.cultivos[cKey];
+            (cInfo.tareas_quedaron || []).forEach(t => {
+                currentModalTasks.push({ ...t, cultivo: cKey });
+            });
+        });
+        if (titleEl) {
+            titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">Todos los Cultivos</span>`;
+        }
+    }
+
+    const incumpCount = currentModalTasks.filter(t => t.es_incumplida).length;
+    const pendCount = currentModalTasks.length - incumpCount;
+
+    if (badgesEl) {
+        badgesEl.innerHTML = `
+            <span class="badge bg-success-subtle text-success border border-success-subtle">Cumplidas: ${cumplidasCount}/${totalCount}</span>
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Incumplidas (0): ${incumpCount}</span>
+            <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Pendientes: ${pendCount}</span>
+        `;
+    }
+
+    renderModalTasksTable();
+}
+
+function renderModalTasksTable() {
+    const tbody = document.getElementById('pbi-drill-tbody');
+    const footerCount = document.getElementById('pbi-modal-footer-count');
+    if (!tbody) return;
+
+    const query = (document.getElementById('pbi-modal-search')?.value || '').toLowerCase().trim();
+
+    const filtered = currentModalTasks.filter(t => {
+        if (currentModalStatusFilter === 'INCUMPLIDA' && !t.es_incumplida) return false;
+        if (currentModalStatusFilter === 'PENDIENTE' && t.es_incumplida) return false;
+        if (query) {
+            const haystack = `${t.cultivo} ${t.zona} bl ${t.bloque} ${t.camas} ${t.actividad_tipo} ${t.labor} ${t.observacion || ''}`.toLowerCase();
+            if (!haystack.includes(query)) return false;
+        }
+        return true;
+    });
+
+    if (footerCount) {
+        footerCount.innerText = `Mostrando ${filtered.length} de ${currentModalTasks.length} labores no cumplidas`;
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center py-4 text-success fw-bold">
+                    <i class="fa-solid fa-circle-check me-1"></i>
+                    ${currentModalTasks.length === 0
+                        ? '¡100% Cumplido! No quedaron labores pendientes ni incumplidas para esta selección.'
+                        : 'Ninguna labor coincide con el filtro actual dentro de la ventana.'}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(t => {
+        const badgeEstado = t.es_incumplida
+            ? '<span class="badge bg-danger">Incumplida (0)</span>'
+            : '<span class="badge bg-warning text-dark">Pendiente</span>';
+        const arrastreTag = t.es_arrastre
+            ? `<span class="badge bg-danger-subtle text-danger border ms-1" title="Arrastrada de Semana ${t.semana_origen}">Arrastre S${t.semana_origen}</span>`
+            : '';
+        const hrefCampo = `${FENO_INDEX_URL}?semana=${encodeURIComponent(SEMANA_DASH)}&zona=${encodeURIComponent(t.zona)}&bloque=${encodeURIComponent(t.bloque_raw)}`;
+        return `
+            <tr>
+                <td class="ps-3 fw-semibold">${escapeHtml(t.cultivo)}</td>
+                <td>${escapeHtml(t.zona)}</td>
+                <td class="fw-bold text-dark tabular-nums">BL ${escapeHtml(t.bloque)}</td>
+                <td class="tabular-nums">${escapeHtml(t.camas)}</td>
+                <td>${escapeHtml(t.actividad_tipo)}</td>
+                <td class="text-center tabular-nums fw-semibold">${escapeHtml(t.edad_real)}</td>
+                <td class="fw-semibold text-dark">${escapeHtml(t.labor)} ${arrastreTag}</td>
+                <td class="text-center">${badgeEstado}</td>
+                <td class="text-muted">${escapeHtml(t.observacion || '-')}</td>
+                <td class="text-end pe-3">
+                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold" style="font-size: 0.71rem;">
+                        Abrir BL ${escapeHtml(t.bloque)} &nearr;
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+/* ============================================================================
+   MODALES Y ACCIONES ADMINISTRATIVAS DEL DASHBOARD
+   ============================================================================ */
+function openGenerarFactModal() {
+    new bootstrap.Modal(document.getElementById('modalGenerarFact')).show();
+}
+
+function openUploadModal() {
+    new bootstrap.Modal(document.getElementById('modalUploadExcel')).show();
+}
+
+function openUploadMatrixModal() {
+    new bootstrap.Modal(document.getElementById('modalUploadMatrix')).show();
+}
+
+function openConfigModal() {
+    window.location.href = "{{ url_for('fenogramas.matriz') }}";
+}
+
+function ejecutarGeneracionFact() {
+    const sem = document.getElementById('input-semana-corte').value;
+    const anio = document.getElementById('input-anio-corte').value;
+
+    fetch("{{ url_for('fenogramas.api_generar_desde_fact') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semana_corte: sem, anio: anio })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ ${data.message}`);
+            window.location.href = `{{ url_for('fenogramas.dashboard') }}?semana=${sem}`;
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(() => alert('Error de red al generar fenograma.'));
+}
+
+function cerrarCalificaciones(semana) {
+    if (!confirm(`¿Estás seguro de que deseas cerrar la evaluación de la Semana ${semana}? Las labores no cumplidas se arrastrarán a la semana ${semana + 1}.`)) {
+        return;
+    }
+
+    fetch("{{ url_for('fenogramas.api_cerrar_semana') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semana_actual: semana })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ Semana ${data.semana_cerrada} cerrada. Se arrastraron ${data.actividades_recalculadas} actividades a la semana ${data.semana_siguiente}.`);
+            window.location.href = `{{ url_for('fenogramas.dashboard') }}?semana=${data.semana_siguiente}`;
+        } else {
+            alert('Error al cerrar semana: ' + data.error);
+        }
+    });
+}
+
+// Subida de Excel Estado Cultivo
+document.getElementById('form-upload-excel')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch("{{ url_for('fenogramas.api_preview_plano') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const p = data.preview;
+            if (confirm(`Archivo leído para Semana ${p.semana} (${p.total_camas_segmentos} segmentos, ${p.actividades_macheadas} actividades). ¿Deseas confirmar la sincronización?`)) {
+                fetch("{{ url_for('fenogramas.api_confirmar_plano') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ semana: p.semana, anio: p.anio, ec_path: p.ec_path, mf_path: p.mf_path })
+                })
+                .then(r2 => r2.json())
+                .then(d2 => {
+                    if (d2.success) {
+                        alert(`✅ Sincronizados ${d2.count} registros para la semana ${d2.semana}`);
+                        window.location.href = `{{ url_for('fenogramas.dashboard') }}?semana=${d2.semana}`;
+                    } else {
+                        alert('Error: ' + d2.error);
+                    }
+                });
+            }
+        } else {
+            alert('Error al procesar archivo: ' + data.error);
+        }
+    });
+});
+
+// Subida de Matriz Fenogramas
+document.getElementById('form-upload-matrix')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch("{{ url_for('fenogramas.api_inyectar_matriz') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ Matriz actualizada y recalculadas ${data.count} actividades.`);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+</script>
+{% endblock %}

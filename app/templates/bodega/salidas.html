@@ -1,0 +1,1115 @@
+{% extends "base.html" %}
+
+{% block title %}Bodega & Salidas Oficiales | Semana {{ rotation.week if rotation else 'N/A' }} | AgroFumigación{% endblock %}
+{% block page_header %}Bodega &bull; Control de Salidas de Insumos Oficiales{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-card {
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+}
+.timeline-btn {
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+.main-nav-pill.active {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+}
+.labor-tab-btn.active {
+    font-weight: 700 !important;
+    border-bottom: 3px solid #16a34a !important;
+}
+@page {
+    size: portrait;
+    margin: 4mm 4mm 4mm 4mm;
+}
+@media print {
+    .no-print, nav, header, footer, .sidebar, #sidebar-wrapper, .btn, .nav-tabs, .nav-pills, form, select, .alert, .timeline-nav {
+        display: none !important;
+    }
+    body {
+        background-color: #ffffff !important;
+        font-size: 0.72rem !important;
+    }
+    #page-content-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 12px !important;
+    }
+    .card-header {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .table {
+        font-size: 0.70rem !important;
+    }
+    .table th, .table td {
+        padding: 3px 5px !important;
+        border: 1px solid #666 !important;
+    }
+    .print-signature-box {
+        display: block !important;
+        margin-top: 30px;
+        page-break-inside: avoid;
+    }
+    .tab-pane {
+        display: block !important;
+        opacity: 1 !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% if rotation %}
+<!-- Top Header & Week Switcher -->
+<div class="card mb-3 border-0 shadow-sm bg-white no-print">
+    <div class="card-body p-3 p-md-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-primary-subtle text-primary border border-primary fw-bold">
+                        <i class="fa-solid fa-warehouse me-1"></i> 3. Almacén & Estadística
+                    </span>
+                    <span class="badge bg-success"><i class="fa-solid fa-stamp me-1"></i> Órdenes Oficiales Aprobadas</span>
+                    <span class="badge bg-light text-dark border">Semana {{ rotation.week }} (v{{ rotation.version }})</span>
+                </div>
+                <h3 class="fw-bold text-dark mb-0 font-monospace">
+                    <i class="fa-solid fa-boxes-packing text-primary me-2"></i>Salidas, Despachos & Programas &bull; Semana {{ rotation.week }}
+                </h3>
+                <p class="text-muted small mb-0 mt-1">
+                    Centro de control para Estadística (Kelly) y Almacén / Bodega: Programas oficiales de fumigación, impresión vertical, confirmación de digitación y despacho de insumos.
+                </p>
+            </div>
+
+            <!-- Timeline Week Switcher (Semana) -->
+            <div class="d-flex align-items-center flex-wrap gap-2 timeline-nav">
+                {% if prev_rotation %}
+                <a href="{{ url_for('bodega.salidas', rotation_id=prev_rotation.id) }}" class="btn btn-outline-secondary btn-sm timeline-btn" title="Ir a la semana aprobada anterior">
+                    <i class="fa-solid fa-chevron-left me-1"></i> Sem. {{ prev_rotation.week }}
+                </a>
+                {% endif %}
+
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text bg-light text-muted fw-semibold"><i class="fa-solid fa-calendar-week me-1"></i> Semana:</span>
+                    <select class="form-select form-select-sm fw-bold text-primary" onchange="if(this.value) window.location.href=this.value;">
+                        {% for r in all_rotations %}
+                        <option value="{{ url_for('bodega.salidas', rotation_id=r.id) }}" {% if r.id == rotation.id %}selected{% endif %}>
+                            Semana {{ r.week }} (v{{ r.version }}) ★ OFICIAL
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if next_rotation %}
+                <a href="{{ url_for('bodega.salidas', rotation_id=next_rotation.id) }}" class="btn btn-outline-secondary btn-sm timeline-btn" title="Ir a la semana aprobada posterior">
+                    Sem. {{ next_rotation.week }} <i class="fa-solid fa-chevron-right ms-1"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Process Tracker Card (Flujo Integral de la Semana: Agronomía -> Estadística -> Bodega) -->
+<div class="card mb-4 border-0 shadow-sm bg-white no-print">
+    <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pb-2 border-bottom">
+            <span class="fw-bold small text-uppercase text-muted">
+                <i class="fa-solid fa-diagram-project text-primary me-1"></i> Estado Global del Proceso &bull; Semana {{ rotation.week }}
+            </span>
+            <div id="global-process-badge">
+                {% if rotation.is_salidas_digitadas and rotation.is_salidas_dispatched %}
+                <span class="badge bg-success py-2 px-3 fs-7 fw-bold">
+                    <i class="fa-solid fa-flag-checkered me-1"></i> PROCESO CERRADO
+                </span>
+                {% else %}
+                <span class="badge bg-primary-subtle text-primary border border-primary py-1 px-2 fw-semibold">
+                    <i class="fa-solid fa-arrows-rotate fa-spin me-1"></i> EN PROCESO
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="row g-2 text-center">
+            <!-- Paso 1: Agronomía -->
+            <div class="col-md-4">
+                <div class="p-2 rounded bg-success-subtle border border-success h-100">
+                    <div class="small fw-bold text-success text-uppercase">1. Agronomía (Planificación)</div>
+                    <div class="fw-bold text-dark my-1">
+                        <i class="fa-solid fa-circle-check text-success me-1"></i> Aprobado Oficial
+                    </div>
+                    <div class="small text-muted" style="font-size: 0.72rem;">Semana {{ rotation.week }} &bull; Versión {{ rotation.version }}</div>
+                </div>
+            </div>
+            <!-- Paso 2: Estadística -->
+            <div class="col-md-4">
+                <div id="tracker-step-estadistica" class="p-2 rounded h-100 {% if rotation.is_salidas_digitadas %}bg-success-subtle border border-success{% else %}bg-warning-subtle border border-warning{% endif %}">
+                    <div class="small fw-bold text-uppercase {% if rotation.is_salidas_digitadas %}text-success{% else %}text-warning{% endif %}">2. Estadística (Digitación)</div>
+                    <div class="fw-bold text-dark my-1" id="tracker-text-estadistica">
+                        {% if rotation.is_salidas_digitadas %}
+                        <i class="fa-solid fa-circle-check text-success me-1"></i> Digitado en Sistema
+                        {% else %}
+                        <i class="fa-solid fa-clock text-warning me-1"></i> Pendiente de Digitación
+                        {% endif %}
+                    </div>
+                    <div class="small text-muted" id="tracker-sub-estadistica" style="font-size: 0.72rem;">
+                        {% if rotation.is_salidas_digitadas %}
+                        {{ rotation.salidas_digitadas_at|format_local_datetime }} &bull; {{ rotation.salidas_digitadas_by }}
+                        {% else %}
+                        Validación Kelly / Estadística
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <!-- Paso 3: Bodega -->
+            <div class="col-md-4">
+                <div id="tracker-step-bodega" class="p-2 rounded h-100 {% if rotation.is_salidas_dispatched %}bg-success-subtle border border-success{% else %}bg-secondary-subtle border border-secondary{% endif %}">
+                    <div class="small fw-bold text-uppercase {% if rotation.is_salidas_dispatched %}text-success{% else %}text-secondary{% endif %}">3. Bodega (Despacho Físico)</div>
+                    <div class="fw-bold text-dark my-1" id="tracker-text-bodega">
+                        {% if rotation.is_salidas_dispatched %}
+                        <i class="fa-solid fa-truck-ramp-box text-success me-1"></i> Despachado a Campo
+                        {% else %}
+                        <i class="fa-solid fa-box-archive text-secondary me-1"></i> En Preparación / Bodega
+                        {% endif %}
+                    </div>
+                    <div class="small text-muted" id="tracker-sub-bodega" style="font-size: 0.72rem;">
+                        {% if rotation.is_salidas_dispatched %}
+                        {{ rotation.salidas_dispatched_at|format_local_datetime }} &bull; {{ rotation.salidas_dispatched_by }}
+                        {% else %}
+                        Entrega de sólidos y líquidos
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dos Seleccionables Principales (Pills Superiores) -->
+<ul class="nav nav-pills nav-fill gap-2 p-1 bg-white border rounded shadow-sm mb-4 no-print" id="mainSectionPills" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold py-3 fs-6 d-flex align-items-center justify-content-center gap-2 main-nav-pill" id="pill-programas-tab" data-bs-toggle="pill" data-bs-target="#pill-programas" type="button" role="tab">
+            <i class="fa-solid fa-list-check text-primary fs-5"></i>
+            <span>1. Programas de Fumigación (Impresión y Vueltas)</span>
+            <span class="badge bg-primary rounded-pill">{{ orders|length }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-bold py-3 fs-6 d-flex align-items-center justify-content-center gap-2 text-dark main-nav-pill" id="pill-salidas-tab" data-bs-toggle="pill" data-bs-target="#pill-salidas" type="button" role="tab">
+            <i class="fa-solid fa-boxes-packing text-success fs-5"></i>
+            <span>2. Salidas y Despachos de Insumos</span>
+            <span id="pill-digitadas-badge" class="badge {% if rotation.is_salidas_digitadas %}bg-success{% else %}bg-warning text-dark{% endif %} rounded-pill">
+                {% if rotation.is_salidas_digitadas %}<i class="fa-solid fa-check me-1"></i>Digitado{% else %}<i class="fa-solid fa-clock me-1"></i>Pendiente{% endif %}
+            </span>
+        </button>
+    </li>
+</ul>
+
+<!-- Main Pills Content Container -->
+<div class="tab-content" id="mainSectionPillsContent">
+
+    <!-- ========================================== -->
+    <!-- PILL 1: PROGRAMAS DE FUMIGACIÓN (VUELTAS)  -->
+    <!-- ========================================== -->
+    <div class="tab-pane fade show active" id="pill-programas" role="tabpanel">
+        <div class="card mb-4 border-0 shadow-sm bg-white no-print">
+            <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold text-dark mb-1">
+                        <i class="fa-solid fa-clipboard-list text-primary me-2"></i>Programas Oficiales de Fumigación &bull; Semana {{ rotation.week }}
+                    </h5>
+                    <p class="small text-muted mb-0">
+                        Vueltas oficiales aprobadas para campo. Kelly / Estadística puede abrir cada programa e imprimirlo directamente en orientación vertical u horizontal optimizada.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {% if orders and orders|length > 0 %}
+        <div class="row g-3 mb-4">
+            {% for ord in orders %}
+            <div class="col-md-6 col-xl-6">
+                <div class="card shadow-sm border-0 border-start border-4 border-primary h-100 bg-white">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 border-bottom">
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary fw-bold font-monospace small">
+                                VUELTA {{ ord.round_number }} &bull; {{ ord.scheduled_day }}
+                            </span>
+                            <h6 class="fw-bold text-dark mb-0 mt-1 font-monospace">{{ ord.order_number }}</h6>
+                        </div>
+                        <span class="badge bg-success"><i class="fa-solid fa-circle-check me-1"></i>{{ ord.status }}</span>
+                    </div>
+                    <div class="card-body p-3">
+                        <h6 class="fw-bold text-dark mb-2">{{ ord.round_name or ord.display_title }}</h6>
+                        
+                        <div class="row g-2 small mb-3 p-2 bg-light rounded">
+                            <div class="col-6">
+                                <span class="text-muted d-block">Volumen de Mezcla:</span>
+                                <strong class="text-primary fs-6 font-monospace">{{ ord.total_liters|format_number(1) }} L</strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block">Camas Estándar:</span>
+                                <strong class="text-dark fs-6">{{ ord.total_standard_beds|format_number(1) }}</strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block">Día Programado:</span>
+                                <strong><i class="fa-regular fa-calendar me-1"></i>{{ ord.scheduled_day }}</strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block">Variedades / Bloques:</span>
+                                <strong>{{ ord.details|length }} registros</strong>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="{{ url_for('fumigacion.orden_detalle', order_id=ord.id) }}" class="btn btn-primary btn-sm fw-bold flex-grow-1">
+                                <i class="fa-solid fa-print me-1"></i> Ver e Imprimir (Vertical)
+                            </a>
+                            <a href="{{ url_for('bodega.orden_exportar_excel', order_id=ord.id) }}" class="btn btn-outline-secondary btn-sm" title="Descargar Excel de esta orden">
+                                <i class="fa-solid fa-file-excel text-success me-1"></i> Excel
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 mb-4">
+            <i class="fa-regular fa-clipboard fs-1 text-secondary mb-3"></i>
+            <h5 class="fw-bold text-dark">No hay órdenes oficiales generadas para la Semana {{ rotation.week }}</h5>
+            <p class="small text-muted mb-0">Las órdenes oficiales aparecen aquí una vez asignadas las vueltas en la Mesa de Calibración.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ========================================== -->
+    <!-- PILL 2: SALIDAS Y DESPACHOS DE INSUMOS     -->
+    <!-- ========================================== -->
+    <div class="tab-pane fade" id="pill-salidas" role="tabpanel">
+
+        <!-- Segmentador de Módulo: Fumigación Foliar vs Trichos y Sólidos -->
+        <ul class="nav nav-tabs mb-4 no-print bg-white p-2 rounded shadow-sm border" id="laborTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold text-success labor-tab-btn" id="labor-fumigacion-tab" data-bs-toggle="tab" data-bs-target="#labor-fumigacion" type="button" role="tab">
+                    <i class="fa-solid fa-spray-can-sparkles me-1"></i> 🌿 Fumigación Foliar (Vueltas Oficiales)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold text-primary labor-tab-btn" id="labor-tricho-tab" data-bs-toggle="tab" data-bs-target="#labor-tricho" type="button" role="tab">
+                    <i class="fa-solid fa-droplet me-1"></i> 🧪 Trichos y Sólidos (Fertilización Radicular)
+                    <span class="badge bg-success rounded-pill ms-1">{{ trichos_calibracion_tecnicos|length }} Técnicos</span>
+                </button>
+            </li>
+        </ul>
+
+        <!-- Labor Tabs Content Container -->
+        <div class="tab-content" id="laborTabsContent">
+
+            <!-- LABOR 1: FUMIGACIÓN FOLIAR -->
+            <div class="tab-pane fade show active" id="labor-fumigacion" role="tabpanel">
+
+                <!-- Confirmation Card for Digitación (Estadística - Kelly) -->
+                <div class="card mb-3 border-0 shadow-sm {% if rotation.is_salidas_digitadas %}bg-success-subtle border-start border-4 border-success{% else %}bg-warning-subtle border-start border-4 border-warning{% endif %} no-print" id="card-digitadas-status">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="fs-2 {% if rotation.is_salidas_digitadas %}text-success{% else %}text-warning{% endif %}" id="icon-digitadas">
+                                <i class="fa-solid {% if rotation.is_salidas_digitadas %}fa-circle-check{% else %}fa-clock{% endif %}"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark" id="title-digitadas">
+                                    {% if rotation.is_salidas_digitadas %}
+                                    Salidas Digitadas en Sistema Contable / ERP
+                                    {% else %}
+                                    Salidas Pendientes de Digitación en Sistema Contable
+                                    {% endif %}
+                                </h6>
+                                <p class="small text-muted mb-0" id="desc-digitadas">
+                                    {% if rotation.is_salidas_digitadas %}
+                                    Digitado por <strong>{{ rotation.salidas_digitadas_by }}</strong> el {{ rotation.salidas_digitadas_at|format_local_datetime }}.
+                                    {% else %}
+                                    Kelly / Estadística: Corrobora los insumos por vuelta y presiona el botón al terminar de ingresarlos al sistema contable.
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-sm fw-bold shadow-sm {% if rotation.is_salidas_digitadas %}btn-outline-secondary{% else %}btn-success{% endif %}" id="btn-toggle-digitadas" onclick="toggleSalidasDigitadas({{ rotation.id }});">
+                                <i class="fa-solid {% if rotation.is_salidas_digitadas %}fa-rotate-left{% else %}fa-check-double{% endif %} me-1" id="icon-toggle-btn"></i>
+                                <span id="text-toggle-digitadas">{% if rotation.is_salidas_digitadas %}Revertir a Pendiente{% else %}Marcar como Digitado en Sistema{% endif %}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Metric Summary Cards -->
+                <div class="row g-3 mb-3 no-print">
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 border-primary">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-muted small fw-semibold text-uppercase">Insumos a Despachar</span>
+                                    <i class="fa-solid fa-flask-vial text-primary fs-5"></i>
+                                </div>
+                                <h3 class="fw-bold text-dark mb-0 font-monospace">{{ total_products_count }}</h3>
+                                <span class="small text-muted">Productos para pesaje</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 border-info">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-muted small fw-semibold text-uppercase">Volumen Total</span>
+                                    <i class="fa-solid fa-droplet text-info fs-5"></i>
+                                </div>
+                                <h3 class="fw-bold text-info mb-0 font-monospace">{{ total_volume_liters|format_number(1) }} <small class="fs-6">L</small></h3>
+                                <span class="small text-muted">{{ total_beds|format_number(1) }} camas estándar</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 {% if rotation.is_salidas_printed %}border-success{% else %}border-warning{% endif %}">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-muted small fw-semibold text-uppercase">Estado Impresión</span>
+                                    <i class="fa-solid fa-print {% if rotation.is_salidas_printed %}text-success{% else %}text-warning{% endif %} fs-5"></i>
+                                </div>
+                                <div id="status-print-badge-container">
+                                    {% if rotation.is_salidas_printed %}
+                                    <span class="badge bg-success-subtle text-success border border-success fw-bold">
+                                        <i class="fa-solid fa-check-double me-1"></i> IMPRESA
+                                    </span>
+                                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                                        {{ rotation.salidas_printed_at|format_local_datetime }} &bull; {{ rotation.salidas_printed_by }}
+                                    </div>
+                                    {% else %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning fw-bold">
+                                        <i class="fa-solid fa-clock me-1"></i> PENDIENTE DE IMPRESIÓN
+                                    </span>
+                                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">Listo para imprimir</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 {% if rotation.is_salidas_dispatched %}border-success{% else %}border-secondary{% endif %}">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-muted small fw-semibold text-uppercase">Entrega a Campo (Bodega)</span>
+                                    <i class="fa-solid fa-boxes-packing {% if rotation.is_salidas_dispatched %}text-success{% else %}text-secondary{% endif %} fs-5"></i>
+                                </div>
+                                <div id="status-dispatch-badge-container">
+                                    {% if rotation.is_salidas_dispatched %}
+                                    <span class="badge bg-success text-white fw-bold">
+                                        <i class="fa-solid fa-truck-ramp-box me-1"></i> ENTREGADO A CAMPO
+                                    </span>
+                                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                                        {{ rotation.salidas_dispatched_at|format_local_datetime }} &bull; {{ rotation.salidas_dispatched_by }}
+                                    </div>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary fw-bold">
+                                        <i class="fa-solid fa-box-archive me-1"></i> EN BODEGA (PENDIENTE)
+                                    </span>
+                                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">Insumos en preparación</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Program / Vuelta Selector Filter -->
+                <div class="p-3 bg-light rounded border mb-3 no-print">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-7 col-lg-8">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                <i class="fa-solid fa-list-check text-primary me-1"></i> Filtrar Salidas por Vuelta / Programa:
+                            </label>
+                            <select class="form-select form-select-sm fw-bold text-dark border-primary shadow-sm" onchange="window.location.href=this.value;">
+                                <option value="{{ url_for('bodega.salidas', rotation_id=rotation.id) }}#pill-salidas" {% if not selected_order %}selected{% endif %}>
+                                    ★ Ver Todo el Programa (Consolidado Semana {{ rotation.week }}) &bull; [{{ orders|length }} programas &bull; {{ total_volume_liters|format_number(0) }} L]
+                                </option>
+                                {% for ord in orders %}
+                                <option value="{{ url_for('bodega.salidas', rotation_id=rotation.id, order_id=ord.id) }}#pill-salidas" {% if selected_order and selected_order.id == ord.id %}selected{% endif %}>
+                                    📋 Vuelta {{ ord.round_number }}: {{ ord.round_name }} &bull; Día: {{ ord.scheduled_day }} &bull; ({{ ord.total_liters|format_number(0) }} L &bull; {{ ord.order_number }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-5 col-lg-4 text-md-end pt-md-3">
+                            {% if selected_order %}
+                            <div class="d-flex justify-content-md-end gap-2 flex-wrap">
+                                <a href="{{ url_for('bodega.orden_detalle', order_id=selected_order.id) }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+                                    <i class="fa-solid fa-scale-balanced me-1"></i> Pesaje por Zonas
+                                </a>
+                                <a href="{{ url_for('bodega.salidas', rotation_id=rotation.id) }}#pill-salidas" class="btn btn-outline-secondary btn-sm" title="Quitar filtro de programa">
+                                    <i class="fa-solid fa-xmark me-1"></i> Ver Todos
+                                </a>
+                            </div>
+                            {% else %}
+                            <span class="badge bg-white text-primary border p-2 small">
+                                <i class="fa-solid fa-layer-group me-1"></i> Mostrando Consolidado Total de la Semana
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if selected_order %}
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2 small">
+                        <div class="text-success fw-semibold">
+                            <i class="fa-solid fa-circle-check me-1"></i>
+                            Filtrado por: <strong>Vuelta {{ selected_order.round_number }} ({{ selected_order.round_name }})</strong> &bull; Día: <strong>{{ selected_order.scheduled_day }}</strong> &bull; Mezcla: <strong>{{ selected_order.total_liters|format_number(1) }} L</strong>
+                        </div>
+                        <div class="text-muted font-monospace small">
+                            Cód: {{ selected_order.order_number }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Warehouse Action Toolbar -->
+                <div class="card mb-3 border-0 shadow-sm bg-light no-print">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-dark small"><i class="fa-solid fa-toolbox me-1 text-primary"></i> Acciones de Salidas:</span>
+                            </div>
+
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <!-- Confirm Print Button -->
+                                <button type="button" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="executePrintSalidas({{ rotation.id }});">
+                                    <i class="fa-solid fa-print me-1 text-warning"></i> Confirmar Impresiones
+                                </button>
+
+                                <!-- Export Excel -->
+                                <a href="{{ url_for('bodega.exportar_salidas_excel', rotation_id=rotation.id, order_id=selected_order.id if selected_order else None) }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+                                    <i class="fa-solid fa-file-excel me-1"></i> Descargar Excel de Insumos {% if selected_order %}({{ selected_order.round_name }}){% endif %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Header for Print Mode Only -->
+                <div class="d-none d-print-block mb-3 border-bottom pb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="fw-bold text-uppercase mb-0">FINCA FLORÍCOLA PYGANFLOR &bull; PLANILLA DE SALIDAS DE BODEGA</h4>
+                            <div class="small text-muted">Despacho Oficial de Agroquímicos &bull; Semana {{ rotation.week }} (Versión {{ rotation.version }})</div>
+                        </div>
+                        <div class="text-end small">
+                            <div><strong>Fecha Emisión:</strong> {{ rotation.created_at|format_local_datetime }}</div>
+                            <div><strong>Estado:</strong> {{ rotation.status }}</div>
+                            <div><strong>Impreso por:</strong> {{ current_user.full_name if current_user else 'Bodega' }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category Quick Filter Toolbar for Bodega -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 p-2 bg-white rounded border shadow-sm no-print">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="small fw-bold text-dark"><i class="fa-solid fa-filter me-1 text-primary"></i> Filtrar Pesaje / Insumos:</span>
+                        <div class="btn-group btn-group-sm" role="group" id="bodega-category-filter-group">
+                            <button type="button" class="btn btn-primary active fw-bold btn-bodega-cat" data-cat="ALL" onclick="filterBodegaCategory('ALL', this);">
+                                📋 Todo el Programa
+                            </button>
+                            <button type="button" class="btn btn-outline-primary fw-bold btn-bodega-cat" data-cat="GYPSOPHILA" onclick="filterBodegaCategory('GYPSOPHILA', this);">
+                                🌸 Solo Gypsophila
+                            </button>
+                            <button type="button" class="btn btn-outline-success fw-bold btn-bodega-cat" data-cat="PRODUCTOS_NUEVOS" onclick="filterBodegaCategory('PRODUCTOS_NUEVOS', this);">
+                                🌿 Solo Prod. Nuevos / Variedades
+                            </button>
+                            <button type="button" class="btn btn-outline-info fw-bold btn-bodega-cat" data-cat="PIV" onclick="filterBodegaCategory('PIV', this);">
+                                🌱 Solo PIV
+                            </button>
+                        </div>
+                    </div>
+                    <div class="small text-muted font-monospace">
+                        Mostrando insumos según el cultivo seleccionado
+                    </div>
+                </div>
+
+                <!-- Sub-tabs for Navigation Views within Fumigación -->
+                <ul class="nav nav-tabs mb-4 no-print shadow-sm bg-white rounded-top" id="salidasTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold py-2 px-3 text-primary" id="by-area-tab" data-bs-toggle="tab" data-bs-target="#by-area" type="button" role="tab">
+                            <i class="fa-solid fa-layer-group me-1"></i> 1. Desglose por Área / Variedad
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold py-2 px-3 text-secondary" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-view" type="button" role="tab">
+                            <i class="fa-solid fa-clock-rotate-left me-1"></i> 2. Bitácora de Despachos & Digitación
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="salidasTabContent">
+                    <!-- Tab 1: By Area View -->
+                    <div class="tab-pane fade show active" id="by-area" role="tabpanel">
+        {% if data_by_area and data_by_area|length > 0 %}
+        {% for area_name, area_info in data_by_area|dictsort %}
+        <div class="card mb-4 shadow-sm border-0 area-card" data-category="{{ area_info.category }}">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold">
+                    <i class="fa-solid fa-seedling me-2"></i>Área / Cultivo: {{ area_name }}
+                    {% if area_info.category == 'GYPSOPHILA' %}
+                    <span class="badge bg-light text-primary ms-2"><i class="fa-solid fa-seedling me-1"></i>🌸 Gypsophila</span>
+                    {% elif area_info.category == 'PIV' %}
+                    <span class="badge bg-light text-info ms-2"><i class="fa-solid fa-leaf me-1"></i>🌱 PIV</span>
+                    {% else %}
+                    <span class="badge bg-light text-success ms-2"><i class="fa-solid fa-spa me-1"></i>🌿 Productos Nuevos / Variedades</span>
+                    {% endif %}
+                </h6>
+                <span class="badge bg-light text-dark">{{ area_info.products|length }} insumos</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-striped align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 260px;">Producto Comercial</th>
+                                <th style="width: 70px;" class="text-center">U.M</th>
+                                {% for day in scheduled_days %}
+                                <th class="text-end">{{ day }}</th>
+                                {% endfor %}
+                                <th class="text-end bg-light fw-bold">Total Despacho</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product_code, day_quantities in area_info.products|dictsort %}
+                            {% set p_unit = product_info[product_code]['unit'] %}
+                            <tr>
+                                <td class="fw-semibold text-dark">{{ product_info[product_code]['commercial_name'] }}</td>
+                                <td class="text-center text-muted small">{{ p_unit }}</td>
+                                {% set total = namespace(value=0.0) %}
+                                {% for day in scheduled_days %}
+                                {% set qty = day_quantities[day] %}
+                                {% set total.value = total.value + qty %}
+                                <td class="text-end {% if qty > 0 %}text-success fw-semibold{% else %}text-muted{% endif %}">
+                                    {{ qty|format_product(p_unit) if qty > 0 else '-' }}
+                                </td>
+                                {% endfor %}
+                                <td class="text-end fw-bold bg-light text-primary">
+                                    {{ total.value|format_product(p_unit) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 my-3">
+            <i class="fa-solid fa-boxes-packing fs-1 text-secondary mb-3"></i>
+            <h5 class="fw-bold text-dark">No hay salidas registradas para la Semana {{ rotation.week }} (v{{ rotation.version }})</h5>
+            <p class="small text-muted mb-0">Esta rotación aún no tiene órdenes de fumigación generadas y aprobadas.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sub-Tab 2: Warehouse Dispatch & Print Logs -->
+
+    <div class="tab-pane fade" id="history-view" role="tabpanel">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-dark">
+                    <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i>Historial de Eventos de Bodega &bull; Semana {{ rotation.week }}
+                </h6>
+                <span class="badge bg-light text-dark">{{ dispatch_logs|length }} eventos registrados</span>
+            </div>
+            <div class="card-body p-0">
+                {% if dispatch_logs and dispatch_logs|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 170px;">Fecha y Hora</th>
+                                <th style="width: 150px;">Usuario Responsable</th>
+                                <th style="width: 100px;">Rol</th>
+                                <th style="width: 180px;">Acción Realizada</th>
+                                <th>Detalles / Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in dispatch_logs %}
+                            <tr>
+                                <td class="font-monospace text-muted">{{ log.created_at|format_local_datetime }}</td>
+                                <td class="fw-bold text-dark">{{ log.performed_by }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ log.role }}</span></td>
+                                <td>
+                                    {% if log.action == 'IMPRESION_SALIDAS' %}
+                                    <span class="badge bg-success-subtle text-success border border-success"><i class="fa-solid fa-print me-1"></i> Impresión Planilla</span>
+                                    {% elif log.action == 'DESPACHO_BODEGA' %}
+                                    <span class="badge bg-primary-subtle text-primary border border-primary"><i class="fa-solid fa-truck-ramp-box me-1"></i> Despacho Campo</span>
+                                    {% elif log.action == 'REVERTIR_DESPACHO' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning"><i class="fa-solid fa-rotate-left me-1"></i> Revertir Despacho</span>
+                                    {% elif log.action == 'EXPORTAR_EXCEL' %}
+                                    <span class="badge bg-info-subtle text-info border border-info"><i class="fa-solid fa-file-excel me-1"></i> Exportar Excel</span>
+                                    {% elif log.action == 'SALIDAS_DIGITADAS' %}
+                                    <span class="badge bg-success text-white"><i class="fa-solid fa-check-double me-1"></i> Digitado Sistema</span>
+                                    {% elif log.action == 'REVERTIR_SALIDAS_DIGITADAS' %}
+                                    <span class="badge bg-warning text-dark"><i class="fa-solid fa-rotate-left me-1"></i> Digitación Revertida</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ log.action }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ log.notes or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="fa-regular fa-clock fs-3 mb-2 text-secondary"></i>
+                    <p class="small mb-0">Aún no se han registrado eventos de impresión o despacho para esta semana.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div><!-- /#salidasTabContent -->
+</div><!-- /#labor-fumigacion -->
+
+            <!-- LABOR 2: TRICHOS Y SÓLIDOS (FERTILIZACIÓN RADICULAR) -->
+            <div class="tab-pane fade" id="labor-tricho" role="tabpanel">
+                <div class="card mb-3 border-0 shadow-sm bg-white no-print">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-success text-white font-monospace">MÓDULO DE FERTILIZACIÓN</span>
+                                <span class="badge bg-light text-dark border">Semana {{ rotation.week }}</span>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-droplet text-success me-2"></i>Despacho de Insumos: Trichos y Sólidos
+                            </h5>
+                            <p class="small text-muted mb-0">
+                                Programación calibrada de biológicos (41.7 L/cama) y sólidos (30.0 L/cama). Kelly / Estadística puede verificar los requerimientos e imprimir las planillas segmentadas por Técnico.
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="{{ url_for('fertilizacion.programa_impresion', semana=rotation.week) }}" target="_blank" class="btn btn-dark btn-sm fw-bold shadow-xs">
+                                <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir Planilla Completa (Todos los Técnicos)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Cards for Trichos & Sólidos -->
+                {% set total_camas_trichos = trichos_calibracion_tecnicos|sum(attribute='camas_totales') if trichos_calibracion_tecnicos else 0 %}
+                {% set total_litros_trichos = trichos_calibracion_tecnicos|sum(attribute='litros_totales') if trichos_calibracion_tecnicos else 0 %}
+                <div class="row g-3 mb-4 no-print">
+                    <div class="col-4">
+                        <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-success">
+                            <span class="text-muted small fw-semibold text-uppercase">Técnicos Asignados</span>
+                            <div class="fs-4 fw-bold text-dark font-monospace">{{ trichos_calibracion_tecnicos|length }}</div>
+                            <span class="small text-muted">Responsables en campo</span>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-primary">
+                            <span class="text-muted small fw-semibold text-uppercase">Total Camas a Aplicar</span>
+                            <div class="fs-4 fw-bold text-primary font-monospace">{{ total_camas_trichos }}</div>
+                            <span class="small text-muted">Camas físicas programadas</span>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-info">
+                            <span class="text-muted small fw-semibold text-uppercase">Volumen Total Agua</span>
+                            <div class="fs-4 fw-bold text-info font-monospace">{{ total_litros_trichos|round(1) }} L</div>
+                            <span class="small text-muted">Caldo total para preparación</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grouped by Técnico -->
+                {% if trichos_calibracion_tecnicos and trichos_calibracion_tecnicos|length > 0 %}
+                <div class="row g-3 mb-4">
+                    {% for tec in trichos_calibracion_tecnicos %}
+                    <div class="col-12">
+                        <div class="card shadow-sm border-0 border-start border-4 border-success bg-white mb-3">
+                            <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fa-solid fa-user-gear text-success fs-5"></i>
+                                    <div>
+                                        <h6 class="fw-bold text-dark mb-0 font-monospace text-uppercase">{{ tec.tecnico }}</h6>
+                                        <span class="small text-muted">Bloques: {{ tec.bloques|join(', ') }}</span>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="badge bg-light text-dark border font-monospace">{{ tec.camas_totales }} Camas</span>
+                                    <span class="badge bg-info-subtle text-info font-monospace">{{ tec.litros_totales }} L Caldo</span>
+                                    <a href="{{ url_for('fertilizacion.programa_impresion', semana=rotation.week, tecnico=tec.tecnico) }}" target="_blank" class="btn btn-outline-dark btn-sm fw-bold">
+                                        <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir Técnico
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0 small">
+                                        <thead class="table-light font-monospace text-uppercase" style="font-size: 0.70rem;">
+                                            <tr>
+                                                <th style="width: 250px;">Insumo / Producto Comercial</th>
+                                                <th style="width: 65px;" class="text-center">U.M</th>
+                                                <th style="width: 80px;" class="text-end">Dosis / L</th>
+                                                <th style="width: 110px;" class="text-end bg-light fw-bold">Total Requerido</th>
+                                                <th>Descripción del Tratamiento</th>
+                                                <th style="width: 130px;" class="text-center">Conformidad Bodega</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for prod in tec.productos_totales %}
+                                            <tr>
+                                                <td class="fw-bold font-monospace text-dark">{{ prod.name }}</td>
+                                                <td class="text-center text-muted font-monospace">{{ prod.unit }}</td>
+                                                <td class="text-end font-monospace text-muted">{{ prod.dose }}</td>
+                                                <td class="text-end font-monospace fw-bold text-success bg-light fs-7">
+                                                    {{ prod.total_cantidad }} {{ prod.unit }}
+                                                </td>
+                                                <td class="small text-muted">{{ prod.descripcion }}</td>
+                                                <td class="text-center text-muted font-monospace" style="font-size: 0.72rem;">
+                                                    <span class="badge bg-light text-dark border">[ ] Listo</span>
+                                                </td>
+                                            </tr>
+                                            {% else %}
+                                            <tr>
+                                                <td colspan="6" class="text-center py-2 text-muted">Sin insumos calculados para este técnico.</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 my-2">
+                    <i class="fa-solid fa-droplet fs-1 text-secondary mb-3"></i>
+                    <h5 class="fw-bold text-dark">No hay aplicaciones de Trichos/Sólidos para la Semana {{ rotation.week }}</h5>
+                    <p class="small text-muted mb-0">Seleccione otra semana en el selector o configure la rotación de fertilización.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div><!-- /#laborTabsContent -->
+    </div><!-- /#pill-salidas -->
+</div><!-- /#mainSectionPillsContent -->
+
+<!-- Print Signature Box (Visible only when printing) -->
+<div class="d-none d-print-block print-signature-box">
+    <div class="row pt-4">
+        <div class="col-6 text-center">
+            <div style="border-top: 1px solid #333; margin: 0 40px; padding-top: 5px;">
+                <strong>Entregado por (Bodega / Almacén):</strong><br>
+                <span class="text-muted small">Nombre y Firma</span>
+            </div>
+        </div>
+        <div class="col-6 text-center">
+            <div style="border-top: 1px solid #333; margin: 0 40px; padding-top: 5px;">
+                <strong>Recibido por (Aplicador / Supervisor):</strong><br>
+                <span class="text-muted small">Nombre y Firma</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 my-4">
+    <i class="fa-solid fa-warehouse fs-1 text-secondary mb-3"></i>
+    <h4 class="fw-bold text-dark">No hay rotaciones oficiales aprobadas para despacho</h4>
+    <p class="text-muted">Cuando el agrónomo o asistente apruebe oficialmente una planificación semanal, aparecerá automáticamente aquí en Bodega.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto mark as printed when printing and trigger print dialog
+function executePrintSalidas(rotationId) {
+    fetch(`/bodega/rotaciones/${rotationId}/marcar-impresa`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const container = document.getElementById('status-print-badge-container');
+            if (container) {
+                container.innerHTML = `
+                    <span class="badge bg-success-subtle text-success border border-success fw-bold">
+                        <i class="fa-solid fa-check-double me-1"></i> IMPRESA
+                    </span>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                        ${data.printed_at} &bull; ${data.printed_by}
+                    </div>
+                `;
+            }
+        }
+    })
+    .catch(err => console.error('Error marking as printed:', err))
+    .finally(() => {
+        window.print();
+    });
+}
+
+let isDigitadasState = {{ 'true' if rotation.is_salidas_digitadas else 'false' }};
+let isDispatchedState = {{ 'true' if rotation.is_salidas_dispatched else 'false' }};
+
+function updateGlobalProcessStatus() {
+    const globalBadge = document.getElementById('global-process-badge');
+    if (globalBadge) {
+        if (isDigitadasState && isDispatchedState) {
+            globalBadge.innerHTML = `
+                <span class="badge bg-success py-2 px-3 fs-7 fw-bold animate__animated animate__pulse">
+                    <i class="fa-solid fa-flag-checkered me-1"></i> PROCESO CERRADO
+                </span>
+            `;
+        } else {
+            globalBadge.innerHTML = `
+                <span class="badge bg-primary-subtle text-primary border border-primary py-1 px-2 fw-semibold">
+                    <i class="fa-solid fa-arrows-rotate fa-spin me-1"></i> EN PROCESO
+                </span>
+            `;
+        }
+    }
+}
+
+// Toggle digitadas status (Kelly / Estadística)
+function toggleSalidasDigitadas(rotationId) {
+    const btn = document.getElementById('btn-toggle-digitadas');
+    if (btn) btn.disabled = true;
+
+    fetch(`/bodega/rotaciones/${rotationId}/marcar-salidas-digitadas`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            isDigitadasState = data.is_digitadas;
+            
+            // 1. Update Card in Labor Tab
+            const card = document.getElementById('card-digitadas-status');
+            const icon = document.getElementById('icon-digitadas');
+            const title = document.getElementById('title-digitadas');
+            const desc = document.getElementById('desc-digitadas');
+            const iconBtn = document.getElementById('icon-toggle-btn');
+            const textBtn = document.getElementById('text-toggle-digitadas');
+
+            if (data.is_digitadas) {
+                if (card) {
+                    card.classList.remove('bg-warning-subtle', 'border-warning');
+                    card.classList.add('bg-success-subtle', 'border-success');
+                }
+                if (icon) {
+                    icon.className = 'fs-2 text-success';
+                    icon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+                }
+                if (title) title.textContent = 'Salidas Digitadas en Sistema Contable / ERP';
+                if (desc) desc.innerHTML = `Digitado por <strong>${data.digitadas_by}</strong> el ${data.digitadas_at}.`;
+                if (btn) {
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-secondary');
+                }
+                if (iconBtn) iconBtn.className = 'fa-solid fa-rotate-left me-1';
+                if (textBtn) textBtn.textContent = 'Revertir a Pendiente';
+            } else {
+                if (card) {
+                    card.classList.remove('bg-success-subtle', 'border-success');
+                    card.classList.add('bg-warning-subtle', 'border-warning');
+                }
+                if (icon) {
+                    icon.className = 'fs-2 text-warning';
+                    icon.innerHTML = '<i class="fa-solid fa-clock"></i>';
+                }
+                if (title) title.textContent = 'Salidas Pendientes de Digitación en Sistema Contable';
+                if (desc) desc.textContent = 'Kelly / Estadística: Corrobora los insumos por vuelta y presiona el botón al terminar de ingresarlos al sistema contable.';
+                if (btn) {
+                    btn.classList.remove('btn-outline-secondary');
+                    btn.classList.add('btn-success');
+                }
+                if (iconBtn) iconBtn.className = 'fa-solid fa-check-double me-1';
+                if (textBtn) textBtn.textContent = 'Marcar como Digitado en Sistema';
+            }
+
+            // 2. Update Global Process Tracker - Step 2 (Estadística)
+            const trackerStep = document.getElementById('tracker-step-estadistica');
+            const trackerText = document.getElementById('tracker-text-estadistica');
+            const trackerSub = document.getElementById('tracker-sub-estadistica');
+            if (trackerStep) {
+                if (data.is_digitadas) {
+                    trackerStep.className = 'p-2 rounded h-100 bg-success-subtle border border-success';
+                    if (trackerText) trackerText.innerHTML = '<i class="fa-solid fa-circle-check text-success me-1"></i> Digitado en Sistema';
+                    if (trackerSub) trackerSub.textContent = `${data.digitadas_at} • ${data.digitadas_by}`;
+                } else {
+                    trackerStep.className = 'p-2 rounded h-100 bg-warning-subtle border border-warning';
+                    if (trackerText) trackerText.innerHTML = '<i class="fa-solid fa-clock text-warning me-1"></i> Pendiente de Digitación';
+                    if (trackerSub) trackerSub.textContent = 'Validación Kelly / Estadística';
+                }
+            }
+
+            // 3. Update Pill Tab Badge
+            const pillBadge = document.getElementById('pill-digitadas-badge');
+            if (pillBadge) {
+                if (data.is_digitadas) {
+                    pillBadge.className = 'badge bg-success rounded-pill';
+                    pillBadge.innerHTML = '<i class="fa-solid fa-check me-1"></i>Digitado';
+                } else {
+                    pillBadge.className = 'badge bg-warning text-dark rounded-pill';
+                    pillBadge.innerHTML = '<i class="fa-solid fa-clock me-1"></i>Pendiente';
+                }
+            }
+
+            // 4. Update Global Status
+            updateGlobalProcessStatus();
+        }
+    })
+    .catch(err => {
+        console.error('Error toggling digitadas:', err);
+        alert('Ocurrió un error al actualizar el estado de digitación.');
+    })
+    .finally(() => {
+        if (btn) btn.disabled = false;
+    });
+}
+
+// Toggle dispatch delivery status (Bodega)
+function toggleDispatchSalidas(rotationId) {
+    fetch(`/bodega/rotaciones/${rotationId}/marcar-despachada`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            isDispatchedState = data.is_dispatched;
+
+            // 1. Update KPI Card Badge
+            const container = document.getElementById('status-dispatch-badge-container');
+            const btnText = document.getElementById('btn-dispatch-text');
+            if (container) {
+                if (data.is_dispatched) {
+                    container.innerHTML = `
+                        <span class="badge bg-success text-white fw-bold">
+                            <i class="fa-solid fa-truck-ramp-box me-1"></i> ENTREGADO A CAMPO
+                        </span>
+                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                            ${data.dispatched_at} &bull; ${data.dispatched_by}
+                        </div>
+                    `;
+                    if (btnText) btnText.textContent = 'Revertir a Pendiente';
+                } else {
+                    container.innerHTML = `
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary fw-bold">
+                            <i class="fa-solid fa-box-archive me-1"></i> EN BODEGA (PENDIENTE)
+                        </span>
+                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">Insumos en preparación</div>
+                    `;
+                    if (btnText) btnText.textContent = 'Confirmar Entrega a Campo';
+                }
+            }
+
+            // 2. Update Global Process Tracker - Step 3 (Bodega)
+            const trackerStep = document.getElementById('tracker-step-bodega');
+            const trackerText = document.getElementById('tracker-text-bodega');
+            const trackerSub = document.getElementById('tracker-sub-bodega');
+            if (trackerStep) {
+                if (data.is_dispatched) {
+                    trackerStep.className = 'p-2 rounded h-100 bg-success-subtle border border-success';
+                    if (trackerText) trackerText.innerHTML = '<i class="fa-solid fa-truck-ramp-box text-success me-1"></i> Despachado a Campo';
+                    if (trackerSub) trackerSub.textContent = `${data.dispatched_at} • ${data.dispatched_by}`;
+                } else {
+                    trackerStep.className = 'p-2 rounded h-100 bg-secondary-subtle border border-secondary';
+                    if (trackerText) trackerText.innerHTML = '<i class="fa-solid fa-box-archive text-secondary me-1"></i> En Preparación / Bodega';
+                    if (trackerSub) trackerSub.textContent = 'Entrega de sólidos y líquidos';
+                }
+            }
+
+            // 3. Update Global Status
+            updateGlobalProcessStatus();
+        }
+    })
+    .catch(err => {
+        console.error('Error toggling dispatch:', err);
+        alert('Ocurrió un error al actualizar el estado de despacho de bodega.');
+    });
+}
+
+// Filter Bodega Categories for Area Breakdown and Pesaje Tables
+function filterBodegaCategory(cat, btnElement) {
+    document.querySelectorAll('.btn-bodega-cat').forEach(b => {
+        b.classList.remove('active', 'btn-primary', 'btn-success', 'btn-info');
+        b.classList.add('btn-outline-secondary');
+    });
+
+    if (btnElement) {
+        btnElement.classList.remove('btn-outline-secondary');
+        btnElement.classList.add('active');
+        if (cat === 'GYPSOPHILA') {
+            btnElement.classList.add('btn-primary');
+        } else if (cat === 'PRODUCTOS_NUEVOS') {
+            btnElement.classList.add('btn-success');
+        } else if (cat === 'PIV') {
+            btnElement.classList.add('btn-info');
+        } else {
+            btnElement.classList.add('btn-primary');
+        }
+    }
+
+    // Filter Tab 1: Area cards
+    document.querySelectorAll('#by-area .area-card').forEach(card => {
+        const cCat = (card.getAttribute('data-category') || 'PRODUCTOS_NUEVOS').trim().toUpperCase();
+        if (cat === 'ALL' || cCat === cat) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Activate Pill 2 if URL hash is #pill-salidas or order_id filter is passed
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (window.location.hash === '#pill-salidas' || urlParams.has('order_id') || urlParams.get('tab') === 'salidas') {
+        const pillSalidasTrigger = document.querySelector('#pill-salidas-tab');
+        if (pillSalidasTrigger && typeof bootstrap !== 'undefined') {
+            const tabInstance = new bootstrap.Tab(pillSalidasTrigger);
+            tabInstance.show();
+        }
+    }
+});
+</script>
+{% endblock %}

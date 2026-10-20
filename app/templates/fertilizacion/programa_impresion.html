@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Programa Oficial Trichos y Sólidos &bull; Semana {{ semana }} | Florsani ERP{% endblock %}
+
+{% block extra_css %}
+<style>
+@page {
+    size: portrait;
+    margin: 5mm 5mm 5mm 5mm;
+}
+@media print {
+    .no-print, header, nav, footer, .sidebar, #sidebar-wrapper, .btn, select, form, .breadcrumb {
+        display: none !important;
+    }
+    body {
+        background-color: #ffffff !important;
+        font-size: 0.72rem !important;
+        color: #000000 !important;
+    }
+    #page-content-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .card-tecnico {
+        border: 1.5px solid #000000 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 18px !important;
+    }
+    .card-header-print {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        border-bottom: 2px solid #facc15 !important;
+    }
+    .badge-bomba-yellow {
+        background-color: #facc15 !important;
+        color: #000000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-weight: 800 !important;
+    }
+    .table-print {
+        font-size: 0.70rem !important;
+        border: 1px solid #334155 !important;
+    }
+    .table-print th, .table-print td {
+        padding: 4px 6px !important;
+        border: 1px solid #94a3b8 !important;
+    }
+    .signature-box {
+        display: block !important;
+        margin-top: 15px !important;
+        page-break-inside: avoid !important;
+    }
+}
+.badge-bomba-yellow {
+    background-color: #facc15;
+    color: #000000;
+    font-weight: 800;
+}
+.tecnico-badge {
+    background-color: #047857;
+    color: white;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+.btn-slicer.active {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px #facc15 !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 py-3">
+
+  <!-- Action Toolbar (No Print) -->
+  <div class="card mb-3 border-0 shadow-sm bg-white no-print">
+    <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('fertilizacion.index', semana=semana) }}" class="btn btn-outline-secondary btn-sm fw-bold">
+          <i class="fa-solid fa-arrow-left me-1"></i> Volver a Fertilización
+        </a>
+        <span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1">
+          <i class="fa-solid fa-leaf me-1"></i> Programa Oficial Trichos y Sólidos &bull; Sem. {{ semana }}
+        </span>
+      </div>
+
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Filtrar por Bomba y Técnico -->
+        <form method="GET" action="{{ url_for('fertilizacion.programa_impresion') }}" class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="hidden" name="semana" value="{{ semana }}">
+          
+          <div class="d-flex align-items-center gap-1">
+            <label class="small fw-bold text-muted mb-0">Bomba:</label>
+            <select name="bomba" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-success" style="min-width: 170px;">
+              <option value="TODAS" {% if not filtro_bomba or filtro_bomba == 'TODAS' %}selected{% endif %}>Todas las Bombas</option>
+              {% for b in calibracion_bombas %}
+              <option value="{{ b.bomba }}" {% if filtro_bomba == b.bomba %}selected{% endif %}>
+                {{ b.bomba }} (Sem {{ b.edad }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="d-flex align-items-center gap-1">
+            <label class="small fw-bold text-muted mb-0">Cuarto / Técnico:</label>
+            <select name="tecnico" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-primary" style="min-width: 170px;">
+              <option value="TODOS" {% if not filtro_tecnico or filtro_tecnico == 'TODOS' %}selected{% endif %}>Todos los Cuartos</option>
+              {% for t in calibracion_tecnicos %}
+              <option value="{{ t.tecnico }}" {% if filtro_tecnico == t.tecnico %}selected{% endif %}>
+                {{ t.tecnico }} ({{ t.camas_totales }} camas)
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </form>
+
+        <button type="button" class="btn btn-dark btn-sm fw-bold shadow-xs" onclick="window.print();">
+          <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir Programa Oficial
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slicer de Tratamiento (No Print) -->
+  <div class="card mb-3 border-0 shadow-sm bg-white no-print">
+    <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <span class="small fw-bold text-dark"><i class="fa-solid fa-filter text-primary me-1"></i>Slicer por Tratamiento / Receta:</span>
+      </div>
+      <div class="btn-group btn-group-sm flex-wrap" role="group" id="treatment-slicer-group">
+        <button type="button" class="btn btn-dark active fw-bold btn-slicer" data-cat="TODOS" onclick="filtrarTratamiento(this, 'TODOS')">
+          <i class="fa-solid fa-list-check me-1"></i> TODOS
+        </button>
+        <button type="button" class="btn btn-outline-success fw-bold btn-slicer" data-cat="TRICHOS" onclick="filtrarTratamiento(this, 'TRICHOS')">
+          <i class="fa-solid fa-shield-virus me-1"></i> TRICHOS & BIOLÓGICOS
+        </button>
+        <button type="button" class="btn btn-outline-warning text-dark fw-bold btn-slicer" data-cat="MOSHE" onclick="filtrarTratamiento(this, 'MOSHE')">
+          <i class="fa-solid fa-vial me-1"></i> MOSHE
+        </button>
+        <button type="button" class="btn btn-outline-info text-dark fw-bold btn-slicer" data-cat="ALCAPLANT" onclick="filtrarTratamiento(this, 'ALCAPLANT')">
+          <i class="fa-solid fa-cubes me-1"></i> ALCAPLANT
+        </button>
+        <button type="button" class="btn btn-outline-primary fw-bold btn-slicer" data-cat="ENRAIZANTES" onclick="filtrarTratamiento(this, 'ENRAIZANTES')">
+          <i class="fa-solid fa-seedling me-1"></i> ENRAIZANTES
+        </button>
+        <button type="button" class="btn btn-outline-secondary fw-bold btn-slicer" data-cat="SOLIDOS" onclick="filtrarTratamiento(this, 'SOLIDOS')">
+          <i class="fa-solid fa-boxes-stacked me-1"></i> SÓLIDOS EDÁFICOS
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printable Document Header -->
+  <div class="card border mb-3 shadow-none bg-white">
+    <div class="card-body p-3">
+      <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold fs-5 text-dark font-monospace">FLORSANI ERP</span>
+            <span class="badge bg-dark text-white font-monospace">DEPARTAMENTO TÉCNICO & FERTILIZACIÓN</span>
+          </div>
+          <h4 class="fw-bold text-dark mb-0 mt-1">PROGRAMA OFICIAL DE APLICACIÓN: TRICHOS Y SÓLIDOS</h4>
+          <div class="small text-muted">Dosificación Radicular por Cama (Trichos / Biológicos: 41.7 L/cama &bull; Sólidos Edáficos: 30.0 L/cama)</div>
+        </div>
+        <div class="text-end">
+          <div class="badge bg-success fs-6 fw-bold font-monospace px-3 py-1">SEMANA {{ semana }}</div>
+          <div class="small text-muted mt-1">Generado: {{ hoy }}</div>
+        </div>
+      </div>
+
+      <!-- Resumen General -->
+      <div class="row g-2 text-center small">
+        <div class="col-3">
+          <div class="p-1.5 bg-light rounded border">
+            <span class="text-muted d-block" style="font-size: 0.70rem;">BOMBAS PROGRAMADAS</span>
+            <strong class="text-dark" id="summary-bombas-count">{{ calibracion_bombas|length }} Bombas</strong>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="p-1.5 bg-light rounded border">
+            <span class="text-muted d-block" style="font-size: 0.70rem;">TOTAL CAMAS</span>
+            <strong class="text-success font-monospace" id="summary-camas-count">{{ total_camas }} Camas</strong>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="p-1.5 bg-light rounded border">
+            <span class="text-muted d-block" style="font-size: 0.70rem;">VOLUMEN AGUA TOTAL</span>
+            <strong class="text-primary font-monospace" id="summary-litros-count">{{ total_litros|round(1) }} Litros</strong>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="p-1.5 bg-light rounded border">
+            <span class="text-muted d-block" style="font-size: 0.70rem;">ESTADO OFICIAL</span>
+            <strong class="text-dark">AUTORIZADO AGRO</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sections Grouped by Bomba -->
+  {% for b in calibracion_bombas %}
+  <div class="card card-tecnico border shadow-xs mb-4 bg-white" data-tratamiento="{{ b.tratamiento_key }}" data-camas="{{ b.camas_totales }}" data-litros="{{ b.litros_totales }}">
+    <!-- Encabezado de Alto Contraste Negro y Amarillo para cada Bomba -->
+    <div class="card-header card-header-print bg-dark text-white py-2 px-3 d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <i class="fa-solid fa-atom text-warning"></i>
+        <span class="fw-bold fs-6 font-monospace text-uppercase text-warning">{{ b.bomba }}</span>
+        <span class="badge bg-secondary font-monospace">Semana {{ b.edad }}</span>
+        <span class="badge badge-bomba-yellow font-monospace">{{ b.descripcion }}</span>
+        <span class="badge bg-info-subtle text-info border border-info font-monospace">{{ b.vol_default }} L/cama</span>
+      </div>
+      <div class="text-end small">
+        <span class="badge bg-success font-monospace fw-bold fs-7">{{ b.camas_totales }} Camas</span>
+        <span class="badge bg-primary font-monospace fw-bold fs-7 ms-1">{{ b.litros_totales|round(1) }} L Caldo</span>
+      </div>
+    </div>
+
+    <div class="card-body p-0">
+      <!-- 1. RECETA Y DOSIFICACIÓN DE PRODUCTOS EN BODEGA PRIMERO (Hacia abajo en filas) -->
+      {% if b.productos_calculados and b.productos_calculados|length > 0 %}
+      <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="small fw-bold text-dark font-monospace text-uppercase">
+          <i class="fa-solid fa-boxes-stacked text-primary me-1"></i> Dosificación e Insumos Requeridos en Bodega (Receta del Tanque):
+        </span>
+        <span class="badge bg-white text-dark border font-monospace small">Volumen Tanque: {{ b.litros_totales|round(1) }} L</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered table-print align-middle mb-0 bg-white">
+          <thead class="table-light text-uppercase font-monospace" style="font-size: 0.67rem;">
+            <tr>
+              <th style="width: 250px;">Producto Comercial / Químico</th>
+              <th style="width: 65px;" class="text-center">U.M</th>
+              <th style="width: 95px;" class="text-end">Dosis / Litro</th>
+              <th style="width: 105px;" class="text-end">Volumen Caldo</th>
+              <th style="width: 130px;" class="text-end bg-light fw-bold text-success">Total a Pesar / Despachar</th>
+              <th>Notas de Mezcla / Recomendación Técnica</th>
+              <th style="width: 130px;" class="text-center">Visto Bueno Bodega</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for prod in b.productos_calculados %}
+            <tr>
+              <td class="fw-bold text-dark font-monospace">{{ prod.name }}</td>
+              <td class="text-center font-monospace text-muted">{{ prod.unit }}</td>
+              <td class="text-end font-monospace text-muted">{{ prod.dose }}</td>
+              <td class="text-end font-monospace text-muted">{{ b.litros_totales|round(1) }} L</td>
+              <td class="text-end font-monospace fw-bold text-success bg-light fs-7">
+                {{ prod.total_cantidad }} {{ prod.unit }}
+              </td>
+              <td class="small text-muted">{{ b.descripcion }}</td>
+              <td class="text-center text-muted font-monospace" style="font-size: 0.65rem;">
+                [ &nbsp; ] Despachado
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <!-- 2. TABLA VERTICAL DE BLOQUES CALIBRADOS (Distribución en Campo) -->
+      <div class="p-2 bg-light border-top border-bottom">
+        <span class="small fw-bold text-dark font-monospace text-uppercase">
+          <i class="fa-solid fa-map-location-dot text-success me-1"></i> Bloques Calibrados para {{ b.bomba }} (Distribución de Campo):
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered table-print table-hover align-middle mb-0">
+          <thead class="table-light text-uppercase font-monospace" style="font-size: 0.68rem;">
+            <tr>
+              <th style="width: 35px;" class="text-center">#</th>
+              <th style="width: 75px;" class="text-center">BLOQUE</th>
+              <th style="width: 95px;" class="text-center">ZONA</th>
+              <th style="width: 120px;">VARIEDAD / CULTIVO</th>
+              <th style="width: 55px;" class="text-center">EDAD</th>
+              <th style="width: 55px;" class="text-center">C. INIC.</th>
+              <th style="width: 55px;" class="text-center">C. FIN.</th>
+              <th style="width: 65px;" class="text-end bg-light fw-bold text-success">CAMAS</th>
+              <th style="width: 60px;" class="text-end">L/CAMA</th>
+              <th style="width: 80px;" class="text-end text-primary fw-bold">VOL. (L)</th>
+              <th style="width: 140px;">PRODUCTO</th>
+              <th style="width: 85px;" class="text-end">DOSIS</th>
+              <th style="width: 140px;">CUARTO DE BOMBEO / TÉCNICO</th>
+              <th style="width: 70px;" class="text-center">CONFORME</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in (b.bloque_items if b.bloque_items is defined else b['items']) %}
+            <tr>
+              <td class="text-center text-muted font-monospace small">{{ loop.index }}</td>
+              <td class="text-center fw-bold text-dark font-monospace fs-7 bg-light">{{ it.bloque }}</td>
+              <td class="text-center font-monospace small"><span class="badge bg-light text-dark border">{{ it.zona or 'GENERAL' }}</span></td>
+              <td class="fw-semibold text-dark small">{{ it.variedad }}</td>
+              <td class="text-center font-monospace small">Sem {{ it.edad }}</td>
+              <td class="text-center font-monospace text-muted small">{{ it.cama_inicial or '-' }}</td>
+              <td class="text-center font-monospace text-muted small">{{ it.cama_final or '-' }}</td>
+              <td class="text-end font-monospace fw-bold text-success bg-light fs-7">{{ it.cantidad_camas }}</td>
+              <td class="text-end font-monospace text-muted small">{{ it.litros_cama }}</td>
+              <td class="text-end font-monospace fw-bold text-primary">{{ it.total_litros|round(1) }} L</td>
+              <td class="small">
+                <div class="d-flex flex-column gap-1">
+                  {% for p in (it.productos or []) %}
+                  <span class="fw-semibold text-dark text-nowrap">{{ p.name }}</span>
+                  {% else %}
+                  <span class="text-muted">-</span>
+                  {% endfor %}
+                </div>
+              </td>
+              <td class="small text-end font-monospace">
+                <div class="d-flex flex-column gap-1 text-end">
+                  {% for p in (it.productos or []) %}
+                  <span class="text-secondary text-nowrap">{{ p.dose_str or (p.dose ~ ' ' ~ p.unit) }}</span>
+                  {% else %}
+                  <span class="text-muted">-</span>
+                  {% endfor %}
+                </div>
+              </td>
+              <td class="small fw-semibold text-secondary font-monospace">{{ it.tecnico }}</td>
+              <td class="text-center text-muted font-monospace" style="font-size: 0.65rem;">
+                [ &nbsp; ]
+              </td>
+            </tr>
+            {% endfor %}
+            <!-- Subtotal Row -->
+            <tr class="table-light fw-bold font-monospace border-top border-2 border-dark">
+              <td colspan="7" class="text-end text-uppercase">Subtotal {{ b.bomba }}:</td>
+              <td class="text-end text-success fs-7">{{ b.camas_totales }}</td>
+              <td class="text-end text-muted">-</td>
+              <td class="text-end text-primary fs-7">{{ b.litros_totales|round(1) }} L</td>
+              <td colspan="4" class="text-muted small">Bloques: {{ b.bloques|join(', ') }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Footer & Firmas por Bomba -->
+      <div class="p-2 bg-light border-top small d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted">
+          <strong>Cuartos de Bombeo Responsables:</strong> {{ b.tecnicos|join(', ') if b.tecnicos else 'General' }}
+        </span>
+        <div class="signature-box d-flex gap-4">
+          <span class="small text-muted">Firma Técnico / Cuarto Bombeo: ______________________</span>
+          <span class="small text-muted">Firma Bodega Despacho: ______________________</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted bg-white rounded border">
+    <i class="fa-solid fa-seedling fs-1 text-secondary mb-2"></i>
+    <h5>No hay programas de Trichos o Sólidos registrados para la Semana {{ semana }}</h5>
+    <p class="small text-muted mb-0">Seleccione otra semana o proyecte el programa desde la pestaña de Fertilización.</p>
+  </div>
+  {% endfor %}
+
+</div>
+
+<script>
+function filtrarTratamiento(btn, cat) {
+  // Reset active classes on slicer buttons
+  document.querySelectorAll('.btn-slicer').forEach(b => {
+    b.classList.remove('active');
+    const c = b.dataset.cat;
+    if (c === 'TRICHOS') b.className = 'btn btn-outline-success fw-bold btn-slicer';
+    else if (c === 'MOSHE') b.className = 'btn btn-outline-warning text-dark fw-bold btn-slicer';
+    else if (c === 'ALCAPLANT') b.className = 'btn btn-outline-info text-dark fw-bold btn-slicer';
+    else if (c === 'ENRAIZANTES') b.className = 'btn btn-outline-primary fw-bold btn-slicer';
+    else if (c === 'SOLIDOS') b.className = 'btn btn-outline-secondary fw-bold btn-slicer';
+    else b.className = 'btn btn-outline-dark fw-bold btn-slicer';
+  });
+
+  btn.classList.add('active');
+
+  const cards = document.querySelectorAll('.card-tecnico');
+  let visibleBombas = 0;
+  let visibleCamas = 0;
+  let visibleLitros = 0;
+
+  cards.forEach(card => {
+    const tKey = card.dataset.tratamiento || '';
+    if (cat === 'TODOS' || tKey === cat) {
+      card.style.removeProperty('display');
+      visibleBombas++;
+      visibleCamas += parseInt(card.dataset.camas || 0);
+      visibleLitros += parseFloat(card.dataset.litros || 0);
+    } else {
+      card.style.setProperty('display', 'none', 'important');
+    }
+  });
+
+  const summaryBombas = document.getElementById('summary-bombas-count');
+  const summaryCamas = document.getElementById('summary-camas-count');
+  const summaryLitros = document.getElementById('summary-litros-count');
+  if (summaryBombas) summaryBombas.textContent = `${visibleBombas} Bombas`;
+  if (summaryCamas) summaryCamas.textContent = `${visibleCamas} Camas`;
+  if (summaryLitros) summaryLitros.textContent = `${visibleLitros.toFixed(1)} Litros`;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+
+{% block title %}Almacén & Salidas de Bodega | Semana {{ rotation.week }} | AgroFumigación{% endblock %}
+{% block page_header %}Almacén &bull; Control de Salidas y Despacho Semana {{ rotation.week }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-card {
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+}
+.timeline-btn {
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+.badge-status-lg {
+    font-size: 0.82rem;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+@media print {
+    .no-print, nav, header, footer, .sidebar, #sidebar-wrapper, .btn, .nav-tabs, form, select, .alert, .timeline-nav {
+        display: none !important;
+    }
+    body {
+        background-color: #ffffff !important;
+        font-size: 0.72rem !important;
+    }
+    #page-content-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 12px !important;
+    }
+    .card-header {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .table {
+        font-size: 0.70rem !important;
+    }
+    .table th, .table td {
+        padding: 3px 5px !important;
+        border: 1px solid #666 !important;
+    }
+    .print-signature-box {
+        display: block !important;
+        margin-top: 30px;
+        page-break-inside: avoid;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top Header & Week Timeline Navigation -->
+<div class="card mb-4 border-0 shadow-sm bg-white no-print">
+    <div class="card-body p-3 p-md-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-success-subtle text-success border border-success fw-bold">
+                        <i class="fa-solid fa-warehouse me-1"></i> Almacén de Agroquímicos
+                    </span>
+                    <span class="badge bg-light text-dark border">Semana {{ rotation.week }}</span>
+                    {% if rotation.status == 'APROBADA' %}
+                    <span class="badge bg-success"><i class="fa-solid fa-circle-check me-1"></i> APROBADA</span>
+                    {% elif rotation.status == 'BORRADOR' %}
+                    <span class="badge bg-warning text-dark"><i class="fa-solid fa-pen-ruler me-1"></i> BORRADOR</span>
+                    {% endif %}
+                </div>
+                <h3 class="fw-bold text-dark mb-0 font-monospace">
+                    <i class="fa-solid fa-dolly text-primary me-2"></i>Salidas de Bodega &bull; Semana {{ rotation.week }}
+                </h3>
+                <p class="text-muted small mb-0 mt-1">
+                    Control oficial de insumos, desglose por área/variedad y registro de despacho para aplicaciones de campo.
+                </p>
+            </div>
+
+            <!-- Timeline Week Switcher -->
+            <div class="d-flex align-items-center flex-wrap gap-2 timeline-nav">
+                {% if prev_rotation %}
+                <a href="{{ url_for('fumigacion.ver_salidas', rotation_id=prev_rotation.id) }}" class="btn btn-outline-secondary btn-sm timeline-btn" title="Ir a la semana anterior">
+                    <i class="fa-solid fa-chevron-left me-1"></i> Sem. {{ prev_rotation.week }}
+                </a>
+                {% endif %}
+
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text bg-light text-muted fw-semibold"><i class="fa-solid fa-calendar-week me-1"></i> Semana:</span>
+                    <select class="form-select form-select-sm fw-bold text-primary" onchange="if(this.value) window.location.href=this.value;">
+                        {% for r in all_rotations %}
+                        <option value="{{ url_for('fumigacion.ver_salidas', rotation_id=r.id) }}" {% if r.id == rotation.id %}selected{% endif %}>
+                            Semana {{ r.week }} (v{{ r.version }}) {% if r.status == 'APROBADA' %}★{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if next_rotation %}
+                <a href="{{ url_for('fumigacion.ver_salidas', rotation_id=next_rotation.id) }}" class="btn btn-outline-secondary btn-sm timeline-btn" title="Ir a la semana posterior">
+                    Sem. {{ next_rotation.week }} <i class="fa-solid fa-chevron-right ms-1"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Filter 2: Dropdown Selector for Programs of the Week -->
+        <div class="p-3 bg-light rounded border mt-3">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-7 col-lg-8">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="fa-solid fa-list-check text-success me-1"></i> 2. Filtrar por Programa de Fumigación de la Semana {{ rotation.week }}:
+                    </label>
+                    <select class="form-select form-select-sm fw-bold text-dark border-success shadow-sm" onchange="window.location.href=this.value;">
+                        <option value="{{ url_for('fumigacion.ver_salidas', rotation_id=rotation.id) }}" {% if not selected_order %}selected{% endif %}>
+                            ★ Ver Todos los Programas (Consolidado Semana {{ rotation.week }}) &bull; [{{ orders|length }} programas &bull; {{ total_volume_liters|format_number(0) }} L]
+                        </option>
+                        {% for ord in orders %}
+                        <option value="{{ url_for('fumigacion.ver_salidas', rotation_id=rotation.id, order_id=ord.id) }}" {% if selected_order and selected_order.id == ord.id %}selected{% endif %}>
+                            📋 {{ ord.display_title }} &bull; Día: {{ ord.scheduled_day }} &bull; ({{ ord.total_liters|format_number(0) }} L &bull; {{ ord.order_number }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-5 col-lg-4 text-md-end pt-md-3">
+                    {% if selected_order %}
+                    <div class="d-flex justify-content-md-end gap-2 flex-wrap">
+                        <a href="{{ url_for('fumigacion.orden_detalle', order_id=selected_order.id) }}" class="btn btn-primary btn-sm fw-bold shadow-sm">
+                            <i class="fa-solid fa-print me-1"></i> Ver / Imprimir Programa
+                        </a>
+                        <a href="{{ url_for('fumigacion.ver_salidas', rotation_id=rotation.id) }}" class="btn btn-outline-secondary btn-sm" title="Quitar filtro de programa">
+                            <i class="fa-solid fa-xmark me-1"></i> Ver Todos
+                        </a>
+                    </div>
+                    {% else %}
+                    <span class="badge bg-white text-success border p-2 small">
+                        <i class="fa-solid fa-layer-group me-1"></i> Mostrando Consolidado Semanal Total
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if selected_order %}
+            <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2 small">
+                <div class="text-success fw-semibold">
+                    <i class="fa-solid fa-circle-check me-1"></i>
+                    Filtrado por: <strong>{{ selected_order.display_title }}</strong> &bull; Día: <strong>{{ selected_order.scheduled_day }}</strong> &bull; Mezcla: <strong>{{ selected_order.total_liters|format_number(1) }} L</strong>
+                </div>
+                <div class="text-muted font-monospace small">
+                    Cód: {{ selected_order.order_number }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPI Metric Summary Cards -->
+<div class="row g-3 mb-4 no-print">
+    <!-- Card 1: Insumos Totales -->
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 border-primary">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-semibold text-uppercase">Insumos Requeridos</span>
+                    <i class="fa-solid fa-flask-vial text-primary fs-5"></i>
+                </div>
+                <h3 class="fw-bold text-dark mb-0 font-monospace">{{ total_products_count }}</h3>
+                <span class="small text-muted">Productos químicos/biológicos</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Volumen de Mezcla -->
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 border-info">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-semibold text-uppercase">Volumen Total</span>
+                    <i class="fa-solid fa-droplet text-info fs-5"></i>
+                </div>
+                <h3 class="fw-bold text-info mb-0 font-monospace">{{ total_volume_liters|format_number(1) }} <small class="fs-6">L</small></h3>
+                <span class="small text-muted">{{ total_beds|format_number(1) }} camas estándar</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Estado de Impresión -->
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 {% if rotation.is_salidas_printed %}border-success{% else %}border-warning{% endif %}">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-semibold text-uppercase">Estado Impresión</span>
+                    <i class="fa-solid fa-print {% if rotation.is_salidas_printed %}text-success{% else %}text-warning{% endif %} fs-5"></i>
+                </div>
+                <div id="status-print-badge-container">
+                    {% if rotation.is_salidas_printed %}
+                    <span class="badge bg-success-subtle text-success border border-success fw-bold">
+                        <i class="fa-solid fa-check-double me-1"></i> IMPRESA
+                    </span>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                        {{ rotation.salidas_printed_at|format_local_datetime }} &bull; {{ rotation.salidas_printed_by }}
+                    </div>
+                    {% else %}
+                    <span class="badge bg-warning-subtle text-warning border border-warning fw-bold">
+                        <i class="fa-solid fa-clock me-1"></i> PENDIENTE DE IMPRESIÓN
+                    </span>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">Listo para imprimir planilla</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Estado de Despacho en Bodega -->
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm kpi-card bg-white border-start border-4 {% if rotation.is_salidas_dispatched %}border-success{% else %}border-secondary{% endif %}">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-semibold text-uppercase">Despacho de Bodega</span>
+                    <i class="fa-solid fa-boxes-packing {% if rotation.is_salidas_dispatched %}text-success{% else %}text-secondary{% endif %} fs-5"></i>
+                </div>
+                <div id="status-dispatch-badge-container">
+                    {% if rotation.is_salidas_dispatched %}
+                    <span class="badge bg-success text-white fw-bold">
+                        <i class="fa-solid fa-truck-ramp-box me-1"></i> ENTREGADO A CAMPO
+                    </span>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                        {{ rotation.salidas_dispatched_at|format_local_datetime }} &bull; {{ rotation.salidas_dispatched_by }}
+                    </div>
+                    {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary fw-bold">
+                        <i class="fa-solid fa-box-archive me-1"></i> EN BODEGA (PENDIENTE)
+                    </span>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">Insumos aún no entregados</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadística Action Toolbar -->
+<div class="card mb-3 border-0 shadow-sm bg-light no-print">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold text-dark small"><i class="fa-solid fa-print me-1 text-primary"></i> Acciones de Estadística:</span>
+            </div>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                {% if current_user and current_user.has_permission('salidas_imprimir') %}
+                <!-- Botón de Despacho / Revertir a Pendiente -->
+                <button type="button" class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="toggleDispatchSalidas({{ rotation.id }});" title="Alternar estado de entrega en bodega">
+                    <i class="fa-solid fa-truck-ramp-box me-1"></i> 
+                    <span id="btn-dispatch-text">{% if rotation.is_salidas_dispatched %}Revertir a Pendiente{% else %}Marcar como Despachado{% endif %}</span>
+                </button>
+
+                <button type="button" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="executePrintSalidas({{ rotation.id }});">
+                    <i class="fa-solid fa-print me-1 text-warning"></i> Confirmar Impresiones
+                </button>
+                {% endif %}
+                {% if current_user and current_user.has_permission('fumigacion') %}
+                <a href="{{ url_for('fumigacion.rotacion_detalle', rotation_id=rotation.id) }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Volver a Planificación
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alerta de Recalibración posterior al despacho -->
+{% set ns_recalib = namespace(found=false, round_names=[]) %}
+{% if rotation.is_salidas_dispatched and rotation.salidas_dispatched_at %}
+    {% for ord in orders %}
+        {% if ord.updated_at and ord.updated_at > rotation.salidas_dispatched_at %}
+            {% set ns_recalib.found = true %}
+            {% set _ = ns_recalib.round_names.append(ord.round_name) %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+{% if ns_recalib.found %}
+<div class="alert alert-warning border-warning shadow-sm d-flex align-items-center justify-content-between p-3 mb-4 no-print" role="alert">
+    <div class="d-flex align-items-center gap-3">
+        <i class="fa-solid fa-triangle-exclamation fs-3 text-warning"></i>
+        <div>
+            <h6 class="alert-heading fw-bold mb-1">¡Atención Kelly / Estadística! Recalibración detectada posterior al despacho</h6>
+            <p class="small mb-0 text-dark">
+                El agrónomo ha vuelto a calibrar y actualizar la(s) orden(es) <strong>{{ ns_recalib.round_names|join(', ') }}</strong> después de que la salida fue marcada como entregada.
+                Se recomienda hacer clic en <strong>Revertir a Pendiente</strong>, revisar los nuevos insumos calculados e imprimir nuevamente las órdenes actualizadas.
+            </p>
+        </div>
+    </div>
+    <button type="button" class="btn btn-warning btn-sm fw-bold text-dark text-nowrap ms-3" onclick="toggleDispatchSalidas({{ rotation.id }});">
+        <i class="fa-solid fa-rotate-left me-1"></i> Revertir a Pendiente
+    </button>
+</div>
+{% endif %}
+
+<!-- Document Header for Print Mode Only -->
+<div class="d-none d-print-block mb-3 border-bottom pb-2">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="fw-bold text-uppercase mb-0">FINCA FLORÍCOLA PYGANFLOR &bull; PLANILLA DE SALIDAS DE BODEGA</h4>
+            <div class="small text-muted">Control Fitosanitario de Agroquímicos &bull; Semana {{ rotation.week }} (Versión {{ rotation.version }})</div>
+        </div>
+        <div class="text-end small">
+            <div><strong>Fecha Emisión:</strong> {{ rotation.created_at|format_local_datetime }}</div>
+            <div><strong>Estado:</strong> {{ rotation.status }}</div>
+            <div><strong>Impreso por:</strong> {{ current_user.full_name if current_user else 'Bodega' }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs for Navigation Views -->
+<ul class="nav nav-tabs mb-4 no-print shadow-sm bg-white rounded-top" id="salidasTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold py-2 px-3 text-primary" id="by-area-tab" data-bs-toggle="tab" data-bs-target="#by-area" type="button" role="tab">
+            <i class="fa-solid fa-layer-group me-1"></i> 1. Desglose por Área / Variedad
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-bold py-2 px-3 text-secondary" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-view" type="button" role="tab">
+            <i class="fa-solid fa-clock-rotate-left me-1"></i> 2. Bitácora de Eventos
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="salidasTabContent">
+    <!-- Tab 1: By Area View -->
+    <div class="tab-pane fade show active" id="by-area" role="tabpanel">
+        {% if data_by_area and data_by_area|length > 0 %}
+        {% for area in data_by_area|dictsort %}
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold">
+                    <i class="fa-solid fa-seedling me-2"></i>Área / Cultivo: {{ area[0] }}
+                </h6>
+                <span class="badge bg-light text-dark">{{ area[1]|length }} insumos</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-striped align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 260px;">Producto Comercial</th>
+                                <th style="width: 70px;" class="text-center">U.M</th>
+                                {% for day in scheduled_days %}
+                                <th class="text-end">{{ day }}</th>
+                                {% endfor %}
+                                <th class="text-end bg-light fw-bold">Total Despacho</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product_code, day_quantities in area[1]|dictsort %}
+                            {% set p_unit = product_info[product_code]['unit'] %}
+                            <tr>
+                                <td class="fw-semibold text-dark">{{ product_info[product_code]['commercial_name'] }}</td>
+                                <td class="text-center text-muted small">{{ p_unit }}</td>
+                                {% set total = namespace(value=0.0) %}
+                                {% for day in scheduled_days %}
+                                {% set qty = day_quantities[day] %}
+                                {% set total.value = total.value + qty %}
+                                <td class="text-end {% if qty > 0 %}text-success fw-semibold{% else %}text-muted{% endif %}">
+                                    {{ qty|format_product(p_unit) if qty > 0 else '-' }}
+                                </td>
+                                {% endfor %}
+                                <td class="text-end fw-bold bg-light text-primary">
+                                    {{ total.value|format_product(p_unit) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 my-3">
+            <i class="fa-solid fa-boxes-packing fs-1 text-secondary mb-3"></i>
+            <h5 class="fw-bold text-dark">No hay salidas registradas para la Semana {{ rotation.week }} (v{{ rotation.version }})</h5>
+            <p class="small text-muted mb-0">Esta rotación aún no tiene órdenes de fumigación generadas. Puedes seleccionar otra semana en el selector superior.</p>
+        </div>
+        {% endif %}
+    </div>
+
+
+
+
+
+
+    <!-- Tab 4: Warehouse Dispatch & Print Logs -->
+    <div class="tab-pane fade" id="history-view" role="tabpanel">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-dark">
+                    <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i>Historial de Eventos de Bodega &bull; Semana {{ rotation.week }}
+                </h6>
+                <span class="badge bg-light text-dark">{{ dispatch_logs|length }} eventos registrados</span>
+            </div>
+            <div class="card-body p-0">
+                {% if dispatch_logs and dispatch_logs|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 170px;">Fecha y Hora</th>
+                                <th style="width: 150px;">Usuario Responsable</th>
+                                <th style="width: 100px;">Rol</th>
+                                <th style="width: 180px;">Acción Realizada</th>
+                                <th>Detalles / Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in dispatch_logs %}
+                            <tr>
+                                <td class="font-monospace text-muted">{{ log.created_at|format_local_datetime }}</td>
+                                <td class="fw-bold text-dark">{{ log.performed_by }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ log.role }}</span></td>
+                                <td>
+                                    {% if log.action == 'IMPRESION_SALIDAS' %}
+                                    <span class="badge bg-success-subtle text-success border border-success"><i class="fa-solid fa-print me-1"></i> Impresión Planilla</span>
+                                    {% elif log.action == 'DESPACHO_BODEGA' %}
+                                    <span class="badge bg-primary-subtle text-primary border border-primary"><i class="fa-solid fa-truck-ramp-box me-1"></i> Despacho Campo</span>
+                                    {% elif log.action == 'REVERTIR_DESPACHO' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning"><i class="fa-solid fa-rotate-left me-1"></i> Revertir Despacho</span>
+                                    {% elif log.action == 'EXPORTAR_EXCEL' %}
+                                    <span class="badge bg-info-subtle text-info border border-info"><i class="fa-solid fa-file-excel me-1"></i> Exportar Excel</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ log.action }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ log.notes or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="fa-regular fa-clock fs-3 mb-2 text-secondary"></i>
+                    <p class="small mb-0">Aún no se han registrado eventos de impresión o despacho para esta semana.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Signature Box (Visible only when printing) -->
+<div class="d-none d-print-block print-signature-box">
+    <div class="row pt-4">
+        <div class="col-6 text-center">
+            <div style="border-top: 1px solid #333; margin: 0 40px; padding-top: 5px;">
+                <strong>Entregado por (Bodega / Almacén):</strong><br>
+                <span class="text-muted small">Nombre y Firma</span>
+            </div>
+        </div>
+        <div class="col-6 text-center">
+            <div style="border-top: 1px solid #333; margin: 0 40px; padding-top: 5px;">
+                <strong>Recibido por (Aplicador / Supervisor):</strong><br>
+                <span class="text-muted small">Nombre y Firma</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto mark as printed when printing and trigger print dialog
+function executePrintSalidas(rotationId) {
+    // Send background AJAX to mark as printed
+    fetch(`/fumigacion/rotaciones/${rotationId}/marcar-salidas-impresa`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const container = document.getElementById('status-print-badge-container');
+            if (container) {
+                container.innerHTML = `
+                    <span class="badge bg-success-subtle text-success border border-success fw-bold">
+                        <i class="fa-solid fa-check-double me-1"></i> IMPRESA
+                    </span>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                        ${data.printed_at} &bull; ${data.printed_by}
+                    </div>
+                `;
+            }
+        }
+    })
+    .catch(err => console.error('Error marking as printed:', err))
+    .finally(() => {
+        // Trigger browser print dialog
+        window.print();
+    });
+}
+
+// Toggle dispatch delivery status
+function toggleDispatchSalidas(rotationId) {
+    fetch(`/fumigacion/rotaciones/${rotationId}/marcar-salidas-despachada`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const container = document.getElementById('status-dispatch-badge-container');
+            const btnText = document.getElementById('btn-dispatch-text');
+            if (container) {
+                if (data.is_dispatched) {
+                    container.innerHTML = `
+                        <span class="badge bg-success text-white fw-bold">
+                            <i class="fa-solid fa-truck-ramp-box me-1"></i> ENTREGADO A CAMPO
+                        </span>
+                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                            ${data.dispatched_at} &bull; ${data.dispatched_by}
+                        </div>
+                    `;
+                    if (btnText) btnText.textContent = 'Revertir a Pendiente';
+                } else {
+                    container.innerHTML = `
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary fw-bold">
+                            <i class="fa-solid fa-box-archive me-1"></i> EN BODEGA (PENDIENTE)
+                        </span>
+                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">Insumos aún no entregados</div>
+                    `;
+                    if (btnText) btnText.textContent = 'Marcar como Despachado';
+                }
+            }
+        }
+    })
+    .catch(err => console.error('Error toggling dispatch:', err));
+}
+</script>
+{% endblock %}

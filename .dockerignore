@@ -1,0 +1,18 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+venv
+env
+*.log
+.agent
+.agents
+C:\Users*
+estados de cultivo/*.xlsx
+!estados de cultivo/resumen_*.xlsx
+terraform
+node_modules

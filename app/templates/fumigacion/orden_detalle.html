@@ -1,0 +1,1103 @@
+{% extends "base.html" %}
+
+{% block title %}FINCA PYGANFLOR | Orden {{ order.order_number }}{% endblock %}
+{% block page_header %}FINCA PYGANFLOR &bull; Orden de Aplicación {{ order.order_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Toxicological Color Badges */
+.ct-box-I { background-color: #ef4444 !important; color: #ffffff !important; font-weight: bold; border-radius: 2px; padding: 1px 3px; text-align: center; font-size: 0.68rem; }
+.ct-box-II { background-color: #eab308 !important; color: #000000 !important; font-weight: bold; border-radius: 2px; padding: 1px 3px; text-align: center; font-size: 0.68rem; }
+.ct-box-III { background-color: #3b82f6 !important; color: #ffffff !important; font-weight: bold; border-radius: 2px; padding: 1px 3px; text-align: center; font-size: 0.68rem; }
+.ct-box-IV { background-color: #22c55e !important; color: #ffffff !important; font-weight: bold; border-radius: 2px; padding: 1px 3px; text-align: center; font-size: 0.68rem; }
+.ct-box-empty { background-color: transparent !important; color: #888; border: 1px solid #ddd; border-radius: 2px; padding: 1px 3px; font-size: 0.68rem; }
+
+/* Printable Order Styling - Double Horizontal Borders & Normal Vertical Borders */
+.table-order {
+    border: 1.5px solid #0f172a;
+    font-size: 0.72rem;
+    border-collapse: collapse;
+    width: 100%;
+}
+.table-order th {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+    padding: 3.5px 2px !important;
+    text-align: center;
+    border-top: 2px solid #0f172a !important;
+    border-bottom: 2px solid #0f172a !important;
+    border-left: 1px solid #334155 !important;
+    border-right: 1px solid #334155 !important;
+    vertical-align: middle;
+}
+.table-order td {
+    padding: 2.5px 2px !important;
+    border-top: 1.5px solid #64748b !important;
+    border-bottom: 1.5px solid #64748b !important;
+    border-left: 1px solid #cbd5e1 !important;
+    border-right: 1px solid #cbd5e1 !important;
+    vertical-align: middle;
+}
+
+/* Indivisible block groups with thick 4px top border for crisp screen and PDF view */
+.block-group, 
+tbody.block-group,
+tbody.block-group > tr:first-child > td {
+    border-top: 4px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+
+/* Zone Subtotal Styling (Displayed at the end of each zone) */
+.zone-subtotal-tbody {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+.zone-subtotal-row {
+    background-color: #f1f5f9 !important;
+}
+.zone-subtotal-row td {
+    border-top: 2.5px solid #0f172a !important;
+    border-bottom: 2.5px solid #0f172a !important;
+    border-left: 1px solid #94a3b8 !important;
+    border-right: 1px solid #94a3b8 !important;
+    padding: 3px 2px !important;
+    font-size: 0.73rem !important;
+}
+
+.order-signature-box, .warehouse-summary-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+
+/* Editable in-place header fields */
+.editable-print-field {
+    border: 1px dashed #cbd5e1;
+    background-color: #f8fafc;
+    padding: 2px 5px;
+    border-radius: 3px;
+    display: inline-block;
+    min-width: 120px;
+    cursor: text;
+}
+.editable-print-field:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Maximize Screen Width Usage */
+.container-fluid {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    max-width: 100% !important;
+}
+.printable-order {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    margin: 0 !important;
+}
+</style>
+<style id="dynamic-page-orientation">
+@page {
+    size: portrait;
+    margin: 3mm 3mm 3mm 3mm;
+}
+</style>
+<style>
+@media print {
+    body {
+        background-color: #ffffff !important;
+        font-size: 0.65rem !important;
+    }
+    .no-print, nav, header, footer, .sidebar, .btn, form, select {
+        display: none !important;
+    }
+    tfoot {
+        display: table-row-group !important; /* Prevents repeating totals on every page! */
+    }
+    .printable-order {
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        width: 100% !important;
+    }
+    .table-order {
+        font-size: 0.52rem !important;
+        table-layout: fixed !important;
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    thead {
+        display: table-header-group !important;
+    }
+    .zone-repeat-header-tbody {
+        display: none !important;
+    }
+    .table-order th {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        padding: 1.5px 0.5px !important;
+        font-size: 0.50rem !important;
+        letter-spacing: -0.3px;
+        line-height: 1.05;
+        border-top: 2px solid #000000 !important;
+        border-bottom: 2px solid #000000 !important;
+        border-left: 0.5px solid #666666 !important;
+        border-right: 0.5px solid #666666 !important;
+        overflow: hidden;
+    }
+    .table-order td {
+        padding: 1px 0.5px !important;
+        font-size: 0.52rem !important;
+        line-height: 1.05;
+        border-top: 1px solid #334155 !important;
+        border-bottom: 1px solid #334155 !important;
+        border-left: 0.5px solid #94a3b8 !important;
+        border-right: 0.5px solid #94a3b8 !important;
+        overflow: hidden;
+    }
+    .block-group, 
+    tbody.block-group,
+    tbody.block-group > tr:first-child > td {
+        border-top: 4px solid #000000 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .zone-subtotal-row td {
+        border-top: 2.5px solid #000000 !important;
+        border-bottom: 2.5px solid #000000 !important;
+        border-left: 0.75px solid #000000 !important;
+        border-right: 0.75px solid #000000 !important;
+        background-color: #f1f5f9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .ct-box-I, .ct-box-II, .ct-box-III, .ct-box-IV {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .editable-print-field {
+        border: none !important;
+        background-color: transparent !important;
+        padding: 0 !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Non-Printable Action Toolbar -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 no-print">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        {% if order.rotation_id %}
+        <a href="{{ url_for('bodega.salidas', rotation_id=order.rotation_id) }}" class="btn btn-outline-secondary btn-sm fw-semibold shadow-xs">
+            <i class="fa-solid fa-arrow-left me-1"></i> 1. Volver a Programas
+        </a>
+        <a href="{{ url_for('bodega.salidas', rotation_id=order.rotation_id) }}#pill-salidas" class="btn btn-success btn-sm fw-bold shadow-xs">
+            <i class="fa-solid fa-boxes-packing me-1"></i> Ir a Paso 2: Salidas y Despachos
+        </a>
+        <a href="{{ url_for('fumigacion.rotacion_detalle', rotation_id=order.rotation_id) }}" class="btn btn-outline-dark btn-sm text-muted" title="Ver Mesa de Calibración">
+            <i class="fa-solid fa-rotate me-1"></i> Calibración
+        </a>
+        {% else %}
+        <a href="{{ url_for('bodega.salidas') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-arrow-left me-1"></i> Volver a Salidas
+        </a>
+        {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Cultivo / Programa Filter Selector -->
+        {% set has_gypso = namespace(val=false) %}
+        {% set has_variedades = namespace(val=false) %}
+        {% set has_piv = namespace(val=false) %}
+        {% for d in order.details %}
+            {% set cn = (d.crop_name or '')|trim|upper %}
+            {% if 'GYPSO' in cn or 'XLENCE' in cn or 'BILLION' in cn or 'MIRABELLA' in cn %}
+                {% set has_gypso.val = true %}
+            {% elif 'VERONICA' in cn or 'SOLIDAGO' in cn or 'HYPERICUM' in cn or 'SUNFLOWER' in cn or 'GIRASOL' in cn %}
+                {% set has_variedades.val = true %}
+            {% elif cn %}
+                {% set has_piv.val = true %}
+            {% endif %}
+        {% endfor %}
+
+        <div class="d-flex align-items-center gap-1 bg-white p-1 border rounded shadow-sm">
+            <label for="select-print-category" class="small fw-bold text-muted text-nowrap px-1">
+                <i class="fa-solid fa-layer-group text-success me-1"></i> Programa:
+            </label>
+            <select id="select-print-category" class="form-select form-select-sm fw-bold border-success" style="min-width: 220px;">
+                <option value="ALL">📋 Toda la Finca (General)</option>
+                {% if has_gypso.val or has_variedades.val or has_piv.val %}
+                <optgroup label="Filtros Maestros de Programa">
+                    {% if has_gypso.val %}
+                    <option value="GYPSO">🌸 PROGRAMA PPCS GYPSOPHILA</option>
+                    {% endif %}
+                    {% if has_variedades.val %}
+                    <option value="VARIEDADES">🌺 PROGRAMA PPCS VARIEDADES</option>
+                    {% endif %}
+                    {% if has_piv.val %}
+                    <option value="PIV">🌿 PROGRAMA PIV (Aster, Eucalipto, etc.)</option>
+                    {% endif %}
+                </optgroup>
+                {% endif %}
+                <optgroup label="Cultivos Específicos">
+                    {% set distinct_crops = [] %}
+                    {% for d in order.details %}
+                        {% set c_name = (d.crop_name or '')|trim|upper %}
+                        {% if c_name and c_name not in distinct_crops %}
+                            {% set _ = distinct_crops.append(c_name) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for c in distinct_crops %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+        </div>
+
+        <!-- Operator Filter Selector -->
+        <div class="d-flex align-items-center gap-1 bg-white p-1 border rounded shadow-sm">
+            <label for="select-print-operator" class="small fw-bold text-muted text-nowrap px-1">
+                <i class="fa-solid fa-user-shield text-primary me-1"></i> Operario:
+            </label>
+            <select id="select-print-operator" class="form-select form-select-sm fw-bold border-primary" style="min-width: 190px;">
+                <option value="ALL">👤 Todos los Operarios</option>
+                {% set distinct_ops = [] %}
+                {% for d in order.details %}
+                    {% if d.operator and d.operator not in distinct_ops %}
+                        {% set _ = distinct_ops.append(d.operator) %}
+                    {% endif %}
+                {% endfor %}
+                {% for op in distinct_ops %}
+                <option value="{{ op }}">👤 Solo: {{ op }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Quick Filter Buttons by Master Program (Solo categorías con datos) -->
+        <div class="btn-group btn-group-sm shadow-sm" role="group" id="quick-filter-category-group">
+            {% if has_gypso.val %}
+            <button type="button" class="btn btn-outline-success fw-bold btn-cat-quick" data-cat="GYPSO" onclick="setCategoryFilter('GYPSO');" title="Filtrar vista por PROGRAMA PPCS GYPSOPHILA">
+                🌸 Gypso
+            </button>
+            {% endif %}
+            {% if has_variedades.val %}
+            <button type="button" class="btn btn-outline-primary fw-bold btn-cat-quick" data-cat="VARIEDADES" onclick="setCategoryFilter('VARIEDADES');" title="Filtrar vista por PROGRAMA PPCS VARIEDADES">
+                🌺 Variedades
+            </button>
+            {% endif %}
+            {% if has_piv.val %}
+            <button type="button" class="btn btn-outline-dark fw-bold btn-cat-quick" data-cat="PIV" onclick="setCategoryFilter('PIV');" title="Filtrar vista por PROGRAMA PIV">
+                🌿 PIV
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-outline-secondary fw-bold btn-cat-quick" data-cat="ALL" onclick="setCategoryFilter('ALL');" title="Mostrar todos los cultivos">
+                Todos
+            </button>
+        </div>
+
+        <!-- Orientation Selector & Print Action -->
+        <div class="btn-group btn-group-sm shadow-sm" role="group">
+            <button type="button" class="btn btn-secondary fw-semibold active" id="btn-orient-portrait" onclick="setPrintOrientation('portrait');" title="Orientación Vertical (Recomendada)">
+                <i class="fa-solid fa-file me-1"></i> Vertical
+            </button>
+            <button type="button" class="btn btn-outline-secondary fw-semibold" id="btn-orient-landscape" onclick="setPrintOrientation('landscape');" title="Orientación Horizontal">
+                <i class="fa-solid fa-file-invoice me-1"></i> Horizontal
+            </button>
+            <button type="button" class="btn btn-primary fw-bold px-3" onclick="executePrintOrder({{ order.id }});" title="Abrir cuadro de impresión">
+                <i class="fa-solid fa-print me-1"></i> Imprimir
+            </button>
+        </div>
+
+        <!-- Excel Export -->
+        <a href="{{ url_for('fumigacion.orden_exportar_excel', order_id=order.id) }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+            <i class="fa-solid fa-file-excel me-1"></i> Excel Bodega
+        </a>
+
+        <!-- Status Change Dropdown -->
+        <div class="dropdown d-inline-block">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                Estado: <strong id="top-status-text">{{ order.status }}</strong>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="APROBADA">
+                        <button type="submit" class="dropdown-item small text-success fw-bold">
+                            <i class="fa-solid fa-check me-2"></i> Marcar como APROBADA
+                        </button>
+                    </form>
+                </li>
+                <li>
+                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="EJECUTADA">
+                        <button type="submit" class="dropdown-item small text-primary">
+                            <i class="fa-solid fa-spray-can me-2"></i> Marcar como EJECUTADA
+                        </button>
+                    </form>
+                </li>
+                <li>
+                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="CANCELADA">
+                        <button type="submit" class="dropdown-item small text-danger">
+                            <i class="fa-solid fa-ban me-2"></i> CANCELAR Programa
+                        </button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- ================= PRINTABLE ORDER DOCUMENT ================= -->
+<div class="printable-order bg-white p-3 border rounded shadow-sm">
+    <!-- Header Block -->
+    <div class="border-bottom border-2 border-dark pb-2 mb-2">
+        <div class="row align-items-center">
+            <div class="col-8">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-leaf text-success fs-3"></i>
+                    <div>
+                        <div class="fw-bold fs-5 text-uppercase d-flex align-items-center gap-1 flex-wrap">
+                            <span contenteditable="true" class="editable-print-field text-dark fw-bold">FINCA PYGANFLOR</span> &bull; 
+                            <span contenteditable="true" class="editable-print-field text-primary fw-bold" id="doc-subtitle-header" onblur="saveProgramTitleLive(this.innerText)">PROGRAMA: {{ order.display_title }}</span>
+                        </div>
+                        <div class="text-muted small">
+                            <span contenteditable="true" class="editable-print-field">Departamento Técnico y Agronómico &bull; Plan Semanal {{ order.week }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-4 text-end">
+                <div class="border border-dark p-1 rounded text-center bg-light d-inline-block px-3">
+                    <div class="small fw-bold text-muted" style="font-size: 0.7rem;">PROGRAMA DE FUMIGACIÓN</div>
+                    <div class="fs-6 fw-bold font-monospace text-dark">{{ order.order_number }}</div>
+                    <span class="badge {% if order.status == 'APROBADA' %}bg-success{% elif order.status == 'EJECUTADA' %}bg-primary{% else %}bg-secondary{% endif %} text-uppercase badge-order-status" style="font-size: 0.65rem;">
+                        {{ order.status }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metadata Grid -->
+    <div class="row g-1 mb-2 small">
+        <div class="col-3">
+            <div class="p-1 border bg-light rounded text-center">
+                <span class="text-muted d-block" style="font-size: 0.68rem;">Semana:</span>
+                <strong class="text-primary">{{ order.week }}</strong>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="p-1 border bg-light rounded text-center">
+                <span class="text-muted d-block" style="font-size: 0.68rem;">Vuelta / Día:</span>
+                <strong class="text-dark">{{ order.round_name|replace('Vuelta ', 'V')|replace('VUELTA ', 'V')|replace('vuelta ', 'V') }} &bull; {{ order.scheduled_day }}</strong>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="p-1 border bg-light rounded text-center">
+                <span class="text-muted d-block" style="font-size: 0.68rem;">Fecha Programada:</span>
+                <strong>{{ order.scheduled_date.strftime('%Y-%m-%d') if order.scheduled_date else 'Semanal' }}</strong>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="p-1 border bg-light rounded text-center">
+                <span class="text-muted d-block" style="font-size: 0.68rem;">Agrónomo Responsable:</span>
+                <span contenteditable="true" class="editable-print-field fw-bold text-dark" id="header-agronomist-text">{{ order.agronomist }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exact 22-Column Table with Single Block Header Box and Zone Subtotals -->
+    <div class="table-responsive mb-2">
+        <table class="table table-sm table-order align-middle mb-0" id="table-main-order">
+            <thead>
+                <tr class="order-header-row bg-dark text-white">
+                    <th style="width: 2.5%;">VTA</th>
+                    <th style="width: 3.0%;">DÍA</th>
+                    <th style="width: 3.5%;">FECHA</th>
+                    <th style="width: 4.0%;">ZONA</th>
+                    <th style="width: 4.5%;">BLOQUE</th>
+                    <th style="width: 6.5%;">VARIEDAD</th>
+                    <th style="width: 2.8%;">EDAD</th>
+                    <th style="width: 3.8%;">CAMAS</th>
+                    <th style="width: 5.5%;">UBIC.</th>
+                    <th style="width: 7.5%;">PRODUCTO</th>
+                    <th style="width: 2.4%;">UM</th>
+                    <th style="width: 3.2%;">DOSIS</th>
+                    <th style="width: 4.2%;">TOTAL</th>
+                    <th style="width: 4.2%;">LITROS</th>
+                    <th style="width: 3.0%;">L/C</th>
+                    <th style="width: 5.5%;">LANZA</th>
+                    <th style="width: 7.0%;">PLAGA</th>
+                    <th style="width: 7.0%;">I.ACTIVO</th>
+                    <th style="width: 2.2%;">CT</th>
+                    <th style="width: 2.5%;">PH</th>
+                    <th style="width: 5.2%;">ÁREA</th>
+                    <th style="width: 7.0%;">OPERARIO</th>
+                </tr>
+            </thead>
+
+            <!-- Render each Zone and its Blocks with Zone Subtotals at the end of each Zone -->
+            {% for z_key, z_info in zones_map.items() %}
+                {% for b_key, b_info in z_info.blocks.items() %}
+                {% set num_rows = b_info.rows|length %}
+                <tbody class="block-group" data-zone="{{ z_info.zone_name }}" data-block="{{ b_info.block_name }}">
+                    {% for d in b_info.rows %}
+                    <tr class="order-detail-row" data-zone="{{ z_info.zone_name }}" data-operator="{{ d.operator }}" data-crop="{{ d.crop_name }}" data-std-beds="{{ d.standard_beds }}" data-liters="{{ d.total_liters }}" data-prod-code="{{ d.product_code }}" data-prod-name="{{ d.commercial_name or d.product_code }}" data-prod-amt="{{ d.product_amount }}" data-unit="{{ d.unit }}" data-is-first-in-block="{{ '1' if loop.first else '0' }}">
+                        
+                        {% if loop.first %}
+                        <!-- Single Visual Box for Block Metadata (rowspan across all products in block) -->
+                        <td rowspan="{{ num_rows }}" class="text-center font-monospace fw-bold text-dark align-middle">{{ d.round_name|replace('Vuelta ', 'V')|replace('VUELTA ', 'V')|replace('vuelta ', 'V') }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center fw-bold align-middle">{{ d.scheduled_day[:3] if d.scheduled_day else '' }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center small align-middle">{{ d.scheduled_date.strftime('%d/%m') if d.scheduled_date else '' }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center small fw-semibold align-middle">{{ d.zone or '-' }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center fw-bold fs-6 text-primary align-middle" style="background-color: #f8fafc;">{{ d.block_name }}</td>
+                        <td rowspan="{{ num_rows }}" class="fw-bold align-middle text-truncate" style="max-width: 80px;" title="{{ d.crop_name }}">{{ d.crop_name }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center fw-bold align-middle">{{ d.real_age|format_age }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-end fw-bold fs-6 text-dark align-middle">{{ d.standard_beds|format_number(2) }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center font-monospace small fw-bold align-middle">{{ d.bed_range }}</td>
+                        {% endif %}
+
+                        <!-- Product Columns (1 row per product in mix) -->
+                        <td class="fw-bold text-primary">{{ d.product_code }}</td>
+                        <td class="text-center">{{ d.unit }}</td>
+                        <td class="text-end">{{ d.dose }}</td>
+                        <td class="text-end fw-bold text-dark">{{ d.product_amount|format_product(d.unit) }}</td>
+
+                        {% if loop.first %}
+                        <!-- Liters and Lance Columns (rowspan across all products in block) -->
+                        <td rowspan="{{ num_rows }}" class="text-end fw-bold fs-6 text-success align-middle">{{ d.total_liters|format_number(1) }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-end fw-semibold align-middle">{{ d.liters_per_bed|format_number(1) }}</td>
+                        <td rowspan="{{ num_rows }}" class="text-center align-middle p-1" style="background-color: #f8fafc; max-width: 60px; min-width: 50px;">
+                            <div class="small fw-semibold text-dark" style="font-size: 0.62rem; word-break: break-word; line-height: 1.15;">
+                                {% if d.spray_lance %}
+                                    {{ d.spray_lance|replace(' (', '<br>(')|safe }}
+                                {% else %}
+                                    Lanza de 3 salidas<br><span class="text-muted small">(C35)</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        {% endif %}
+
+                        <td class="small text-truncate" style="max-width: 80px;" title="{{ d.pest or '-' }}">{{ d.pest or '-' }}</td>
+                        <td class="small text-muted text-truncate" style="max-width: 80px;" title="{{ d.active_ingredient or '-' }}">{{ d.active_ingredient or '-' }}</td>
+                        <td class="text-center fw-bold">{{ d.toxicological_category or '-' }}</td>
+                        <td class="text-center font-monospace small fw-bold text-muted">5.5</td>
+                        <td class="small fw-semibold text-truncate" style="max-width: 75px;" title="{{ d.crop_name }}">{{ d.crop_name }}</td>
+
+                        {% if loop.first %}
+                        <!-- Operator Box (rowspan across all products in block) -->
+                        <td rowspan="{{ num_rows }}" class="fw-semibold small text-dark cell-operator-name align-middle" style="background-color: #f8fafc;">
+                            <span contenteditable="true" class="editable-print-field py-0 px-1">{{ d.operator }}</span>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% endfor %}
+
+                <!-- Zone Subtotal (rendered at the foot of each zone) -->
+                <tbody class="zone-subtotal-tbody" data-zone="{{ z_info.zone_name }}">
+                    <tr class="zone-subtotal-row" data-zone="{{ z_info.zone_name }}" data-orig-beds="{{ z_info.total_beds }}" data-orig-liters="{{ z_info.total_liters }}">
+                        <td colspan="7" class="text-end text-uppercase fw-bold">
+                            <i class="fa-solid fa-layer-group text-primary me-1"></i> SUBTOTAL {{ z_info.zone_name }}:
+                        </td>
+                        <td class="text-end fw-bold text-primary cell-zone-beds">{{ z_info.total_beds|format_number(2) }}</td>
+                        <td colspan="5"></td>
+                        <td class="text-end fw-bold text-success cell-zone-liters">{{ z_info.total_liters|format_number(1) }} L</td>
+                        <td colspan="2"></td>
+                        <td colspan="6" class="small bg-white p-1 cell-zone-products-container">
+                            {% if z_info.liquid_products %}
+                            <div class="mb-1 zone-liq-line">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1"><i class="fa-solid fa-droplet me-1"></i>Líq:</span>
+                                {% for lp in z_info.liquid_products %}
+                                <strong>{{ lp.product_code }}</strong>: {{ lp.total_amount|format_product(lp.unit) }} {{ lp.unit }}{% if not loop.last %} &bull; {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            {% if z_info.solid_products %}
+                            <div class="zone-sol-line">
+                                <span class="badge bg-warning-subtle text-dark border border-warning-subtle me-1"><i class="fa-solid fa-box me-1"></i>Sól:</span>
+                                {% for sp in z_info.solid_products %}
+                                <strong>{{ sp.product_code }}</strong>: {{ sp.total_amount|format_product(sp.unit) }} {{ sp.unit }}{% if not loop.last %} &bull; {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+
+                <!-- Repeated Column Header between Zones for Perfect Field Reading -->
+                {% if not loop.last %}
+                <tbody class="zone-repeat-header-tbody" data-zone="{{ z_info.zone_name }}">
+                    <tr class="order-header-row bg-dark text-white">
+                        <th style="width: 30px;">VTA</th>
+                        <th style="width: 35px;">DÍA</th>
+                        <th style="width: 40px;">FECHA</th>
+                        <th style="width: 48px;">ZONA</th>
+                        <th style="width: 52px;">BLOQUE</th>
+                        <th style="width: 70px;">VARIEDAD</th>
+                        <th style="width: 35px;">EDAD</th>
+                        <th style="width: 46px;">CAMAS</th>
+                        <th style="width: 70px;">UBICACIÓN</th>
+                        <th style="width: 75px;">PRODUCTO</th>
+                        <th style="width: 28px;">UM</th>
+                        <th style="width: 35px;">DOSIS</th>
+                        <th style="width: 50px;">TOTAL</th>
+                        <th style="width: 52px;">LITROS</th>
+                        <th style="width: 40px;">L/CAM</th>
+                        <th style="width: 55px;">LANZA</th>
+                        <th style="width: 70px;">PLAGA</th>
+                        <th style="width: 70px;">I. ACTIVO</th>
+                        <th style="width: 28px;">CT</th>
+                        <th style="width: 32px;">PH</th>
+                        <th style="width: 65px;">ÁREA</th>
+                        <th style="width: 85px;">OPERARIO</th>
+                    </tr>
+                </tbody>
+                {% endif %}
+            {% endfor %}
+
+            <tfoot class="table-dark fw-bold text-white">
+                <tr>
+                    <td colspan="7" class="text-end">TOTAL GENERAL:</td>
+                    <td class="text-end" id="tfoot-total-beds">{{ order.total_standard_beds|format_number(2) }}</td>
+                    <td colspan="5"></td>
+                    <td class="text-end" id="tfoot-total-liters">{{ order.total_liters|format_number(1) }} L</td>
+                    <td colspan="8"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Consolidated Preparation Summary for Warehouse -->
+    <div class="warehouse-summary-section">
+        <h6 class="fw-bold text-uppercase border-bottom pb-1 mb-2 mt-2" style="font-size: 0.8rem;">
+            <i class="fa-solid fa-boxes-stacked me-1"></i> Resumen Consolidado de Agroquímicos para Pesaje y Mezcla en Tanque
+        </h6>
+        <div class="table-responsive mb-2">
+            <table class="table table-sm table-bordered align-middle mb-0" id="table-warehouse-summary" style="font-size: 0.75rem;">
+                <thead class="table-light text-center">
+                    <tr>
+                        <th style="width: 35px;">#</th>
+                        <th style="width: 130px;">Código</th>
+                        <th>Nombre Comercial</th>
+                        <th style="width: 90px;">Dosis / L</th>
+                        <th style="width: 120px;" class="text-end">Cantidad Total a Pesar</th>
+                        <th style="width: 50px;">UM</th>
+                        <th>Blanco / Plaga</th>
+                        <th style="width: 55px;" class="text-center">Pesado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ps in order.products_summary %}
+                    <tr class="wh-summary-row" data-prod-code="{{ ps.product_code }}" data-orig-qty="{{ ps.total_required_quantity }}" data-unit="{{ ps.dose_unit }}">
+                        <td class="text-center text-muted wh-idx">{{ loop.index }}</td>
+                        <td class="fw-bold font-monospace text-primary">{{ ps.product_code }}</td>
+                        <td class="fw-semibold">{{ ps.commercial_name }}</td>
+                        <td class="text-center">{{ ps.dose }} {{ ps.dose_unit }}/L</td>
+                        <td class="text-end fw-bold text-dark wh-qty-cell">{{ ps.total_required_quantity|format_product(ps.dose_unit) }}</td>
+                        <td class="text-center"><span class="badge bg-light text-dark border">{{ ps.dose_unit }}</span></td>
+                        <td class="small">{{ ps.pest or '-' }}</td>
+                        <td class="text-center">
+                            <input type="checkbox" class="form-check-input" style="width: 15px; height: 15px;">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Signatures and Execution Confirmation Block -->
+    <div class="order-signature-box border border-dark rounded p-2 mt-2">
+        <div class="row g-2 text-center" style="font-size: 0.75rem;">
+            <div class="col-4">
+                <div class="pt-3 border-bottom border-dark"></div>
+                <div class="fw-bold mt-1">Agrónomo Responsable</div>
+                <div class="text-muted small">
+                    <span contenteditable="true" class="editable-print-field py-0 px-1" id="sig-agronomist-text">{{ order.agronomist }}</span>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="pt-3 border-bottom border-dark"></div>
+                <div class="fw-bold mt-1">Supervisor de Aplicación</div>
+                <div class="text-muted small">
+                    <span contenteditable="true" class="editable-print-field py-0 px-1">Nombre y Firma</span>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="pt-3 border-bottom border-dark"></div>
+                <div class="fw-bold mt-1">Fumigador / Operario</div>
+                <div class="text-muted small">
+                    <span contenteditable="true" class="editable-print-field py-0 px-1" id="sig-operator-text">Nombre y Firma</span>
+                </div>
+            </div>
+        </div>
+        <div class="row g-1 mt-2 pt-1 border-top small text-muted" style="font-size: 0.7rem;">
+            <div class="col-6">
+                <strong>Hora Inicio:</strong> ______________ &nbsp;&nbsp;&nbsp; <strong>Hora Fin:</strong> ______________
+            </div>
+            <div class="col-6 text-end">
+                <strong>Fecha Real de Ejecución:</strong> _____ / _____ / 2026
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Bi-directional synchronization for agronomist name
+    const headerAgronomist = document.getElementById('header-agronomist-text');
+    const sigAgronomist = document.getElementById('sig-agronomist-text');
+    if (headerAgronomist && sigAgronomist) {
+        headerAgronomist.addEventListener('input', function() {
+            sigAgronomist.textContent = this.textContent;
+        });
+        sigAgronomist.addEventListener('input', function() {
+            headerAgronomist.textContent = this.textContent;
+        });
+    }
+
+    // Interactive Operator & Crop Category Filtering & Live Totals + Zone Subtotals Recalculation
+    const operatorSelect = document.getElementById('select-print-operator');
+    const categorySelect = document.getElementById('select-print-category');
+    const subtitleHeader = document.getElementById('doc-subtitle-header');
+    const sigOperator = document.getElementById('sig-operator-text');
+    const tfootBeds = document.getElementById('tfoot-total-beds');
+    const tfootLiters = document.getElementById('tfoot-total-liters');
+
+    function formatAmount(val, unit) {
+        const u = (unit || '').toUpperCase();
+        if (['CC', 'G', 'GR', 'ML', 'PST', 'PST.', 'GRAMOS', 'CENTIMETROS'].includes(u)) {
+            return Math.round(val).toLocaleString();
+        }
+        return val.toFixed(1);
+    }
+
+    const DB_CROP_CATEGORIES = {{ (crop_categories_json or {})|tojson }};
+
+    function getCropMasterCategory(cropName) {
+        if (!cropName) return 'VARIEDADES';
+        const cn = cropName.trim().toUpperCase();
+        if (cn.includes('GYPSO') || cn.includes('XLENCE') || cn.includes('BILLION') || cn.includes('MIRABELLA')) {
+            return 'GYPSO';
+        }
+        if (DB_CROP_CATEGORIES[cn]) {
+            const dbCat = DB_CROP_CATEGORIES[cn];
+            if (dbCat === 'GYPSOPHILA') return 'GYPSO';
+            if (dbCat === 'PRODUCTOS_NUEVOS') return 'VARIEDADES';
+            if (dbCat === 'PIV') return 'PIV';
+            return dbCat;
+        }
+        if (cn.includes('VERONICA') || cn.includes('SOLIDAGO') || cn.includes('HYPERICUM') || cn.includes('SUNFLOWER') || cn.includes('GIRASOL')) {
+            return 'VARIEDADES';
+        } else {
+            return 'PIV';
+        }
+    }
+
+    function updateOperatorFilterOptions(selectedCat) {
+        if (!operatorSelect) return;
+        const currentSelectedOp = operatorSelect.value;
+        const blockGroups = document.querySelectorAll('#table-main-order tbody.block-group');
+        const availableOps = new Set();
+
+        blockGroups.forEach(bg => {
+            const rows = bg.querySelectorAll('.order-detail-row');
+            rows.forEach(r => {
+                const rowOp = (r.getAttribute('data-operator') || '').trim();
+                const rowCrop = (r.getAttribute('data-crop') || '').trim().toUpperCase();
+                if (!rowOp) return;
+
+                let matchCat = false;
+                if (selectedCat === 'ALL') {
+                    matchCat = true;
+                } else if (selectedCat === 'GYPSO') {
+                    matchCat = (getCropMasterCategory(rowCrop) === 'GYPSO');
+                } else if (selectedCat === 'VARIEDADES') {
+                    matchCat = (getCropMasterCategory(rowCrop) === 'VARIEDADES');
+                } else if (selectedCat === 'PIV') {
+                    matchCat = (getCropMasterCategory(rowCrop) === 'PIV');
+                } else {
+                    matchCat = (rowCrop === selectedCat || rowCrop.includes(selectedCat));
+                }
+
+                if (matchCat) {
+                    availableOps.add(rowOp);
+                }
+            });
+        });
+
+        // Rebuild options in operator dropdown
+        operatorSelect.innerHTML = '<option value="ALL">👤 Todos los Operarios</option>';
+        const sortedOps = Array.from(availableOps).sort();
+        sortedOps.forEach(op => {
+            const opt = document.createElement('option');
+            opt.value = op;
+            opt.textContent = `👤 Solo: ${op}`;
+            operatorSelect.appendChild(opt);
+        });
+
+        if (availableOps.has(currentSelectedOp)) {
+            operatorSelect.value = currentSelectedOp;
+        } else {
+            operatorSelect.value = 'ALL';
+        }
+    }
+
+    function applyOrderFilters() {
+        const selectedOp = operatorSelect ? operatorSelect.value : 'ALL';
+        const selectedCat = categorySelect ? categorySelect.value : 'ALL';
+        const blockGroups = document.querySelectorAll('#table-main-order tbody.block-group');
+        const zoneSubtotalTbodies = document.querySelectorAll('#table-main-order tbody.zone-subtotal-tbody');
+        
+        let totalBedsGeneral = 0;
+        let totalLitersGeneral = 0;
+        let productTotals = {};
+        let zoneTotals = {};
+        let zoneProducts = {};
+
+        // Initialize zone counters
+        zoneSubtotalTbodies.forEach(zt => {
+            const zName = zt.getAttribute('data-zone');
+            zoneTotals[zName] = { beds: 0, liters: 0, hasVisible: false };
+            zoneProducts[zName] = {};
+        });
+
+        blockGroups.forEach(bg => {
+            let hasVisibleRowInBlock = false;
+            const rows = bg.querySelectorAll('.order-detail-row');
+            const zName = bg.getAttribute('data-zone');
+            
+            rows.forEach(r => {
+                const rowOp = (r.getAttribute('data-operator') || '').trim();
+                const rowCrop = (r.getAttribute('data-crop') || '').trim().toUpperCase();
+                const beds = parseFloat(r.getAttribute('data-std-beds') || '0');
+                const liters = parseFloat(r.getAttribute('data-liters') || '0');
+                const prodCode = (r.getAttribute('data-prod-code') || '').trim();
+                const prodAmt = parseFloat(r.getAttribute('data-prod-amt') || '0');
+                const unit = (r.getAttribute('data-unit') || '').trim();
+                const isFirstInBlock = r.getAttribute('data-is-first-in-block') === '1';
+
+                const matchOp = (selectedOp === 'ALL' || rowOp === selectedOp);
+                
+                let matchCat = false;
+                if (selectedCat === 'ALL') {
+                    matchCat = true;
+                } else if (selectedCat === 'GYPSO') {
+                    matchCat = (getCropMasterCategory(rowCrop) === 'GYPSO');
+                } else if (selectedCat === 'VARIEDADES') {
+                    matchCat = (getCropMasterCategory(rowCrop) === 'VARIEDADES');
+                } else if (selectedCat === 'PIV') {
+                    matchCat = (getCropMasterCategory(rowCrop) === 'PIV');
+                } else {
+                    matchCat = (rowCrop === selectedCat || rowCrop.includes(selectedCat));
+                }
+
+                if (matchOp && matchCat) {
+                    r.style.display = '';
+                    hasVisibleRowInBlock = true;
+
+                    // Beds and liters are counted once per block
+                    if (isFirstInBlock) {
+                        totalBedsGeneral += beds;
+                        if (zoneTotals[zName]) {
+                            zoneTotals[zName].beds += beds;
+                            zoneTotals[zName].hasVisible = true;
+                        }
+                        totalLitersGeneral += liters;
+                        if (zoneTotals[zName]) {
+                            zoneTotals[zName].liters += liters;
+                        }
+                    }
+
+                    // Accumulate product quantities for warehouse summary and zone subtotal
+                    if (prodCode && prodCode !== 'SIN PRODUCTO') {
+                        if (!productTotals[prodCode]) {
+                            productTotals[prodCode] = { amt: 0, unit: unit };
+                        }
+                        productTotals[prodCode].amt += prodAmt;
+
+                        if (zoneProducts[zName]) {
+                            if (!zoneProducts[zName][prodCode]) {
+                                const uUpper = unit.toUpperCase();
+                                const isLiq = ['CC', 'ML', 'LT', 'L', 'LITROS', 'CENTIMETROS'].includes(uUpper);
+                                zoneProducts[zName][prodCode] = { amt: 0, unit: unit, is_liquid: isLiq };
+                            }
+                            zoneProducts[zName][prodCode].amt += prodAmt;
+                        }
+                    }
+                } else {
+                    r.style.display = 'none';
+                }
+            });
+
+            if (hasVisibleRowInBlock) {
+                bg.style.display = '';
+            } else {
+                bg.style.display = 'none';
+            }
+        });
+
+        // Update Zone Subtotal rows & Dynamic Zone Chemical Badges
+        zoneSubtotalTbodies.forEach(zt => {
+            const zName = zt.getAttribute('data-zone');
+            const zInfo = zoneTotals[zName];
+            const bedsCell = zt.querySelector('.cell-zone-beds');
+            const litersCell = zt.querySelector('.cell-zone-liters');
+            const prodContainer = zt.querySelector('.cell-zone-products-container');
+
+            if (zInfo && zInfo.hasVisible) {
+                zt.style.display = '';
+                if (bedsCell) bedsCell.textContent = zInfo.beds.toFixed(2);
+                if (litersCell) litersCell.textContent = zInfo.liters.toFixed(1) + ' L';
+
+                // Render dynamic chemical pills for this zone
+                if (prodContainer && zoneProducts[zName]) {
+                    const zProds = zoneProducts[zName];
+                    let liqHtml = [];
+                    let solHtml = [];
+                    Object.keys(zProds).forEach(code => {
+                        const p = zProds[code];
+                        if (p.amt > 0) {
+                            const formatted = formatAmount(p.amt, p.unit);
+                            const itemStr = `<strong>${code}</strong>: ${formatted} ${p.unit}`;
+                            if (p.is_liquid) {
+                                liqHtml.push(itemStr);
+                            } else {
+                                solHtml.push(itemStr);
+                            }
+                        }
+                    });
+
+                    let finalHtml = '';
+                    if (liqHtml.length > 0) {
+                        finalHtml += `<div class="mb-1"><span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1"><i class="fa-solid fa-droplet me-1"></i>Líq:</span> ${liqHtml.join(' &bull; ')}</div>`;
+                    }
+                    if (solHtml.length > 0) {
+                        finalHtml += `<div><span class="badge bg-warning-subtle text-dark border border-warning-subtle me-1"><i class="fa-solid fa-box me-1"></i>Sól:</span> ${solHtml.join(' &bull; ')}</div>`;
+                    }
+                    prodContainer.innerHTML = finalHtml || '<span class="text-muted small">Sin agroquímicos aplicados en este filtro</span>';
+                }
+            } else {
+                zt.style.display = 'none';
+            }
+        });
+
+        // Update Repeated Header rows visibility:
+        // When filtering by crop, program or operator, hide repeat headers to completely eliminate the stacked black headers bug!
+        const isFiltered = (selectedCat !== 'ALL' || selectedOp !== 'ALL');
+        document.querySelectorAll('#table-main-order tbody.zone-repeat-header-tbody').forEach(hdr => {
+            if (isFiltered) {
+                hdr.style.display = 'none';
+            } else {
+                const zName = hdr.getAttribute('data-zone');
+                hdr.style.display = (zoneTotals[zName] && zoneTotals[zName].hasVisible) ? '' : 'none';
+            }
+        });
+
+        // Update Grand Totals in Footer
+        if (tfootBeds) tfootBeds.textContent = totalBedsGeneral.toFixed(2);
+        if (tfootLiters) tfootLiters.textContent = totalLitersGeneral.toFixed(1) + ' L';
+
+        // Update Header & Signature according to business classification
+        let titleParts = [];
+        if (selectedCat === 'GYPSO') {
+            titleParts.push('PROGRAMA PPCS GYPSOPHILA');
+        } else if (selectedCat === 'VARIEDADES') {
+            titleParts.push('PROGRAMA PPCS VARIEDADES');
+        } else if (selectedCat === 'PIV') {
+            titleParts.push('PROGRAMA PIV');
+        } else if (selectedCat !== 'ALL') {
+            titleParts.push(`PROGRAMA PPCS ${selectedCat}`);
+        } else {
+            titleParts.push('PROGRAMA OFICIAL DE FUMIGACIÓN');
+        }
+
+        if (selectedOp !== 'ALL') {
+            titleParts.push(`(OPERARIO: ${selectedOp})`);
+            if (sigOperator) sigOperator.textContent = selectedOp;
+        } else {
+            if (sigOperator) sigOperator.textContent = 'Nombre y Firma';
+        }
+
+        if (subtitleHeader) subtitleHeader.textContent = titleParts.join(' ');
+
+        // Update Warehouse preparation summary table
+        let visibleWhIndex = 1;
+        document.querySelectorAll('#table-warehouse-summary tbody tr.wh-summary-row').forEach(whRow => {
+            const code = (whRow.getAttribute('data-prod-code') || '').trim();
+            const unit = whRow.getAttribute('data-unit') || '';
+            const qtyCell = whRow.querySelector('.wh-qty-cell');
+            const idxCell = whRow.querySelector('.wh-idx');
+
+            if (selectedOp === 'ALL' && selectedCat === 'ALL') {
+                whRow.style.display = '';
+                const origQty = parseFloat(whRow.getAttribute('data-orig-qty') || '0');
+                if (qtyCell) qtyCell.textContent = formatAmount(origQty, unit);
+                if (idxCell) idxCell.textContent = visibleWhIndex++;
+            } else {
+                if (productTotals[code] && productTotals[code].amt > 0) {
+                    whRow.style.display = '';
+                    if (qtyCell) qtyCell.textContent = formatAmount(productTotals[code].amt, unit);
+                    if (idxCell) idxCell.textContent = visibleWhIndex++;
+                } else {
+                    whRow.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    function updateCategoryButtonsUI(activeCat) {
+        document.querySelectorAll('.btn-cat-quick').forEach(btn => {
+            const cat = btn.getAttribute('data-cat');
+            const isActive = (cat === activeCat);
+            btn.classList.remove('btn-success', 'btn-primary', 'btn-dark', 'btn-secondary', 'text-white', 'shadow-sm', 'active');
+            
+            if (cat === 'GYPSO') {
+                btn.classList.toggle('btn-success', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('shadow-sm', isActive);
+                btn.classList.toggle('btn-outline-success', !isActive);
+            } else if (cat === 'VARIEDADES') {
+                btn.classList.toggle('btn-primary', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('shadow-sm', isActive);
+                btn.classList.toggle('btn-outline-primary', !isActive);
+            } else if (cat === 'PIV') {
+                btn.classList.toggle('btn-dark', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('shadow-sm', isActive);
+                btn.classList.toggle('btn-outline-dark', !isActive);
+            } else if (cat === 'ALL') {
+                btn.classList.toggle('btn-secondary', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('shadow-sm', isActive);
+                btn.classList.toggle('btn-outline-secondary', !isActive);
+            }
+            if (isActive) btn.classList.add('active');
+        });
+    }
+
+    if (operatorSelect) operatorSelect.addEventListener('change', applyOrderFilters);
+    if (categorySelect) {
+        categorySelect.addEventListener('change', function() {
+            updateCategoryButtonsUI(this.value);
+            updateOperatorFilterOptions(this.value);
+            applyOrderFilters();
+        });
+    }
+
+    // Default fast-loading program selection (Gypso first to keep page super light):
+    let defaultCategory = 'GYPSO';
+    let gypsoRows = 0, varRows = 0, pivRows = 0;
+    document.querySelectorAll('.order-detail-row').forEach(r => {
+        const rowCrop = (r.getAttribute('data-crop') || '').trim().toUpperCase();
+        const mCat = getCropMasterCategory(rowCrop);
+        if (mCat === 'GYPSO') gypsoRows++;
+        else if (mCat === 'VARIEDADES') varRows++;
+        else if (mCat === 'PIV') pivRows++;
+    });
+
+    if (gypsoRows > 0) {
+        defaultCategory = 'GYPSO';
+    } else if (varRows > 0) {
+        defaultCategory = 'VARIEDADES';
+    } else if (pivRows > 0) {
+        defaultCategory = 'PIV';
+    } else {
+        defaultCategory = 'ALL';
+    }
+
+    if (categorySelect) {
+        categorySelect.value = defaultCategory;
+    }
+    updateCategoryButtonsUI(defaultCategory);
+    updateOperatorFilterOptions(defaultCategory);
+    applyOrderFilters();
+});
+
+function setCategoryFilter(cat) {
+    const categorySelect = document.getElementById('select-print-category');
+    if (categorySelect) {
+        categorySelect.value = cat;
+        categorySelect.dispatchEvent(new Event('change'));
+    }
+}
+
+function setPrintOrientation(orient) {
+    const styleEl = document.getElementById('dynamic-page-orientation');
+    if (styleEl) {
+        styleEl.innerHTML = `@page { size: ${orient}; margin: 4mm 4mm 4mm 4mm; }`;
+    }
+    const container = document.querySelector('.printable-order');
+    if (container) {
+        if (orient === 'landscape') {
+            container.classList.add('print-landscape');
+        } else {
+            container.classList.remove('print-landscape');
+        }
+    }
+    const btnPort = document.getElementById('btn-orient-portrait');
+    const btnLand = document.getElementById('btn-orient-landscape');
+    if (btnPort && btnLand) {
+        if (orient === 'portrait') {
+            btnPort.className = 'btn btn-secondary fw-semibold active';
+            btnLand.className = 'btn btn-outline-secondary fw-semibold';
+        } else {
+            btnLand.className = 'btn btn-secondary fw-semibold active';
+            btnPort.className = 'btn btn-outline-secondary fw-semibold';
+        }
+    }
+}
+
+function executePrintOrder(orderId) {
+    // Pure print action: printing official sheet does not alter order status to EJECUTADA
+    window.print();
+}
+
+function saveProgramTitleLive(rawTitle) {
+    let cleanTitle = rawTitle.replace(/^PROGRAMA:\s*/i, '').trim();
+    if (!cleanTitle) return;
+
+    fetch(`/fumigacion/ordenes/{{ order.id }}/editar-titulo`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ title: cleanTitle })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Program title saved:', data.title);
+        }
+    })
+    .catch(err => console.error('Error saving program title:', err));
+}
+</script>
+{% endblock %}
+
