@@ -235,14 +235,25 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
         tc.execute(text("SELECT 1;"))
         print("    ✅ Conexión exitosa a Base de Datos Destino (Producción).")
 
-    # 2. Replicar esquema completo en la base de datos destino
-    print("\n[2] Creando esquema de tablas en la base de datos destino si no existen...")
-    # Reflejar todas las tablas existentes en origen (incluyendo dimensiones del Data Warehouse)
+    # 2. Replicar secuencias y esquema completo en destino
+    print("\n[2] Creando secuencias y esquema de tablas en destino...")
+    
+    # 2.1 Crear previamente todas las secuencias para que los defaults de columnas nextval(...) no fallen
+    with src_engine.connect() as sc:
+        seqs = sc.execute(text("SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public' ORDER BY sequence_name;")).fetchall()
+        seq_names = [s[0] for s in seqs]
+
+    with tgt_engine.begin() as tc:
+        for sname in seq_names:
+            tc.execute(text(f'CREATE SEQUENCE IF NOT EXISTS "{sname}";'))
+    print(f"    ✅ {len(seq_names)} secuencias preparadas en destino.")
+
+    # 2.2 Reflejar todas las tablas existentes en origen (incluyendo dimensiones DW) y crearlas en destino
     src_meta = MetaData()
     src_meta.reflect(bind=src_engine)
     src_meta.create_all(bind=tgt_engine, checkfirst=True)
 
-    # Asegurar también tablas declaradas en modelos de Flask
+    # 2.3 Asegurar también tablas declaradas en modelos de Flask
     try:
         sys.path.insert(0, str(BASE_DIR))
         from app.extensions import db
@@ -321,17 +332,29 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
     print("\n[6] Ajustando secuencias auto-incrementables (SERIAL IDs) en producción...")
     try:
         with tgt_engine.begin() as tc:
-            seq_records = tc.execute(text("""
-                SELECT table_name, column_name 
+            seq_cols = tc.execute(text("""
+                SELECT table_name, column_name, column_default 
                 FROM information_schema.columns 
                 WHERE table_schema = 'public' 
                   AND column_default LIKE 'nextval(%'
             """)).fetchall()
             ajustadas = 0
-            for stbl, scol in seq_records:
+            for stbl, scol, sdef in seq_cols:
                 try:
+                    # Extraer el nombre de la secuencia de nextval('nombre_seq'::regclass)
+                    if "'" in sdef:
+                        seq_name = sdef.split("'")[1]
+                    else:
+                        seq_name = f"{stbl}_{scol}_seq"
+                    
+                    # Asociar secuencia a la tabla si es posible
+                    try:
+                        tc.execute(text(f'ALTER SEQUENCE "{seq_name}" OWNED BY "{stbl}"."{scol}";'))
+                    except Exception:
+                        pass
+                        
                     tc.execute(text(f"""
-                        SELECT setval(pg_get_serial_sequence('"{stbl}"', '{scol}'), COALESCE(MAX("{scol}"), 0) + 1, false)
+                        SELECT setval('"{seq_name}"', COALESCE(MAX("{scol}"), 0) + 1, false)
                         FROM "{stbl}";
                     """))
                     ajustadas += 1
