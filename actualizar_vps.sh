@@ -28,10 +28,10 @@ echo "🧹 Limpiando caché compilada de Python en contenedor..."
 docker exec dw_florsani_app find /app/app -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 echo "🔗 Sincronizando y homologando catálogos en PostgreSQL..."
-docker exec dw_florsani_app python scripts/migrar_catalogos_a_bd.py
+docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_catalogos_a_bd.py
 
 echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (para Semana 43)..."
-docker exec dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
+docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
 
 echo "🚀 Reiniciando servicio web dw_florsani_app..."
 docker restart dw_florsani_app

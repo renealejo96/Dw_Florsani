@@ -9,6 +9,13 @@ Preserva intactos:
   - registro_cosecha / estimados (cosechas históricas)
 """
 import sys
+import os
+from pathlib import Path
+
+# Agregar raíz del proyecto al sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, '/app')
+
 from app import create_app
 from app.extensions import db
 from sqlalchemy import text
@@ -17,26 +24,26 @@ def limpiar_fenogramas():
     app = create_app()
     with app.app_context():
         print("==========================================================")
-        print("🧹 Limpiando calificaciones de prueba en Fenogramas...")
+        print("[FENOGRAMAS] Limpiando calificaciones de prueba...")
         print("==========================================================")
         
         # 1. Truncar calificaciones
         db.session.execute(text("TRUNCATE TABLE calificaciones RESTART IDENTITY CASCADE;"))
-        print("✅ Tabla 'calificaciones' vaciada (0 registros).")
+        print("[OK] Tabla 'calificaciones' vaciada (0 registros).")
         
         # 2. Truncar semanas de evaluación
         db.session.execute(text("TRUNCATE TABLE semanas_evaluacion CASCADE;"))
-        print("✅ Tabla 'semanas_evaluacion' vaciada (0 registros).")
+        print("[OK] Tabla 'semanas_evaluacion' vaciada (0 registros).")
         
         db.session.commit()
         
         cnt_matriz = db.session.execute(text("SELECT COUNT(*) FROM matriz_fenogramas;")).scalar()
         cnt_plano = db.session.execute(text("SELECT COUNT(*) FROM plano_cultivo;")).scalar()
         
-        print(f"📊 Verificación de integridad:")
-        print(f"   - Matriz Fenogramas: {cnt_matriz} registros (CATÁLOGO INTACTO)")
+        print(f"[VERIFICACION]")
+        print(f"   - Matriz Fenogramas: {cnt_matriz} registros (CATALOGO INTACTO)")
         print(f"   - Plano Cultivo: {cnt_plano} registros (CENSO INTACTO)")
-        print("🌱 Fenogramas listo para generar la Semana 43 por primera vez.")
+        print("[OK] Fenogramas listo para generar la Semana 43 por primera vez.")
         print("==========================================================")
 
 if __name__ == '__main__':
