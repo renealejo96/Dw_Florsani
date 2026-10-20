@@ -434,12 +434,15 @@
     /* Contenedor y Tabla Ultra-Compacta Estilo Hoja de Cálculo (Excel) */
     .excel-sheet-wrap {
         max-height: calc(100vh - 185px);
-        overflow: auto;
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
         border: 1px solid #cbd5e1;
         background: #ffffff;
     }
     .excel-table {
         width: 100%;
+        min-width: 960px !important;
         border-collapse: collapse;
         font-size: 0.71rem;
         line-height: 1.15;
@@ -493,10 +496,12 @@
         border-right: none;
     }
     .excel-table td.cell-labor {
+        width: 190px;
+        min-width: 180px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        font-weight: 600;
+        font-weight: 700;
         color: #0f172a;
     }
     .excel-block-divider td {
@@ -626,7 +631,7 @@
 
     @media (max-width: 991.98px) {
         .excel-table {
-            min-width: 740px;
+            min-width: 960px !important;
         }
         .check-circle {
             width: 18px;
@@ -912,11 +917,23 @@
 
     <div class="excel-sheet-wrap">
         <table class="excel-table" id="feno-excel-table">
+            <colgroup>
+                <col style="width: 44px;">
+                <col style="width: 76px;">
+                <col style="width: 76px;">
+                <col style="width: 125px;">
+                <col style="width: 40px;">
+                <col style="width: 190px;">
+                <col style="width: 145px;">
+                <col style="width: 58px;">
+                <col style="width: 36px;">
+                <col style="width: 160px;">
+            </colgroup>
             <thead>
                 <tr>
                     <th style="width: 44px;">Blq</th>
                     <th style="width: 76px;">Camas</th>
-                    <th style="width: 78px;">
+                    <th style="width: 76px;">
                         <div class="th-content-excel">
                             <span>Tipo</span>
                             <div class="dropdown">
@@ -977,8 +994,8 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 36px;" class="text-center">Sem</th>
-                    <th style="min-width: 140px;">
+                    <th style="width: 40px;" class="text-center">Sem</th>
+                    <th style="width: 190px; min-width: 180px;">
                         <div class="th-content-excel">
                             <span>Labor a Calificar</span>
                             <div class="dropdown">

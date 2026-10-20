@@ -486,7 +486,10 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                    .then(reg => console.log('Agro EZ PWA ServiceWorker activo:', reg.scope))
+                    .then(reg => {
+                        reg.update();
+                        console.log('Agro EZ PWA ServiceWorker activo:', reg.scope);
+                    })
                     .catch(err => {
                         navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
                             .catch(e => console.warn('PWA ServiceWorker error:', e));
