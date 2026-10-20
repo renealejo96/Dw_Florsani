@@ -278,10 +278,10 @@ def process_estado_cultivo(ec_file_path):
     return pd.DataFrame(resultados)
 
 def preview_excel_sync(ec_file_path, mf_file_path=None):
-    if not mf_file_path:
+    if not mf_file_path or not os.path.exists(mf_file_path):
         mf_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "matriz fenogramas.xlsx")
         if not os.path.exists(mf_file_path):
-            mf_file_path = r"D:\todo en vs code\fenograma\matriz fenogramas.xlsx"
+            mf_file_path = None
 
     semana, anio, raw_code = extract_week_from_ec(ec_file_path)
     config = load_mapeos_config()
@@ -334,10 +334,10 @@ def preview_excel_sync(ec_file_path, mf_file_path=None):
     }
 
 def sync_excel_to_db(semana_anio=None, anio=None, ec_file_path=None, mf_file_path=None):
-    if not ec_file_path:
-        ec_file_path = r"D:\todo en vs code\fenograma\Estado Cultivo PYGAN 2026-29.xlsx"
-    if not mf_file_path:
-        mf_file_path = r"D:\todo en vs code\fenograma\matriz fenogramas.xlsx"
+    if not ec_file_path or not os.path.exists(ec_file_path):
+        raise FileNotFoundError("Debe proporcionar la ruta de un archivo válido de Estado Cultivo (.xlsx).")
+    if not mf_file_path or not os.path.exists(mf_file_path):
+        mf_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "matriz fenogramas.xlsx")
 
     extracted_sem, extracted_anio, _ = extract_week_from_ec(ec_file_path)
     if semana_anio is None:

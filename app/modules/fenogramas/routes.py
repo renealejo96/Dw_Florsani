@@ -15,6 +15,7 @@ from app.modules.fenogramas.models import (
 from app.modules.fenogramas.services.fenograma_service import (
     load_mapeos_config, save_mapeos_config,
     preview_excel_sync, sync_excel_to_db,
+    process_matriz_fenogramas,
     sync_from_mrt_estado_cultivo, cerrar_semana_evaluacion,
     obtener_datos_dashboard, MAX_SEMANAS_ARRASTRE_DEFAULT,
     clean_block_code
@@ -1139,7 +1140,7 @@ def api_confirmar_plano():
 @permission_required('fenogramas')
 def api_inyectar_matriz():
     try:
-        semana = request.form.get('semana', 30, type=int)
+        semana = request.form.get('semana', type=int)
         mf_file = request.files.get('file_matriz_fenogramas')
 
         if not mf_file or not mf_file.filename:
@@ -1152,9 +1153,51 @@ def api_inyectar_matriz():
         mf_path = os.path.join(upload_dir, mf_filename)
         mf_file.save(mf_path)
 
-        count = sync_excel_to_db(semana_anio=semana, anio=2026, mf_file_path=mf_path)
-        return jsonify({'success': True, 'count': count, 'semana': semana})
+        # 1. Procesar reglas de la matriz desde el archivo Excel subido
+        config = load_mapeos_config()
+        df_matrix_rules = process_matriz_fenogramas(mf_path, config)
+
+        if df_matrix_rules is None or df_matrix_rules.empty:
+            return jsonify({'success': False, 'error': 'El archivo Excel no contiene hojas o columnas de labores válidas (Semana, Labor).'}), 400
+
+        # 2. Reemplazar tabla matriz_fenogramas en PostgreSQL
+        db.session.execute(text("TRUNCATE TABLE matriz_fenogramas RESTART IDENTITY CASCADE;"))
+        for _, r in df_matrix_rules.iterrows():
+            db.session.add(MatrizFenograma(
+                sheet_name=r.get('sheet_name', ''),
+                producto=r['producto'],
+                actividad_tipo=r['actividad_tipo'],
+                semana=int(r['semana']),
+                labor=r['labor'],
+                auxiliar=r.get('auxiliar') or '',
+                supervisor=r.get('supervisor') or ''
+            ))
+        db.session.commit()
+
+        # 3. Si se pasó semana activa, recalcular o actualizar actividades
+        recalculadas = 0
+        if semana and semana > 0:
+            try:
+                recalculadas = sync_from_mrt_estado_cultivo(semana_corte=semana, anio=2026, fuente='AUTO')
+            except Exception as e_recalc:
+                print(f"[AVISO] Al recalcular calificaciones para semana {semana}: {e_recalc}")
+
+        # Limpiar archivo temporal
+        try:
+            if os.path.exists(mf_path):
+                os.remove(mf_path)
+        except Exception:
+            pass
+
+        return jsonify({
+            'success': True,
+            'count': len(df_matrix_rules),
+            'recalculadas': recalculadas,
+            'semana': semana,
+            'message': f'Matriz actualizada exitosamente ({len(df_matrix_rules)} reglas cargadas).'
+        })
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
