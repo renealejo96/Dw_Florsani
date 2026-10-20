@@ -186,8 +186,10 @@ def normalize_url(url: str, is_target: bool = False) -> str:
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
     
-    # Render y bases de datos cloud remotas requieren SSL obligatoriamente
-    if is_target and ("localhost" not in url and "127.0.0.1" not in url):
+    # Solo requerir SSL para servicios cloud externos que lo exigen (ej. Render, Supabase)
+    # NO requerir SSL para conexiones internas de Docker (ej. host 'db') ni localhost
+    cloud_hosts = ["render.com", "supabase.co", "neon.tech", "cockroachlabs.cloud"]
+    if any(ch in url for ch in cloud_hosts):
         if "sslmode=" not in url:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}sslmode=require"

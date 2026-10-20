@@ -13,6 +13,9 @@ echo "=========================================================="
 echo "🚀 Iniciando migración de datos limpios a PostgreSQL en VPS"
 echo "=========================================================="
 
+# Asegurar script actualizado dentro del contenedor sin necesidad de reconstruir
+docker cp scripts/migrar_a_produccion_limpia.py dw_florsani_app:/app/scripts/migrar_a_produccion_limpia.py
+
 docker exec -it dw_florsani_app python scripts/migrar_a_produccion_limpia.py \
   --source "$SOURCE_URL" \
   --target "$TARGET_URL"
