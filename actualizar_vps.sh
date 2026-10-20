@@ -30,8 +30,10 @@ docker exec dw_florsani_app find /app/app -type d -name "__pycache__" -exec rm -
 echo "🔗 Sincronizando y homologando catálogos en PostgreSQL..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_catalogos_a_bd.py
 
-echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (para Semana 43)..."
-docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
+if docker exec dw_florsani_app test ! -f /app/.fenogramas_limpiados; then
+    echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (para Semana 43)..."
+    docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
+fi
 
 echo "🚀 Reiniciando servicio web dw_florsani_app..."
 docker restart dw_florsani_app
