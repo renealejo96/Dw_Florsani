@@ -169,27 +169,27 @@ def index():
         tpsr_rows = db.session.execute(text("""
             SELECT
                 c.blq,
-                COUNT(c.id_cama) AS total_camas,
+                COUNT(DISTINCT c.num_cama) AS total_camas,
                 SUM(COALESCE(c.metros_netos, 30.0)) AS area_neta,
                 SUM(COALESCE(c.metros_brutos, 30.0)) AS area_bruta,
-                SUM(CASE
-                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.estado_cultivo, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
+                COUNT(DISTINCT CASE
+                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.ultimo_evento, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
                          AND COALESCE(m.edad_semanas_actual, 0) <= COALESCE(cr.veg_max_age, 9)
-                    THEN 1 ELSE 0 END) AS camas_veg,
-                SUM(CASE
-                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.estado_cultivo, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
+                    THEN c.num_cama END) AS camas_veg,
+                COUNT(DISTINCT CASE
+                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.ultimo_evento, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
                          AND COALESCE(m.edad_semanas_actual, 0) > COALESCE(cr.veg_max_age, 9)
-                    THEN 1 ELSE 0 END) AS camas_prod,
+                    THEN c.num_cama END) AS camas_prod,
                 SUM(CASE
-                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.estado_cultivo, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
+                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.ultimo_evento, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
                          AND COALESCE(m.edad_semanas_actual, 0) <= COALESCE(cr.veg_max_age, 9)
                     THEN COALESCE(c.metros_netos, 30.0) ELSE 0 END) AS area_veg,
                 SUM(CASE
-                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.estado_cultivo, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
+                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.ultimo_evento, '') IN ('SIEMBRA', 'PODA') AND COALESCE(m.producto_actual, '') NOT IN ('', 'VACIO')
                          AND COALESCE(m.edad_semanas_actual, 0) > COALESCE(cr.veg_max_age, 9)
                     THEN COALESCE(c.metros_netos, 30.0) ELSE 0 END) AS area_prod,
                 STRING_AGG(DISTINCT CASE
-                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.estado_cultivo, '') IN ('SIEMBRA', 'PODA')
+                    WHEN m.id_cama IS NOT NULL AND COALESCE(m.ultimo_evento, '') IN ('SIEMBRA', 'PODA')
                          AND COALESCE(m.variedad_actual, '') NOT IN ('', 'DISPONIBLE', 'ERRADICADO', 'DESCONOCIDA')
                     THEN m.variedad_actual END, '|') AS variedades_str
             FROM dim_camas c
@@ -202,6 +202,12 @@ def index():
             t_cam = int(tr.total_camas or 0)
             c_veg = int(tr.camas_veg or 0)
             c_prod = int(tr.camas_prod or 0)
+            pct_veg = round((c_veg / t_cam) * 100.0, 1) if t_cam > 0 else 0.0
+            pct_prod = round((c_prod / t_cam) * 100.0, 1) if t_cam > 0 else 0.0
+            if pct_veg + pct_prod > 100.0:
+                scale = 100.0 / (pct_veg + pct_prod)
+                pct_veg = round(pct_veg * scale, 1)
+                pct_prod = round(pct_prod * scale, 1)
             vars_list = [v.strip() for v in (tr.variedades_str or '').split('|') if v and v.strip()]
             tpsr_blq_stats[c_code] = {
                 'total_camas': t_cam,
@@ -211,8 +217,8 @@ def index():
                 'camas_prod': c_prod,
                 'area_veg': round(float(tr.area_veg or 0.0), 1),
                 'area_prod': round(float(tr.area_prod or 0.0), 1),
-                'pct_veg': round((c_veg / t_cam) * 100.0, 1) if t_cam > 0 else 0.0,
-                'pct_prod': round((c_prod / t_cam) * 100.0, 1) if t_cam > 0 else 0.0,
+                'pct_veg': pct_veg,
+                'pct_prod': pct_prod,
                 'variedades': sorted(set(vars_list))
             }
     except Exception:
@@ -275,26 +281,29 @@ def index():
         c_code = clean_block_code(bl)
         st_info = tpsr_blq_stats.get(c_code)
 
-        # Fallback: calcular desde los rangos únicos de camas en calificaciones si no está en mrt_estado_cultivo_actual
-        seen_ranges = {}
+        # Fallback: calcular desde los números físicos de camas en calificaciones si no está en mrt_estado_cultivo_actual
+        all_calif_beds = set()
+        veg_calif_beds = set()
+        prod_calif_beds = set()
         for it in items:
             c_ini = int(it.get('cama_inicial') or 1)
             c_fin = int(it.get('cama_final') or c_ini)
-            suf = str(it.get('sufijo') or '').strip()
-            r_key = (c_ini, c_fin, suf)
-            if r_key not in seen_ranges:
-                n_beds = max(1, c_fin - c_ini + 1)
-                p_name = str(it.get('producto_maestro') or '').upper().strip()
-                veg_max = crop_age_map.get(p_name, 9)
-                edad_r = int(it.get('edad_real') or 0)
-                seen_ranges[r_key] = {
-                    'beds': n_beds,
-                    'is_veg': edad_r <= veg_max
-                }
+            if c_ini > c_fin:
+                c_ini, c_fin = c_fin, c_ini
+            p_name = str(it.get('producto_maestro') or '').upper().strip()
+            veg_max = crop_age_map.get(p_name, 9)
+            edad_r = int(it.get('edad_real') or 0)
+            is_veg = (edad_r <= veg_max)
+            for b_num in range(c_ini, c_fin + 1):
+                all_calif_beds.add(b_num)
+                if is_veg:
+                    veg_calif_beds.add(b_num)
+                else:
+                    prod_calif_beds.add(b_num)
 
-        fb_total_beds = sum(r['beds'] for r in seen_ranges.values())
-        fb_veg_beds = sum(r['beds'] for r in seen_ranges.values() if r['is_veg'])
-        fb_prod_beds = sum(r['beds'] for r in seen_ranges.values() if not r['is_veg'])
+        fb_total_beds = len(all_calif_beds) if all_calif_beds else 1
+        fb_veg_beds = len(veg_calif_beds)
+        fb_prod_beds = len(prod_calif_beds)
 
         if st_info and (st_info['camas_veg'] + st_info['camas_prod']) > 0:
             area_neta_bl = st_info['area_neta']
