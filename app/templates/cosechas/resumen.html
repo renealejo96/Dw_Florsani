@@ -74,6 +74,38 @@
         background: linear-gradient(90deg, #064e3b 0%, #059669 100%);
         padding: 0.85rem 1.25rem;
         border-radius: 0.75rem 0.75rem 0 0;
+        cursor: pointer;
+        transition: filter 0.2s ease, box-shadow 0.2s ease;
+    }
+    .producto-header:hover {
+        filter: brightness(1.08);
+        box-shadow: 0 4px 12px rgba(6, 78, 59, 0.2);
+    }
+    .btn-resumen-bloque {
+        background-color: #f59e0b;
+        color: #1e293b;
+        font-weight: 700;
+        border: none;
+        transition: all 0.15s ease;
+    }
+    .btn-resumen-bloque:hover {
+        background-color: #d97706;
+        color: #fff;
+        transform: scale(1.04);
+    }
+    .modal-table-bloques th {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        text-align: center;
+        vertical-align: middle;
+        padding: 0.65rem 0.4rem;
+    }
+    .modal-table-bloques td {
+        font-size: 0.84rem;
+        text-align: center;
+        vertical-align: middle;
+        padding: 0.55rem 0.4rem;
     }
 </style>
 {% endblock %}
@@ -189,10 +221,17 @@
         <div class="p-4">
             {% for producto_maestro, variedades in productos.items()|sort %}
             <div class="mb-4 rounded-3 border overflow-hidden">
-                <div class="producto-header text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-bold fs-6">
-                        <i class="fa-solid fa-box me-2"></i> {{ producto_maestro }}
-                    </h5>
+                <div class="producto-header text-white d-flex justify-content-between align-items-center cursor-pointer shadow-xs"
+                     onclick="abrirModalBloque('{{ semana }}', '{{ producto_maestro|escape }}')"
+                     title="Haga clic para ver el resumen detallado por bloque de {{ producto_maestro }}">
+                    <div class="d-flex align-items-center gap-2">
+                        <h5 class="mb-0 fw-bold fs-6">
+                            <i class="fa-solid fa-box me-2"></i> {{ producto_maestro }}
+                        </h5>
+                        <span class="badge bg-white bg-opacity-20 text-white border border-white border-opacity-25 small d-none d-md-inline-block">
+                            <i class="fa-solid fa-cubes me-1"></i>Ver por Bloque
+                        </span>
+                    </div>
                     <div class="d-flex align-items-center gap-2">
                         {% set est_hdr = (estimados_por_producto or {}).get(producto_maestro, 0) or (estimados_por_producto or {}).get(producto_maestro|upper, 0) %}
                         {% if est_hdr > 0 %}
@@ -201,6 +240,11 @@
                         </span>
                         {% endif %}
                         <span class="badge bg-white text-dark">{{ variedades|length }} variedad(es)</span>
+                        <button type="button" class="btn btn-sm btn-resumen-bloque px-3 py-1 shadow-xs"
+                                onclick="event.stopPropagation(); abrirModalBloque('{{ semana }}', '{{ producto_maestro|escape }}')"
+                                title="Generar resumen por bloque">
+                            <i class="fa-solid fa-cubes me-1"></i> Resumen por Bloque
+                        </button>
                     </div>
                 </div>
                 <div class="table-responsive">
@@ -310,4 +354,264 @@
     </div>
     {% endfor %}
 </div>
+
+<!-- MODAL DETALLE DE COSECHA POR BLOQUE -->
+<div class="modal fade" id="modalResumenBloque" tabindex="-1" aria-labelledby="modalResumenBloqueLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-warning p-2 d-flex align-items-center justify-content-center text-dark" style="width: 36px; height: 36px;">
+                        <i class="fa-solid fa-cubes fs-6"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0 text-white" id="modalResumenBloqueLabel">
+                            Detalle de Cosecha por Bloque: <span id="modal-pm-nombre" class="text-warning"></span>
+                        </h5>
+                        <p class="small text-white-50 mb-0">
+                            Semana <strong id="modal-pm-semana" class="text-white"></strong> &bull; Desglose diario por bloque/módulo y variedad
+                        </p>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a id="btn-exportar-excel-modal" href="#" class="btn btn-success btn-sm fw-bold shadow-xs">
+                        <i class="fa-solid fa-file-excel me-1"></i> Excel de Bloques
+                    </a>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="imprimirTablaModal()">
+                        <i class="fa-solid fa-print me-1"></i> Imprimir
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+            </div>
+
+            <!-- Resumen de Métricas Rápidas -->
+            <div class="bg-light p-3 border-bottom">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-white shadow-xs p-2 rounded-3 text-center">
+                            <span class="text-muted small fw-semibold">Total Tallos Cosechados</span>
+                            <h4 class="mb-0 fw-bold text-success font-monospace" id="modal-kpi-tallos">0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-white shadow-xs p-2 rounded-3 text-center">
+                            <span class="text-muted small fw-semibold">Bloques / Módulos Activos</span>
+                            <h4 class="mb-0 fw-bold text-primary font-monospace" id="modal-kpi-modulos">0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-white shadow-xs p-2 rounded-3 text-center">
+                            <span class="text-muted small fw-semibold">Variedades en Corte</span>
+                            <h4 class="mb-0 fw-bold text-dark font-monospace" id="modal-kpi-variedades">0</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de búsqueda dentro del modal -->
+                <div class="mt-3">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="fa-solid fa-magnifying-glass text-muted"></i>
+                        </span>
+                        <input type="text" id="filtro-modal-input" class="form-control border-start-0 ps-0" placeholder="Filtrar por bloque o variedad..." oninput="filtrarTablaModal(this.value)">
+                        <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filtro-modal-input').value = ''; filtrarTablaModal('');">
+                            Limpiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-body p-0">
+                <div class="table-responsive" style="max-height: 520px;">
+                    <table class="table modal-table-bloques table-hover table-striped align-middle mb-0" id="tabla-modal-bloques">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th style="min-width: 140px; text-align: left; padding-left: 1rem;">Bloque / Módulo</th>
+                                <th style="min-width: 180px; text-align: left;">Variedad</th>
+                                <th style="width: 80px;">Lun</th>
+                                <th style="width: 80px;">Mar</th>
+                                <th style="width: 80px;">Mié</th>
+                                <th style="width: 80px;">Jue</th>
+                                <th style="width: 80px;">Vie</th>
+                                <th style="width: 80px;">Sáb</th>
+                                <th style="width: 80px;">Dom</th>
+                                <th style="min-width: 120px;" class="bg-warning text-dark fw-bold">Total Bloque</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-modal-bloques">
+                            <!-- Inyectado dinámicamente -->
+                        </tbody>
+                        <tfoot id="tfoot-modal-bloques" class="table-light fw-bold border-top-2">
+                            <!-- Inyectado dinámicamente -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                <span class="text-muted small">
+                    <i class="fa-solid fa-circle-info me-1 text-primary"></i> Datos calculados en tiempo real a partir de tickets de cosecha.
+                </span>
+                <button type="button" class="btn btn-secondary btn-sm px-4 fw-semibold" data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const DESGLOSE_DATA = {{ desglose | tojson | safe }};
+
+function naturalSort(a, b) {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function abrirModalBloque(semana, prodMaestro) {
+    const elNombre = document.getElementById('modal-pm-nombre');
+    const elSemana = document.getElementById('modal-pm-semana');
+    const elInput = document.getElementById('filtro-modal-input');
+    const btnExcel = document.getElementById('btn-exportar-excel-modal');
+
+    if (elNombre) elNombre.textContent = prodMaestro;
+    if (elSemana) elSemana.textContent = semana;
+    if (elInput) elInput.value = '';
+
+    if (btnExcel) {
+        btnExcel.href = `{{ url_for('cosechas.api_resumen_bloques_excel') }}?semana=${encodeURIComponent(semana)}&producto=${encodeURIComponent(prodMaestro)}`;
+    }
+
+    const semData = DESGLOSE_DATA[semana] || {};
+    const prodData = semData[prodMaestro] || {};
+
+    // Transformar datos a estructura: modulo -> { variedad: [d0, d1, d2, d3, d4, d5, d6] }
+    const modulosMap = {};
+    let totalGlobal = 0;
+    const totalDiasGlobal = [0, 0, 0, 0, 0, 0, 0];
+    const variedadesSet = new Set();
+    const modulosSet = new Set();
+
+    for (const [variedad, diasObj] of Object.entries(prodData)) {
+        variedadesSet.add(variedad);
+        for (const [diaStr, modsObj] of Object.entries(diasObj)) {
+            const diaIdx = parseInt(diaStr, 10);
+            for (const [modulo, tallos] of Object.entries(modsObj)) {
+                const modStr = String(modulo).trim();
+                modulosSet.add(modStr);
+                if (!modulosMap[modStr]) modulosMap[modStr] = {};
+                if (!modulosMap[modStr][variedad]) modulosMap[modStr][variedad] = [0, 0, 0, 0, 0, 0, 0];
+                modulosMap[modStr][variedad][diaIdx] += tallos;
+                totalGlobal += tallos;
+                if (diaIdx >= 0 && diaIdx < 7) {
+                    totalDiasGlobal[diaIdx] += tallos;
+                }
+            }
+        }
+    }
+
+    const elKpiTallos = document.getElementById('modal-kpi-tallos');
+    const elKpiMod = document.getElementById('modal-kpi-modulos');
+    const elKpiVar = document.getElementById('modal-kpi-variedades');
+    if (elKpiTallos) elKpiTallos.textContent = totalGlobal.toLocaleString();
+    if (elKpiMod) elKpiMod.textContent = modulosSet.size;
+    if (elKpiVar) elKpiVar.textContent = variedadesSet.size;
+
+    const tbody = document.getElementById('tbody-modal-bloques');
+    const tfoot = document.getElementById('tfoot-modal-bloques');
+    if (tbody) tbody.innerHTML = '';
+
+    const sortedModulos = Object.keys(modulosMap).sort(naturalSort);
+
+    if (sortedModulos.length === 0) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No hay registros detallados por bloque para ${prodMaestro} en la semana ${semana}.</td></tr>`;
+        if (tfoot) tfoot.innerHTML = '';
+    } else {
+        sortedModulos.forEach(mod => {
+            const varsMap = modulosMap[mod];
+            const sortedVars = Object.keys(varsMap).sort();
+            let totalModulo = 0;
+            const subtotalDiasMod = [0, 0, 0, 0, 0, 0, 0];
+
+            sortedVars.forEach((varName) => {
+                const dias = varsMap[varName];
+                const totalFila = dias.reduce((a, b) => a + b, 0);
+                totalModulo += totalFila;
+                dias.forEach((v, d) => subtotalDiasMod[d] += v);
+
+                const tr = document.createElement('tr');
+                tr.className = 'fila-bloque-modal';
+                tr.setAttribute('data-search', `${mod} ${varName}`.toLowerCase());
+
+                tr.innerHTML = `
+                    <td style="text-align: left; padding-left: 1rem;" class="fw-bold text-dark font-monospace">
+                        <i class="fa-solid fa-cubes text-secondary me-1"></i> Bloque ${mod}
+                    </td>
+                    <td style="text-align: left;" class="fw-semibold text-secondary">
+                        <i class="fa-solid fa-leaf text-success me-1"></i> ${varName}
+                    </td>
+                    ${dias.map(d => `<td>${d > 0 ? `<span class="badge-valor">${d.toLocaleString()}</span>` : '<span class="text-muted">-</span>'}</td>`).join('')}
+                    <td class="col-total text-end pe-3">
+                        <span class="badge-total-row">${totalFila.toLocaleString()}</span>
+                    </td>
+                `;
+                if (tbody) tbody.appendChild(tr);
+            });
+
+            // Si hay más de una variedad en el mismo bloque, agregar fila de subtotal del bloque
+            if (sortedVars.length > 1) {
+                const trSub = document.createElement('tr');
+                trSub.className = 'table-light fw-bold fila-bloque-subtotal';
+                trSub.setAttribute('data-search', `${mod}`.toLowerCase());
+                trSub.innerHTML = `
+                    <td colspan="2" style="text-align: left; padding-left: 1.5rem;" class="text-uppercase small text-primary">
+                        <i class="fa-solid fa-calculator me-1"></i> Subtotal Bloque ${mod}
+                    </td>
+                    ${subtotalDiasMod.map(d => `<td class="text-center">${d > 0 ? `<strong class="text-dark">${d.toLocaleString()}</strong>` : '-'}</td>`).join('')}
+                    <td class="col-total text-end pe-3">
+                        <strong class="text-primary">${totalModulo.toLocaleString()}</strong>
+                    </td>
+                `;
+                if (tbody) tbody.appendChild(trSub);
+            }
+        });
+
+        // Footer Total General
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr class="table-dark text-white fs-6">
+                    <td colspan="2" style="text-align: left; padding-left: 1rem;" class="text-uppercase fw-bold text-warning">
+                        <i class="fa-solid fa-chart-column me-2"></i>TOTAL GENERAL ${prodMaestro}
+                    </td>
+                    ${totalDiasGlobal.map(d => `<td class="text-center fw-bold">${d > 0 ? d.toLocaleString() : '-'}</td>`).join('')}
+                    <td class="bg-warning text-dark text-end pe-3 fw-bolder fs-6">
+                        ${totalGlobal.toLocaleString()}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    const modalEl = document.getElementById('modalResumenBloque');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+}
+
+function filtrarTablaModal(query) {
+    const q = (query || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('#tbody-modal-bloques tr');
+    rows.forEach(r => {
+        const text = r.getAttribute('data-search') || '';
+        if (!q || text.includes(q)) {
+            r.style.display = '';
+        } else {
+            r.style.display = 'none';
+        }
+    });
+}
+
+function imprimirTablaModal() {
+    window.print();
+}
+</script>
 {% endblock %}

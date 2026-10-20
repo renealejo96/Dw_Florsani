@@ -430,6 +430,34 @@ def index():
         'semana_proxima_sugerida': semana_proxima_sugerida
     }
 
+    # Catálogo de labores disponibles agrupadas por producto y auxiliares asignados
+    catalogo_labores_rows = db.session.execute(text("""
+        SELECT DISTINCT producto, labor, auxiliar, supervisor
+        FROM matriz_fenogramas
+        WHERE labor IS NOT NULL AND labor != ''
+        ORDER BY producto, labor;
+    """)).fetchall()
+
+    catalogo_labores_map = defaultdict(list)
+    labores_unicas = set()
+    auxiliares_map = {}
+    
+    for cl in catalogo_labores_rows:
+        p_name = (cl.producto or '').strip()
+        l_name = (cl.labor or '').strip()
+        aux = (cl.auxiliar or '').strip()
+        sup = (cl.supervisor or '').strip()
+        
+        catalogo_labores_map[p_name].append({
+            'labor': l_name,
+            'auxiliar': aux,
+            'supervisor': sup
+        })
+        labores_unicas.add(l_name)
+        auxiliares_map[f"{p_name.upper()}|||{l_name.upper()}"] = {'auxiliar': aux, 'supervisor': sup}
+        if l_name.upper() not in auxiliares_map:
+            auxiliares_map[l_name.upper()] = {'auxiliar': aux, 'supervisor': sup}
+
     return render_template(
         'fenogramas/operarios.html',
         semana=semana,
@@ -446,7 +474,10 @@ def index():
         supervisores_zona=sorted(supervisores_set),
         semana_estado=semana_estado,
         max_semanas_arrastre=max_semanas_arrastre,
-        ingesta_info=ingesta_info
+        ingesta_info=ingesta_info,
+        catalogo_labores=dict(catalogo_labores_map),
+        todas_labores=sorted(list(labores_unicas)),
+        auxiliares_map=auxiliares_map
     )
 
 
@@ -464,6 +495,9 @@ def api_calificar():
 
     cumplido = data.get('cumplido')
     observacion = data.get('observacion', '')
+    nueva_labor = (data.get('labor') or '').strip()
+    nuevo_aux = (data.get('auxiliar') or '').strip()
+    nuevo_sup = (data.get('supervisor') or '').strip()
 
     if cumplido is not None:
         try:
@@ -474,13 +508,63 @@ def api_calificar():
             cumplido = None
 
     try:
-        db.session.execute(text("""
-            UPDATE calificaciones
-            SET cumplido = :cumplido, observacion = :observacion, tiene_evaluacion = TRUE, fecha_calificacion = CURRENT_TIMESTAMP
-            WHERE id = :id;
-        """), {'cumplido': cumplido, 'observacion': observacion, 'id': item_id})
+        calif = Calificacion.query.get(item_id)
+        if not calif:
+            return jsonify({'success': False, 'error': 'Registro no encontrado'}), 404
+
+        if nueva_labor and nueva_labor != calif.labor:
+            existing = Calificacion.query.filter_by(
+                semana_anio=calif.semana_anio,
+                anio=calif.anio,
+                zona=calif.zona,
+                bloque=calif.bloque,
+                producto_maestro=calif.producto_maestro,
+                cama_inicial=calif.cama_inicial,
+                cama_final=calif.cama_final,
+                sufijo=calif.sufijo,
+                labor=nueva_labor
+            ).first()
+
+            if existing and existing.id != calif.id:
+                existing.cumplido = cumplido
+                existing.observacion = observacion
+                if nuevo_aux:
+                    existing.auxiliar = nuevo_aux
+                if nuevo_sup:
+                    existing.supervisor = nuevo_sup
+                existing.tiene_evaluacion = True
+                existing.fecha_calificacion = datetime.utcnow()
+                db.session.commit()
+                return jsonify({
+                    'success': True,
+                    'id': existing.id,
+                    'cumplido': cumplido,
+                    'observacion': observacion,
+                    'labor': existing.labor,
+                    'auxiliar': existing.auxiliar,
+                    'supervisor': existing.supervisor
+                })
+            else:
+                calif.labor = nueva_labor
+                if nuevo_aux:
+                    calif.auxiliar = nuevo_aux
+                if nuevo_sup:
+                    calif.supervisor = nuevo_sup
+
+        calif.cumplido = cumplido
+        calif.observacion = observacion
+        calif.tiene_evaluacion = True
+        calif.fecha_calificacion = datetime.utcnow()
         db.session.commit()
-        return jsonify({'success': True, 'id': item_id, 'cumplido': cumplido, 'observacion': observacion})
+        return jsonify({
+            'success': True,
+            'id': item_id,
+            'cumplido': cumplido,
+            'observacion': observacion,
+            'labor': calif.labor,
+            'auxiliar': calif.auxiliar,
+            'supervisor': calif.supervisor
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -501,6 +585,9 @@ def api_calificar_lote():
             item_id = item.get('id')
             cumplido = item.get('cumplido')
             obs = item.get('observacion', '')
+            nueva_labor = (item.get('labor') or '').strip()
+            nuevo_aux = (item.get('auxiliar') or '').strip()
+            nuevo_sup = (item.get('supervisor') or '').strip()
 
             if cumplido is not None:
                 try:
@@ -511,15 +598,134 @@ def api_calificar_lote():
                     cumplido = None
 
             if item_id:
-                db.session.execute(text("""
-                    UPDATE calificaciones
-                    SET cumplido = :cumplido, observacion = :observacion, tiene_evaluacion = TRUE, fecha_calificacion = CURRENT_TIMESTAMP
-                    WHERE id = :id;
-                """), {'cumplido': cumplido, 'observacion': obs, 'id': item_id})
+                calif = Calificacion.query.get(item_id)
+                if not calif:
+                    continue
+
+                if nueva_labor and nueva_labor != calif.labor:
+                    existing = Calificacion.query.filter_by(
+                        semana_anio=calif.semana_anio,
+                        anio=calif.anio,
+                        zona=calif.zona,
+                        bloque=calif.bloque,
+                        producto_maestro=calif.producto_maestro,
+                        cama_inicial=calif.cama_inicial,
+                        cama_final=calif.cama_final,
+                        sufijo=calif.sufijo,
+                        labor=nueva_labor
+                    ).first()
+
+                    if existing and existing.id != calif.id:
+                        existing.cumplido = cumplido
+                        existing.observacion = obs
+                        if nuevo_aux:
+                            existing.auxiliar = nuevo_aux
+                        if nuevo_sup:
+                            existing.supervisor = nuevo_sup
+                        existing.tiene_evaluacion = True
+                        existing.fecha_calificacion = datetime.utcnow()
+                    else:
+                        calif.labor = nueva_labor
+                        if nuevo_aux:
+                            calif.auxiliar = nuevo_aux
+                        if nuevo_sup:
+                            calif.supervisor = nuevo_sup
+                        calif.cumplido = cumplido
+                        calif.observacion = obs
+                        calif.tiene_evaluacion = True
+                        calif.fecha_calificacion = datetime.utcnow()
+                else:
+                    calif.cumplido = cumplido
+                    calif.observacion = obs
+                    calif.tiene_evaluacion = True
+                    calif.fecha_calificacion = datetime.utcnow()
+
                 updated_count += 1
 
         db.session.commit()
         return jsonify({'success': True, 'updated': updated_count})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@fenogramas_bp.route('/api/duplicar-calificacion', methods=['POST'])
+@login_required
+@permission_required('fenogramas')
+def api_duplicar_calificacion():
+    """Crea una fila de calificación adicional para evaluar otra labor en el mismo rango de camas de un bloque."""
+    data = request.get_json() or {}
+    item_id = data.get('id')
+    nueva_labor = (data.get('nueva_labor') or '').strip()
+
+    if not item_id or not nueva_labor:
+        return jsonify({'success': False, 'error': 'ID y nueva labor requeridos'}), 400
+
+    try:
+        calif_base = Calificacion.query.get(item_id)
+        if not calif_base:
+            return jsonify({'success': False, 'error': 'Calificación base no encontrada'}), 404
+
+        # Buscar responsable en matriz_fenogramas
+        responsable = db.session.execute(text("""
+            SELECT auxiliar, supervisor
+            FROM matriz_fenogramas
+            WHERE UPPER(producto) = UPPER(:prod) AND UPPER(labor) = UPPER(:labor)
+            LIMIT 1;
+        """), {'prod': calif_base.producto_maestro or '', 'labor': nueva_labor}).fetchone()
+
+        aux = (responsable.auxiliar if responsable and responsable.auxiliar else calif_base.auxiliar) or ''
+        sup = (responsable.supervisor if responsable and responsable.supervisor else calif_base.supervisor) or ''
+
+        existente = Calificacion.query.filter_by(
+            semana_anio=calif_base.semana_anio,
+            anio=calif_base.anio,
+            zona=calif_base.zona,
+            bloque=calif_base.bloque,
+            producto_maestro=calif_base.producto_maestro,
+            cama_inicial=calif_base.cama_inicial,
+            cama_final=calif_base.cama_final,
+            sufijo=calif_base.sufijo,
+            labor=nueva_labor
+        ).first()
+
+        if existente:
+            return jsonify({
+                'success': True,
+                'item': existente.to_dict(),
+                'already_existed': True,
+                'message': 'Esta labor ya estaba registrada para este rango de camas'
+            })
+
+        nueva_calif = Calificacion(
+            semana_anio=calif_base.semana_anio,
+            anio=calif_base.anio,
+            zona=calif_base.zona,
+            bloque=calif_base.bloque,
+            actividad_tipo=calif_base.actividad_tipo,
+            producto_maestro=calif_base.producto_maestro,
+            cama_inicial=calif_base.cama_inicial,
+            cama_final=calif_base.cama_final,
+            sufijo=calif_base.sufijo,
+            edad_real=calif_base.edad_real,
+            labor=nueva_labor,
+            auxiliar=aux,
+            supervisor=sup,
+            cumplido=None,
+            observacion='',
+            tiene_evaluacion=True,
+            es_pendiente_anterior=False,
+            semana_origen=calif_base.semana_anio
+        )
+        db.session.add(nueva_calif)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'item': nueva_calif.to_dict(),
+            'already_existed': False,
+            'message': f'Labor "{nueva_labor}" agregada para evaluación'
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

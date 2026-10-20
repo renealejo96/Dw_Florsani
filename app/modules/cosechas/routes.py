@@ -1238,6 +1238,77 @@ def api_resumen_excel():
     )
 
 
+@cosechas_bp.route('/api/resumen/bloques/excel', methods=['GET'])
+@login_required
+@permission_required('cosechas')
+def api_resumen_bloques_excel():
+    """Descargar desglose de cosecha por bloque/módulo de un producto maestro en formato Excel"""
+    semana_filtro = request.args.get('semana', '').strip()
+    producto_filtro = request.args.get('producto', '').strip()
+    maestro_productos = cargar_maestro_productos()
+    
+    query = RegistroCosecha.query
+    if semana_filtro:
+        todos = query.all()
+        registros = [r for r in todos if formato_semana(r.fecha) == semana_filtro]
+    else:
+        registros = query.all()
+
+    if producto_filtro:
+        registros = [r for r in registros if maestro_productos.get(r.variedad, 'SIN CLASIFICAR').upper() == producto_filtro.upper()]
+
+    datos_matriz = defaultdict(lambda: [0]*7)
+    prod_nombre = producto_filtro or 'TODOS'
+    
+    for r in registros:
+        mod = str(r.modulo or 'S/M').strip()
+        var = str(r.variedad or '').strip()
+        d_idx = r.fecha.weekday()
+        datos_matriz[(mod, var)][d_idx] += int(r.total_tallos or 0)
+        
+    filas = []
+    for (mod, var), tallos_dias in sorted(datos_matriz.items(), key=lambda x: (x[0][0], x[0][1])):
+        total_mod_var = sum(tallos_dias)
+        fila = {
+            'Semana': semana_filtro,
+            'Producto Maestro': prod_nombre,
+            'Bloque/Módulo': mod,
+            'Variedad': var,
+            'Lunes': tallos_dias[0] if tallos_dias[0] > 0 else 0,
+            'Martes': tallos_dias[1] if tallos_dias[1] > 0 else 0,
+            'Miércoles': tallos_dias[2] if tallos_dias[2] > 0 else 0,
+            'Jueves': tallos_dias[3] if tallos_dias[3] > 0 else 0,
+            'Viernes': tallos_dias[4] if tallos_dias[4] > 0 else 0,
+            'Sábado': tallos_dias[5] if tallos_dias[5] > 0 else 0,
+            'Domingo': tallos_dias[6] if tallos_dias[6] > 0 else 0,
+            'Total Tallos': total_mod_var
+        }
+        filas.append(fila)
+        
+    df = pd.DataFrame(filas) if filas else pd.DataFrame(columns=[
+        'Semana', 'Producto Maestro', 'Bloque/Módulo', 'Variedad',
+        'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo', 'Total Tallos'
+    ])
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        clean_sheet = f"Bloques_{prod_nombre[:20]}".replace('/', '_').replace('\\', '_')
+        df.to_excel(writer, sheet_name=clean_sheet, index=False)
+        worksheet = writer.sheets[clean_sheet]
+        for idx, col in enumerate(df.columns):
+            max_len = max(df[col].astype(str).apply(len).max() if not df.empty else 0, len(col)) + 3
+            worksheet.column_dimensions[chr(65 + idx)].width = min(max_len, 35)
+            
+    output.seek(0)
+    safe_prod = prod_nombre.replace(' ', '_').lower()
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'desglose_bloques_{safe_prod}_sem_{semana_filtro}.xlsx'
+    )
+
+
 @cosechas_bp.route('/api/semanas', methods=['GET'])
 def api_semanas_disponibles():
     """Listar todas las semanas disponibles en base de datos"""

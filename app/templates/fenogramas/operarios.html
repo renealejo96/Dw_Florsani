@@ -473,6 +473,60 @@
         box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
     }
 
+    .select-labor-calificar {
+        width: 100%;
+        height: 20px;
+        border: 1px solid #cbd5e1;
+        border-radius: 2px;
+        background-color: #f8fafc;
+        padding: 0 4px;
+        font-size: 0.68rem;
+        color: #1e293b;
+        cursor: pointer;
+        line-height: 18px;
+    }
+    .select-labor-calificar:hover {
+        border-color: #94a3b8;
+        background-color: #ffffff;
+    }
+    .select-labor-calificar:focus {
+        outline: none;
+        border-color: #2563eb;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+    }
+    .select-labor-calificar.labor-cambiada {
+        background-color: #fef3c7 !important;
+        border-color: #f59e0b !important;
+        color: #92400e !important;
+        font-weight: 600;
+    }
+    .badge-reasignada {
+        font-size: 0.60rem;
+        background-color: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+        padding: 0 3px;
+        border-radius: 2px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        display: inline-block;
+    }
+    .btn-duplicar-labor {
+        padding: 0 4px;
+        height: 20px;
+        font-size: 0.66rem;
+        line-height: 18px;
+        border-color: #cbd5e1;
+        color: #475569;
+    }
+    .btn-duplicar-labor:hover {
+        background-color: #2563eb;
+        border-color: #2563eb;
+        color: #fff;
+    }
+
     @media (max-width: 991.98px) {
         .excel-table {
             min-width: 740px;
@@ -775,11 +829,12 @@
                     <th style="width: 44px;">Blq</th>
                     <th style="width: 76px;">Camas</th>
                     <th style="width: 52px;">Tipo</th>
-                    <th style="width: 105px;">Producto</th>
+                    <th style="width: 100px;">Producto</th>
                     <th style="width: 36px;" class="text-center">Sem</th>
-                    <th>Labor Fenograma</th>
-                    <th style="width: 150px;">Auxiliar / Sup.</th>
+                    <th style="min-width: 120px;">Labor Fenograma</th>
+                    <th style="width: 140px;">Auxiliar / Sup.</th>
                     <th style="width: 44px;" class="text-center">Cumpl.</th>
+                    <th style="width: 175px;">Labor a Calificar</th>
                     <th style="width: 155px;">Observaciones</th>
                 </tr>
             </thead>
@@ -830,11 +885,10 @@
                         {% endif %}
                     </td>
 
-                    <td title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
-                        <span class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
-                        {% if item.supervisor %}
-                        <span class="text-muted" style="font-size: 0.66rem;">/ {{ item.supervisor }}</span>
-                        {% endif %}
+                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
+                        <span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
+                        <span id="sup-name-{{ item.id }}" class="text-muted" style="font-size: 0.66rem;">{% if item.supervisor %}/ {{ item.supervisor }}{% endif %}</span>
+                        <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
                     </td>
 
                     <td class="text-center" style="{% if semana_estado == 'CERRADA' %}cursor: not-allowed; opacity: 0.65;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
@@ -852,6 +906,47 @@
                                     {% if semana_estado == 'CERRADA' %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
                                 {% if c_val == '1' %}✓{% endif %}
                             </button>
+                        </div>
+                    </td>
+
+                    <td class="cell-labor-calificar" style="padding: 1px 2px;">
+                        <div class="d-flex align-items-center gap-1">
+                            <select id="sel-labor-{{ item.id }}"
+                                    class="select-labor-calificar"
+                                    data-item-id="{{ item.id }}"
+                                    data-original-labor="{{ item.labor }}"
+                                    title="Seleccione la labor que desea calificar para estas camas"
+                                    aria-label="Labor a calificar en fila {{ item.id }}"
+                                    {% if semana_estado == 'CERRADA' %}disabled{% else %}onchange="handleLaborSelectChange({{ item.id }}, this.value)"{% endif %}>
+                                <option value="{{ item.labor }}" selected>{{ item.labor }} (Programada)</option>
+                                {% set p_labores = (catalogo_labores or {}).get(item.producto_maestro, []) %}
+                                {% if p_labores %}
+                                <optgroup label="Labores de {{ item.producto_maestro }}">
+                                    {% for lab_obj in p_labores %}
+                                    {% if lab_obj.labor != item.labor %}
+                                    <option value="{{ lab_obj.labor }}">{{ lab_obj.labor }}{% if lab_obj.auxiliar %} ({{ lab_obj.auxiliar }}){% endif %}</option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+                                {% if todas_labores %}
+                                <optgroup label="Otras Labores">
+                                    {% for o_lab in todas_labores %}
+                                    {% if o_lab != item.labor and o_lab not in (p_labores|map(attribute='labor')|list) %}
+                                    <option value="{{ o_lab }}">{{ o_lab }}</option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+                            </select>
+                            {% if semana_estado != 'CERRADA' %}
+                            <button type="button" 
+                                    class="btn btn-outline-primary btn-duplicar-labor shadow-xs" 
+                                    title="Calificar labor adicional en estas camas (sin sobrescribir)"
+                                    onclick="duplicarLaborFila({{ item.id }})">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            {% endif %}
                         </div>
                     </td>
 
@@ -987,6 +1082,94 @@ const SEMANA_ESTADO = "{{ semana_estado or 'ABIERTA' }}";
 let currentStatusFilter = 'ALL';
 let currentWorkspaceMode = 'grid'; // 'grid' | 'single-block' | 'all-matrix'
 let activeBlockCode = {{ bloque_sel|tojson }};
+const CATALOGO_LABORES = {{ catalogo_labores | tojson | safe }};
+const AUXILIARES_MAP = {{ auxiliares_map | tojson | safe }};
+
+function handleLaborSelectChange(itemId, newLabor) {
+    const row = document.getElementById(`row-${itemId}`);
+    const sel = document.getElementById(`sel-labor-${itemId}`);
+    if (!row || !sel) return;
+
+    const prod = (row.getAttribute('data-producto') || '').trim();
+    const origLabor = sel.getAttribute('data-original-labor');
+    const isChanged = (newLabor !== origLabor);
+
+    if (isChanged) {
+        sel.classList.add('labor-cambiada');
+    } else {
+        sel.classList.remove('labor-cambiada');
+    }
+
+    let resp = null;
+    const keyExact = `${prod.toUpperCase()}|||${newLabor.toUpperCase()}`;
+    if (AUXILIARES_MAP && AUXILIARES_MAP[keyExact]) {
+        resp = AUXILIARES_MAP[keyExact];
+    } else if (AUXILIARES_MAP && AUXILIARES_MAP[newLabor.toUpperCase()]) {
+        resp = AUXILIARES_MAP[newLabor.toUpperCase()];
+    }
+
+    const auxSpan = document.getElementById(`aux-name-${itemId}`);
+    const supSpan = document.getElementById(`sup-name-${itemId}`);
+    const badgeReas = document.getElementById(`badge-reasignada-${itemId}`);
+
+    if (resp && resp.auxiliar) {
+        if (auxSpan) auxSpan.textContent = resp.auxiliar;
+        if (supSpan) supSpan.textContent = resp.supervisor ? `/ ${resp.supervisor}` : '';
+        row.setAttribute('data-assigned-auxiliar', resp.auxiliar);
+        row.setAttribute('data-assigned-supervisor', resp.supervisor || '');
+    } else {
+        row.removeAttribute('data-assigned-auxiliar');
+        row.removeAttribute('data-assigned-supervisor');
+    }
+
+    row.setAttribute('data-assigned-labor', newLabor);
+
+    if (badgeReas) {
+        if (isChanged) {
+            badgeReas.classList.remove('d-none');
+            badgeReas.textContent = 'Reasignada';
+        } else {
+            badgeReas.classList.add('d-none');
+        }
+    }
+
+    markItemDirty(itemId);
+    showFenoToast(`Labor a calificar cambiada a "${newLabor}" (${resp && resp.auxiliar ? resp.auxiliar : 'Operario campo'})`);
+}
+
+function duplicarLaborFila(itemId) {
+    const sel = document.getElementById(`sel-labor-${itemId}`);
+    const nuevaLabor = sel ? sel.value : '';
+    if (!nuevaLabor) {
+        alert('Seleccione primero la labor que desea calificar en el desplegable.');
+        return;
+    }
+
+    if (!confirm(`¿Crear una calificación adicional para "${nuevaLabor}" en este mismo rango de camas?`)) {
+        return;
+    }
+
+    fetch('{{ url_for("fenogramas.api_duplicar_calificacion") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId, nueva_labor: nuevaLabor })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showFenoToast(`✓ ${data.message}. Recargando vista...`);
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
+        } else {
+            showFenoToast(`Error: ${data.error || 'No se pudo duplicar'}`, true);
+        }
+    })
+    .catch(err => {
+        console.error('Error duplicar:', err);
+        showFenoToast('Error de red al duplicar labor', true);
+    });
+}
 
 function cerrarSemanaOperarios(sem) {
     if (!confirm(`¿Estás seguro de que deseas CERRAR la evaluación de la Semana ${sem}?\n\nAl cerrarla:\n1. Se bloquearán las calificaciones y observaciones para operarios.\n2. Las labores no cumplidas se arrastrarán automáticamente a la siguiente semana.\n\nEsta acción es definitiva.`)) {
@@ -1412,6 +1595,7 @@ function recalculateZoneKPIs() {
 function markItemDirty(itemId) {
     const btn = document.getElementById(`btn-check-${itemId}`);
     const obsInput = document.getElementById(`obs-${itemId}`);
+    const selLabor = document.getElementById(`sel-labor-${itemId}`);
     const row = document.getElementById(`row-${itemId}`);
 
     const origVal = btn ? btn.getAttribute('data-original-val') : 'null';
@@ -1420,7 +1604,10 @@ function markItemDirty(itemId) {
     const origObs = obsInput ? obsInput.getAttribute('data-original-obs') : '';
     const currObs = obsInput ? obsInput.value : '';
 
-    const isChanged = (origVal !== currVal) || (origObs !== currObs);
+    const origLabor = selLabor ? (selLabor.getAttribute('data-original-labor') || '') : '';
+    const currLabor = selLabor ? (selLabor.value || '') : '';
+
+    const isChanged = (origVal !== currVal) || (origObs !== currObs) || (origLabor !== currLabor);
 
     if (isChanged) {
         modifiedItems.add(itemId);
@@ -1546,6 +1733,14 @@ function descartarCambiosLocales() {
         if (obsInput) {
             obsInput.value = obsInput.getAttribute('data-original-obs') || '';
         }
+        const selLabor = document.getElementById(`sel-labor-${id}`);
+        if (selLabor) {
+            const origLab = selLabor.getAttribute('data-original-labor') || '';
+            selLabor.value = origLab;
+            selLabor.classList.remove('labor-cambiada');
+        }
+        const badgeReas = document.getElementById(`badge-reasignada-${id}`);
+        if (badgeReas) badgeReas.classList.add('d-none');
         if (row) {
             row.classList.remove('row-dirty');
         }
@@ -1572,6 +1767,7 @@ function saveAllChanges() {
         const btn = document.getElementById(`btn-check-${itemId}`);
         const obsInput = document.getElementById(`obs-${itemId}`);
         const row = document.getElementById(`row-${itemId}`);
+        const selLabor = document.getElementById(`sel-labor-${itemId}`);
 
         const currVal = btn ? btn.getAttribute('data-current-val') : 'null';
         let cumplidoVal = null;
@@ -1583,10 +1779,17 @@ function saveAllChanges() {
             affectedBlocks.add(row.getAttribute('data-bloque'));
         }
 
+        const customLabor = selLabor ? selLabor.value : (row ? row.getAttribute('data-assigned-labor') : null);
+        const customAux = row ? row.getAttribute('data-assigned-auxiliar') : null;
+        const customSup = row ? row.getAttribute('data-assigned-supervisor') : null;
+
         payloadItems.push({
             id: itemId,
             cumplido: cumplidoVal,
-            observacion: obsVal
+            observacion: obsVal,
+            labor: customLabor,
+            auxiliar: customAux,
+            supervisor: customSup
         });
     });
 
@@ -1618,10 +1821,12 @@ function saveAllChanges() {
             payloadItems.forEach(item => {
                 const btn = document.getElementById(`btn-check-${item.id}`);
                 const obsInput = document.getElementById(`obs-${item.id}`);
+                const selLabor = document.getElementById(`sel-labor-${item.id}`);
                 const row = document.getElementById(`row-${item.id}`);
 
                 if (btn) btn.setAttribute('data-original-val', item.cumplido === null ? 'null' : String(item.cumplido));
                 if (obsInput) obsInput.setAttribute('data-original-obs', item.observacion);
+                if (selLabor && item.labor) selLabor.setAttribute('data-original-labor', item.labor);
                 if (row) row.classList.remove('row-dirty');
             });
 
