@@ -76,4 +76,12 @@ with app.app_context():
             v_count += 1
     db.session.commit()
     print(f"    -> {v_count} nuevas variedades agregadas a dim_variedades/dim_productos.")
+
+    print("[5] Homologando SKYLER DUO CRISTAL -> SKYLER DUO CRYSTAL...")
+    try:
+        from scripts.corregir_skyler_crystal import corregir_skyler
+        corregir_skyler()
+    except Exception as e:
+        print(f"Error en correccion de Skyler: {e}")
+
     print("Sincronizacion completa y exitosa.")
