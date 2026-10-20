@@ -51,36 +51,64 @@
         max-width: 100%;
         flex: 1 1 auto;
     }
+    /* Contenedor de Zonas con relleno llamativo y letras negras de alto contraste */
+    .zone-tabs-inline {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        background: #fef08a; /* Relleno amarillo sol llamativo */
+        border: 1.5px solid #eab308;
+        border-radius: 6px;
+        padding: 0.18rem 0.45rem;
+    }
+    .zone-label-tag {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #000000;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding-right: 0.15rem;
+    }
     .zone-tab-btn {
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
-        padding: 0.22rem 0.55rem;
+        padding: 0.2rem 0.55rem;
         border-radius: 4px;
         font-size: 0.75rem;
-        font-weight: 600;
+        font-weight: 700;
         text-decoration: none;
-        border: 1px solid #cbd5e1;
-        background: #f8fafc;
-        color: #334155;
+        border: 1px solid #d97706;
+        background: #ffffff;
+        color: #000000; /* Letras negras nítidas */
         white-space: nowrap;
         line-height: 1.2;
+        transition: all 0.12s ease-in-out;
     }
     .zone-tab-btn:hover {
-        background: #e2e8f0;
-        color: #0f172a;
+        background: #fef9c3;
+        color: #000000;
+        border-color: #b45309;
+        transform: translateY(-1px);
     }
     .zone-tab-btn.active {
-        background: #0f172a;
-        color: #ffffff;
-        border-color: #0f172a;
+        background: #f59e0b !important; /* Relleno ámbar intenso llamativo */
+        color: #000000 !important; /* Letras negras */
+        border: 2px solid #b45309 !important;
+        box-shadow: 0 1px 4px rgba(180, 83, 9, 0.4);
+        font-weight: 800;
     }
     .zone-tab-pct {
         font-size: 0.68rem;
-        font-weight: 700;
+        font-weight: 800;
         padding: 0.05rem 0.3rem;
         border-radius: 3px;
         font-variant-numeric: tabular-nums;
+        color: #000000;
     }
 
     /* Resumen compacto en línea */
@@ -100,19 +128,88 @@
         color: #cbd5e1;
     }
 
-    /* Barra de filtros compacta en una sola línea */
-    .feno-filter-strip {
+    /* Estilos para filtros en encabezados de la matriz (estilo Excel) */
+    .th-content-excel {
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        background: #f8fafc;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        padding: 0.28rem 0.5rem;
-        margin-bottom: 0.5rem;
+        justify-content: space-between;
+        gap: 0.25rem;
         width: 100%;
-        box-sizing: border-box;
+    }
+    .header-filter-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 3px;
+        color: #94a3b8;
+        font-size: 0.62rem;
+        padding: 1px 3px;
+        line-height: 1;
+        cursor: pointer;
+        transition: all 0.12s ease;
+    }
+    .header-filter-btn:hover {
+        color: #0f172a;
+        background: #e2e8f0;
+        border-color: #cbd5e1;
+    }
+    .header-filter-btn.filter-active {
+        color: #ffffff !important;
+        background: #2563eb !important;
+        border-color: #1d4ed8 !important;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.4);
+    }
+    .dropdown-menu-excel {
+        min-width: 200px;
+        max-width: 270px;
+        font-size: 0.74rem;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        padding: 0.45rem;
+        background: #ffffff;
+        z-index: 1070;
+    }
+    .filter-options-scroll {
+        max-height: 180px;
+        overflow-y: auto;
+        padding-right: 2px;
+    }
+    .filter-item-label {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.2rem 0.35rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.73rem;
+        color: #1e293b;
+        user-select: none;
+    }
+    .filter-item-label:hover {
+        background: #f1f5f9;
+    }
+
+    /* Botón compacto en columna Extra estilo Excel/hoja de cálculo */
+    .btn-extra-mini {
+        width: 22px;
+        height: 20px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        border-radius: 4px;
+        border: 1px solid #93c5fd;
+        background: #eff6ff;
+        color: #1d4ed8;
+        cursor: pointer;
+        transition: all 0.12s ease-in-out;
+    }
+    .btn-extra-mini:hover {
+        background: #2563eb;
+        border-color: #1d4ed8;
+        color: #ffffff;
+        transform: scale(1.08);
     }
     .feno-ctrl-sm {
         height: 27px;
@@ -605,7 +702,9 @@
             </button>
         </form>
 
+        <!-- ZONAS CON RELLENO LLAMATIVO Y LETRAS NEGRAS -->
         <div class="zone-tabs-inline" role="tablist" aria-label="Zonas">
+            <span class="zone-label-tag"><i class="fa-solid fa-map-location-dot me-1"></i>ZONAS:</span>
             {% for z in zonas %}
             {% set z_info = zonas_resumen.get(z, {}) %}
             {% set z_pct = z_info.get('pct_cumplimiento') %}
@@ -619,12 +718,32 @@
                 </span>
                 {% else %}
                 <span {% if z == zona_sel %}id="active-zone-tab-pct"{% endif %}
-                      class="zone-tab-pct bg-secondary bg-opacity-25 text-secondary">
+                      class="zone-tab-pct bg-white text-dark border">
                     Pend.
                 </span>
                 {% endif %}
             </a>
             {% endfor %}
+        </div>
+
+        <!-- Búsqueda rápida integrada en la barra superior -->
+        <div class="d-flex align-items-center gap-1 ms-1">
+            <input type="text" id="search-input" class="feno-search-input"
+                   placeholder="Buscar bloque, labor, persona..." oninput="applyAllFilters()" aria-label="Buscar">
+            <button type="button" id="btn-clear-filters" class="btn btn-outline-danger btn-sm py-0 px-1.5 fw-semibold"
+                    style="height: 27px; font-size: 0.7rem; display: none;" onclick="resetAllFilters()" title="Restablecer todos los filtros">
+                <i class="fa-solid fa-filter-circle-xmark me-1"></i>Limpiar
+            </button>
+        </div>
+
+        <!-- Selector de Modo de Vista (Bloques vs Matriz) -->
+        <div class="btn-group btn-group-sm ms-1" role="group" aria-label="Modo de vista">
+            <button type="button" id="btn-mode-grid" class="btn btn-outline-secondary btn-sm py-0 px-2 active" style="height: 27px; font-size: 0.72rem;" onclick="setWorkspaceMode('grid')">
+                <i class="fa-solid fa-table-cells me-1"></i>Bloques
+            </button>
+            <button type="button" id="btn-mode-all" class="btn btn-outline-secondary btn-sm py-0 px-2" style="height: 27px; font-size: 0.72rem;" onclick="setWorkspaceMode('all-matrix')">
+                <i class="fa-solid fa-table-list me-1"></i>Matriz Zona
+            </button>
         </div>
     </div>
 
@@ -670,61 +789,6 @@
             <span>Semana Cerrada</span>
         </span>
         {% endif %}
-    </div>
-</div>
-
-<!-- FILA 2: Filtros compactos y búsqueda en una sola línea -->
-<div class="feno-filter-strip">
-    <select id="filter-producto" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por producto">
-        <option value="ALL">Producto: Todos ({{ productos_zona|length }})</option>
-        {% for prod in productos_zona %}
-        <option value="{{ prod }}">{{ prod }}</option>
-        {% endfor %}
-    </select>
-
-    <select id="filter-variedad" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por variedad">
-        <option value="ALL">Variedad: Todas ({{ (variedades_zona or [])|length }})</option>
-        {% for var_item in (variedades_zona or []) %}
-        <option value="{{ var_item }}">{{ var_item }}</option>
-        {% endfor %}
-    </select>
-
-    <select id="filter-actividad" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por tipo">
-        <option value="ALL">Tipo: Todos</option>
-        <option value="Siembra">Siembra</option>
-        <option value="Poda">Poda</option>
-    </select>
-
-    <select id="filter-supervisor" class="feno-ctrl-sm" onchange="applyAllFilters()" aria-label="Filtrar por supervisor">
-        <option value="ALL">Supervisor: Todos</option>
-        {% for sup in supervisores_zona %}
-        <option value="{{ sup }}">{{ sup }}</option>
-        {% endfor %}
-    </select>
-
-    <select id="filter-estado" class="feno-ctrl-sm" onchange="setStatusFilter(this.value)" aria-label="Filtrar por estado">
-        <option value="ALL">Estado: Todos ({{ zona_kpi.total_bloques }})</option>
-        <option value="ALTO">Cumplido ≥85% ({{ zona_kpi.bloques_alto }})</option>
-        <option value="MEDIO">Parcial 70–84% ({{ zona_kpi.bloques_medio }})</option>
-        <option value="BAJO">Bajo &lt;70% ({{ zona_kpi.bloques_bajo }})</option>
-        <option value="PENDIENTE">Sin calificar ({{ zona_kpi.bloques_sin_calificar }})</option>
-        <option value="ARRASTRE">Con arrastre ({{ zona_kpi.bloques_con_arrastre }})</option>
-    </select>
-
-    <input type="text" id="search-input" class="feno-search-input"
-           placeholder="Buscar bloque, labor, auxiliar..." oninput="applyAllFilters()" aria-label="Buscar">
-
-    <button type="button" id="btn-clear-filters" class="btn btn-link btn-sm text-secondary text-decoration-none p-0 px-1" style="font-size: 0.74rem; display: none;" onclick="resetAllFilters()">
-        Limpiar filtros
-    </button>
-
-    <div class="ms-auto d-flex align-items-center gap-1">
-        <button type="button" id="btn-mode-grid" class="btn btn-outline-secondary btn-sm py-0 px-2 active" style="height: 25px; font-size: 0.72rem;" onclick="setWorkspaceMode('grid')">
-            Bloques
-        </button>
-        <button type="button" id="btn-mode-all" class="btn btn-outline-secondary btn-sm py-0 px-2" style="height: 25px; font-size: 0.72rem;" onclick="setWorkspaceMode('all-matrix')">
-            Matriz Zona
-        </button>
     </div>
 </div>
 
@@ -822,8 +886,11 @@
             <button type="button" class="btn btn-white border btn-sm py-0 px-2 fw-semibold" style="height: 22px; font-size: 0.7rem;" onclick="returnToBlockGrid()">
                 <i class="fa-solid fa-xmark me-1"></i>Cerrar tabla
             </button>
-
+            <span class="badge px-2 py-0.5 fw-bold text-dark border shadow-xs" style="background: #facc15; border-color: #ca8a04 !important; font-size: 0.72rem;"><i class="fa-solid fa-map-location-dot me-1 text-dark"></i>{{ zona_sel }}</span>
             <span id="active-block-live-badge" class="fw-bold text-dark tabular-nums" style="font-size: 0.72rem;"></span>
+            <button type="button" id="btn-clear-filters-toolbar" class="btn btn-xs btn-outline-danger py-0 px-1.5 fw-semibold" style="height: 20px; font-size: 0.68rem; display: none;" onclick="resetAllFilters()" title="Restablecer filtros">
+                <i class="fa-solid fa-filter-circle-xmark me-1"></i>Filtros activos (Limpiar)
+            </button>
         </div>
 
         <div class="d-flex align-items-center gap-2">
@@ -844,13 +911,162 @@
                 <tr>
                     <th style="width: 44px;">Blq</th>
                     <th style="width: 76px;">Camas</th>
-                    <th style="width: 52px;">Tipo</th>
-                    <th style="width: 100px;">Producto</th>
+                    <th style="width: 78px;">
+                        <div class="th-content-excel">
+                            <span>Tipo</span>
+                            <div class="dropdown">
+                                <button type="button" class="header-filter-btn" id="btn-col-filter-tipo" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Tipo">
+                                    <i class="fa-solid fa-filter"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-tipo">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Tipo de Actividad</span>
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-primary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-tipo', true)">Todos</button>
+                                    </div>
+                                    <div class="filter-options-scroll">
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-tipo form-check-input my-0" value="Siembra" checked onchange="applyAllFilters()">
+                                            <span>Siembra</span>
+                                        </label>
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-tipo form-check-input my-0" value="Poda" checked onchange="applyAllFilters()">
+                                            <span>Poda</span>
+                                        </label>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-tipo', false)">Vaciar</button>
+                                        <button type="button" class="btn btn-primary btn-xs py-0 px-2 fw-semibold" style="font-size: 0.68rem; height: 18px;" onclick="closeBootstrapDropdown(this)">Listo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                    <th style="width: 125px;">
+                        <div class="th-content-excel">
+                            <span>Producto</span>
+                            <div class="dropdown">
+                                <button type="button" class="header-filter-btn" id="btn-col-filter-prod" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Producto">
+                                    <i class="fa-solid fa-filter"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-prod">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Producto</span>
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-primary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-prod', true)">Todos</button>
+                                    </div>
+                                    <div class="mb-1">
+                                        <input type="text" class="form-control form-control-xs py-0 px-1.5" style="font-size: 0.7rem; height: 20px;" placeholder="Buscar producto..." onkeyup="filterCheckboxLabels(this, 'filter-options-prod')">
+                                    </div>
+                                    <div class="filter-options-scroll" id="filter-options-prod">
+                                        {% for prod in productos_zona %}
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-prod form-check-input my-0" value="{{ prod }}" checked onchange="applyAllFilters()">
+                                            <span class="text-truncate">{{ prod }}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-prod', false)">Vaciar</button>
+                                        <button type="button" class="btn btn-primary btn-xs py-0 px-2 fw-semibold" style="font-size: 0.68rem; height: 18px;" onclick="closeBootstrapDropdown(this)">Listo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
                     <th style="width: 36px;" class="text-center">Sem</th>
-                    <th style="min-width: 130px;">Labor a Calificar</th>
-                    <th style="width: 140px;">Auxiliar / Sup.</th>
-                    <th style="width: 44px;" class="text-center">Cumpl.</th>
-                    <th style="width: 65px;" class="text-center">Extra</th>
+                    <th style="min-width: 140px;">
+                        <div class="th-content-excel">
+                            <span>Labor a Calificar</span>
+                            <div class="dropdown">
+                                <button type="button" class="header-filter-btn" id="btn-col-filter-labor" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Labor">
+                                    <i class="fa-solid fa-filter"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-labor" style="min-width: 220px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Buscar Labor</span>
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="clearLaborSearch()">Limpiar</button>
+                                    </div>
+                                    <div class="my-1">
+                                        <input type="text" id="filter-labor-input" class="form-control form-control-sm py-0 px-2" style="font-size: 0.72rem; height: 24px;" placeholder="Escribe nombre de labor..." oninput="applyAllFilters()">
+                                    </div>
+                                    <div class="small text-muted" style="font-size: 0.68rem;">
+                                        Filtra labores que contengan el texto.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                    <th style="width: 145px;">
+                        <div class="th-content-excel">
+                            <span>Auxiliar / Sup.</span>
+                            <div class="dropdown">
+                                <button type="button" class="header-filter-btn" id="btn-col-filter-sup" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Responsable">
+                                    <i class="fa-solid fa-filter"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-sup">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Responsable</span>
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-primary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-sup', true)">Todos</button>
+                                    </div>
+                                    <div class="mb-1">
+                                        <input type="text" class="form-control form-control-xs py-0 px-1.5" style="font-size: 0.7rem; height: 20px;" placeholder="Buscar persona..." onkeyup="filterCheckboxLabels(this, 'filter-options-sup')">
+                                    </div>
+                                    <div class="filter-options-scroll" id="filter-options-sup">
+                                        {% for sup in supervisores_zona %}
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-sup form-check-input my-0" value="{{ sup }}" checked onchange="applyAllFilters()">
+                                            <span class="text-truncate">{{ sup }}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-sup', false)">Vaciar</button>
+                                        <button type="button" class="btn btn-primary btn-xs py-0 px-2 fw-semibold" style="font-size: 0.68rem; height: 18px;" onclick="closeBootstrapDropdown(this)">Listo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                    <th style="width: 58px;" class="text-center">
+                        <div class="th-content-excel justify-content-center">
+                            <span>Cumpl.</span>
+                            <div class="dropdown">
+                                <button type="button" class="header-filter-btn ms-1" id="btn-col-filter-cumpl" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Estado de Calificación">
+                                    <i class="fa-solid fa-filter"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-cumpl">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Estado</span>
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-primary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-cumpl', true)">Todos</button>
+                                    </div>
+                                    <div class="filter-options-scroll">
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-cumpl form-check-input my-0" value="EJECUTADA" checked onchange="applyAllFilters()">
+                                            <span class="d-flex align-items-center gap-1">
+                                                <span class="badge bg-success py-0 px-1" style="font-size: 0.65rem;">✓</span> Ejecutadas
+                                            </span>
+                                        </label>
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-cumpl form-check-input my-0" value="PENDIENTE" checked onchange="applyAllFilters()">
+                                            <span class="d-flex align-items-center gap-1">
+                                                <span class="badge bg-light text-dark border py-0 px-1" style="font-size: 0.65rem;">vacío</span> No ejecutadas
+                                            </span>
+                                        </label>
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-cumpl form-check-input my-0" value="ARRASTRE" checked onchange="applyAllFilters()">
+                                            <span class="d-flex align-items-center gap-1">
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.65rem;">[S]</span> Arrastradas
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-cumpl', false)">Vaciar</button>
+                                        <button type="button" class="btn btn-primary btn-xs py-0 px-2 fw-semibold" style="font-size: 0.68rem; height: 18px;" onclick="closeBootstrapDropdown(this)">Listo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                    <th style="width: 34px;" class="text-center" title="Labor adicional (+)">+</th>
                     <th style="width: 155px;">Observaciones</th>
                 </tr>
             </thead>
@@ -931,15 +1147,13 @@
                         </div>
                     </td>
 
-                    <td class="text-center" style="padding: 2px 4px;">
+                    <td class="text-center" style="padding: 1px 2px;">
                         {% if semana_estado != 'CERRADA' %}
                         <button type="button" 
-                                class="btn btn-outline-primary btn-sm py-0 px-2 rounded-pill shadow-xs d-inline-flex align-items-center gap-1"
-                                style="font-size: 0.72rem; line-height: 1.5;"
-                                title="Calificar labor adicional en estas camas (sin sobrescribir)"
+                                class="btn-extra-mini"
+                                title="Calificar labor adicional en estas camas (+ Extra)"
                                 onclick='abrirModalAgregarLabor({{ item.id }}, "{{ b_meta.clean_code }}", "{{ item.cama_inicial }}-{{ item.cama_final }}{% if item.sufijo %}{{ item.sufijo }}{% endif %}", "{{ item.producto_maestro }}")'>
-                            <i class="fa-solid fa-plus text-primary"></i>
-                            <span>Extra</span>
+                            <i class="fa-solid fa-plus"></i>
                         </button>
                         {% endif %}
                     </td>
@@ -1455,7 +1669,8 @@ function highlightSelectedTile(bloqueCode) {
 function filterMatrixRowsToBlock(bloqueCode) {
     document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
         const rBlq = row.getAttribute('data-bloque');
-        row.style.display = (!bloqueCode || rBlq === String(bloqueCode)) ? '' : 'none';
+        const isFilterMatch = row.getAttribute('data-filter-match') !== '0';
+        row.style.display = ((!bloqueCode || rBlq === String(bloqueCode)) && isFilterMatch) ? '' : 'none';
     });
     updateActiveBlockContextHeader(bloqueCode);
 }
@@ -1486,67 +1701,153 @@ function updateUrlBlockParam(bloqueCode) {
 }
 
 /* ============================================================================
-   FILTROS COMPACTOS
+   FILTROS DESPLEGABLES ENCABEZADOS ESTILO EXCEL Y BÚSQUEDA GLOBAL
    ============================================================================ */
-function setStatusFilter(status) {
-    currentStatusFilter = status;
-    const sel = document.getElementById('filter-estado');
-    if (sel && sel.value !== status) sel.value = status;
+function toggleAllCheckboxes(className, state) {
+    document.querySelectorAll('.' + className).forEach(cb => {
+        cb.checked = state;
+    });
     applyAllFilters();
 }
 
-function resetAllFilters() {
-    ['filter-producto', 'filter-variedad', 'filter-actividad', 'filter-supervisor', 'filter-estado'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = 'ALL';
+function filterCheckboxLabels(inputEl, containerId) {
+    const q = (inputEl.value || '').toLowerCase().trim();
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.filter-item-label').forEach(lbl => {
+        const txt = lbl.innerText.toLowerCase();
+        lbl.style.display = (!q || txt.includes(q)) ? 'flex' : 'none';
     });
-    const fSearch = document.getElementById('search-input');
-    if (fSearch) fSearch.value = '';
-    currentStatusFilter = 'ALL';
+}
+
+function clearLaborSearch() {
+    const lInput = document.getElementById('filter-labor-input');
+    if (lInput) lInput.value = '';
+    applyAllFilters();
+}
+
+function closeBootstrapDropdown(btnInside) {
+    const dropdown = btnInside.closest('.dropdown');
+    if (!dropdown) return;
+    const toggleBtn = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+    if (toggleBtn && window.bootstrap) {
+        bootstrap.Dropdown.getOrCreateInstance(toggleBtn).hide();
+    }
+}
+
+function resetAllFilters() {
+    toggleAllCheckboxes('filter-chk-tipo', true);
+    toggleAllCheckboxes('filter-chk-prod', true);
+    toggleAllCheckboxes('filter-chk-sup', true);
+    toggleAllCheckboxes('filter-chk-cumpl', true);
+    const lInput = document.getElementById('filter-labor-input');
+    if (lInput) lInput.value = '';
+    const gInput = document.getElementById('search-input');
+    if (gInput) gInput.value = '';
     applyAllFilters();
 }
 
 function applyAllFilters() {
-    const prodVal = (document.getElementById('filter-producto')?.value || 'ALL').trim();
-    const varVal = (document.getElementById('filter-variedad')?.value || 'ALL').trim();
-    const actVal = (document.getElementById('filter-actividad')?.value || 'ALL').trim();
-    const supVal = (document.getElementById('filter-supervisor')?.value || 'ALL').trim();
-    const query = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+    // 1. Obtener valores seleccionados en los filtros de columnas
+    const selTipos = Array.from(document.querySelectorAll('.filter-chk-tipo:checked')).map(cb => cb.value);
+    const totalTipos = document.querySelectorAll('.filter-chk-tipo').length;
+    const isTipoFiltered = (totalTipos > 0 && selTipos.length < totalTipos);
 
-    const hasFilters = (prodVal !== 'ALL' || varVal !== 'ALL' || actVal !== 'ALL' || supVal !== 'ALL' || currentStatusFilter !== 'ALL' || query.length > 0);
+    const selProds = Array.from(document.querySelectorAll('.filter-chk-prod:checked')).map(cb => cb.value);
+    const totalProds = document.querySelectorAll('.filter-chk-prod').length;
+    const isProdFiltered = (totalProds > 0 && selProds.length < totalProds);
+
+    const selSups = Array.from(document.querySelectorAll('.filter-chk-sup:checked')).map(cb => cb.value);
+    const totalSups = document.querySelectorAll('.filter-chk-sup').length;
+    const isSupFiltered = (totalSups > 0 && selSups.length < totalSups);
+
+    const selCumpl = Array.from(document.querySelectorAll('.filter-chk-cumpl:checked')).map(cb => cb.value);
+    const totalCumpl = document.querySelectorAll('.filter-chk-cumpl').length;
+    const isCumplFiltered = (totalCumpl > 0 && selCumpl.length < totalCumpl);
+
+    const laborQuery = (document.getElementById('filter-labor-input')?.value || '').toLowerCase().trim();
+    const isLaborFiltered = (laborQuery.length > 0);
+
+    const globalQuery = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+
+    // 2. Marcar visualmente qué botones de encabezado tienen filtro activo
+    document.getElementById('btn-col-filter-tipo')?.classList.toggle('filter-active', isTipoFiltered);
+    document.getElementById('btn-col-filter-prod')?.classList.toggle('filter-active', isProdFiltered);
+    document.getElementById('btn-col-filter-sup')?.classList.toggle('filter-active', isSupFiltered);
+    document.getElementById('btn-col-filter-cumpl')?.classList.toggle('filter-active', isCumplFiltered);
+    document.getElementById('btn-col-filter-labor')?.classList.toggle('filter-active', isLaborFiltered);
+
+    const hasAnyFilter = (isTipoFiltered || isProdFiltered || isSupFiltered || isCumplFiltered || isLaborFiltered || globalQuery.length > 0 || (totalTipos > 0 && selTipos.length === 0) || (totalProds > 0 && selProds.length === 0) || (totalSups > 0 && selSups.length === 0) || (totalCumpl > 0 && selCumpl.length === 0));
+
     const btnClear = document.getElementById('btn-clear-filters');
-    if (btnClear) btnClear.style.display = hasFilters ? 'inline-block' : 'none';
+    if (btnClear) btnClear.style.display = hasAnyFilter ? 'inline-flex' : 'none';
+    const btnClearToolbar = document.getElementById('btn-clear-filters-toolbar');
+    if (btnClearToolbar) btnClearToolbar.style.display = hasAnyFilter ? 'inline-flex' : 'none';
 
-    let visibleBlocksCount = 0;
+    // 3. Evaluar cada fila de la matriz
+    let visibleRowsCount = 0;
     const matchingBlocks = new Set();
 
-    document.querySelectorAll('.blq-tile').forEach(tile => {
-        const blq = tile.getAttribute('data-bloque');
-        const estado = tile.getAttribute('data-estado');
-        const prods = (tile.getAttribute('data-productos') || '').split('|');
-        const vars = (tile.getAttribute('data-variedades') || '').split('|');
-        const acts = (tile.getAttribute('data-actividades') || '').split('|');
-        const sups = (tile.getAttribute('data-supervisores') || '').split('|');
-        const arrastreCnt = parseInt(tile.getAttribute('data-arrastre') || '0', 10);
-        const searchText = (tile.getAttribute('data-search-text') || '').toLowerCase();
+    document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
+        const blq = row.getAttribute('data-bloque');
+        const rProd = row.getAttribute('data-producto') || '';
+        const rAct = row.getAttribute('data-actividad') || '';
+        const rSup = row.getAttribute('data-supervisor') || '';
+        const rSearch = (row.getAttribute('data-search-text') || '').toLowerCase();
+        const isArrastre = row.classList.contains('row-arrastre');
 
-        const matchProd = (prodVal === 'ALL' || prods.includes(prodVal));
-        const matchVar = (varVal === 'ALL' || vars.includes(varVal));
-        const matchAct = (actVal === 'ALL' || acts.includes(actVal));
-        const matchSup = (supVal === 'ALL' || sups.includes(supVal));
+        const btnCheck = row.querySelector('.check-circle');
+        const currVal = btnCheck ? btnCheck.getAttribute('data-current-val') : 'null';
+        const isEjecutada = (currVal === '1');
 
-        let matchStatus = true;
-        if (currentStatusFilter === 'ARRASTRE') matchStatus = arrastreCnt > 0;
-        else if (currentStatusFilter !== 'ALL') matchStatus = (estado === currentStatusFilter);
+        // Match Tipo
+        const matchTipo = (totalTipos === 0) || selTipos.includes(rAct);
 
-        const matchQuery = (!query || searchText.includes(query) || String(blq).toLowerCase().includes(query));
+        // Match Producto
+        const matchProd = (totalProds === 0) || selProds.includes(rProd);
 
-        const isVisible = matchProd && matchVar && matchAct && matchSup && matchStatus && matchQuery;
-        tile.style.display = isVisible ? 'flex' : 'none';
-        if (isVisible) {
-            visibleBlocksCount++;
+        // Match Supervisor
+        const matchSup = (totalSups === 0) || selSups.includes(rSup) || (!rSup && selSups.length === totalSups);
+
+        // Match Cumplimiento
+        let matchCumpl = false;
+        if (totalCumpl === 0) {
+            matchCumpl = true;
+        } else {
+            if (selCumpl.includes('EJECUTADA') && isEjecutada) matchCumpl = true;
+            if (selCumpl.includes('PENDIENTE') && !isEjecutada && !isArrastre) matchCumpl = true;
+            if (selCumpl.includes('ARRASTRE') && isArrastre) matchCumpl = true;
+        }
+
+        // Match Labor input
+        const matchLabor = !laborQuery || rSearch.includes(laborQuery);
+
+        // Match Global Search
+        const matchGlobal = !globalQuery || rSearch.includes(globalQuery) || String(blq).toLowerCase().includes(globalQuery);
+
+        const isRowMatch = matchTipo && matchProd && matchSup && matchCumpl && matchLabor && matchGlobal;
+
+        row.setAttribute('data-filter-match', isRowMatch ? '1' : '0');
+
+        if (currentWorkspaceMode === 'all-matrix') {
+            row.style.display = isRowMatch ? '' : 'none';
+        } else if (activeBlockCode) {
+            row.style.display = (isRowMatch && String(blq) === String(activeBlockCode)) ? '' : 'none';
+        }
+
+        if (isRowMatch) {
+            visibleRowsCount++;
             matchingBlocks.add(blq);
         }
+    });
+
+    // 4. Filtrar cuadrícula de bloques
+    let visibleBlocksCount = 0;
+    document.querySelectorAll('.blq-tile').forEach(tile => {
+        const blq = tile.getAttribute('data-bloque');
+        const isTileMatch = matchingBlocks.has(blq);
+        tile.style.display = isTileMatch ? 'flex' : 'none';
+        if (isTileMatch) visibleBlocksCount++;
     });
 
     const visEl = document.getElementById('kpi-visible-bloques');
@@ -1554,15 +1855,6 @@ function applyAllFilters() {
 
     const emptyState = document.getElementById('grid-empty-filter-state');
     if (emptyState) emptyState.style.display = (visibleBlocksCount === 0) ? 'block' : 'none';
-
-    if (currentWorkspaceMode === 'all-matrix') {
-        document.querySelectorAll('#excel-tbody .excel-row').forEach(row => {
-            const blq = row.getAttribute('data-bloque');
-            const rSearch = (row.getAttribute('data-search-text') || '').toLowerCase();
-            const matchRowQuery = (!query || rSearch.includes(query));
-            row.style.display = (matchingBlocks.has(blq) && matchRowQuery) ? '' : 'none';
-        });
-    }
 }
 
 /* ============================================================================
