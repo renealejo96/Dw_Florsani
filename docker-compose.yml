@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ==============================================================================
 # PROYECTO: ERP Y DATA WAREHOUSE AGRÍCOLA - GRUPO FLORICULTOR FLORSANI
 # ARCHIVO: docker-compose.yml

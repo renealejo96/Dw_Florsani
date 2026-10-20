@@ -11,8 +11,14 @@ env
 *.log
 .agent
 .agents
-C:\Users*
-estados de cultivo/*.xlsx
-!estados de cultivo/resumen_*.xlsx
+.codex
+.vscode
+uploads
+backups
+estados de cultivo
+*.xlsx
+*.csv
+*.db
 terraform
 node_modules
+README.md

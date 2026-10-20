@@ -1,23 +1,21 @@
-# Dockerfile optimizado para Producción (Hostinger VPS & Cloud Run)
+# Dockerfile optimizado para Producción (Hostinger VPS & Cloud)
 FROM python:3.11-slim
 
-# Evitar buffers de stdout/stderr para que los logs lleguen inmediatos
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8095
 
 WORKDIR /app
 
-# Instalar dependencias del sistema requeridas para psycopg2 y librerias nativas
+# Herramientas mínimas de sistema (curl para healthcheck/diagnóstico)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar requerimientos de Python
+# Instalar requerimientos de Python mediante ruedas binarias precompiladas
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copiar el código de la aplicación
 COPY . .
