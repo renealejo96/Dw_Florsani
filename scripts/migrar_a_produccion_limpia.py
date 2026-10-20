@@ -80,123 +80,102 @@ TABLAS_TRANSACCIONALES_VACIAS = [
 
 VISTA_STG_EVENTOS_SQL = """
 CREATE OR REPLACE VIEW stg_eventos AS
-SELECT 
-    id_evento, id_cama, fecha_evento, tipo_evento, variedad, 
-    estado_evento, origen_evento, num_poda, num_plantas, producto_maestro,
-    semana_campo, created_at
+SELECT id_evento,
+    id_cama,
+    codigo_bloque,
+    fecha_evento,
+    semana_campo,
+    tipo_evento,
+    num_poda,
+    producto_maestro,
+    variedad,
+    origen_evento,
+    estado_evento,
+    created_at,
+    num_plantas,
+    fecha_hora_registro
 FROM fact_eventos_cultivo
-WHERE estado_evento = 'ACTIVO';
+WHERE ((estado_evento)::text = 'ACTIVO'::text);
 """
 
 VISTA_MRT_ESTADO_CULTIVO_SQL = """
 CREATE OR REPLACE VIEW mrt_estado_cultivo_actual AS
-WITH semana_corte_calc AS (
-    SELECT COALESCE(
-        MAX(semana_campo),
-        (
-            SELECT MAX(
-                CASE 
-                    WHEN week ~ '^20[0-9]{2}-[0-9]{1,2}$' THEN (SUBSTRING(week, 3, 2)::int * 100 + SUBSTRING(week, 6, 2)::int)
-                    WHEN week ~ '^[0-9]{4}$' THEN week::int
-                    ELSE 0
-                END
-            )
-            FROM crop_state_records
-            WHERE week IS NOT NULL
-        ),
-        (SELECT semana_campo FROM dim_calendario_agricola WHERE fecha = CURRENT_DATE LIMIT 1),
-        2640
-    ) AS semana_activa
-    FROM fact_eventos_cultivo
-    WHERE estado_evento = 'ACTIVO'
-),
-ultimos_eventos AS (
-    SELECT 
-        e.id_evento,
-        e.id_cama,
+WITH ultimos_eventos AS (
+    SELECT e.id_cama,
+        e.codigo_bloque,
         e.fecha_evento,
         e.tipo_evento,
-        e.variedad,
-        e.producto_maestro,
-        e.num_plantas,
         e.num_poda,
-        e.origen_evento,
-        e.semana_campo,
-        ROW_NUMBER() OVER (
-            PARTITION BY e.id_cama 
-            ORDER BY e.fecha_evento DESC, e.id_evento DESC
-        ) AS rn
-    FROM fact_eventos_cultivo e
-    WHERE e.estado_evento = 'ACTIVO'
-),
-eventos_recientes AS (
-    SELECT *
-    FROM ultimos_eventos
-    WHERE rn = 1
-),
-base_camas AS (
-    SELECT 
-        c.id_cama,
-        c.blq,
-        c.num_cama,
-        c.sufijo,
-        c.metros_netos,
-        c.metros_brutos,
-        c.cama_estandar,
-        c.codigo_bloque,
-        b.zona,
-        b.ha,
-        b.total_segmentos,
-        b.tecnico,
-        b.riego,
-        ue.id_evento,
-        ue.fecha_evento,
-        ue.tipo_evento,
-        ue.variedad,
-        ue.producto_maestro,
-        ue.num_plantas,
-        ue.num_poda,
-        ue.origen_evento,
-        ue.semana_campo AS evento_semana_campo,
-        CASE 
-            WHEN ue.tipo_evento = 'TUMBA' OR ue.id_evento IS NULL THEN 'VACIO'
-            WHEN ue.tipo_evento IN ('SIEMBRA', 'PODA') THEN 'ACTIVO'
-            ELSE 'OTRO'
-        END AS estado_cultivo
-    FROM dim_camas c
-    JOIN dim_bloques b ON c.codigo_bloque = b.codigo_bloque
-    LEFT JOIN eventos_recientes ue ON c.id_cama = ue.id_cama
+        e.producto_maestro,
+        e.variedad,
+        e.num_plantas,
+        e.fecha_hora_registro,
+        row_number() OVER (PARTITION BY e.id_cama ORDER BY e.fecha_evento DESC, e.id_evento DESC) AS fila_num
+    FROM stg_eventos e
+), semana_corte_calc AS (
+    SELECT c_1.semana_abs AS semana_abs_hoy,
+        c_1.semana_campo AS semana_campo_hoy
+    FROM dim_calendario_agricola c_1
+    WHERE (c_1.semana_campo = ( SELECT max(t.semana_campo) AS max
+            FROM ( SELECT max(fact_eventos_cultivo.semana_campo) AS semana_campo
+                    FROM fact_eventos_cultivo
+                    WHERE ((fact_eventos_cultivo.estado_evento)::text = 'ACTIVO'::text)
+                UNION
+                    SELECT max(
+                        CASE
+                            WHEN ((crop_state_records.week)::text ~ '^20[0-9]{2}-[0-9]{1,2}$'::text) THEN ((("substring"((crop_state_records.week)::text, 3, 2))::integer * 100) + ("substring"((crop_state_records.week)::text, 6, 2))::integer)
+                            WHEN ((crop_state_records.week)::text ~ '^[0-9]{4}$'::text) THEN (crop_state_records.week)::integer
+                            ELSE 2640
+                        END) AS semana_campo
+                    FROM crop_state_records) t))
+    LIMIT 1
+), semana_hoy AS (
+    SELECT COALESCE(( SELECT semana_corte_calc.semana_abs_hoy
+            FROM semana_corte_calc), 1040) AS semana_abs_hoy,
+        COALESCE(( SELECT semana_corte_calc.semana_campo_hoy
+            FROM semana_corte_calc), 2640) AS semana_campo_hoy
 )
-SELECT 
-    b.id_cama,
-    b.blq,
-    b.num_cama,
-    b.sufijo,
-    b.metros_netos,
-    b.metros_brutos,
-    b.cama_estandar,
+SELECT f.id_finca,
+    f.nombre_finca,
     b.zona,
-    b.tecnico,
-    b.riego,
-    b.estado_cultivo,
-    b.tipo_evento AS ultimo_evento,
-    b.fecha_evento AS fecha_ultimo_evento,
-    b.producto_maestro AS producto_actual,
-    b.variedad AS variedad_actual,
-    b.num_plantas AS plantas_actuales,
-    b.num_poda,
-    b.origen_evento,
-    scc.semana_activa AS semana_corte,
-    CASE 
-        WHEN b.estado_cultivo = 'ACTIVO' AND b.evento_semana_campo IS NOT NULL THEN
-            GREATEST(0, (
-                (scc.semana_activa / 100 - b.evento_semana_campo / 100) * 52 + 
-                (scc.semana_activa % 100 - b.evento_semana_campo % 100)
-            ))
-        ELSE NULL
-    END AS edad_semanas_actual
-FROM base_camas b
-CROSS JOIN semana_corte_calc scc;
+    b.tecnico_de_riego,
+    c.codigo_bloque,
+    c.blq,
+    c.sufijo,
+    c.id_cama,
+    c.num_cama,
+    c.cama_estandar,
+    c.metros_netos,
+    c.metros_brutos,
+    c.ha,
+    ue.producto_maestro AS producto_actual,
+    ue.variedad AS variedad_actual,
+    ue.tipo_evento AS ultimo_evento,
+    ue.num_poda AS num_poda_actual,
+    ue.fecha_evento AS fecha_ultimo_evento,
+    cal_ev.semana_campo AS semana_campo_ultimo_evento,
+    CASE
+        WHEN ((ue.tipo_evento)::text = 'TUMBA'::text) THEN NULL::integer
+        ELSE (sh.semana_abs_hoy - cal_ev.semana_abs)
+    END AS edad_semanas_actual,
+    CASE
+        WHEN (ue.tipo_evento IS NULL) THEN 'SIN REGISTRO DE EVENTOS'::text
+        WHEN ((ue.tipo_evento)::text = 'TUMBA'::text) THEN 'ERRADICADO / DISPONIBLE PARA SIEMBRA'::text
+        WHEN ((ue.tipo_evento)::text = 'PODA'::text) THEN (('EN PRODUCCIÓN (PODA '::text || COALESCE((ue.num_poda)::text, '1'::text)) || ')'::text)
+        WHEN ((ue.tipo_evento)::text = 'SIEMBRA'::text) THEN 'CULTIVO NUEVO (SIEMBRA)'::text
+        ELSE 'EN PRODUCCIÓN'::text
+    END AS estado_cultivo,
+    sh.semana_campo_hoy AS semana_agricola_actual,
+    COALESCE(ue.num_plantas, c.num_plantas) AS num_plantas_actual,
+    ue.fecha_hora_registro AS fecha_hora_ultimo_registro,
+    cal_ev.semana_abs AS semana_abs_ultimo_evento
+FROM (((((dim_camas c
+    JOIN dim_bloques b ON (((c.codigo_bloque)::text = (b.codigo_bloque)::text)))
+    JOIN dim_fincas f ON ((c.id_finca = f.id_finca)))
+    LEFT JOIN ultimos_eventos ue ON ((((c.id_cama)::text = (ue.id_cama)::text) AND (ue.fila_num = 1))))
+    LEFT JOIN dim_calendario_agricola cal_ev ON ((ue.fecha_evento = cal_ev.fecha)))
+    CROSS JOIN semana_hoy sh)
+WHERE (c.activa = true);
 """
 
 
@@ -323,10 +302,20 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
 
     # 5. Crear Vistas Analíticas en Destino
     print("\n[5] Recreando vistas analíticas en producción (stg_eventos, mrt_estado_cultivo_actual)...")
-    with tgt_engine.begin() as tc:
-        tc.execute(text(VISTA_STG_EVENTOS_SQL))
-        tc.execute(text(VISTA_MRT_ESTADO_CULTIVO_SQL))
-    print("    ✅ Vistas analíticas creadas y operativas.")
+    views_order = [
+        ('stg_eventos', VISTA_STG_EVENTOS_SQL),
+        ('mrt_estado_cultivo_actual', VISTA_MRT_ESTADO_CULTIVO_SQL)
+    ]
+    with src_engine.connect() as sc:
+        for vname, fallback_sql in views_order:
+            try:
+                ddl = sc.execute(text("SELECT definition FROM pg_views WHERE schemaname = 'public' AND viewname = :v"), {"v": vname}).scalar()
+                view_sql = f"CREATE OR REPLACE VIEW {vname} AS\n{ddl}" if ddl else fallback_sql
+                with tgt_engine.begin() as tc:
+                    tc.execute(text(view_sql))
+                print(f"    ✅ Vista '{vname}' creada exitosamente en destino.")
+            except Exception as e:
+                print(f"    ⚠️  Error al crear vista '{vname}': {e}")
 
     # 6. Sincronizar secuencias auto-incrementales en destino
     print("\n[6] Ajustando secuencias auto-incrementables (SERIAL IDs) en producción...")
