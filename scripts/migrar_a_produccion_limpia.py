@@ -14,7 +14,12 @@ DESCRIPCIÓN:
 import sys
 import os
 import argparse
-from sqlalchemy import create_engine, text
+from pathlib import Path
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text, MetaData, Table
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
 
 # Tablas Maestras / Catálogos que deben copiarse a producción:
 TABLAS_CATALOGOS = [
@@ -39,7 +44,9 @@ TABLAS_CATALOGOS = [
     "litrajes",
     "tipos_aplicacion",
     "dim_ppto",
-    "users"
+    "users",
+    "usuarios_aplicadores",
+    "semanas_evaluacion"
 ]
 
 # Tablas de Snapshot Oficial de Cultivo:
@@ -193,6 +200,21 @@ CROSS JOIN semana_corte_calc scc;
 """
 
 
+def normalize_url(url: str, is_target: bool = False) -> str:
+    if not url:
+        return ""
+    url = url.strip().strip("'").strip('"')
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    
+    # Render y bases de datos cloud remotas requieren SSL obligatoriamente
+    if is_target and ("localhost" not in url and "127.0.0.1" not in url):
+        if "sslmode=" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}sslmode=require"
+    return url
+
+
 def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
     print("=" * 65)
     print("🚀 MIGRACIÓN DE DATOS LIMPIOS A PRODUCCIÓN (FLORSANI ERP)")
@@ -208,21 +230,29 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
     print("\n[1] Verificando conexiones a bases de datos...")
     with src_engine.connect() as sc:
         sc.execute(text("SELECT 1;"))
-        print("    ✅ Conexión exitosa a Base de Datos Origen.")
+        print("    ✅ Conexión exitosa a Base de Datos Origen (Local).")
     with tgt_engine.connect() as tc:
         tc.execute(text("SELECT 1;"))
-        print("    ✅ Conexión exitosa a Base de Datos Destino.")
+        print("    ✅ Conexión exitosa a Base de Datos Destino (Producción).")
 
-    # 2. Inicializar tablas en Destino usando SQLAlchemy
+    # 2. Replicar esquema completo en la base de datos destino
     print("\n[2] Creando esquema de tablas en la base de datos destino si no existen...")
-    # Importar modelos de la aplicación Flask para sincronizar metadata
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    from app import create_app, db
-    temp_app = create_app()
-    temp_app.config['SQLALCHEMY_DATABASE_URI'] = target_url
-    with temp_app.app_context():
-        db.create_all()
-    print("    ✅ Tablas de la aplicación creadas en destino.")
+    # Reflejar todas las tablas existentes en origen (incluyendo dimensiones del Data Warehouse)
+    src_meta = MetaData()
+    src_meta.reflect(bind=src_engine)
+    src_meta.create_all(bind=tgt_engine, checkfirst=True)
+
+    # Asegurar también tablas declaradas en modelos de Flask
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from app.extensions import db
+        import app.shared.models
+        import app.modules.fenogramas.models
+        import app.modules.fertilizacion.models
+        db.metadata.create_all(bind=tgt_engine, checkfirst=True)
+    except Exception as e:
+        print(f"    ℹ️  Sincronización complementaria de modelos: {e}")
+    print("    ✅ Todas las tablas creadas o verificadas en la base de datos destino.")
 
     # 3. Copiar Catálogos y Dimensiones Maestras
     print("\n[3] Migrando catálogos y dimensiones maestras...")
@@ -234,12 +264,12 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
         try:
             with src_engine.connect() as sc:
                 # Comprobar si existe en origen
-                existe = sc.execute(text(f"SELECT to_regclass('public.{tbl}');")).scalar()
+                existe = sc.execute(text(f"SELECT to_regclass('public.\"{tbl}\"');")).scalar()
                 if not existe:
                     print(f"    ⏭️  Tabla '{tbl}' no existe en origen. Saltando.")
                     continue
 
-                rows = sc.execute(text(f"SELECT * FROM \"{tbl}\";")).fetchall()
+                rows = sc.execute(text(f'SELECT * FROM "{tbl}";')).fetchall()
                 if not rows:
                     print(f"    ⚪  Tabla '{tbl}' está vacía en origen. Saltando.")
                     continue
@@ -250,8 +280,8 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
                 params_str = ", ".join([f":{c}" for c in col_names])
 
             with tgt_engine.begin() as tc:
-                # Asegurar tabla en destino
-                tc.execute(text(f"TRUNCATE TABLE \"{tbl}\" CASCADE;"))
+                # Truncar tabla en destino antes de rellenar
+                tc.execute(text(f'TRUNCATE TABLE "{tbl}" CASCADE;'))
                 insert_stmt = text(f'INSERT INTO "{tbl}" ({cols_str}) VALUES ({params_str});')
                 
                 # Insertar en lotes de 1000
@@ -273,7 +303,9 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
     with tgt_engine.begin() as tc:
         for trans_tbl in TABLAS_TRANSACCIONALES_VACIAS:
             try:
-                tc.execute(text(f"TRUNCATE TABLE \"{trans_tbl}\" CASCADE;"))
+                existe = tc.execute(text(f"SELECT to_regclass('public.\"{trans_tbl}\"');")).scalar()
+                if existe:
+                    tc.execute(text(f'TRUNCATE TABLE "{trans_tbl}" CASCADE;'))
             except Exception:
                 pass
     print("    ✅ Tablas de pruebas (calificaciones, cosechas, órdenes de prueba) limpias.")
@@ -285,18 +317,50 @@ def migrar(source_url, target_url, incluir_snapshot_cultivo=True):
         tc.execute(text(VISTA_MRT_ESTADO_CULTIVO_SQL))
     print("    ✅ Vistas analíticas creadas y operativas.")
 
+    # 6. Sincronizar secuencias auto-incrementales en destino
+    print("\n[6] Ajustando secuencias auto-incrementables (SERIAL IDs) en producción...")
+    try:
+        with tgt_engine.begin() as tc:
+            seq_records = tc.execute(text("""
+                SELECT table_name, column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                  AND column_default LIKE 'nextval(%'
+            """)).fetchall()
+            ajustadas = 0
+            for stbl, scol in seq_records:
+                try:
+                    tc.execute(text(f"""
+                        SELECT setval(pg_get_serial_sequence('"{stbl}"', '{scol}'), COALESCE(MAX("{scol}"), 0) + 1, false)
+                        FROM "{stbl}";
+                    """))
+                    ajustadas += 1
+                except Exception:
+                    pass
+            print(f"    ✅ {ajustadas} secuencias sincronizadas con el valor máximo.")
+    except Exception as e:
+        print(f"    ℹ️  Ajuste de secuencias: {e}")
+
     print("\n" + "=" * 65)
     print("🎉 ¡MIGRACIÓN COMPLETADA CON ÉXITO!")
-    print("Tu base de datos de producción está lista, limpia y con los catálogos oficiales.")
+    print("Tu base de datos de producción en Render está lista, limpia y con los catálogos oficiales.")
     print("=" * 65)
 
 
 if __name__ == '__main__':
-    default_src = "postgresql://postgres:florsani_prod_secure_pass_2026@localhost:5432/florsani"
+    # Auto-detectar la URL de la base de datos local desde .env
+    env_source = os.environ.get('DATABASE_URL', '').strip()
+    if not env_source:
+        env_source = "postgresql://postgres:admin@localhost:5432/florsani"
     
     parser = argparse.ArgumentParser(description="Migración limpia a PostgreSQL en Producción (Render o VPS)")
     parser.add_argument("--target", required=True, help="URL de PostgreSQL en producción (ej. postgresql://user:pass@host/db)")
-    parser.add_argument("--source", default=default_src, help="URL de PostgreSQL origen local")
+    parser.add_argument("--source", default=env_source, help="URL de PostgreSQL origen local (por defecto se lee de .env)")
+    parser.add_argument("--sin-snapshot-cultivo", action="store_true", help="Omitir la copia de crop_state_records")
     
     args = parser.parse_args()
-    migrar(args.source, args.target)
+    
+    source = normalize_url(args.source, is_target=False)
+    target = normalize_url(args.target, is_target=True)
+    
+    migrar(source, target, incluir_snapshot_cultivo=not args.sin_snapshot_cultivo)
