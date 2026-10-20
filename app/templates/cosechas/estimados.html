@@ -75,6 +75,30 @@
             <span class="badge bg-secondary">Semana {{ semana_seleccionada }}</span>
         </div>
         <div class="card-body p-4">
+            <!-- Quick Variety Lookup Bar -->
+            <div class="p-3 mb-4 rounded-3 bg-light border d-flex flex-wrap align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-magnifying-glass text-primary fs-5"></i>
+                    <div>
+                        <span class="small fw-bold text-dark d-block">Búsqueda Directa de Variedad:</span>
+                        <span class="text-muted" style="font-size: 0.72rem;">Escribe o selecciona cualquier código o nombre (ej: H21-68-7, BILLION LIGHTS)</span>
+                    </div>
+                </div>
+                <div class="flex-grow-1" style="min-width: 250px;">
+                    <div class="input-group input-group-sm">
+                        <input class="form-control form-control-sm fw-semibold" list="listaVariedadesDatalist" id="inputBuscarVariedadRapida" placeholder="Buscar variedad para colocar estimado...">
+                        <button type="button" class="btn btn-primary fw-bold" id="btnCargarVariedadRapida">
+                            <i class="fa-solid fa-bolt me-1"></i> Cargar Variedad
+                        </button>
+                    </div>
+                    <datalist id="listaVariedadesDatalist">
+                        {% for var in todas_variedades %}
+                        <option value="{{ var }}">{{ var }}</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+            </div>
+
             <form method="POST" action="{{ url_for('cosechas.guardar_estimado') }}" id="formEstimado">
                 <input type="hidden" name="semana" value="{{ semana_seleccionada }}">
                 
@@ -268,10 +292,99 @@
 document.addEventListener('DOMContentLoaded', function() {
     const productosConVariedades = {{ (productos_con_variedades or {}) | tojson | safe }};
     const estimadosExistentes = {{ (estimados_existentes or {}) | tojson | safe }};
+    const todasVariedades = {{ (todas_variedades or []) | tojson | safe }};
+    const mapaVariedadProducto = {{ (mapa_variedad_producto or {}) | tojson | safe }};
+    
     const prodSelect = document.getElementById('producto_maestro_select');
     const container = document.getElementById('variedadesContainer');
     const btnAdd = document.getElementById('btnAgregarVariedad');
+    const inputBuscar = document.getElementById('inputBuscarVariedadRapida');
+    const btnCargar = document.getElementById('btnCargarVariedadRapida');
     let rowIndex = 0;
+
+    function activarVariedadDirecta(nombreVar) {
+        if (!nombreVar || !nombreVar.trim()) return;
+        const vTrim = nombreVar.trim();
+        
+        // 1. Buscar producto maestro asociado (case-insensitive)
+        let prodEncontrado = '';
+        for (const [v, p] of Object.entries(mapaVariedadProducto)) {
+            if (v.toUpperCase() === vTrim.toUpperCase()) {
+                prodEncontrado = p.toUpperCase();
+                break;
+            }
+        }
+
+        // Si no está en mapa directo, buscar en productosConVariedades
+        if (!prodEncontrado) {
+            for (const [p, vars] of Object.entries(productosConVariedades)) {
+                if (vars.some(x => x.toUpperCase() === vTrim.toUpperCase())) {
+                    prodEncontrado = p.toUpperCase();
+                    break;
+                }
+            }
+        }
+
+        // Si se encontró producto maestro, sincronizar selector
+        if (prodEncontrado) {
+            let matched = false;
+            for (let i = 0; i < prodSelect.options.length; i++) {
+                if (prodSelect.options[i].value.toUpperCase() === prodEncontrado) {
+                    prodSelect.selectedIndex = i;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                // Agregar la opción si no estaba en el select
+                const opt = document.createElement('option');
+                opt.value = prodEncontrado;
+                opt.textContent = prodEncontrado;
+                opt.selected = true;
+                prodSelect.appendChild(opt);
+            }
+        }
+
+        // Preparar lista de opciones para el selector
+        const prodActual = prodSelect.value ? prodSelect.value.toUpperCase() : '';
+        let listaOpciones = prodActual && productosConVariedades[prodActual] ? [...productosConVariedades[prodActual]] : [...todasVariedades];
+        
+        // Garantizar que la variedad buscada esté en la lista
+        if (!listaOpciones.some(x => x.toUpperCase() === vTrim.toUpperCase())) {
+            listaOpciones.unshift(vTrim);
+        }
+
+        container.innerHTML = '';
+        rowIndex = 0;
+
+        const existentes = prodActual && estimadosExistentes[prodActual] ? estimadosExistentes[prodActual] : {};
+        let cantExistente = '';
+        for (const [k, val] of Object.entries(existentes)) {
+            if (k.toUpperCase() === vTrim.toUpperCase()) {
+                cantExistente = val;
+                break;
+            }
+        }
+
+        crearFilaVariedad(listaOpciones, vTrim, cantExistente);
+        inputBuscar.value = '';
+
+        // Scrollear hacia el formulario suavemente
+        const formEl = document.getElementById('formEstimado');
+        if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (btnCargar && inputBuscar) {
+        btnCargar.addEventListener('click', function() {
+            activarVariedadDirecta(inputBuscar.value);
+        });
+        inputBuscar.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                activarVariedadDirecta(this.value);
+            }
+        });
+    }
 
     function crearFilaVariedad(variedades = [], seleccionada = '', cantidad = '') {
         rowIndex++;
@@ -282,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let optionsHtml = '<option value="">-- Seleccione variedad --</option>';
         variedades.forEach(v => {
-            const isSel = v === seleccionada ? 'selected' : '';
+            const isSel = (seleccionada && v.toUpperCase() === seleccionada.toUpperCase()) ? 'selected' : '';
             optionsHtml += `<option value="${v}" ${isSel}>${v}</option>`;
         });
 
@@ -329,8 +442,8 @@ document.addEventListener('DOMContentLoaded', function() {
         div.dataset.variedadOriginal = seleccionada;
 
         function actualizarBoxParaVariedad(nuevaVar) {
-            const prod = prodSelect.value;
-            const existentes = estimadosExistentes[prod] || {};
+            const prod = prodSelect.value ? prodSelect.value.toUpperCase() : '';
+            const existentes = prod ? (estimadosExistentes[prod] || {}) : {};
 
             if (!nuevaVar) {
                 inputEl.value = '';
@@ -344,12 +457,20 @@ document.addEventListener('DOMContentLoaded', function() {
             inputEl.disabled = false;
             inputEl.placeholder = 'Ingrese tallos estimados...';
 
-            if (existentes[nuevaVar] !== undefined && existentes[nuevaVar] !== null) {
-                inputEl.value = existentes[nuevaVar];
+            let valExistente = null;
+            for (const [k, val] of Object.entries(existentes)) {
+                if (k.toUpperCase() === nuevaVar.toUpperCase()) {
+                    valExistente = val;
+                    break;
+                }
+            }
+
+            if (valExistente !== null && valExistente !== undefined) {
+                inputEl.value = valExistente;
                 statusEl.style.display = 'block';
-                statusEl.innerHTML = `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25"><i class="fa-solid fa-circle-check me-1"></i>Estimado actual registrado: ${Number(existentes[nuevaVar]).toLocaleString()} tallos</span>`;
+                statusEl.innerHTML = `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25"><i class="fa-solid fa-circle-check me-1"></i>Estimado actual registrado: ${Number(valExistente).toLocaleString()} tallos</span>`;
             } else {
-                if (div.dataset.variedadOriginal !== nuevaVar) {
+                if (div.dataset.variedadOriginal.toUpperCase() !== nuevaVar.toUpperCase()) {
                     inputEl.value = '';
                 }
                 statusEl.style.display = 'none';
@@ -374,11 +495,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (hasSelection) {
-            const prod = prodSelect.value;
-            const existentes = estimadosExistentes[prod] || {};
-            if (existentes[seleccionada] !== undefined && existentes[seleccionada] !== null) {
+            const prod = prodSelect.value ? prodSelect.value.toUpperCase() : '';
+            const existentes = prod ? (estimadosExistentes[prod] || {}) : {};
+            let valExistente = null;
+            for (const [k, val] of Object.entries(existentes)) {
+                if (k.toUpperCase() === seleccionada.toUpperCase()) {
+                    valExistente = val;
+                    break;
+                }
+            }
+            if (valExistente !== null && valExistente !== undefined) {
                 statusEl.style.display = 'block';
-                statusEl.innerHTML = `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25"><i class="fa-solid fa-circle-check me-1"></i>Estimado actual registrado: ${Number(existentes[seleccionada]).toLocaleString()} tallos</span>`;
+                statusEl.innerHTML = `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25"><i class="fa-solid fa-circle-check me-1"></i>Estimado actual registrado: ${Number(valExistente).toLocaleString()} tallos</span>`;
             }
         }
     }
@@ -427,10 +555,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const variedades = productosConVariedades[prod] || [];
         if (variedades.length === 0) {
             container.innerHTML = `
-                <div class="text-muted small fst-italic p-2 bg-light rounded text-center text-warning">
-                    <i class="fa-solid fa-triangle-exclamation me-1"></i> No hay variedades configuradas para ${prod}.
+                <div class="alert alert-light border small text-muted py-2 mb-2">
+                    <i class="fa-solid fa-circle-info text-primary me-1"></i> No había variedades previamente asociadas a <strong>${prod}</strong>. Selecciona cualquier variedad registrada para vincularla a este producto y guardar su estimado:
                 </div>
             `;
+            crearFilaVariedad(todasVariedades, '', '');
             return;
         }
 
@@ -450,14 +579,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const placeholder = container.querySelector('.fst-italic');
         if (placeholder) placeholder.remove();
-        crearFilaVariedad(productosConVariedades[prod] || []);
+        const varsDisponibles = (productosConVariedades[prod] && productosConVariedades[prod].length > 0) ? productosConVariedades[prod] : todasVariedades;
+        crearFilaVariedad(varsDisponibles);
     });
 
     window.editarEstimado = function(prod, variedad, cant) {
-        prodSelect.value = prod;
+        let matched = false;
+        for (let i = 0; i < prodSelect.options.length; i++) {
+            if (prodSelect.options[i].value.toUpperCase() === prod.toUpperCase()) {
+                prodSelect.selectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) prodSelect.value = prod;
         container.innerHTML = '';
         rowIndex = 0;
-        crearFilaVariedad(productosConVariedades[prod] || [], variedad, cant);
+        const varsDisponibles = (productosConVariedades[prodSelect.value] && productosConVariedades[prodSelect.value].length > 0) ? productosConVariedades[prodSelect.value] : todasVariedades;
+        crearFilaVariedad(varsDisponibles, variedad, cant);
         window.scrollTo({ top: 120, behavior: 'smooth' });
     };
 

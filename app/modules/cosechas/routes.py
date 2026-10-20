@@ -14,7 +14,7 @@ from .utils import (
     cargar_responsables, obtener_monitores_sistema, cargar_modulos, cargar_maestro_productos,
     cargar_relaciones_maestro, guardar_relaciones_maestro,
     cargar_productos_maestros, guardar_productos_maestros,
-    construir_productos_con_variedades
+    construir_productos_con_variedades, sincronizar_variedad_a_bd, sincronizar_producto_maestro_a_bd
 )
 
 cosechas_bp = Blueprint('cosechas', __name__)
@@ -479,6 +479,13 @@ def catalogos():
                     flash('No se encontró la relación para eliminar.', 'warning')
                 else:
                     guardar_relaciones_maestro(relaciones_nuevas)
+                    try:
+                        from sqlalchemy import text
+                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(variedad) = :v AND UPPER(producto_maestro) = :p"), {'v': variedad.upper(), 'p': producto.upper()})
+                        db.session.commit()
+                    except Exception:
+                        pass
+
                     # Si la variedad ya no pertenece a ningún otro producto, remover de variedades.csv
                     otras_rel = [var for var, _ in relaciones_nuevas if var.upper() == variedad.upper()]
                     if not otras_rel:
@@ -497,18 +504,26 @@ def catalogos():
                 if not prod_original or not prod_nuevo:
                     flash('Debe especificar el nombre actual y el nuevo nombre del producto maestro.', 'danger')
                 else:
-                    # Actualizar productos_maestros.csv
+                    # Actualizar productos_maestros.csv y BD
                     prods = {p for p in cargar_productos_maestros() if p.upper() != prod_original.upper()}
                     prods.add(prod_nuevo)
                     guardar_productos_maestros(sorted(list(prods)))
 
-                    # Actualizar MAESTRO_PROS.csv
+                    # Actualizar MAESTRO_PROS.csv y BD
                     relaciones = cargar_relaciones_maestro()
                     relaciones_nuevas = [
                         (var, prod_nuevo if prod.upper() == prod_original.upper() else prod)
                         for var, prod in relaciones
                     ]
                     guardar_relaciones_maestro(relaciones_nuevas)
+
+                    try:
+                        from sqlalchemy import text
+                        db.session.execute(text("UPDATE cat_variedades_maestro SET producto_maestro = :pnew WHERE UPPER(producto_maestro) = :pold"), {'pnew': prod_nuevo.upper(), 'pold': prod_original.upper()})
+                        db.session.execute(text("UPDATE dim_prod_maestros SET producto_maestro = :pnew WHERE UPPER(producto_maestro) = :pold"), {'pnew': prod_nuevo.upper(), 'pold': prod_original.upper()})
+                        db.session.commit()
+                    except Exception:
+                        pass
 
                     if actualizar_historico:
                         Estimado.query.filter(Estimado.producto_maestro.ilike(prod_original)).update(
@@ -529,6 +544,12 @@ def catalogos():
                 else:
                     prods = {p for p in cargar_productos_maestros() if p.upper() != producto.upper()}
                     guardar_productos_maestros(sorted(list(prods)))
+                    try:
+                        from sqlalchemy import text
+                        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': producto.upper()})
+                        db.session.commit()
+                    except Exception:
+                        pass
                     record_audit('COSECHAS', 'PRODUCTO_DELETE', 'Catalogo', None, details=f"Producto '{producto}' eliminado")
                     flash(f'Producto maestro "{producto}" eliminado exitosamente.', 'success')
 
@@ -729,14 +750,17 @@ def estimados():
     
     # Catálogo completo de productos maestros con sus variedades
     productos_con_variedades = construir_productos_con_variedades()
+    todas_variedades = cargar_variedades()
+    mapa_variedad_producto = cargar_maestro_productos()
     
     estimados_db = Estimado.query.filter_by(semana=semana_filtro).all()
-    estimados_dict = {(e.producto_maestro.strip(), e.variedad.strip()): e for e in estimados_db}
+    # Diccionario case-insensitive (UPPER(producto), UPPER(variedad)) -> Estimado
+    estimados_dict = {(e.producto_maestro.strip().upper(), e.variedad.strip().upper()): e for e in estimados_db}
     
     # Estructura { producto: { variedad: cantidad } } para pre-poblar el frontend
     estimados_existentes = defaultdict(dict)
     for e in estimados_db:
-        pm = e.producto_maestro.strip()
+        pm = e.producto_maestro.strip().upper()
         var = e.variedad.strip()
         estimados_existentes[pm][var] = e.cantidad_estimada
         if pm not in productos_con_variedades:
@@ -755,7 +779,8 @@ def estimados():
     
     totales_reales_variedad = defaultdict(int)
     for registro in registros_semana:
-        totales_reales_variedad[registro.variedad] += registro.total_tallos
+        if registro.variedad:
+            totales_reales_variedad[registro.variedad.strip().upper()] += (registro.total_tallos or 0)
     
     datos_por_producto = []
     for producto in productos_maestros:
@@ -764,10 +789,10 @@ def estimados():
         total_real_producto = 0
         
         for variedad in productos_con_variedades[producto]:
-            estimado_obj = estimados_dict.get((producto, variedad))
+            estimado_obj = estimados_dict.get((producto.strip().upper(), variedad.strip().upper()))
             if estimado_obj:
                 cant_estimada = estimado_obj.cantidad_estimada
-                cant_real = totales_reales_variedad.get(variedad, 0)
+                cant_real = totales_reales_variedad.get(variedad.strip().upper(), 0)
                 porcentaje = round((cant_real / cant_estimada) * 100, 2) if cant_estimada > 0 else 0
                 
                 variedades_data.append({
@@ -804,6 +829,8 @@ def estimados():
         'cosechas/estimados.html',
         datos_por_producto=datos_por_producto,
         productos_con_variedades=dict(productos_con_variedades),
+        todas_variedades=todas_variedades,
+        mapa_variedad_producto=mapa_variedad_producto,
         estimados_existentes=dict(estimados_existentes),
         semana_seleccionada=semana_filtro,
         semanas_disponibles=semanas_disponibles,
@@ -817,10 +844,10 @@ def estimados():
 @login_required
 @permission_required('cosechas')
 def guardar_estimado():
-    """Guardar o actualizar estimados semanales"""
+    """Guardar o actualizar estimados semanales y sincronizar catálogo en BD"""
     try:
         semana = request.form.get('semana', '').strip()
-        producto_maestro = request.form.get('producto_maestro', '').strip()
+        producto_maestro = request.form.get('producto_maestro', '').strip().upper()
         
         if not semana or not producto_maestro:
             flash('Debe seleccionar la semana y el producto maestro.', 'warning')
@@ -839,11 +866,11 @@ def guardar_estimado():
         for v_del in set(variedades_eliminadas):
             v_clean = (v_del or '').strip()
             if v_clean:
-                num_del = Estimado.query.filter_by(
-                    semana=semana,
-                    producto_maestro=producto_maestro,
-                    variedad=v_clean
-                ).delete()
+                num_del = Estimado.query.filter(
+                    Estimado.semana == semana,
+                    Estimado.producto_maestro.ilike(producto_maestro),
+                    Estimado.variedad.ilike(v_clean)
+                ).delete(synchronize_session=False)
                 if num_del:
                     eliminados += num_del
         
@@ -863,21 +890,24 @@ def guardar_estimado():
             except ValueError:
                 continue
             
+            # Sincronizar automáticamente en BD para que siempre exista en el catálogo general
+            sincronizar_variedad_a_bd(v_nombre, producto_maestro)
+
             # Si el usuario colocó 0 o negativo, eliminar el estimado
             if cant_estimada <= 0:
-                num_del = Estimado.query.filter_by(
-                    semana=semana,
-                    producto_maestro=producto_maestro,
-                    variedad=v_nombre
-                ).delete()
+                num_del = Estimado.query.filter(
+                    Estimado.semana == semana,
+                    Estimado.producto_maestro.ilike(producto_maestro),
+                    Estimado.variedad.ilike(v_nombre)
+                ).delete(synchronize_session=False)
                 if num_del:
                     eliminados += num_del
                 continue
             
-            estimado = Estimado.query.filter_by(
-                semana=semana,
-                producto_maestro=producto_maestro,
-                variedad=v_nombre
+            estimado = Estimado.query.filter(
+                Estimado.semana == semana,
+                Estimado.producto_maestro.ilike(producto_maestro),
+                Estimado.variedad.ilike(v_nombre)
             ).first()
             
             if estimado:

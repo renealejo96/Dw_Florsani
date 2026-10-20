@@ -34,6 +34,10 @@ docker cp data/cosechas/. dw_florsani_app:/app/data/cosechas/
 
 echo "🔄 Actualizando código y plantillas UI en el contenedor..."
 docker cp app/. dw_florsani_app:/app/app/
+docker cp scripts/. dw_florsani_app:/app/scripts/
+
+echo "🔗 Sincronizando catálogo de variedades y productos a tablas de PostgreSQL..."
+docker exec dw_florsani_app python scripts/migrar_catalogos_a_bd.py
 
 echo "🚀 Reiniciando servicio web dw_florsani_app para aplicar cambios..."
 docker restart dw_florsani_app

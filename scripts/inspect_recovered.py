@@ -1,10 +1,7 @@
-from sqlalchemy import create_engine, text, inspect
+from sqlalchemy import create_engine, text
 
 eng = create_engine('postgresql://postgres:admin@localhost:5432/florsani')
 with eng.connect() as c:
-    insp = inspect(eng)
-    cols = [col['name'] for col in insp.get_columns('registro_cosecha')]
-    print("registro_cosecha columns:", cols)
-    cols_est = [col['name'] for col in insp.get_columns('estimado')]
-    print("estimado columns:", cols_est)
+    rows = c.execute(text("SELECT UPPER(variedad), count(*) FROM cat_variedades_maestro GROUP BY UPPER(variedad) HAVING count(*) > 1")).fetchall()
+    print("Collisions if uppercase:", rows)
 
