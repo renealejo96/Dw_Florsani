@@ -54,8 +54,8 @@ services:
       PORT: ${APP_PORT:-8095}
       APP_PORT: ${APP_PORT:-8095}
       SECRET_KEY: ${SECRET_KEY:-florsani-erp-agricola-2026-vps}
-      # Conexión directa a través de la red interna de Docker
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-florsani_prod_secure_2026}@db:5432/${POSTGRES_DB:-florsani}
+      # Conexión directa a través de .env.production (ej. Render) o fallback a contenedor interno db
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-florsani_prod_secure_2026}@db:5432/${POSTGRES_DB:-florsani}}
       FLASK_DEBUG: ${FLASK_DEBUG:-false}
     ports:
       # Expuesto ÚNICAMENTE a Nginx en localhost del VPS (sin conflicto con 80, 8080, 5000)
