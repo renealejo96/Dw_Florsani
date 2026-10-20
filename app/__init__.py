@@ -218,6 +218,19 @@ def create_app(config_class=Config):
         if 'user_id' not in session:
             return redirect(url_for('auth.login'))
 
+        from app.shared.models import User
+        user = User.query.get(session['user_id'])
+        if user and user.role not in ['ADMIN', 'AGRONOMO']:
+            # Redireccionar directamente a su módulo de trabajo
+            if user.has_permission('fenogramas'):
+                return redirect(url_for('fenogramas.index'))
+            if user.has_permission('cosechas'):
+                return redirect(url_for('cosechas.nuevo_registro'))
+            if user.has_permission('tpsr'):
+                return redirect(url_for('tpsr.registro'))
+            if user.has_permission('bodega'):
+                return redirect(url_for('bodega.index'))
+
         from app.shared.models import (
             Crop, Product, CropStateRecord, 
             Rotation, RotationRound, RotationRoundItem, 

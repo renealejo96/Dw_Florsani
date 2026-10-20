@@ -3,10 +3,10 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from collections import defaultdict
 import pandas as pd
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, jsonify, session
 
 from app.extensions import db
-from app.shared.models import RegistroCosecha, Estimado
+from app.shared.models import RegistroCosecha, Estimado, User
 from app.shared.audit import record_audit
 from app.modules.auth.routes import login_required, permission_required
 from .utils import (
@@ -188,9 +188,14 @@ def nuevo_registro():
             tallos = int(request.form.get('tallos', 0))
             mallas = int(request.form.get('mallas', 0))
             modulo = limpiar_nombre_modulo(request.form.get('modulo', ''))
-            producto_maestro = request.form.get('producto_maestro', '').strip()
-            variedad = request.form.get('variedad', '').strip()
-            responsable = request.form.get('responsable', '').strip() or responsable_sesion or 'Responsable'
+            producto_maestro = request.form.get('producto_maestro', '').strip().upper()
+            variedad = request.form.get('variedad', '').strip().upper()
+
+            # Bloqueo estricto del usuario / responsable si no es ADMIN
+            if u_sesion and u_sesion.role != 'ADMIN':
+                responsable = u_sesion.full_name or responsable_sesion or u_sesion.username
+            else:
+                responsable = request.form.get('responsable', '').strip() or responsable_sesion or 'Responsable'
 
             if not producto_maestro:
                 flash('Debe seleccionar un producto maestro.', 'danger')
@@ -299,8 +304,11 @@ def editar_registro(id):
             registro.tallos = int(request.form['tallos'])
             registro.mallas = int(request.form['mallas'])
             registro.modulo = limpiar_nombre_modulo(request.form['modulo'].strip())
-            registro.variedad = request.form['variedad'].strip()
-            registro.responsable = request.form['responsable'].strip()
+            registro.variedad = request.form['variedad'].strip().upper()
+            u_sesion = User.query.get(session.get('user_id')) if session.get('user_id') else None
+            if u_sesion and u_sesion.role == 'ADMIN':
+                registro.responsable = request.form.get('responsable', '').strip() or registro.responsable
+            # Si no es ADMIN, se preserva intacto el responsable original del registro
             registro.total_tallos = registro.tallos * registro.mallas
             
             db.session.commit()
@@ -1025,6 +1033,77 @@ def exportar_excel():
 # ====================================================
 # API ENDPOINTS COMPATIBLES (POWER QUERY, EXCEL, APPS)
 # ====================================================
+
+@cosechas_bp.route('/api/sincronizar-offline', methods=['POST'])
+@login_required
+@permission_required('cosechas')
+def api_sincronizar_offline():
+    """Recibe un lote de registros de cosecha capturados offline en el dispositivo del operario."""
+    try:
+        data = request.get_json() or {}
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'success': False, 'error': 'No se enviaron registros para sincronizar.'}), 400
+
+        from app.shared.models import User
+        u_sesion = User.query.get(session.get('user_id')) if session.get('user_id') else None
+        responsable_defecto = (u_sesion.full_name if u_sesion else None) or session.get('full_name') or session.get('username') or 'Responsable'
+
+        guardados = 0
+        hora_actual = datetime.now(ZONA_HORARIA).time()
+
+        for it in items:
+            fecha_str = it.get('fecha', '').strip()
+            if not fecha_str:
+                continue
+            try:
+                fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+            except Exception:
+                fecha = datetime.now(ZONA_HORARIA).date()
+
+            viaje = str(it.get('viaje', '')).strip()
+            semana = int(it.get('semana', 0))
+            if semana > 0 and semana < 100:
+                semana = (fecha.year % 100) * 100 + semana
+
+            tallos = int(it.get('tallos', 0))
+            mallas = int(it.get('mallas', 0))
+            modulo = limpiar_nombre_modulo(it.get('modulo', ''))
+            variedad = str(it.get('variedad', '')).strip().upper()
+            total_tallos = tallos * mallas
+
+            # Enforzar autoría real del operario conectado
+            if u_sesion and u_sesion.role != 'ADMIN':
+                responsable = u_sesion.full_name or responsable_defecto
+            else:
+                responsable = str(it.get('responsable') or '').strip() or responsable_defecto
+
+            if not variedad:
+                continue
+
+            reg = RegistroCosecha(
+                fecha=fecha,
+                viaje=viaje,
+                semana=semana,
+                tallos=tallos,
+                mallas=mallas,
+                modulo=modulo,
+                total_tallos=total_tallos,
+                variedad=variedad,
+                hora=hora_actual,
+                responsable=responsable
+            )
+            db.session.add(reg)
+            guardados += 1
+
+        db.session.commit()
+        record_audit('COSECHAS', 'SYNC_OFFLINE', 'RegistroCosecha', None, 
+                     details=f"Sincronizados {guardados} tickets offline por {responsable_defecto}")
+        return jsonify({'success': True, 'count': guardados})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @cosechas_bp.route('/api/maestro-productos', methods=['GET'])
 def api_maestro_productos():

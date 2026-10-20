@@ -658,6 +658,12 @@
             <span>Cerrar Semana</span>
         </button>
         {% endif %}
+        {% if current_user.role in ['ADMIN', 'AGRONOMO'] %}
+        <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="openUploadMatrixModal()" title="Subir archivo Excel de Matriz de Fenogramas">
+            <i class="fa-solid fa-file-excel text-success"></i>
+            <span>Subir Matriz</span>
+        </button>
+        {% endif %}
         {% else %}
         <span class="badge bg-secondary d-inline-flex align-items-center gap-1 py-1 px-2.5 shadow-xs" style="font-size: 0.74rem;" title="Esta semana está cerrada. No se admiten nuevas calificaciones.">
             <i class="fa-solid fa-lock text-warning"></i>
@@ -1069,6 +1075,39 @@
                     <i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Inyectar Matriz Fenogramas Excel -->
+<div class="modal fade" id="modalUploadMatrix" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header py-2 px-3" style="background: #0f172a; color: #ffffff;">
+                <h6 class="modal-title fw-bold mb-0" style="font-size: 0.9rem;">
+                    <i class="fa-solid fa-file-excel text-success me-2"></i>Inyectar Matriz de Fenogramas (.xlsx)
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="font-size: 0.7rem;"></button>
+            </div>
+            <form id="form-upload-matrix" enctype="multipart/form-data">
+                <div class="modal-body p-3" style="font-size: 0.82rem; background: #f8fafc;">
+                    <p class="small text-muted mb-3">
+                        Sube el archivo Excel con las reglas de matriz (columnas: <em>Producto, Siembra/Poda, Semana, Labor, Supervisor, Auxiliar</em>).
+                        Esto actualizará las reglas de la matriz y reasignará las labores a los bloques correspondientes.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Archivo Matriz Fenogramas (.xlsx):</label>
+                        <input type="file" name="file_matriz_fenogramas" class="form-control form-control-sm" accept=".xlsx,.xls" required>
+                    </div>
+                    <input type="hidden" name="semana" value="{{ semana }}">
+                </div>
+                <div class="modal-footer py-2 px-3 bg-white border-top">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cancelar</button>
+                    <button type="submit" id="btn-submit-matrix-upload" class="btn btn-warning btn-sm fw-bold shadow-xs" style="font-size: 0.78rem;">
+                        <i class="fa-solid fa-upload me-1"></i> Subir y Actualizar Matriz
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -1965,8 +2004,55 @@ function ejecutarGeneracionSemanaFeno() {
     });
 }
 
+function openUploadMatrixModal() {
+    new bootstrap.Modal(document.getElementById('modalUploadMatrix')).show();
+}
+
+document.getElementById('form-upload-matrix')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-submit-matrix-upload');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Subiendo y procesando...';
+
+    const formData = new FormData(this);
+    fetch("{{ url_for('fenogramas.api_inyectar_matriz') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        if (data.success) {
+            showFenoToast(`✓ Matriz actualizada exitosamente. Se sincronizaron las reglas y actividades.`);
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showFenoToast('Error: ' + (data.error || 'No se pudo procesar el archivo.'), true);
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        showFenoToast('Error de red al subir la matriz: ' + err, true);
+    });
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     restoreOfflineChanges();
+
+    // Detección en vivo de conectividad online / offline en campo
+    window.addEventListener('online', () => {
+        showFenoToast('📡 Conexión a internet restablecida.');
+        if (modifiedItems.size > 0) {
+            showFenoToast(`🔄 Sincronizando automáticamente ${modifiedItems.size} calificación(es) pendientes...`);
+            saveAllChanges();
+        }
+    });
+
+    window.addEventListener('offline', () => {
+        showFenoToast('📡 Sin conexión a internet (Modo Campo). Tus calificaciones se guardan de forma segura en este teléfono.', true);
+    });
 
     if (activeBlockCode) {
         selectBlockFromGrid(activeBlockCode);

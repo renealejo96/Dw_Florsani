@@ -23,9 +23,14 @@
                         <i class="fa-solid fa-scissors fs-5"></i>
                         <span class="fw-bold">Planilla de Ingreso de Viaje</span>
                     </div>
-                    <span class="badge bg-white text-success fw-bold px-3 py-1 shadow-xs">
-                        <i class="fa-regular fa-clock me-1"></i> <span id="horaDisplay">--:--:--</span>
-                    </span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="connectivity-badge" class="badge bg-white text-success fw-bold px-3 py-1 shadow-xs">
+                            <i class="fa-solid fa-wifi me-1"></i> <span id="connectivity-status">Conectado</span>
+                        </span>
+                        <span class="badge bg-white text-dark fw-bold px-3 py-1 shadow-xs">
+                            <i class="fa-regular fa-clock me-1"></i> <span id="horaDisplay">--:--:--</span>
+                        </span>
+                    </div>
                 </div>
                 <div class="card-body p-4">
                     <form method="POST" id="registroForm">
@@ -59,31 +64,27 @@
                                 </select>
                             </div>
 
-                            <!-- Responsable / Monitor Mapeado a Login -->
+                            <!-- Responsable / Monitor Mapeado a Login (Bloqueado para trazabilidad) -->
                             <div class="col-12 col-md-6">
                                 <label for="responsable" class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
                                     <span><i class="fa-solid fa-user-check me-1 text-info"></i> Responsable / Monitor *</span>
                                     {% if current_user %}
                                     <span class="badge bg-success-subtle text-success border border-success-subtle small fw-normal py-0 px-2" style="font-size: 0.72rem;">
-                                        <i class="fa-solid fa-link me-1"></i> Sesión: {{ current_user.username }}
+                                        <i class="fa-solid fa-lock me-1"></i> Sesión: {{ current_user.username }}
                                     </span>
                                     {% endif %}
                                 </label>
+                                {% if current_user and current_user.role == 'ADMIN' %}
                                 <select class="form-select fw-semibold" id="responsable" name="responsable" required>
-                                    <option value="">Seleccione o confirme responsable...</option>
-                                    
-                                    {% if current_user %}
                                     <optgroup label="Usuario Conectado (Tú)">
                                         <option value="{{ current_user.full_name }}" selected>
                                             {{ current_user.full_name }} (@{{ current_user.username }}) — [Sesión Activa]
                                         </option>
                                     </optgroup>
-                                    {% endif %}
-
                                     <optgroup label="Monitores y Usuarios del Sistema ERP">
                                         {% for m in monitores_sistema %}
-                                            {% if not current_user or m.nombre != current_user.full_name %}
-                                            <option value="{{ m.nombre }}" {% if not current_user and m.nombre == responsable_sesion %}selected{% endif %}>
+                                            {% if m.nombre != current_user.full_name %}
+                                            <option value="{{ m.nombre }}">
                                                 {{ m.nombre }} {% if m.username %}(@{{ m.username }} &bull; {{ m.role }}){% elif m.role %}({{ m.role }}){% endif %}
                                             </option>
                                             {% endif %}
@@ -91,8 +92,19 @@
                                     </optgroup>
                                 </select>
                                 <small class="text-muted d-block mt-1" style="font-size: 0.74rem;">
-                                    <i class="fa-solid fa-circle-info text-primary me-1"></i> El monitor se vincula automáticamente con tu cuenta de sesión. Puedes seleccionar otro monitor registrado si es necesario.
+                                    <i class="fa-solid fa-crown text-warning me-1"></i> Modo Administrador: Puedes cambiar el monitor responsable si es necesario.
                                 </small>
+                                {% else %}
+                                <input type="hidden" name="responsable" id="responsable" value="{{ current_user.full_name if current_user else responsable_sesion }}">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light text-success"><i class="fa-solid fa-user-check"></i></span>
+                                    <input type="text" class="form-control bg-light text-dark fw-bold" value="{{ (current_user.full_name if current_user else responsable_sesion) }} (@{{ current_user.username if current_user else '' }})" readonly disabled>
+                                    <span class="input-group-text bg-light text-muted" title="Bloqueado por seguridad"><i class="fa-solid fa-lock text-secondary"></i></span>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.74rem;">
+                                    <i class="fa-solid fa-shield-halved text-success me-1"></i> Identidad bloqueada a tu sesión activa para garantizar la trazabilidad de los tickets.
+                                </small>
+                                {% endif %}
                             </div>
                             <div class="col-12 col-md-6">
                                 <label for="modulo" class="form-label fw-semibold small text-secondary">
@@ -166,7 +178,7 @@
                             <a href="{{ url_for('cosechas.index') }}" class="btn btn-outline-secondary px-4">
                                 <i class="fa-solid fa-xmark me-1"></i> Cancelar
                             </a>
-                            <button type="submit" class="btn btn-success btn-lg px-4 shadow-sm fw-bold">
+                            <button type="submit" id="btnGuardarCosecha" class="btn btn-success btn-lg px-4 shadow-sm fw-bold">
                                 <i class="fa-solid fa-floppy-disk me-2"></i> Guardar Cosecha
                             </button>
                         </div>
@@ -175,6 +187,17 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Barra Flotante de Sincronización Offline (Modo Campo) -->
+<div id="offline-sync-bar" class="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 bg-dark text-white rounded-pill shadow-lg d-none align-items-center gap-3 border border-secondary" style="z-index: 1060; font-size: 0.85rem;">
+    <span class="d-flex align-items-center gap-2">
+        <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+        <span><strong id="offline-pending-count">0</strong> ticket(s) offline guardados en tu teléfono</span>
+    </span>
+    <button type="button" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 py-1" onclick="sincronizarColaOffline()" id="btn-sync-offline">
+        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar Ahora
+    </button>
 </div>
 {% endblock %}
 
@@ -291,6 +314,210 @@ document.addEventListener('DOMContentLoaded', function() {
     if (prodSelInicial) {
         prodSelect.value = prodSelInicial;
         actualizarVariedades(prodSelInicial, varSelInicial);
+    }
+
+    // =========================================================================
+    // ARQUITECTURA OFFLINE-FIRST (PWA & CAMPO SIN SEÑAL)
+    // =========================================================================
+    const OFFLINE_KEY = 'cosechas_offline_queue';
+    const form = document.getElementById('registroForm');
+    const connectivityBadge = document.getElementById('connectivity-badge');
+    const connectivityStatus = document.getElementById('connectivity-status');
+    const offlineSyncBar = document.getElementById('offline-sync-bar');
+    const offlinePendingCount = document.getElementById('offline-pending-count');
+
+    function getOfflineQueue() {
+        try {
+            return JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function setOfflineQueue(queue) {
+        localStorage.setItem(OFFLINE_KEY, JSON.stringify(queue));
+        actualizarBarraOffline();
+    }
+
+    function actualizarBarraOffline() {
+        const queue = getOfflineQueue();
+        if (queue.length > 0) {
+            offlineSyncBar.classList.remove('d-none');
+            offlineSyncBar.classList.add('d-flex');
+            offlinePendingCount.textContent = queue.length;
+        } else {
+            offlineSyncBar.classList.remove('d-flex');
+            offlineSyncBar.classList.add('d-none');
+            offlinePendingCount.textContent = '0';
+        }
+    }
+
+    function actualizarEstadoConectividad() {
+        if (navigator.onLine) {
+            connectivityBadge.className = 'badge bg-white text-success fw-bold px-3 py-1 shadow-xs';
+            connectivityBadge.innerHTML = '<i class="fa-solid fa-wifi me-1"></i> <span>Conectado</span>';
+        } else {
+            connectivityBadge.className = 'badge bg-warning text-dark fw-bold px-3 py-1 shadow-xs';
+            connectivityBadge.innerHTML = '<i class="fa-solid fa-plane me-1"></i> <span>Modo Offline (Sin Señal)</span>';
+        }
+    }
+
+    window.actualizarEstadoConectividad = actualizarEstadoConectividad;
+    window.addEventListener('online', () => {
+        actualizarEstadoConectividad();
+        mostrarNotificacion('📡 Conexión recuperada. Sincronizando tickets...');
+        sincronizarColaOffline();
+    });
+
+    window.addEventListener('offline', () => {
+        actualizarEstadoConectividad();
+        mostrarNotificacion('📡 Sin conexión. Las cosechas se guardarán en tu teléfono.');
+    });
+
+    function mostrarNotificacion(msg, esError = false) {
+        let toast = document.getElementById('feno-floating-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'feno-floating-toast';
+            toast.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 380px; padding: 12px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: all 0.3s;';
+            document.body.appendChild(toast);
+        }
+        toast.style.background = esError ? '#ef4444' : '#0f172a';
+        toast.style.color = '#ffffff';
+        toast.innerHTML = (esError ? '<i class="fa-solid fa-circle-exclamation me-2 text-warning"></i>' : '<i class="fa-solid fa-circle-check me-2 text-success"></i>') + msg;
+        toast.style.opacity = '1';
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 3500);
+    }
+
+    function extraerDatosTicket() {
+        return {
+            id_local: Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            fecha: fechaInput.value,
+            viaje: document.getElementById('viaje')?.value || '',
+            semana: parseInt(semanaInput.value) || 0,
+            tallos: parseInt(tallosInput.value) || 0,
+            mallas: parseInt(mallasInput.value) || 0,
+            modulo: document.getElementById('modulo')?.value || '',
+            producto_maestro: prodSelect.value,
+            variedad: varSelect.value,
+            responsable: document.getElementById('responsable')?.value || ''
+        };
+    }
+
+    function guardarTicketOffline(ticket) {
+        const queue = getOfflineQueue();
+        queue.push(ticket);
+        setOfflineQueue(queue);
+        mostrarNotificacion(`💾 Ticket guardado en tu teléfono (Modo Offline). Quedan ${queue.length} por sincronizar.`);
+        resetearCamposParaSiguienteTicket();
+    }
+
+    function resetearCamposParaSiguienteTicket() {
+        mallasInput.value = '';
+        tallosInput.value = '';
+        recalcularTallos();
+        mallasInput.focus();
+    }
+
+    window.sincronizarColaOffline = function() {
+        const queue = getOfflineQueue();
+        if (queue.length === 0) return;
+
+        const btnSync = document.getElementById('btn-sync-offline');
+        if (btnSync) {
+            btnSync.disabled = true;
+            btnSync.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
+        }
+
+        fetch("{{ url_for('cosechas.api_sincronizar_offline') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: queue })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                localStorage.removeItem(OFFLINE_KEY);
+                actualizarBarraOffline();
+                mostrarNotificacion(`✓ ¡Éxito! Se sincronizaron ${data.count} ticket(s) con la base de datos.`);
+            } else {
+                mostrarNotificacion('Error al sincronizar: ' + (data.error || 'Desconocido'), true);
+            }
+        })
+        .catch(err => {
+            mostrarNotificacion('No se pudo conectar con el servidor. Siguen guardados en el teléfono.', true);
+        })
+        .finally(() => {
+            if (btnSync) {
+                btnSync.disabled = false;
+                btnSync.innerHTML = '<i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar Ahora';
+            }
+        });
+    };
+
+    // Envío de formulario inteligente (Online AJAX / Fallback Offline Instantáneo)
+    form?.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (!prodSelect.value) {
+            alert('Por favor seleccione un Producto Maestro.');
+            prodSelect.focus();
+            return;
+        }
+        if (!varSelect.value) {
+            alert('Por favor seleccione una Variedad.');
+            varSelect.focus();
+            return;
+        }
+
+        const ticket = extraerDatosTicket();
+
+        if (!navigator.onLine) {
+            guardarTicketOffline(ticket);
+            return;
+        }
+
+        const btnSubmit = document.getElementById('btnGuardarCosecha');
+        const origSubmitText = btnSubmit ? btnSubmit.innerHTML : '';
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+        }
+
+        fetch("{{ url_for('cosechas.api_sincronizar_offline') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: [ticket] })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                mostrarNotificacion(`✓ Cosecha guardada: ${ticket.variedad} (${ticket.mallas * ticket.tallos} tallos)`);
+                resetearCamposParaSiguienteTicket();
+            } else {
+                guardarTicketOffline(ticket);
+            }
+        })
+        .catch(err => {
+            guardarTicketOffline(ticket);
+        })
+        .finally(() => {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = origSubmitText;
+            }
+        });
+    });
+
+    // Iniciar estado
+    actualizarEstadoConectividad();
+    actualizarBarraOffline();
+    if (navigator.onLine && getOfflineQueue().length > 0) {
+        sincronizarColaOffline();
     }
 });
 </script>

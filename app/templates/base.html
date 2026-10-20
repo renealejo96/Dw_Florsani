@@ -50,9 +50,11 @@
             </div>
 
             <div class="list-group list-group-flush my-3">
+                {% if current_user.role in ['ADMIN', 'AGRONOMO'] or current_user.has_permission('fumigacion') %}
                 <a href="{{ url_for('dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if request.path == '/' %}active-nav{% endif %}">
                     <i class="fa-solid fa-gauge-high me-2 text-info"></i> Dashboard
                 </a>
+                {% endif %}
 
                 <!-- 1. Gestión de Campo (TPSR) -->
                 {% if current_user.has_permission('tpsr') or current_user.has_permission('estado_cultivo') or current_user.has_permission('importador') or current_user.role == 'ADMIN' %}
@@ -227,9 +229,11 @@
                 <a href="{{ url_for('fenogramas.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas' in request.path and not 'dashboard' in request.path and not 'matriz' in request.path and not 'incumplidas' in request.path and not 'sin-match' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-table-list me-2 text-success"></i> Calificación Operarios
                 </a>
+                {% if current_user.role in ['ADMIN', 'AGRONOMO'] or current_user.has_permission('fenogramas_dashboard') %}
                 <a href="{{ url_for('fenogramas.dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/dashboard' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-chart-pie me-2 text-info"></i> Dashboard Ejecutivo
                 </a>
+                {% endif %}
                 <a href="{{ url_for('fenogramas.matriz') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/matriz' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-list-check me-2 text-warning"></i> Reglas Matriz Fenograma
                 </a>

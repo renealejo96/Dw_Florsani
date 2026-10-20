@@ -53,6 +53,7 @@
                                 <label for="responsable" class="form-label small fw-semibold text-secondary">
                                     <i class="fa-solid fa-user-check me-1 text-info"></i> Responsable / Monitor *
                                 </label>
+                                {% if current_user and current_user.role == 'ADMIN' %}
                                 <select class="form-select fw-semibold" id="responsable" name="responsable" required>
                                     <optgroup label="Monitores y Usuarios del Sistema">
                                         {% for m in monitores_sistema %}
@@ -67,6 +68,17 @@
                                     </optgroup>
                                     {% endif %}
                                 </select>
+                                {% else %}
+                                <input type="hidden" name="responsable" value="{{ registro.responsable }}">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light text-success"><i class="fa-solid fa-user-check"></i></span>
+                                    <input type="text" class="form-control bg-light text-dark fw-bold" value="{{ registro.responsable }}" readonly disabled>
+                                    <span class="input-group-text bg-light text-muted" title="Bloqueado por seguridad"><i class="fa-solid fa-lock text-secondary"></i></span>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.74rem;">
+                                    <i class="fa-solid fa-shield-halved text-success me-1"></i> El monitor original está bloqueado para preservar la autoría del ticket.
+                                </small>
+                                {% endif %}
                             </div>
                             <div class="col-12 col-md-6">
                                 <label for="modulo" class="form-label small fw-semibold text-secondary">Módulo *</label>
