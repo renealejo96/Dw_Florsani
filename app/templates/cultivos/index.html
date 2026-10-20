@@ -56,13 +56,13 @@
                             {% endfor %}
                         </td>
                         <td>
-                            <span class="badge badge-stage-veg px-2 py-1 fs-6">
-                                {{ c.veg_min_age }} a {{ c.veg_max_age }} sem
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-6">
+                                <i class="fa-solid fa-leaf me-1"></i>{{ c.veg_min_age }} a {{ c.veg_max_age }} sem
                             </span>
                         </td>
                         <td>
-                            <span class="badge badge-stage-prod px-2 py-1 fs-6">
-                                {{ c.prod_min_age }} a {{ c.prod_max_age }} sem
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fs-6">
+                                <i class="fa-solid fa-seedling me-1"></i>{{ c.prod_min_age }} a {{ c.prod_max_age }} sem
                             </span>
                         </td>
                         <td class="small text-muted">{{ c.notes or '-' }}</td>

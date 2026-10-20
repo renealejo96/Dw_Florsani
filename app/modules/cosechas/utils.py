@@ -43,8 +43,8 @@ def formato_semana(fecha):
     return f"{year:02d}{semana:02d}"
 
 def cargar_variedades():
-    """Cargar variedades desde CSV"""
-    variedades = []
+    """Cargar variedades desde CSV y complementar con base de datos (registro_cosecha, dim_variedades, fact_eventos_cultivo y estimado)"""
+    variedades = set()
     csv_path = _get_csv_path('variedades.csv')
     try:
         if csv_path.exists():
@@ -53,14 +53,49 @@ def cargar_variedades():
                 for row in reader:
                     val = (row.get('variedad') or '').strip()
                     if val:
-                        variedades.append(val)
-        else:
-            variedades = ['Gold', 'Red Naomi', 'Explorer', 'Freedom', 'High & Magic']
+                        variedades.add(val)
     except Exception as e:
-        print(f"Error cargando variedades: {e}")
-        variedades = ['Gold', 'Red Naomi', 'Explorer', 'Freedom', 'High & Magic']
+        print(f"Error cargando variedades desde CSV: {e}")
     
-    return sorted(list(set(variedades)), key=lambda x: x.upper())
+    # Complementar con variedades existentes en la base de datos
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        vars_db = db.session.execute(text("SELECT DISTINCT variedad FROM registro_cosecha WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
+        for v in vars_db:
+            if v[0] and v[0].strip():
+                variedades.add(v[0].strip())
+        
+        try:
+            vars_dim = db.session.execute(text("SELECT DISTINCT variedad FROM dim_variedades WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
+            for v in vars_dim:
+                if v[0] and v[0].strip():
+                    variedades.add(v[0].strip())
+        except Exception:
+            pass
+
+        try:
+            vars_ev = db.session.execute(text("SELECT DISTINCT variedad FROM fact_eventos_cultivo WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
+            for v in vars_ev:
+                if v[0] and v[0].strip():
+                    variedades.add(v[0].strip())
+        except Exception:
+            pass
+
+        try:
+            vars_est = db.session.execute(text("SELECT DISTINCT variedad FROM estimado WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
+            for v in vars_est:
+                if v[0] and v[0].strip():
+                    variedades.add(v[0].strip())
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    if not variedades:
+        variedades = {'Gold', 'Red Naomi', 'Explorer', 'Freedom', 'High & Magic'}
+    
+    return sorted(list(variedades), key=lambda x: x.upper())
 
 def guardar_variedades(variedades):
     """Guardar variedades únicas en CSV"""
@@ -190,7 +225,7 @@ def cargar_modulos():
     return sorted(list(modulos), key=_natural_key)
 
 def cargar_maestro_productos():
-    """Cargar mapeo {variedad: producto_maestro} desde CSV"""
+    """Cargar mapeo {variedad: producto_maestro} desde CSV y complementar con base de datos"""
     mapeo = {}
     csv_path = _get_csv_path('MAESTRO_PROS.csv')
     try:
@@ -208,12 +243,40 @@ def cargar_maestro_productos():
                                 if variedad and prod_maestro:
                                     mapeo[variedad] = prod_maestro
     except Exception as e:
-        print(f"Error cargando maestro productos: {e}")
+        print(f"Error cargando maestro productos desde CSV: {e}")
     
+    # Complementar con base de datos (estimado y fact_eventos_cultivo)
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        # 1. Desde tabla estimado
+        try:
+            res_est = db.session.execute(text("SELECT DISTINCT variedad, producto_maestro FROM estimado WHERE variedad IS NOT NULL AND producto_maestro IS NOT NULL;")).fetchall()
+            for r in res_est:
+                v = (r[0] or '').strip()
+                p = (r[1] or '').strip()
+                if v and p and v not in mapeo:
+                    mapeo[v] = p
+        except Exception:
+            pass
+
+        # 2. Desde tabla fact_eventos_cultivo
+        try:
+            res_ev = db.session.execute(text("SELECT DISTINCT variedad, producto_maestro FROM fact_eventos_cultivo WHERE variedad IS NOT NULL AND producto_maestro IS NOT NULL;")).fetchall()
+            for r in res_ev:
+                v = (r[0] or '').strip()
+                p = (r[1] or '').strip()
+                if v and p and v not in mapeo:
+                    mapeo[v] = p
+        except Exception:
+            pass
+    except Exception:
+        pass
+
     return mapeo
 
 def cargar_relaciones_maestro():
-    """Cargar relaciones variedad-producto maestro como lista de tuplas únicas"""
+    """Cargar relaciones variedad-producto maestro como lista de tuplas únicas combinando CSV y BD"""
     relaciones = []
     vistos = set()
     csv_path = _get_csv_path('MAESTRO_PROS.csv')
@@ -240,7 +303,15 @@ def cargar_relaciones_maestro():
                         vistos.add(clave)
                         relaciones.append((variedad, producto))
     except Exception as e:
-        print(f"Error cargando relaciones maestro: {e}")
+        print(f"Error cargando relaciones maestro desde CSV: {e}")
+
+    # Complementar con cualquier mapeo adicional proveniente de la base de datos
+    mapeo_completo = cargar_maestro_productos()
+    for var, prod in mapeo_completo.items():
+        clave = (var.upper(), prod.upper())
+        if clave not in vistos:
+            relaciones.append((var, prod))
+            vistos.add(clave)
 
     relaciones.sort(key=lambda item: (item[1].upper(), item[0].upper()))
     return relaciones

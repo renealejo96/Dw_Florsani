@@ -18,6 +18,7 @@ backups
 estados de cultivo
 *.xlsx
 *.csv
+!data/cosechas/*.csv
 *.db
 terraform
 node_modules
