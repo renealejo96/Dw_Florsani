@@ -248,7 +248,7 @@ def consolidar_camas_cultivo_df(df_ec):
         for num_cama, c_group in grupo.groupby('NUM_CAMA', sort=True):
             p_cand = c_group['PRODUCTO_MAESTRO'].tolist()
             # Si la cama tiene el cultivo comercial o códigos PROD.NUEVOS que comparten la cama, hereda el cultivo comercial
-            p_val = prod_predominante if prod_predominante and (prod_predominante in p_cand or 'PROD.NUEVOS' in p_cand) else (p_cand[0] if p_cand else '')
+            p_val = prod_predominante if (prod_predominante and prod_predominante in p_cand) else (p_cand[0] if p_cand else '')
             act_cand = c_group['ACTIVIDAD'].tolist()
             act_val = act_cand[0] if act_cand else 'Siembra'
 
@@ -739,7 +739,7 @@ def _ensure_calificaciones_unique_index():
         print(f"[FENOGRAMAS] Aviso asegurando índice único: {e}")
 
 
-def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_base=None):
+def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_base=None, forzar_limpieza=False):
     """
     Genera el plano de cultivo y las calificaciones de fenograma para cualquier `semana_corte`
     (ej. Semana 41, 42, 43...), proyectando automáticamente la edad recorrida (`edad_recorrida`)
@@ -954,16 +954,19 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
         sem_ev.estado = 'ABIERTA'
         sem_ev.fecha_cierre = None
 
-    # Limpiar ítems previos no calificados de esta misma semana antes de regenerar para evitar residuos
-    db.session.execute(text("""
-        DELETE FROM calificaciones
-        WHERE semana_anio = :sem
-          AND cumplido IS NULL
-          AND (
-              COALESCE(observacion, '') = ''
-              OR (COALESCE(es_pendiente_anterior, FALSE) = TRUE AND observacion LIKE '[Pendiente Sem %')
-          );
-    """), {'sem': semana_corte})
+    # Limpiar ítems previos de esta semana antes de regenerar
+    if forzar_limpieza:
+        db.session.execute(text("DELETE FROM calificaciones WHERE semana_anio = :sem;"), {'sem': semana_corte})
+    else:
+        db.session.execute(text("""
+            DELETE FROM calificaciones
+            WHERE semana_anio = :sem
+              AND cumplido IS NULL
+              AND (
+                  COALESCE(observacion, '') = ''
+                  OR (COALESCE(es_pendiente_anterior, FALSE) = TRUE AND observacion LIKE '[Pendiente Sem %')
+              );
+        """), {'sem': semana_corte})
 
     db.session.commit()
 

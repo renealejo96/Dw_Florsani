@@ -1091,12 +1091,14 @@ def api_generar_desde_fact():
         anio = int(data.get('anio', 2026))
         fuente = data.get('fuente', 'AUTO')
         semana_base = data.get('semana_base')
+        forzar_limpieza = bool(data.get('forzar_limpieza', True))
 
         count = sync_from_mrt_estado_cultivo(
             semana_corte=semana_corte,
             anio=anio,
             fuente=fuente,
-            semana_base=semana_base
+            semana_base=semana_base,
+            forzar_limpieza=forzar_limpieza
         )
         return jsonify({
             'success': True,

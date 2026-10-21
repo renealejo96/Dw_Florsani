@@ -334,7 +334,7 @@ def create_app(config_class=Config):
 
         # Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
         historico_semanas_raw = db.session.query(
-            db.extract('year', RegistroCosecha.fecha).label('anio'),
+            db.extract('isoyear', RegistroCosecha.fecha).label('anio'),
             RegistroCosecha.semana,
             db.func.sum(RegistroCosecha.total_tallos).label('total')
         ).group_by('anio', RegistroCosecha.semana).order_by('anio', RegistroCosecha.semana).all()

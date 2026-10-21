@@ -1,4 +1,4 @@
-const CACHE_NAME = 'florsani-pwa-v5';
+const CACHE_NAME = 'florsani-pwa-v6';
 const STATIC_ASSETS = [
   '/',
   '/fenogramas/',

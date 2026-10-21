@@ -481,6 +481,12 @@
     .excel-table tbody tr.row-arrastre {
         background-color: #fffbeb;
     }
+    .excel-table tbody tr.row-calificada {
+        background-color: #fef3c7 !important; /* Calido suave / Warm amber */
+    }
+    .excel-table tbody tr.row-calificada:hover {
+        background-color: #fde68a !important;
+    }
     .excel-table tbody tr.row-dirty {
         background-color: #fef9c3 !important;
     }
@@ -1098,7 +1104,7 @@
                 {% for item in items %}
                 {% set c_val = '1' if item.cumplido == 1 else 'null' %}
                 <tr id="row-{{ item.id }}"
-                    class="excel-row {% if item.es_pendiente_anterior %}row-arrastre{% endif %}"
+                    class="excel-row {% if item.es_pendiente_anterior %}row-arrastre{% endif %} {% if item.cumplido == 1 or c_val == '1' %}row-calificada{% endif %}"
                     data-item-id="{{ item.id }}"
                     data-bloque="{{ bloque }}"
                     data-zona="{{ item.zona }}"
@@ -2065,13 +2071,17 @@ function applyCheckValue(itemId, btn, nextVal) {
 function setCheckCircleState(btn, nextVal) {
     btn.setAttribute('data-current-val', nextVal);
     btn.classList.remove('state-1', 'state-0', 'state-null');
+    const itemId = btn.getAttribute('data-item-id');
+    const row = document.getElementById(`row-${itemId}`);
 
     if (nextVal === '1') {
         btn.classList.add('state-1');
         btn.innerHTML = '✓';
+        if (row) row.classList.add('row-calificada');
     } else {
         btn.classList.add('state-null');
         btn.innerHTML = '';
+        if (row) row.classList.remove('row-calificada');
     }
 }
 
@@ -2567,13 +2577,15 @@ function ejecutarGeneracionSemanaFeno() {
             semana_corte: semTarget,
             semana_base: semBase || null,
             fuente: fuente,
-            anio: 2026
+            anio: 2026,
+            forzar_limpieza: true
         })
     })
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            showFenoToast(`Semana ${semTarget} generada (${data.insertados || 0} nuevas, ${data.actualizados || 0} actualizadas). Cargando...`);
+            try { localStorage.removeItem(`feno_offline_sync_${semTarget}`); } catch(e){}
+            showFenoToast(`Semana ${semTarget} generada exitosamente. Cargando...`);
             setTimeout(() => {
                 window.location.href = `{{ url_for('fenogramas.index') }}?semana=${semTarget}&zona={{ zona_sel }}`;
             }, 600);
