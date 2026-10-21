@@ -157,6 +157,32 @@ def create_app(config_class=Config):
         except Exception:
             pass
 
+        # One-time migration to reset test fenograma week 43 with bed consolidation
+        try:
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS _system_one_time_migrations (
+                    migration_key VARCHAR(100) PRIMARY KEY,
+                    executed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            db.session.commit()
+
+            mig_done = db.session.execute(text(
+                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'reset_feno_sem43_clean_v2'"
+            )).scalar()
+
+            if not mig_done:
+                from app.modules.fenogramas.services.fenograma_service import sync_from_mrt_estado_cultivo
+                sync_from_mrt_estado_cultivo(semana_corte=43, anio=2026, fuente='AUTO', forzar_limpieza=True)
+                db.session.execute(text(
+                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('reset_feno_sem43_clean_v2')"
+                ))
+                db.session.commit()
+                print("[SYSTEM] Limpieza y regeneración inicial de Fenograma Semana 43 completada con éxito.")
+        except Exception as ex_mig:
+            db.session.rollback()
+            print(f"[SYSTEM] Aviso en migración de fenograma: {ex_mig}")
+
     # Register blueprints
     from app.modules.auth.routes import auth_bp
     from app.modules.orden_compra.routes import orden_compra_bp

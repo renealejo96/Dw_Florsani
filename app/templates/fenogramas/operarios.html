@@ -1351,13 +1351,21 @@
                     </span>
                 </div>
             </div>
-            <div class="modal-footer py-2 px-3 bg-white border-top">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cancelar</button>
-                <button type="button" id="btn-confirm-gen-feno" class="btn btn-sm fw-bold"
-                        style="background: #16a34a; color: #fff; font-size: 0.78rem;"
-                        onclick="ejecutarGeneracionSemanaFeno()">
-                    <i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana
-                </button>
+            <div class="modal-footer py-2 px-3 bg-white border-top d-flex justify-content-between align-items-center">
+                <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
+                   class="btn btn-sm btn-outline-danger"
+                   onclick="return confirm('¿Confirmas borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas desde cero?')"
+                   style="font-size: 0.74rem;">
+                    <i class="fa-solid fa-trash-can me-1"></i>Resetear Semana (Dejar en Cero)
+                </a>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cancelar</button>
+                    <button type="button" id="btn-confirm-gen-feno" class="btn btn-sm fw-bold"
+                            style="background: #16a34a; color: #fff; font-size: 0.78rem;"
+                            onclick="ejecutarGeneracionSemanaFeno()">
+                        <i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana
+                    </button>
+                </div>
             </div>
         </div>
     </div>

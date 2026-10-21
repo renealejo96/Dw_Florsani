@@ -1267,3 +1267,21 @@ def api_cerrar_semana():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@fenogramas_bp.route('/api/reset-semana-limpia', methods=['POST', 'GET'])
+@login_required
+@permission_required('fenogramas')
+def api_reset_semana_limpia():
+    semana_target = request.args.get('semana', 43, type=int)
+    try:
+        count = sync_from_mrt_estado_cultivo(
+            semana_corte=semana_target,
+            anio=2026,
+            fuente='AUTO',
+            forzar_limpieza=True
+        )
+        flash(f'Semana {semana_target} limpiada y regenerada desde cero con éxito ({count} labores proyectadas).', 'success')
+    except Exception as e:
+        flash(f'Error al limpiar y regenerar semana {semana_target}: {e}', 'danger')
+    return redirect(url_for('fenogramas.index', semana=semana_target))
+
