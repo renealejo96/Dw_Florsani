@@ -1149,14 +1149,15 @@ function renderProductoChart() {
         },
         plotOptions: {
             bar: {
+                horizontal: true,
                 borderRadius: 6,
-                columnWidth: '48%',
-                dataLabels: { position: 'top' }
+                barHeight: '52%',
+                dataLabels: { position: 'bottom' }
             }
         },
         stroke: {
             show: true,
-            width: 2,
+            width: 1,
             colors: ['#1e3a8a']
         },
         dataLabels: {
@@ -1165,17 +1166,23 @@ function renderProductoChart() {
                 const p = POR_PRODUCTO[opts.dataPointIndex];
                 return p ? `${val}% (${p.cumplidas}/${p.total})` : `${val}%`;
             },
-            offsetY: -20,
-            style: { fontSize: '10.5px', fontWeight: 800, colors: ['#0f172a'] }
+            offsetX: 10,
+            textAnchor: 'start',
+            style: { fontSize: '11px', fontWeight: 800, colors: ['#0f172a'] }
         },
         xaxis: {
-            categories: labels,
-            labels: { style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' } }
+            min: 0,
+            max: 105,
+            labels: {
+                formatter: v => `${Math.round(v)}%`,
+                style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' }
+            }
         },
         yaxis: {
-            min: 0,
-            max: 108,
-            labels: { formatter: v => v <= 100 ? `${Math.round(v)}%` : '' }
+            categories: labels,
+            labels: {
+                style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' }
+            }
         },
         grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },
         tooltip: {

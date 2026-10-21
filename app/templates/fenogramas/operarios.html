@@ -1112,9 +1112,9 @@
 
                     <td class="fw-bold text-dark tabular-nums">{{ b_meta.clean_code }}</td>
 
-                    <td class="tabular-nums" title="Camas {{ item.cama_inicial }} a {{ item.cama_final }} {{ item.sufijo or '' }}">
+                    <td class="tabular-nums" title="Camas {{ item.cama_inicial }} a {{ item.cama_final }}{% if item.sufijo %} {{ item.sufijo }}{% endif %}">
                         <span class="fw-semibold">{{ item.cama_inicial }}-{{ item.cama_final }}</span>
-                        {% if item.sufijo %}<span class="text-muted">{{ item.sufijo }}</span>{% endif %}
+                        {% if item.sufijo and item.cama_inicial == item.cama_final %}<span class="text-muted">{{ item.sufijo }}</span>{% endif %}
                         {% if item.es_pendiente_anterior %}
                         <span class="text-danger fw-bold ms-1" title="Arrastrada de Semana {{ item.semana_origen }}">
                             [S{{ item.semana_origen }}]

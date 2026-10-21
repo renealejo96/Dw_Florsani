@@ -243,13 +243,13 @@
                 <div class="chart-header">
                     <div>
                         <h6 class="chart-title">
-                            <i class="fa-solid fa-chart-pie text-primary me-2"></i>
-                            Participación por Variedades
+                            <i class="fa-solid fa-chart-bar text-primary me-2"></i>
+                            Participación por Producto Maestro
                         </h6>
-                        <span class="chart-subtitle">Composición porcentual del corte</span>
+                        <span class="chart-subtitle">Corte semanal por especie comercial</span>
                     </div>
                 </div>
-                <div class="chart-container-box position-relative d-flex align-items-center justify-content-center">
+                <div class="chart-container-box position-relative">
                     <canvas id="chartParticipacionDoughnut"></canvas>
                 </div>
             </div>
@@ -315,8 +315,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         pointBackgroundColor: '#ffffff',
                         pointBorderColor: '#10b981',
                         pointBorderWidth: 2,
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHitRadius: 10,
                         spanGaps: true
                     },
                     {
@@ -331,8 +332,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         pointBackgroundColor: '#ffffff',
                         pointBorderColor: '#6366f1',
                         pointBorderWidth: 2,
-                        pointRadius: 3.5,
-                        pointHoverRadius: 5.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHitRadius: 10,
                         spanGaps: true
                     }
                 ]
@@ -390,29 +392,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const donutCtx = document.getElementById('chartParticipacionDoughnut');
     if (donutCtx) {
         new Chart(donutCtx.getContext('2d'), {
-            type: 'doughnut',
+            type: 'bar',
             data: {
                 labels: displayLabels,
                 datasets: [{
+                    label: 'Tallos Cosechados',
                     data: displayValues,
                     backgroundColor: colorArray.slice(0, displayLabels.length),
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
+                    borderRadius: 6,
+                    borderWidth: 0
                 }]
             },
             options: {
+                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '72%',
                 plugins: {
                     legend: {
-                        position: 'bottom',
-                        labels: {
-                            font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' },
-                            color: '#334155',
-                            usePointStyle: true,
-                            padding: 12
-                        }
+                        display: false
                     },
                     tooltip: {
                         backgroundColor: '#0f172a',
@@ -422,8 +419,25 @@ document.addEventListener('DOMContentLoaded', function() {
                             label: function(context) {
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const pct = total > 0 ? ((context.raw / total) * 100).toFixed(1) : 0;
-                                return ` ${context.label}: ${Number(context.raw).toLocaleString()} (${pct}%)`;
+                                return ` ${Number(context.raw).toLocaleString()} tallos (${pct}%)`;
                             }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#f1f5f9' },
+                        ticks: {
+                            font: { family: 'Fira Code', size: 10 },
+                            color: '#64748b',
+                            callback: function(val) { return Number(val).toLocaleString(); }
+                        }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { family: 'Plus Jakarta Sans', weight: '700', size: 11 },
+                            color: '#1e293b'
                         }
                     }
                 }

@@ -346,14 +346,25 @@ def create_app(config_class=Config):
         for r_hist in historico_semanas_raw:
             if not r_hist.semana:
                 continue
-            y_val = int(r_hist.anio) if r_hist.anio else 2026
-            w_val = int(r_hist.semana)
+            s_raw = int(r_hist.semana)
             tot_w = int(r_hist.total or 0)
-            all_weeks_set.add(w_val)
-            if y_val == 2025:
-                semanas_2025_map[w_val] = tot_w
+
+            # Homologar estrictamente semana en formato 1 a 52 (ej: 2640 -> 40, 2643 -> 43, 2548 -> 48)
+            if s_raw >= 100:
+                w_num = s_raw % 100
+                y_val = 2000 + (s_raw // 100)
             else:
-                semanas_2026_map[w_val] = tot_w
+                w_num = s_raw
+                y_val = int(r_hist.anio) if r_hist.anio else 2026
+
+            if w_num < 1 or w_num > 53:
+                continue
+
+            all_weeks_set.add(w_num)
+            if y_val == 2025:
+                semanas_2025_map[w_num] = semanas_2025_map.get(w_num, 0) + tot_w
+            else:
+                semanas_2026_map[w_num] = semanas_2026_map.get(w_num, 0) + tot_w
 
         all_weeks_sorted = sorted(all_weeks_set)
         historico_semanas_labels = [f"Sem {w}" for w in all_weeks_sorted]

@@ -51,9 +51,9 @@
                             </div>
                             <div class="col-6 col-md-4">
                                 <label for="semana" class="form-label fw-semibold small text-secondary">
-                                    <i class="fa-solid fa-calendar-week me-1 text-success"></i> Semana Agrícola (Auto 2641)
+                                    <i class="fa-solid fa-calendar-week me-1 text-success"></i> Semana Agrícola (Semana 1-52)
                                 </label>
-                                <input type="number" class="form-control bg-light fw-bold text-success font-monospace" id="semana" name="semana" min="1000" max="9999" readonly required>
+                                <input type="number" class="form-control bg-light fw-bold text-success font-monospace" id="semana" name="semana" min="1" max="53" readonly required>
                             </div>
                             <div class="col-6 col-md-4">
                                 <label for="viaje" class="form-label fw-semibold small text-secondary">
@@ -310,9 +310,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const week = 1 + Math.ceil((firstThursday - target) / 604800000);
         const isoYear = target.getFullYear();
-        const yy = isoYear % 100;
-        const semanaCampo = (yy * 100) + week; // Formato estricto 2641
-        semanaInput.value = semanaCampo;
+        const weekNum = week;
+        semanaInput.value = weekNum;
     }
 
     // Live Ecuador Clock

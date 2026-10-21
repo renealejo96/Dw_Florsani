@@ -20,6 +20,17 @@ from .utils import (
 cosechas_bp = Blueprint('cosechas', __name__)
 bp_cosechas = cosechas_bp
 
+def _homologar_sem(reg):
+    if hasattr(reg, 'semana') and reg.semana:
+        s_val = int(reg.semana)
+        return str(s_val % 100 if s_val >= 100 else s_val)
+    try:
+        f_val = int(formato_semana(reg.fecha))
+        return str(f_val % 100)
+    except Exception:
+        return "1"
+
+
 
 @cosechas_bp.route('/')
 @login_required
@@ -183,9 +194,8 @@ def nuevo_registro():
             fecha_str = request.form.get('fecha', '').strip()
             fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
             viaje = request.form.get('viaje', '').strip()
-            semana = int(request.form.get('semana', 0))
-            if semana > 0 and semana < 100:
-                semana = (fecha.year % 100) * 100 + semana
+            semana_raw = int(request.form.get('semana', 0))
+            semana = semana_raw % 100 if semana_raw >= 100 else semana_raw
             tallos = int(request.form.get('tallos', 0))
             mallas = int(request.form.get('mallas', 0))
             modulo = limpiar_nombre_modulo(request.form.get('modulo', ''))
@@ -669,14 +679,24 @@ def resumen():
         else:
             semana_filtro = formato_semana(datetime.now().date())
     
-    registros = [r for r in todos_registros if formato_semana(r.fecha) == semana_filtro]
+    s_filtro_clean = str(semana_filtro).strip()
+    s_filtro_2d = str(int(s_filtro_clean) % 100) if s_filtro_clean.isdigit() else s_filtro_clean
+    registros = [
+        r for r in todos_registros
+        if (
+            formato_semana(r.fecha) == s_filtro_clean
+            or _homologar_sem(r) == s_filtro_2d
+            or str(getattr(r, 'semana', '')) == s_filtro_clean
+            or str(getattr(r, 'semana', '')) == s_filtro_2d
+        )
+    ]
     
     datos_por_semana = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
     desglose_modulos = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int)))))
     totales_diarios = defaultdict(lambda: defaultdict(int))
 
     for registro in registros:
-        semana = formato_semana(registro.fecha)
+        semana = _homologar_sem(registro)
         prod_maestro = maestro_productos.get(registro.variedad, 'SIN CLASIFICAR')
         variedad = registro.variedad
         dia_semana = registro.fecha.weekday()  # 0=Lunes, 6=Domingo
@@ -710,7 +730,10 @@ def resumen():
     dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
     # Cargar estimados de la semana activa para comparar Estimado vs Real y calcular % acierto
-    estimados_db = Estimado.query.filter_by(semana=semana_filtro).all()
+    semanas_estimado_match = [s_filtro_clean, s_filtro_2d]
+    if s_filtro_2d.isdigit():
+        semanas_estimado_match.append(f"26{int(s_filtro_2d):02d}")
+    estimados_db = Estimado.query.filter(Estimado.semana.in_(semanas_estimado_match)).all()
     estimados_por_producto = {}
     estimados_por_variedad = {}
 
@@ -1060,9 +1083,8 @@ def api_sincronizar_offline():
                 fecha = datetime.now(ZONA_HORARIA).date()
 
             viaje = str(it.get('viaje', '')).strip()
-            semana = int(it.get('semana', 0))
-            if semana > 0 and semana < 100:
-                semana = (fecha.year % 100) * 100 + semana
+            semana_raw = int(it.get('semana', 0))
+            semana = semana_raw % 100 if semana_raw >= 100 else semana_raw
 
             tallos = int(it.get('tallos', 0))
             mallas = int(it.get('mallas', 0))
@@ -1127,7 +1149,7 @@ def api_reportes_tablero():
     productos_con_variedades = construir_productos_con_variedades()
     maestro_productos = cargar_maestro_productos()
 
-    semanas_disponibles = sorted({formato_semana(r.fecha) for r in registros})
+    semanas_disponibles = sorted(list({_homologar_sem(r) for r in registros}), key=lambda x: int(x) if x.isdigit() else 0)
     productos_disponibles = sorted(
         set(productos_con_variedades.keys()) |
         {maestro_productos.get(r.variedad, 'SIN CLASIFICAR') for r in registros},
@@ -1158,7 +1180,7 @@ def api_reportes_tablero():
     acumulado = defaultdict(int)
 
     for registro in registros:
-        semana = formato_semana(registro.fecha)
+        semana = _homologar_sem(registro)
         if semana not in semanas_set:
             continue
         producto = maestro_productos.get(registro.variedad, 'SIN CLASIFICAR')
@@ -1198,7 +1220,17 @@ def api_resumen():
     
     if semana_filtro:
         todos = RegistroCosecha.query.all()
-        registros = [r for r in todos if formato_semana(r.fecha) == semana_filtro]
+        s_filtro_clean = str(semana_filtro).strip()
+        s_filtro_2d = str(int(s_filtro_clean) % 100) if s_filtro_clean.isdigit() else s_filtro_clean
+        registros = [
+            r for r in todos
+            if (
+                formato_semana(r.fecha) == s_filtro_clean
+                or _homologar_sem(r) == s_filtro_2d
+                or str(getattr(r, 'semana', '')) == s_filtro_clean
+                or str(getattr(r, 'semana', '')) == s_filtro_2d
+            )
+        ]
     else:
         fecha_hoy = datetime.now().date()
         fecha_lunes = fecha_hoy - timedelta(days=fecha_hoy.weekday())
@@ -1267,7 +1299,17 @@ def api_resumen_excel():
     
     if semana_filtro:
         todos = RegistroCosecha.query.all()
-        registros = [r for r in todos if formato_semana(r.fecha) == semana_filtro]
+        s_filtro_clean = str(semana_filtro).strip()
+        s_filtro_2d = str(int(s_filtro_clean) % 100) if s_filtro_clean.isdigit() else s_filtro_clean
+        registros = [
+            r for r in todos
+            if (
+                formato_semana(r.fecha) == s_filtro_clean
+                or _homologar_sem(r) == s_filtro_2d
+                or str(getattr(r, 'semana', '')) == s_filtro_clean
+                or str(getattr(r, 'semana', '')) == s_filtro_2d
+            )
+        ]
     else:
         fecha_hoy = datetime.now().date()
         fecha_lunes = fecha_hoy - timedelta(days=fecha_hoy.weekday())

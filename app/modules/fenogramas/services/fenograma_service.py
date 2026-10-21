@@ -213,20 +213,16 @@ def process_matriz_fenogramas(mf_file_path, config):
 
     return pd.DataFrame(matrix_rules)
 
-def process_estado_cultivo(ec_file_path):
-    df_ec = pd.read_excel(ec_file_path, sheet_name='DATOS', header=4)
-    renombrar = {
-        'BLOQUES2': 'BLOQUE',
-        '# Cama': 'NUM_CAMA',
-        'SUFIJO': 'SUFIJO',
-        'Ac': 'ACTIVIDAD',
-        'VARIEDADES ELITE': 'VARIEDAD_ELITE',
-        'ZONA': 'ZONA',
-        'AREA PRODUCTO COMERCIAL': 'PRODUCTO_MAESTRO',
-        'EDAD REAL': 'EDAD_REAL'
-    }
-    available_cols = [k for k in renombrar.keys() if k in df_ec.columns]
-    df_ec = df_ec[available_cols].rename(columns={k: renombrar[k] for k in available_cols})
+def consolidar_camas_cultivo_df(df_ec):
+    """
+    Consolida las camas de cultivo a nivel de cama física (NUM_CAMA),
+    asigna el cultivo comercial predominante del bloque a los micro-códigos de prueba (PROD.NUEVOS),
+    y fusiona camas contiguas que compartan (actividad, producto_maestro, edad_real).
+    """
+    if df_ec.empty:
+        return pd.DataFrame(columns=['ZONA', 'BLOQUE', 'ACTIVIDAD', 'PRODUCTO_MAESTRO', 'CAMA_INICIAL', 'CAMA_FINAL', 'SUFIJO', 'EDAD_REAL'])
+
+    df_ec = df_ec.copy()
     df_ec.dropna(subset=['BLOQUE', 'NUM_CAMA', 'EDAD_REAL'], inplace=True)
     df_ec['EDAD_REAL'] = pd.to_numeric(df_ec['EDAD_REAL'], errors='coerce')
     df_ec['NUM_CAMA'] = pd.to_numeric(df_ec['NUM_CAMA'], errors='coerce')
@@ -295,7 +291,7 @@ def process_estado_cultivo(ec_file_path):
                 c_fin = cama_records[i - 1]['num_cama']
                 s_ini = cama_records[seg_start]['sufijo']
                 s_fin = cama_records[i - 1]['sufijo']
-                suf_final = s_ini if s_ini == s_fin else f"{s_ini}-{s_fin}".strip('-')
+                suf_final = s_ini if (c_ini == c_fin or s_ini == s_fin) else ''
 
                 prod_final = cama_records[seg_start]['producto_maestro']
                 prod_norm = normalize_product_name(prod_final)
@@ -315,6 +311,22 @@ def process_estado_cultivo(ec_file_path):
                 seg_start = i
 
     return pd.DataFrame(resultados)
+
+def process_estado_cultivo(ec_file_path):
+    df_ec = pd.read_excel(ec_file_path, sheet_name='DATOS', header=4)
+    renombrar = {
+        'BLOQUES2': 'BLOQUE',
+        '# Cama': 'NUM_CAMA',
+        'SUFIJO': 'SUFIJO',
+        'Ac': 'ACTIVIDAD',
+        'VARIEDADES ELITE': 'VARIEDAD_ELITE',
+        'ZONA': 'ZONA',
+        'AREA PRODUCTO COMERCIAL': 'PRODUCTO_MAESTRO',
+        'EDAD REAL': 'EDAD_REAL'
+    }
+    available_cols = [k for k in renombrar.keys() if k in df_ec.columns]
+    df_ec = df_ec[available_cols].rename(columns={k: renombrar[k] for k in available_cols})
+    return consolidar_camas_cultivo_df(df_ec)
 
 def preview_excel_sync(ec_file_path, mf_file_path=None):
     if not mf_file_path or not os.path.exists(mf_file_path):
@@ -917,48 +929,7 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
     if not camas_map:
         return 0
 
-    df_camas = pd.DataFrame(list(camas_map.values()))
-    df_camas = df_camas.sort_values(['ZONA', 'BLOQUE', 'NUM_CAMA', 'SUFIJO']).reset_index(drop=True)
-
-    # Segmentación por camas consecutivas con la misma edad y producto
-    resultados = []
-    grupos = df_camas.groupby(['ZONA', 'BLOQUE'], sort=False)
-
-    for (zona, bloque), grupo in grupos:
-        grupo = grupo.sort_values(['NUM_CAMA', 'SUFIJO']).reset_index(drop=True)
-        seg_start = 0
-        for i in range(1, len(grupo) + 1):
-            if (i == len(grupo) or
-                grupo.loc[i, 'ACTIVIDAD'] != grupo.loc[seg_start, 'ACTIVIDAD'] or
-                grupo.loc[i, 'PRODUCTO_MAESTRO'] != grupo.loc[seg_start, 'PRODUCTO_MAESTRO'] or
-                grupo.loc[i, 'EDAD_REAL'] != grupo.loc[seg_start, 'EDAD_REAL']):
-
-                cama_ini = int(grupo.loc[seg_start, 'NUM_CAMA'])
-                cama_fin = int(grupo.loc[i - 1, 'NUM_CAMA'])
-                suf_ini = grupo.loc[seg_start, 'SUFIJO']
-                suf_fin = grupo.loc[i - 1, 'SUFIJO']
-                sufijo = suf_ini if suf_ini == suf_fin else f"{suf_ini}-{suf_fin}"
-                edad = int(grupo.loc[seg_start, 'EDAD_REAL'])
-                actividad = grupo.loc[seg_start, 'ACTIVIDAD']
-                producto = grupo.loc[seg_start, 'PRODUCTO_MAESTRO']
-
-                prod_norm = normalize_product_name(producto)
-                if prod_norm == 'VERONICA':
-                    producto = 'VERONICA'
-
-                resultados.append({
-                    'ZONA': clean_str(zona),
-                    'BLOQUE': clean_block_code(bloque),
-                    'ACTIVIDAD': clean_str(actividad),
-                    'PRODUCTO_MAESTRO': clean_str(producto),
-                    'CAMA_INICIAL': cama_ini,
-                    'CAMA_FINAL': cama_fin,
-                    'SUFIJO': sufijo,
-                    'EDAD_REAL': edad
-                })
-                seg_start = i
-
-    df_plano = pd.DataFrame(resultados)
+    df_plano = consolidar_camas_cultivo_df(pd.DataFrame(list(camas_map.values())))
 
     # Actualizar tabla plano_cultivo
     db.session.execute(text("TRUNCATE TABLE plano_cultivo RESTART IDENTITY CASCADE;"))
