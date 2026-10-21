@@ -711,6 +711,15 @@
                     title="Crear o proyectar calificación para una nueva semana (ej. Semana {{ semana }}) con edades recorridas">
                 <i class="fa-solid fa-wand-magic-sparkles me-1"></i>+ Proyectar / Generar Fenograma
             </button>
+            {% if session.get('role') == 'ADMIN' %}
+            <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
+               class="btn btn-outline-danger btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
+               style="height: 27px; font-size: 0.72rem;"
+               onclick="try{ localStorage.removeItem('feno_offline_sync_{{ semana }}'); }catch(e){} return confirm('¿Confirmas como ADMINISTRADOR borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas en cero?')"
+               title="Solo Administrador: Limpiar calificaciones y regenerar Semana {{ semana }} en cero">
+                <i class="fa-solid fa-rotate-left me-1"></i>Resetear Semana {{ semana }}
+            </a>
+            {% endif %}
         </form>
 
         <!-- ZONAS CON RELLENO LLAMATIVO Y LETRAS NEGRAS (Cambio Instantáneo 100% Offline) -->
@@ -1352,12 +1361,16 @@
                 </div>
             </div>
             <div class="modal-footer py-2 px-3 bg-white border-top d-flex justify-content-between align-items-center">
+                {% if session.get('role') == 'ADMIN' %}
                 <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
                    class="btn btn-sm btn-outline-danger"
-                   onclick="return confirm('¿Confirmas borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas desde cero?')"
+                   onclick="try{ localStorage.removeItem('feno_offline_sync_{{ semana }}'); }catch(e){} return confirm('¿Confirmas como ADMINISTRADOR borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas desde cero?')"
                    style="font-size: 0.74rem;">
-                    <i class="fa-solid fa-trash-can me-1"></i>Resetear Semana (Dejar en Cero)
+                    <i class="fa-solid fa-trash-can me-1"></i>Resetear Semana (Solo Admin)
                 </a>
+                {% else %}
+                <div></div>
+                {% endif %}
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cancelar</button>
                     <button type="button" id="btn-confirm-gen-feno" class="btn btn-sm fw-bold"

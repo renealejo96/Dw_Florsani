@@ -8,7 +8,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
 from app.extensions import db
-from app.modules.auth.routes import login_required, permission_required
+from app.modules.auth.routes import login_required, permission_required, admin_required
 from app.modules.fenogramas.models import (
     SemanaEvaluacion, MatrizFenograma, PlanoCultivo, Calificacion
 )
@@ -1270,7 +1270,7 @@ def api_cerrar_semana():
 
 @fenogramas_bp.route('/api/reset-semana-limpia', methods=['POST', 'GET'])
 @login_required
-@permission_required('fenogramas')
+@admin_required
 def api_reset_semana_limpia():
     semana_target = request.args.get('semana', 43, type=int)
     try:
