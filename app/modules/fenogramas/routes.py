@@ -823,7 +823,9 @@ def dashboard():
         cultivos_columnas=dash_data['cultivos_columnas'],
         matriz_auxiliares=dash_data['matriz_auxiliares'],
         sin_match_count=dash_data['sin_match_count'],
-        config_mapeos=dash_data['config_mapeos']
+        config_mapeos=dash_data['config_mapeos'],
+        zonas_por_cultivo=dash_data.get('zonas_por_cultivo', []),
+        tendencia_por_cultivo=dash_data.get('tendencia_por_cultivo', {})
     )
 
 

@@ -125,13 +125,13 @@
                                 <label for="mallas" class="form-label fw-semibold small text-secondary">
                                     <i class="fa-solid fa-table-cells me-1 text-warning"></i> Cantidad de Mallas *
                                 </label>
-                                <input type="number" class="form-control form-control-lg fw-bold" id="mallas" name="mallas" min="1" placeholder="Ej: 15" required>
+                                <input type="number" class="form-control fw-bold" id="mallas" name="mallas" min="1" placeholder="Ej: 15" required>
                             </div>
                             <div class="col-12 col-md-6">
                                 <label for="tallos" class="form-label fw-semibold small text-secondary">
                                     <i class="fa-solid fa-bars-staggered me-1 text-success"></i> Tallos por Malla *
                                 </label>
-                                <select class="form-select form-select-lg fw-bold" id="tallos" name="tallos" required>
+                                <select class="form-select fw-bold" id="tallos" name="tallos" required>
                                     <option value="">Seleccione tallos...</option>
                                     <option value="10">10 tallos</option>
                                     <option value="15">15 tallos</option>
@@ -141,25 +141,27 @@
                             </div>
                         </div>
 
-                        <!-- Big Counter Widget -->
-                        <div class="card border-0 rounded-4 mb-4" style="background: linear-gradient(135deg, #e8f5ee 0%, #d4edda 100%);">
-                            <div class="card-body text-center py-4">
-                                <div class="text-uppercase text-success fw-bold small tracking-wider mb-1" style="letter-spacing: 0.1em;">
-                                    <i class="fa-solid fa-calculator me-1"></i> Cómputo Total de Tallos
+                        <!-- Compact Counter Widget (Tipo Formulario Móvil) -->
+                        <div class="card border rounded-3 mb-3 bg-success bg-opacity-10 border-success border-opacity-25 p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="text-uppercase text-success fw-bold small" style="letter-spacing: 0.05em; font-size: 0.74rem;">
+                                        <i class="fa-solid fa-calculator me-1"></i> Cómputo Total de Tallos
+                                    </div>
+                                    <div class="text-muted small" style="font-size: 0.72rem;">
+                                        Mallas (<span id="previewMallas">0</span>) &times; Tallos (<span id="previewTallos">0</span>)
+                                    </div>
                                 </div>
-                                <div class="display-3 fw-bolder text-success mb-1" id="totalTallosDisplay">0</div>
-                                <span class="badge bg-white text-muted border px-3 py-1 small">
-                                    Mallas (<span id="previewMallas">0</span>) &times; Tallos (<span id="previewTallos">0</span>)
-                                </span>
+                                <div class="fs-2 fw-bolder text-success tabular-nums" id="totalTallosDisplay">0</div>
                             </div>
                         </div>
 
                         <!-- Actions -->
                         <div class="d-flex flex-wrap justify-content-end gap-2 pt-2">
-                            <a href="{{ url_for('cosechas.index') }}" class="btn btn-outline-secondary px-4">
+                            <a href="{{ url_for('cosechas.index') }}" class="btn btn-outline-secondary px-3">
                                 <i class="fa-solid fa-xmark me-1"></i> Cancelar
                             </a>
-                            <button type="submit" id="btnGuardarCosecha" class="btn btn-success btn-lg px-4 shadow-sm fw-bold">
+                            <button type="submit" id="btnGuardarCosecha" class="btn btn-success px-4 shadow-sm fw-bold">
                                 <i class="fa-solid fa-floppy-disk me-2"></i> Guardar Cosecha
                             </button>
                         </div>

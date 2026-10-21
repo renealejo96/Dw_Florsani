@@ -243,35 +243,74 @@ def process_estado_cultivo(ec_file_path):
         grupo['ACTIVIDAD'] = grupo['ACTIVIDAD'].fillna('').astype(str).str.strip()
         grupo['PRODUCTO_MAESTRO'] = grupo['PRODUCTO_MAESTRO'].fillna('').astype(str).str.strip()
 
+        # Determinar cultivo comercial predominante del bloque (ej. HYPERICUM, VERONICA, etc.)
+        prods_validos = [p for p in grupo['PRODUCTO_MAESTRO'] if p and p not in ('PROD.NUEVOS', 'VACIO', 'DISPONIBLE', 'ERRADICADO', 'DESCONOCIDA')]
+        prod_predominante = pd.Series(prods_validos).mode()[0] if len(prods_validos) > 0 else None
+
+        # Consolidar a nivel de cama física para unificar micro-sufijos y códigos de ensayos
+        cama_records = []
+        for num_cama, c_group in grupo.groupby('NUM_CAMA', sort=True):
+            p_cand = c_group['PRODUCTO_MAESTRO'].tolist()
+            # Si la cama tiene el cultivo comercial o códigos PROD.NUEVOS que comparten la cama, hereda el cultivo comercial
+            p_val = prod_predominante if prod_predominante and (prod_predominante in p_cand or 'PROD.NUEVOS' in p_cand) else (p_cand[0] if p_cand else '')
+            act_cand = c_group['ACTIVIDAD'].tolist()
+            act_val = act_cand[0] if act_cand else 'Siembra'
+
+            # Edad de la variedad comercial o la moda del segmento
+            comercial_rows = c_group[c_group['PRODUCTO_MAESTRO'] == prod_predominante]
+            if len(comercial_rows) > 0:
+                edad_val = int(comercial_rows['EDAD_REAL'].iloc[0])
+            else:
+                edad_val = int(c_group['EDAD_REAL'].mode()[0])
+
+            sufs = sorted(set(s for s in c_group['SUFIJO'] if s))
+            suf_str = sufs[0] if len(sufs) == 1 else (f"{sufs[0]}-{sufs[-1]}" if sufs else '')
+
+            cama_records.append({
+                'num_cama': int(num_cama),
+                'actividad': act_val,
+                'producto_maestro': p_val,
+                'edad_real': edad_val,
+                'sufijo': suf_str
+            })
+
+        # Fusionar camas contiguas que compartan actividad, producto maestro y edad real
         seg_start = 0
-        for i in range(1, len(grupo) + 1):
-            if (i == len(grupo) or
-                grupo.loc[i, 'ACTIVIDAD'] != grupo.loc[seg_start, 'ACTIVIDAD'] or
-                grupo.loc[i, 'PRODUCTO_MAESTRO'] != grupo.loc[seg_start, 'PRODUCTO_MAESTRO'] or
-                grupo.loc[i, 'EDAD_REAL'] != grupo.loc[seg_start, 'EDAD_REAL']):
+        for i in range(1, len(cama_records) + 1):
+            is_end = (i == len(cama_records))
+            if not is_end:
+                prev_c = cama_records[i - 1]
+                curr_c = cama_records[i]
+                same = (
+                    curr_c['num_cama'] == prev_c['num_cama'] + 1 and
+                    curr_c['actividad'] == cama_records[seg_start]['actividad'] and
+                    curr_c['producto_maestro'] == cama_records[seg_start]['producto_maestro'] and
+                    curr_c['edad_real'] == cama_records[seg_start]['edad_real']
+                )
+            else:
+                same = False
 
-                cama_ini = grupo.loc[seg_start, 'NUM_CAMA']
-                cama_fin = grupo.loc[i - 1, 'NUM_CAMA']
-                suf_ini = grupo.loc[seg_start, 'SUFIJO']
-                suf_fin = grupo.loc[i - 1, 'SUFIJO']
-                sufijo = suf_ini if suf_ini == suf_fin else f"{suf_ini}-{suf_fin}"
-                edad = grupo.loc[seg_start, 'EDAD_REAL']
-                actividad = grupo.loc[seg_start, 'ACTIVIDAD']
-                producto = grupo.loc[seg_start, 'PRODUCTO_MAESTRO']
+            if not same:
+                c_ini = cama_records[seg_start]['num_cama']
+                c_fin = cama_records[i - 1]['num_cama']
+                s_ini = cama_records[seg_start]['sufijo']
+                s_fin = cama_records[i - 1]['sufijo']
+                suf_final = s_ini if s_ini == s_fin else f"{s_ini}-{s_fin}".strip('-')
 
-                prod_norm = normalize_product_name(producto)
+                prod_final = cama_records[seg_start]['producto_maestro']
+                prod_norm = normalize_product_name(prod_final)
                 if prod_norm == 'VERONICA':
-                    producto = 'VERONICA'
+                    prod_final = 'VERONICA'
 
                 resultados.append({
                     'ZONA': clean_str(zona),
                     'BLOQUE': clean_block_code(bloque),
-                    'ACTIVIDAD': clean_str(actividad),
-                    'PRODUCTO_MAESTRO': clean_str(producto),
-                    'CAMA_INICIAL': cama_ini,
-                    'CAMA_FINAL': cama_fin,
-                    'SUFIJO': sufijo,
-                    'EDAD_REAL': edad
+                    'ACTIVIDAD': clean_str(cama_records[seg_start]['actividad']),
+                    'PRODUCTO_MAESTRO': clean_str(prod_final),
+                    'CAMA_INICIAL': c_ini,
+                    'CAMA_FINAL': c_fin,
+                    'SUFIJO': suf_final,
+                    'EDAD_REAL': cama_records[seg_start]['edad_real']
                 })
                 seg_start = i
 
@@ -298,6 +337,7 @@ def preview_excel_sync(ec_file_path, mf_file_path=None):
         target_prods = get_matching_matrix_products(row['PRODUCTO_MAESTRO'], prod_aliases)
         has_matrix = any(tp in all_matrix_prods for tp in target_prods)
         if not has_matrix:
+            unmatched_count += 1
             continue
 
         act_norm = normalize_key(row['ACTIVIDAD'])
@@ -395,6 +435,15 @@ def sync_excel_to_db(semana_anio=None, anio=None, ec_file_path=None, mf_file_pat
         target_prods = get_matching_matrix_products(row['PRODUCTO_MAESTRO'], prod_aliases)
         has_matrix = any(tp in all_matrix_prods for tp in target_prods)
         if not has_matrix:
+            item_key = (semana_corte, anio, row['ZONA'], row['BLOQUE'], row['ACTIVIDAD'], row['PRODUCTO_MAESTRO'], int(row['CAMA_INICIAL']), int(row['CAMA_FINAL']), row['SUFIJO'], 'No hay actividad')
+            if item_key not in final_items_map:
+                final_items_map[item_key] = {
+                    'semana_anio': semana_corte, 'anio': anio, 'zona': row['ZONA'], 'bloque': row['BLOQUE'],
+                    'actividad_tipo': row['ACTIVIDAD'], 'producto_maestro': row['PRODUCTO_MAESTRO'],
+                    'cama_inicial': int(row['CAMA_INICIAL']), 'cama_final': int(row['CAMA_FINAL']), 'sufijo': row['SUFIJO'],
+                    'edad_real': int(row['EDAD_REAL']), 'labor': 'No hay actividad', 'auxiliar': '', 'supervisor': '',
+                    'tiene_evaluacion': False, 'es_pendiente_anterior': False, 'semana_origen': semana_corte
+                }
             continue
 
         act_norm = normalize_key(row['ACTIVIDAD'])
@@ -971,6 +1020,15 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
         target_prods = get_matching_matrix_products(row['PRODUCTO_MAESTRO'], prod_aliases)
         has_matrix = any(tp in all_matrix_prods for tp in target_prods)
         if not has_matrix:
+            item_key = (semana_corte, anio, row['ZONA'], row['BLOQUE'], row['ACTIVIDAD'], row['PRODUCTO_MAESTRO'], int(row['CAMA_INICIAL']), int(row['CAMA_FINAL']), row['SUFIJO'], 'No hay actividad')
+            if item_key not in final_items_map:
+                final_items_map[item_key] = {
+                    'semana_anio': semana_corte, 'anio': anio, 'zona': row['ZONA'], 'bloque': row['BLOQUE'],
+                    'actividad_tipo': row['ACTIVIDAD'], 'producto_maestro': row['PRODUCTO_MAESTRO'],
+                    'cama_inicial': int(row['CAMA_INICIAL']), 'cama_final': int(row['CAMA_FINAL']), 'sufijo': row['SUFIJO'],
+                    'edad_real': int(row['EDAD_REAL']), 'labor': 'No hay actividad', 'auxiliar': '', 'supervisor': '',
+                    'tiene_evaluacion': False, 'es_pendiente_anterior': False, 'semana_origen': semana_corte
+                }
             continue
 
         act_norm = normalize_key(row['ACTIVIDAD'])
@@ -1292,6 +1350,61 @@ def obtener_datos_dashboard(semana):
             'pct': round((c_f / t_f * 100), 1) if t_f > 0 else 0.0
         })
 
+    # Desglose de cumplimiento por Zona cruzado con Cultivo (para filtrado interactivo estilo Power BI)
+    zona_prod_rows = db.session.execute(text("""
+        SELECT 
+            zona,
+            COALESCE(NULLIF(producto_maestro, ''), 'SIN PRODUCTO') as producto_maestro,
+            COUNT(*) as total,
+            COUNT(CASE WHEN cumplido = 1 THEN 1 END) as cumplidas,
+            COUNT(CASE WHEN cumplido = 0 THEN 1 END) as incumplidas,
+            COUNT(CASE WHEN cumplido IS NULL THEN 1 END) as pendientes
+        FROM calificaciones
+        WHERE semana_anio = :semana AND tiene_evaluacion = TRUE
+        GROUP BY zona, COALESCE(NULLIF(producto_maestro, ''), 'SIN PRODUCTO')
+        ORDER BY zona ASC, producto_maestro ASC;
+    """), {'semana': semana}).fetchall()
+
+    zonas_por_cultivo = []
+    for zp in zona_prod_rows:
+        tot_zp = int(zp.total or 0)
+        zonas_por_cultivo.append({
+            'zona': zp.zona,
+            'producto_maestro': zp.producto_maestro,
+            'total': tot_zp,
+            'cumplidas': int(zp.cumplidas or 0),
+            'incumplidas': int(zp.incumplidas or 0),
+            'pendientes': int(zp.pendientes or 0),
+            'pct': round((zp.cumplidas / tot_zp * 100), 1) if tot_zp > 0 else 0.0
+        })
+
+    # Tendencia semanal individual por Cultivo
+    trend_prod_rows = db.session.execute(text("""
+        SELECT 
+            semana_anio,
+            COALESCE(NULLIF(producto_maestro, ''), 'SIN PRODUCTO') as producto_maestro,
+            COUNT(*) as total,
+            COUNT(CASE WHEN cumplido = 1 THEN 1 END) as cumplidas
+        FROM calificaciones
+        WHERE tiene_evaluacion = TRUE
+        GROUP BY semana_anio, COALESCE(NULLIF(producto_maestro, ''), 'SIN PRODUCTO')
+        ORDER BY semana_anio ASC, producto_maestro ASC;
+    """)).fetchall()
+
+    tendencia_por_cultivo = {}
+    for tp in trend_prod_rows:
+        pm = tp.producto_maestro
+        if pm not in tendencia_por_cultivo:
+            tendencia_por_cultivo[pm] = []
+        tot_tp = int(tp.total or 0)
+        c_tp = int(tp.cumplidas or 0)
+        tendencia_por_cultivo[pm].append({
+            'semana': int(tp.semana_anio),
+            'total': tot_tp,
+            'cumplidas': c_tp,
+            'pct': round((c_tp / tot_tp * 100), 1) if tot_tp > 0 else 0.0
+        })
+
     # Matriz Dinámica Estilo Power BI: Auxiliar × Cultivo + Drill-down de tareas que se quedaron (0 o Pendientes)
     detalle_aux_rows = db.session.execute(text("""
         SELECT 
@@ -1420,5 +1533,7 @@ def obtener_datos_dashboard(semana):
         'cultivos_columnas': cultivos_columnas,
         'matriz_auxiliares': matriz_auxiliares,
         'sin_match_count': sin_match_count,
-        'config_mapeos': config_mapeos
+        'config_mapeos': config_mapeos,
+        'zonas_por_cultivo': zonas_por_cultivo,
+        'tendencia_por_cultivo': tendencia_por_cultivo
     }

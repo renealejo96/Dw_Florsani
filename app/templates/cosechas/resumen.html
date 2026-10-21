@@ -93,6 +93,74 @@
         color: #fff;
         transform: scale(1.04);
     }
+    .col-variedad {
+        min-width: 200px;
+        width: 200px;
+    }
+    .col-dia {
+        min-width: 85px;
+        width: 85px;
+    }
+    .col-total-header {
+        min-width: 110px;
+        width: 110px;
+    }
+
+    /* Optimizaciones responsivas para pantallas móviles */
+    @media (max-width: 768px) {
+        .resumen-table {
+            font-size: 0.76rem;
+        }
+        .resumen-table thead th {
+            padding: 0.45rem 0.2rem !important;
+            font-size: 0.68rem !important;
+        }
+        .resumen-table tbody td {
+            padding: 0.45rem 0.2rem !important;
+            font-size: 0.74rem !important;
+        }
+        .col-variedad {
+            min-width: 125px !important;
+            max-width: 135px !important;
+            width: 130px !important;
+            font-size: 0.73rem !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            padding-left: 0.4rem !important;
+        }
+        .col-dia {
+            min-width: 52px !important;
+            width: 52px !important;
+            font-size: 0.72rem !important;
+        }
+        .col-total-header, .col-total {
+            min-width: 75px !important;
+            width: 75px !important;
+            font-size: 0.74rem !important;
+            padding: 0.35rem 0.25rem !important;
+        }
+        .badge-valor {
+            padding: 0.2rem 0.3rem !important;
+            font-size: 0.72rem !important;
+            border-radius: 4px;
+        }
+        .badge-total-row {
+            padding: 0.25rem 0.4rem !important;
+            font-size: 0.74rem !important;
+            border-radius: 4px;
+        }
+        .producto-header {
+            padding: 0.65rem 0.85rem !important;
+        }
+        .producto-header h5 {
+            font-size: 0.88rem !important;
+        }
+        .producto-header .badge {
+            font-size: 0.68rem !important;
+            padding: 0.25rem 0.5rem !important;
+        }
+    }
     .modal-table-bloques th {
         font-size: 0.78rem;
         text-transform: uppercase;
@@ -170,20 +238,23 @@
             </div>
             <span class="badge bg-secondary">Acumulado Lunes a Domingo</span>
         </div>
+        <div class="d-md-none text-muted py-1 px-2 text-center bg-light border-bottom" style="font-size: 0.72rem;">
+            <i class="fa-solid fa-arrows-left-right text-success me-1"></i> Desliza horizontalmente para ver todos los días
+        </div>
         <div class="table-responsive border-bottom">
             <table class="table resumen-table mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="sticky-col" style="min-width: 220px;">Día</th>
+                        <th class="sticky-col col-variedad">Día</th>
                         {% for dia in dias_semana %}
-                        <th style="min-width: 90px;">{{ dia }}</th>
+                        <th class="col-dia">{{ dia }}</th>
                         {% endfor %}
-                        <th class="col-total" style="min-width: 110px;">Total Semanal</th>
+                        <th class="col-total col-total-header">Total Semanal</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr class="fw-bold bg-light">
-                        <td class="sticky-col fw-bold text-dark">
+                        <td class="sticky-col col-variedad fw-bold text-dark">
                             <i class="fa-solid fa-globe text-primary me-2"></i>TOTAL DIARIO TALLOS
                         </td>
                         {% for i in range(7) %}
@@ -218,7 +289,7 @@
         {% endif %}
 
         <!-- PRODUCT MASTER SECTIONS -->
-        <div class="p-4">
+        <div class="p-2 p-md-4">
             {% for producto_maestro, variedades in productos.items()|sort %}
             <div class="mb-4 rounded-3 border overflow-hidden">
                 <div class="producto-header text-white d-flex justify-content-between align-items-center cursor-pointer shadow-xs"
@@ -241,21 +312,24 @@
                         </span>
                     </div>
                 </div>
+                <div class="d-md-none text-muted py-1 px-2 text-center bg-light border-bottom" style="font-size: 0.70rem;">
+                    <i class="fa-solid fa-arrows-left-right text-success me-1"></i> Desliza para ver días
+                </div>
                 <div class="table-responsive">
                     <table class="table resumen-table align-middle">
                         <thead>
                             <tr>
-                                <th class="sticky-col" style="min-width: 220px;">Variedad</th>
+                                <th class="sticky-col col-variedad">Variedad</th>
                                 {% for dia in dias_semana %}
-                                <th style="min-width: 90px;">{{ dia }}</th>
+                                <th class="col-dia">{{ dia }}</th>
                                 {% endfor %}
-                                <th class="col-total" style="min-width: 110px;">Total Variedad</th>
+                                <th class="col-total col-total-header">Total Variedad</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for variedad, dias in variedades.items()|sort %}
                             <tr>
-                                <td class="sticky-col fw-semibold text-dark">
+                                <td class="sticky-col col-variedad fw-semibold text-dark">
                                     <i class="fa-solid fa-leaf text-success me-2"></i>{{ variedad }}
                                 </td>
                                 {% for i in range(7) %}
@@ -287,7 +361,7 @@
                         </tbody>
                         <tfoot class="table-light fw-bold">
                             <tr>
-                                <td class="sticky-col text-uppercase small text-secondary">
+                                <td class="sticky-col col-variedad text-uppercase small text-secondary">
                                     <i class="fa-solid fa-calculator me-1 text-primary"></i> SUB-TOTAL {{ producto_maestro }}
                                 </td>
                                 {% for i in range(7) %}

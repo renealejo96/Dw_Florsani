@@ -332,21 +332,33 @@ def create_app(config_class=Config):
         estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).filter(Estimado.semana.in_(semanas_estimado_match)).scalar() or 0
         cumplimiento_cosecha = round((float(cosechas_total_tallos) / float(estimados_total_tallos) * 100), 1) if estimados_total_tallos > 0 else 0
 
-        # Histórico semanal de tallos cosechados (Gráfico de Líneas)
+        # Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
         historico_semanas_raw = db.session.query(
+            db.extract('year', RegistroCosecha.fecha).label('anio'),
             RegistroCosecha.semana,
-            db.func.sum(RegistroCosecha.total_tallos)
-        ).group_by(RegistroCosecha.semana).order_by(RegistroCosecha.semana.asc()).all()
+            db.func.sum(RegistroCosecha.total_tallos).label('total')
+        ).group_by('anio', RegistroCosecha.semana).order_by('anio', RegistroCosecha.semana).all()
 
-        historico_semanas_labels = []
-        historico_semanas_tallos = []
-        for sem_val, tallos_sum in historico_semanas_raw:
-            if not sem_val:
+        semanas_2025_map = {}
+        semanas_2026_map = {}
+        all_weeks_set = set()
+
+        for r_hist in historico_semanas_raw:
+            if not r_hist.semana:
                 continue
-            s_int = int(sem_val)
-            s_display = f"Sem {s_int % 100}" if s_int > 100 else f"Sem {s_int}"
-            historico_semanas_labels.append(s_display)
-            historico_semanas_tallos.append(int(tallos_sum or 0))
+            y_val = int(r_hist.anio) if r_hist.anio else 2026
+            w_val = int(r_hist.semana)
+            tot_w = int(r_hist.total or 0)
+            all_weeks_set.add(w_val)
+            if y_val == 2025:
+                semanas_2025_map[w_val] = tot_w
+            else:
+                semanas_2026_map[w_val] = tot_w
+
+        all_weeks_sorted = sorted(all_weeks_set)
+        historico_semanas_labels = [f"Sem {w}" for w in all_weeks_sorted]
+        historico_2025_tallos = [semanas_2025_map.get(w, None) for w in all_weeks_sorted]
+        historico_2026_tallos = [semanas_2026_map.get(w, None) for w in all_weeks_sorted]
 
         maestro_productos = cargar_maestro_productos()
         todos_cosechas_actuales = cosechas_semana_actual_query.all()
@@ -372,7 +384,8 @@ def create_app(config_class=Config):
             estimados_total_tallos=estimados_total_tallos,
             cumplimiento_cosecha=cumplimiento_cosecha,
             historico_semanas_labels=historico_semanas_labels,
-            historico_semanas_tallos=historico_semanas_tallos,
+            historico_2025_tallos=historico_2025_tallos,
+            historico_2026_tallos=historico_2026_tallos,
             tallos_por_producto=tallos_por_producto,
             cosechas_registros_count=cosechas_registros_count
         )

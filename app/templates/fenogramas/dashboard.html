@@ -334,31 +334,126 @@
     </div>
 
     <!-- ========================================================================
-         FILA 1 DE GRÁFICOS: TENDENCIA GENERAL DE FINCA + DESEMPEÑO POR SUPERVISOR
+         FILA 1: MATRIZ DE CUMPLIMIENTO POR ZONA (POWER BI) + % CUMPLIMIENTO POR CULTIVO
          ======================================================================== -->
     <div class="row g-3 mb-3">
-        <!-- LÍNEA DE TENDENCIA GENERAL DE LA FINCA -->
-        <div class="col-lg-5">
-            <div class="dash-chart-card border-emerald h-100 d-flex flex-column">
+        <!-- MATRIZ DE CUMPLIMIENTO POR ZONA (ESTILO POWER BI) -->
+        <div class="col-lg-7">
+            <div class="dash-chart-card border-amber h-100 d-flex flex-column">
                 <div class="dash-card-header">
                     <div>
                         <h6 class="fw-bold text-dark mb-0">
-                            <i class="fa-solid fa-chart-line text-success me-2"></i>Tendencia General del Fenograma (Finca)
+                            <i class="fa-solid fa-table-list text-warning me-2"></i>Matriz de Cumplimiento por Zona (Semana {{ semana }})
                         </h6>
-                        <span class="text-muted" style="font-size: 0.73rem;">Histórico semana a semana del % de cumplimiento global y labores ejecutadas</span>
+                        <span class="text-muted" style="font-size: 0.73rem;">
+                            Estándar mínimo de fenograma: <strong>90%</strong>. Zonas con <strong>&lt; 90%</strong> se destacan en <strong>rojo</strong>.
+                        </span>
                     </div>
-                    <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold tabular-nums">
-                        Actual: {{ pct_cumplimiento }}%
-                    </span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="zona-filtro-cultivo-badge" class="badge bg-secondary-subtle text-secondary px-2 py-1" style="font-size: 0.72rem;">
+                            Todos los Cultivos
+                        </span>
+                        <button type="button" id="btn-reset-cultivo" class="btn btn-outline-danger btn-xs py-0 px-2 fw-semibold" style="display: none; font-size: 0.7rem;" onclick="filtrarPorCultivo(null)">
+                            <i class="fa-solid fa-xmark me-1"></i> Quitar filtro
+                        </button>
+                    </div>
                 </div>
-                <div class="p-3 flex-grow-1 d-flex align-items-center">
-                    <div id="chart-tendencia-finca" style="width: 100%; min-height: 290px;"></div>
+
+                <!-- Pills de Filtro Rápido por Cultivo Maestro -->
+                <div class="px-3 pt-2 pb-1 bg-light border-bottom d-flex align-items-center gap-1 flex-wrap">
+                    <span class="small fw-bold text-muted me-1" style="font-size: 0.7rem;">Cultivo:</span>
+                    <button type="button" class="btn btn-xs btn-primary active btn-filter-cultivo px-2 py-0" data-cultivo="" onclick="filtrarPorCultivo(null)" style="font-size: 0.72rem;">
+                        Todos
+                    </button>
+                    {% for cult in cultivos_columnas %}
+                    <button type="button" class="btn btn-xs btn-outline-secondary btn-filter-cultivo px-2 py-0" data-cultivo="{{ cult }}" onclick="filtrarPorCultivo('{{ cult }}')" style="font-size: 0.72rem;">
+                        {{ cult }}
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Tabla Matriz Power BI de Zonas -->
+                <div class="table-responsive flex-grow-1" style="max-height: 340px; overflow-y: auto;">
+                    <table class="table table-sm table-hover align-middle mb-0" id="tabla-zonas-pbi">
+                        <thead class="table-dark sticky-top" style="font-size: 0.71rem; text-transform: uppercase; z-index: 5;">
+                            <tr>
+                                <th class="ps-3" style="width: 140px;">Zona</th>
+                                <th class="text-center">Prog.</th>
+                                <th class="text-center">Cumpl.</th>
+                                <th class="text-center">Incump. / Pend.</th>
+                                <th class="text-center" style="width: 135px;">% Cumplimiento</th>
+                                <th class="text-center pe-3" style="width: 115px;">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-zonas-pbi" style="font-size: 0.79rem;">
+                            <!-- Inyectado dinámicamente vía renderTablaZonasPBI() -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="px-3 py-1 bg-light border-top d-flex justify-content-between align-items-center" style="font-size: 0.7rem;">
+                    <span class="text-muted"><i class="fa-solid fa-circle-info me-1 text-primary"></i>Clic en una barra de cultivo a la derecha para filtrar esta matriz.</span>
+                    <span class="fw-bold text-secondary">Base: Calificaciones activas</span>
                 </div>
             </div>
         </div>
 
-        <!-- DESEMPEÑO POR SUPERVISOR (ACTIVIDADES TOTALES, CUMPLIDAS Y %) -->
-        <div class="col-lg-7">
+        <!-- GRÁFICA DE % CUMPLIMIENTO POR CULTIVO (INTERACTIVA APEXCHARTS) -->
+        <div class="col-lg-5">
+            <div class="dash-chart-card border-purple h-100 d-flex flex-column">
+                <div class="dash-card-header">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-seedling text-success me-2"></i>% Cumplimiento por Cultivo Maestro
+                        </h6>
+                        <span class="text-muted" style="font-size: 0.73rem;">Haz clic en una barra para filtrar zonas y tendencia histórica</span>
+                    </div>
+                    <span class="badge bg-purple-subtle text-primary border border-primary-subtle fw-bold" style="font-size: 0.72rem;">
+                        {{ por_producto|length }} Cultivos
+                    </span>
+                </div>
+                <div class="p-3 flex-grow-1 d-flex flex-column justify-content-center">
+                    <div id="chart-producto" style="width: 100%; min-height: 290px;"></div>
+                </div>
+                <div class="px-3 py-1 bg-light border-top text-center" style="font-size: 0.7rem;">
+                    <span class="text-muted"><i class="fa-solid fa-hand-pointer me-1 text-primary"></i>Selecciona cualquier cultivo para aislar su desempeño</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================
+         FILA 2: GRÁFICO DE TENDENCIA GENERAL DEL FENOGRAMA (A TODO LO ANCHO - COL-12)
+         ======================================================================== -->
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="dash-chart-card border-emerald">
+                <div class="dash-card-header">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-chart-line text-success me-2"></i>Tendencia del Fenograma (Semana a Semana)
+                        </h6>
+                        <span id="tendencia-subtitle" class="text-muted" style="font-size: 0.73rem;">
+                            Histórico semana a semana del % de cumplimiento global de toda la finca
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="tendencia-badge" class="badge bg-success-subtle text-success border border-success-subtle fw-bold tabular-nums">
+                            Finca Completa (Sem. {{ semana }}: {{ pct_cumplimiento }}%)
+                        </span>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div id="chart-tendencia-finca" style="width: 100%; min-height: 260px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================
+         FILA 3: DESEMPEÑO POR SUPERVISOR
+         ======================================================================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
             <div class="dash-chart-card border-blue h-100 d-flex flex-column">
                 <div class="dash-card-header">
                     <div>
@@ -392,43 +487,6 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================================================
-         FILA 2 DE GRÁFICOS: CUMPLIMIENTO POR ZONA Y POR CULTIVO
-         ======================================================================== -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-6">
-            <div class="dash-chart-card border-amber h-100">
-                <div class="dash-card-header">
-                    <div>
-                        <h6 class="fw-bold text-dark mb-0">
-                            <i class="fa-solid fa-map-location-dot text-warning me-2"></i>% Cumplimiento por Zona (Semana {{ semana }})
-                        </h6>
-                        <span class="text-muted" style="font-size: 0.73rem;">Desempeño operativo por cada zona de producción</span>
-                    </div>
-                </div>
-                <div class="p-3">
-                    <div id="chart-zona" style="width: 100%; min-height: 260px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="dash-chart-card border-purple h-100">
-                <div class="dash-card-header">
-                    <div>
-                        <h6 class="fw-bold text-dark mb-0">
-                            <i class="fa-solid fa-seedling text-success me-2"></i>% Cumplimiento por Cultivo / Producto Maestro
-                        </h6>
-                        <span class="text-muted" style="font-size: 0.73rem;">Efectividad de labores fenológicas por especie floral</span>
-                    </div>
-                </div>
-                <div class="p-3">
-                    <div id="chart-producto" style="width: 100%; min-height: 260px;"></div>
-                </div>
             </div>
         </div>
     </div>
@@ -799,12 +857,167 @@ const TENDENCIA_FINCA = {{ (tendencia_finca or [])|tojson }};
 const POR_SUPERVISOR  = {{ (por_supervisor or [])|tojson }};
 const POR_ZONA        = {{ (por_zona or [])|tojson }};
 const POR_PRODUCTO    = {{ (por_producto or [])|tojson }};
-const MATRIZ_AUX      = {{ (matriz_auxiliares or [])|tojson }};
+const MATRIZ_AUX          = {{ (matriz_auxiliares or [])|tojson }};
+const ZONAS_POR_CULTIVO   = {{ (zonas_por_cultivo or [])|tojson }};
+const TENDENCIA_POR_CULTIVO = {{ (tendencia_por_cultivo or {})|tojson }};
+
+let selectedCultivoFilter = null;
+let chartTendenciaInstance = null;
+let chartProductoInstance = null;
+let chartSupervisoresInstance = null;
 
 /* ============================================================================
-   1. GRÁFICA DE TENDENCIA GENERAL DE LA FINCA (ÁREA SPLINE + BORDES PROYECTO)
+   1. MATRIZ DE CUMPLIMIENTO POR ZONA ESTILO POWER BI (ROJO < 90% ESTÁNDAR)
    ============================================================================ */
-(function renderTendenciaFinca() {
+function renderTablaZonasPBI(cultivoFiltrado) {
+    const tbody = document.getElementById('tbody-zonas-pbi');
+    const badge = document.getElementById('zona-filtro-cultivo-badge');
+    const btnReset = document.getElementById('btn-reset-cultivo');
+    if (!tbody) return;
+
+    if (badge) {
+        if (cultivoFiltrado) {
+            badge.textContent = `Cultivo: ${cultivoFiltrado}`;
+            badge.className = 'badge bg-primary px-2 py-1';
+        } else {
+            badge.textContent = 'Todos los Cultivos';
+            badge.className = 'badge bg-secondary-subtle text-secondary px-2 py-1';
+        }
+    }
+    if (btnReset) {
+        btnReset.style.display = cultivoFiltrado ? 'inline-block' : 'none';
+    }
+
+    let filas = [];
+    if (!cultivoFiltrado) {
+        filas = POR_ZONA.map(z => ({
+            zona: z.zona,
+            total: z.total,
+            cumplidas: z.cumplidas,
+            incumplidas: z.incumplidas,
+            pendientes: z.pendientes,
+            pct: z.pct
+        }));
+    } else {
+        filas = ZONAS_POR_CULTIVO.filter(zc => zc.producto_maestro === cultivoFiltrado).map(zc => ({
+            zona: zc.zona,
+            total: zc.total,
+            cumplidas: zc.cumplidas,
+            incumplidas: zc.incumplidas,
+            pendientes: zc.pendientes,
+            pct: zc.pct
+        }));
+    }
+
+    filas.sort((a, b) => a.zona.localeCompare(b.zona, undefined, { numeric: true, sensitivity: 'base' }));
+
+    if (filas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No hay labores evaluadas en las zonas para <strong>${cultivoFiltrado || 'esta selección'}</strong>.</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    filas.forEach(f => {
+        const esBajoEstandar = f.pct < 90.0;
+        const rowBgStyle = esBajoEstandar
+            ? 'background-color: #fef2f2; border-left: 4.5px solid #ef4444;'
+            : 'background-color: #f0fdf4; border-left: 4.5px solid #10b981;';
+        
+        const pctBadge = esBajoEstandar
+            ? `<span class="badge bg-danger text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`
+            : `<span class="badge bg-success text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`;
+        
+        const estadoBadge = esBajoEstandar
+            ? `<span class="badge bg-danger-subtle text-danger border border-danger fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-triangle-exclamation me-1"></i>&lt; 90% Alerta</span>`
+            : `<span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check me-1"></i>&ge; 90% Estándar</span>`;
+
+        html += `
+            <tr style="${rowBgStyle}">
+                <td class="ps-3 fw-bold text-dark">${f.zona}</td>
+                <td class="text-center fw-semibold text-secondary tabular-nums">${f.total}</td>
+                <td class="text-center fw-bold text-success tabular-nums">${f.cumplidas}</td>
+                <td class="text-center tabular-nums">
+                    <span class="text-danger fw-semibold">${f.incumplidas}</span> / <span class="text-muted">${f.pendientes}</span>
+                </td>
+                <td class="text-center">
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                        ${pctBadge}
+                        <div class="progress flex-grow-1" style="height: 6px; max-width: 65px; background-color: #e2e8f0; border-radius: 3px;">
+                            <div class="progress-bar ${esBajoEstandar ? 'bg-danger' : 'bg-success'}" style="width: ${Math.min(f.pct, 100)}%; border-radius: 3px;"></div>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-center pe-3">${estadoBadge}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+/* ============================================================================
+   2. ACTUALIZACIÓN DINÁMICA DEL GRÁFICO DE TENDENCIA (GENERAL vs POR CULTIVO)
+   ============================================================================ */
+function actualizarGraficoTendencia(cultivoFiltrado) {
+    if (!chartTendenciaInstance) return;
+
+    const subTitleEl = document.getElementById('tendencia-subtitle');
+    const badgeEl = document.getElementById('tendencia-badge');
+
+    let datos = [];
+    if (!cultivoFiltrado) {
+        datos = TENDENCIA_FINCA;
+        if (subTitleEl) subTitleEl.innerHTML = 'Histórico semana a semana del % de cumplimiento global de toda la finca';
+        if (badgeEl) {
+            badgeEl.innerHTML = `Finca Completa (Sem. ${SEMANA_DASH})`;
+            badgeEl.className = 'badge bg-success-subtle text-success border border-success-subtle fw-bold';
+        }
+    } else {
+        datos = TENDENCIA_POR_CULTIVO[cultivoFiltrado] || [];
+        if (subTitleEl) subTitleEl.innerHTML = `Evolución histórica específica para el cultivo: <strong>${cultivoFiltrado}</strong>`;
+        if (badgeEl) {
+            badgeEl.innerHTML = `Cultivo: ${cultivoFiltrado}`;
+            badgeEl.className = 'badge bg-primary-subtle text-primary border border-primary-subtle fw-bold';
+        }
+    }
+
+    const labels = datos.map(d => `Sem ${d.semana}`);
+    const pctSeries = datos.map(d => d.pct);
+
+    chartTendenciaInstance.updateOptions({
+        xaxis: { categories: labels }
+    });
+    chartTendenciaInstance.updateSeries([{
+        name: cultivoFiltrado ? `% Cumplimiento (${cultivoFiltrado})` : '% Cumplimiento Finca',
+        data: pctSeries
+    }]);
+}
+
+/* ============================================================================
+   3. FILTRADO INTERACTIVO GLOBAL POR CULTIVO (ESTILO POWER BI)
+   ============================================================================ */
+function filtrarPorCultivo(cultivo) {
+    selectedCultivoFilter = cultivo;
+    renderTablaZonasPBI(cultivo);
+    actualizarGraficoTendencia(cultivo);
+
+    // Actualizar botones de filtro rápido
+    document.querySelectorAll('.btn-filter-cultivo').forEach(btn => {
+        const cAttr = btn.getAttribute('data-cultivo') || '';
+        if ((!cultivo && !cAttr) || (cultivo && cAttr === cultivo)) {
+            btn.classList.add('active', 'btn-primary');
+            btn.classList.remove('btn-outline-secondary');
+        } else {
+            btn.classList.remove('active', 'btn-primary');
+            btn.classList.add('btn-outline-secondary');
+        }
+    });
+}
+
+/* ============================================================================
+   4. GRÁFICA DE TENDENCIA GENERAL DE LA FINCA (FULL WIDTH - COL-12)
+   ============================================================================ */
+function renderTendenciaFinca() {
     const el = document.getElementById('chart-tendencia-finca');
     if (!el) return;
 
@@ -814,10 +1027,10 @@ const MATRIZ_AUX      = {{ (matriz_auxiliares or [])|tojson }};
     const options = {
         chart: {
             type: 'area',
-            height: 285,
+            height: 260,
             fontFamily: 'Inter, system-ui, sans-serif',
             toolbar: { show: false },
-            animations: { enabled: true, easing: 'easeinout', speed: 550 }
+            animations: { enabled: true, easing: 'easeinout', speed: 500 }
         },
         series: [{
             name: '% Cumplimiento Finca',
@@ -847,8 +1060,8 @@ const MATRIZ_AUX      = {{ (matriz_auxiliares or [])|tojson }};
             type: 'gradient',
             gradient: {
                 shadeIntensity: 1,
-                opacityFrom: 0.45,
-                opacityTo: 0.05,
+                opacityFrom: 0.40,
+                opacityTo: 0.04,
                 stops: [0, 90, 100]
             }
         },
@@ -880,29 +1093,109 @@ const MATRIZ_AUX      = {{ (matriz_auxiliares or [])|tojson }};
         },
         tooltip: {
             theme: 'light',
-            custom: function({ series, seriesIndex, dataPointIndex }) {
-                const item = TENDENCIA_FINCA[dataPointIndex] || {};
-                return `
-                    <div class="p-2 small" style="min-width: 175px;">
-                        <div class="fw-bold text-dark border-bottom pb-1 mb-1">Semana ${item.semana} (General Finca)</div>
-                        <div class="d-flex justify-content-between"><span>% Cumplimiento:</span> <strong class="text-success">${item.pct}%</strong></div>
-                        <div class="d-flex justify-content-between"><span>Cumplidas (1):</span> <strong>${item.cumplidas}</strong></div>
-                        <div class="d-flex justify-content-between"><span>Programadas:</span> <strong>${item.total}</strong></div>
-                        <div class="d-flex justify-content-between text-danger"><span>Incumplidas (0):</span> <strong>${item.incumplidas}</strong></div>
-                        <div class="d-flex justify-content-between text-muted"><span>Pendientes:</span> <strong>${item.pendientes}</strong></div>
-                    </div>
-                `;
+            y: {
+                formatter: val => `${val}%`
             }
         }
     };
 
-    new ApexCharts(el, options).render();
-})();
+    chartTendenciaInstance = new ApexCharts(el, options);
+    chartTendenciaInstance.render();
+}
 
 /* ============================================================================
-   2. GRÁFICA DE DESEMPEÑO POR SUPERVISOR (PROGRAMADAS vs CUMPLIDAS + % LÍNEA)
+   5. GRÁFICA DE % CUMPLIMIENTO POR CULTIVO (INTERACTIVA - CLIC FILTRA TODO)
    ============================================================================ */
-(function renderSupervisoresChart() {
+function renderProductoChart() {
+    const el = document.getElementById('chart-producto');
+    if (!el) return;
+
+    const labels = POR_PRODUCTO.map(p => p.producto_maestro);
+    const pcts = POR_PRODUCTO.map(p => p.pct);
+
+    const options = {
+        chart: {
+            type: 'bar',
+            height: 275,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            toolbar: { show: false },
+            events: {
+                dataPointSelection: function(event, chartContext, config) {
+                    const idx = config.dataPointIndex;
+                    if (idx !== undefined && idx >= 0 && POR_PRODUCTO[idx]) {
+                        const cult = POR_PRODUCTO[idx].producto_maestro;
+                        filtrarPorCultivo(cult === selectedCultivoFilter ? null : cult);
+                    }
+                }
+            }
+        },
+        series: [{
+            name: '% Cumplimiento',
+            data: pcts
+        }],
+        colors: ['#2563eb'],
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shade: 'light',
+                type: 'vertical',
+                shadeIntensity: 0.35,
+                gradientToColors: ['#059669'],
+                inverseColors: false,
+                opacityFrom: 0.95,
+                opacityTo: 0.85,
+                stops: [0, 100]
+            }
+        },
+        plotOptions: {
+            bar: {
+                borderRadius: 6,
+                columnWidth: '48%',
+                dataLabels: { position: 'top' }
+            }
+        },
+        stroke: {
+            show: true,
+            width: 2,
+            colors: ['#1e3a8a']
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: function(val, opts) {
+                const p = POR_PRODUCTO[opts.dataPointIndex];
+                return p ? `${val}% (${p.cumplidas}/${p.total})` : `${val}%`;
+            },
+            offsetY: -20,
+            style: { fontSize: '10.5px', fontWeight: 800, colors: ['#0f172a'] }
+        },
+        xaxis: {
+            categories: labels,
+            labels: { style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' } }
+        },
+        yaxis: {
+            min: 0,
+            max: 108,
+            labels: { formatter: v => v <= 100 ? `${Math.round(v)}%` : '' }
+        },
+        grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },
+        tooltip: {
+            y: {
+                formatter: function(val, { dataPointIndex }) {
+                    const p = POR_PRODUCTO[dataPointIndex];
+                    return p ? `${val}% (${p.cumplidas} de ${p.total} labores cumplidas). Clic para filtrar.` : `${val}%`;
+                }
+            }
+        }
+    };
+
+    chartProductoInstance = new ApexCharts(el, options);
+    chartProductoInstance.render();
+}
+
+/* ============================================================================
+   6. GRÁFICA DE DESEMPEÑO POR SUPERVISOR
+   ============================================================================ */
+function renderSupervisoresChart() {
     const el = document.getElementById('chart-supervisores');
     if (!el) return;
 
@@ -998,144 +1291,18 @@ const MATRIZ_AUX      = {{ (matriz_auxiliares or [])|tojson }};
         }
     };
 
-    new ApexCharts(el, options).render();
-})();
+    chartSupervisoresInstance = new ApexCharts(el, options);
+    chartSupervisoresInstance.render();
+}
 
-/* ============================================================================
-   3. GRÁFICA DE CUMPLIMIENTO POR ZONA (BARRAS CON BORDES Y COLOR SEMÁNTICO)
-   ============================================================================ */
-(function renderZonaChart() {
-    const el = document.getElementById('chart-zona');
-    if (!el) return;
+// Inicializar componentes ejecutivos al cargar el DOM
+document.addEventListener('DOMContentLoaded', function() {
+    renderTablaZonasPBI(null);
+    renderTendenciaFinca();
+    renderProductoChart();
+    renderSupervisoresChart();
+});
 
-    const labels = POR_ZONA.map(z => z.zona);
-    const pcts = POR_ZONA.map(z => z.pct);
-    const barColors = pcts.map(p => p >= 85 ? '#10b981' : (p >= 70 ? '#f59e0b' : '#ef4444'));
-
-    const options = {
-        chart: {
-            type: 'bar',
-            height: 260,
-            fontFamily: 'Inter, system-ui, sans-serif',
-            toolbar: { show: false }
-        },
-        series: [{
-            name: '% Cumplimiento',
-            data: pcts
-        }],
-        colors: barColors,
-        plotOptions: {
-            bar: {
-                distributed: true,
-                borderRadius: 6,
-                columnWidth: '52%',
-                dataLabels: { position: 'top' }
-            }
-        },
-        stroke: {
-            show: true,
-            width: 2,
-            colors: ['#0f172a']
-        },
-        dataLabels: {
-            enabled: true,
-            formatter: function(val, opts) {
-                const z = POR_ZONA[opts.dataPointIndex];
-                return z ? `${val}% (${z.cumplidas}/${z.total})` : `${val}%`;
-            },
-            offsetY: -20,
-            style: { fontSize: '10.5px', fontWeight: 800, colors: ['#0f172a'] }
-        },
-        xaxis: {
-            categories: labels,
-            labels: { style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' } }
-        },
-        yaxis: {
-            min: 0,
-            max: 108,
-            labels: { formatter: v => v <= 100 ? `${Math.round(v)}%` : '' }
-        },
-        legend: { show: false },
-        grid: { borderColor: '#e2e8f0', strokeDashArray: 4 }
-    };
-
-    new ApexCharts(el, options).render();
-})();
-
-/* ============================================================================
-   4. GRÁFICA DE CUMPLIMIENTO POR CULTIVO (PRODUCTO MAESTRO)
-   ============================================================================ */
-(function renderProductoChart() {
-    const el = document.getElementById('chart-producto');
-    if (!el) return;
-
-    const labels = POR_PRODUCTO.map(p => p.producto_maestro);
-    const pcts = POR_PRODUCTO.map(p => p.pct);
-
-    const options = {
-        chart: {
-            type: 'bar',
-            height: 260,
-            fontFamily: 'Inter, system-ui, sans-serif',
-            toolbar: { show: false }
-        },
-        series: [{
-            name: '% Cumplimiento',
-            data: pcts
-        }],
-        colors: ['#2563eb'],
-        fill: {
-            type: 'gradient',
-            gradient: {
-                shade: 'light',
-                type: 'vertical',
-                shadeIntensity: 0.35,
-                gradientToColors: ['#059669'],
-                inverseColors: false,
-                opacityFrom: 0.95,
-                opacityTo: 0.85,
-                stops: [0, 100]
-            }
-        },
-        plotOptions: {
-            bar: {
-                borderRadius: 6,
-                columnWidth: '50%',
-                dataLabels: { position: 'top' }
-            }
-        },
-        stroke: {
-            show: true,
-            width: 2,
-            colors: ['#1e3a8a']
-        },
-        dataLabels: {
-            enabled: true,
-            formatter: function(val, opts) {
-                const p = POR_PRODUCTO[opts.dataPointIndex];
-                return p ? `${val}% (${p.cumplidas}/${p.total})` : `${val}%`;
-            },
-            offsetY: -20,
-            style: { fontSize: '10.5px', fontWeight: 800, colors: ['#0f172a'] }
-        },
-        xaxis: {
-            categories: labels,
-            labels: { style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' } }
-        },
-        yaxis: {
-            min: 0,
-            max: 108,
-            labels: { formatter: v => v <= 100 ? `${Math.round(v)}%` : '' }
-        },
-        grid: { borderColor: '#e2e8f0', strokeDashArray: 4 }
-    };
-
-    new ApexCharts(el, options).render();
-})();
-
-/* ============================================================================
-   5. MATRIZ INTERACTIVA ESTILO POWER BI: VENTANA DINÁMICA DE LABORES NO CUMPLIDAS
-   ============================================================================ */
 let modalPbiInstance = null;
 let currentModalAuxIdx = null;
 let currentModalCultivo = null; // null = Todos los cultivos del auxiliar
