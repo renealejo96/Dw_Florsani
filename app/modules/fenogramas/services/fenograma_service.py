@@ -22,9 +22,11 @@ def load_mapeos_config():
             "KEVIN BUTRON": "Kevin Buitron"
         },
         "producto_aliases": {
-            "BILLION LIGHTS": ["BILLION LIGHTS", "GYPSOPHILA", "GYPSO XLENCE", "MILLION STAR II", "SMALL BLOOM"],
-            "GYPSO XLENCE": ["GYPSO XLENCE", "GYPSOPHILA", "BILLION LIGHTS", "MILLION STAR II", "SMALL BLOOM"],
-            "MILLION STAR II": ["MILLION STAR II", "GYPSOPHILA", "BILLION LIGHTS", "GYPSO XLENCE", "SMALL BLOOM"],
+            "BILLION LIGHT": ["BILLION LIGHT", "BILLION LIGHTS", "GYPSOPHILA", "GYPSO XLENCE", "MILLION STAR II", "SMALL BLOOM"],
+            "BILLION LIGHTS": ["BILLION LIGHTS", "BILLION LIGHT", "GYPSOPHILA", "GYPSO XLENCE", "MILLION STAR II", "SMALL BLOOM"],
+            "GYPSOPHILA": ["GYPSOPHILA", "BILLION LIGHT", "BILLION LIGHTS", "GYPSO XLENCE", "MILLION STAR II", "SMALL BLOOM"],
+            "GYPSO XLENCE": ["GYPSO XLENCE", "GYPSOPHILA", "BILLION LIGHT", "BILLION LIGHTS", "MILLION STAR II", "SMALL BLOOM"],
+            "MILLION STAR II": ["MILLION STAR II", "GYPSOPHILA", "BILLION LIGHT", "BILLION LIGHTS", "GYPSO XLENCE", "SMALL BLOOM"],
             "VERONICA": ["VERONICA", "VERONICAS", "VERÓNICA", "VERÓNICAS"],
             "VERONICA SPLASH": ["VERONICA SPLASH", "VERONICAS SPLASH", "VERÓNICA SPLASH", "VERÓNICAS SPLASH"]
         }
@@ -146,8 +148,79 @@ def get_matching_matrix_products(ec_producto, producto_aliases):
             mapped.remove(norm_ec)
         return [norm_ec] + mapped
     if any(k in norm_ec for k in ['BILLION', 'GYPSO', 'XLENCE', 'MILLION', 'SMALL BLOOM', 'GYPSOPHILA']):
-        return [norm_ec, 'GYPSOPHILA', 'BILLION LIGHTS', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM']
+        return [norm_ec, 'GYPSOPHILA', 'BILLION LIGHT', 'BILLION LIGHTS', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM']
     return [norm_ec]
+
+def find_responsible_for_labor(producto_maestro, labor, default_aux='', default_sup=''):
+    """
+    Busca auxiliar y supervisor asignado a una labor en matriz_fenogramas,
+    resolviendo alias de productos (Gypsophila -> Billion Light, etc.)
+    y con fallback por labor.
+    """
+    if not labor or str(labor).strip() in ('', 'No hay actividad'):
+        return (default_aux or '').strip(), (default_sup or '').strip()
+        
+    labor_clean = str(labor).strip()
+    config = load_mapeos_config()
+    prod_aliases = {normalize_key(k): v for k, v in config.get("producto_aliases", {}).items()}
+    
+    # Obtener lista de nombres/alias posibles para el producto
+    target_prods = get_matching_matrix_products(producto_maestro or '', prod_aliases)
+    if producto_maestro:
+        target_prods.append(str(producto_maestro).strip())
+    
+    # Expandir con variantes mayúsculas y con/sin S final
+    expanded_prods = set()
+    for p in target_prods:
+        p_up = p.upper().strip()
+        expanded_prods.add(p_up)
+        if p_up.endswith('S'):
+            expanded_prods.add(p_up[:-1])
+        else:
+            expanded_prods.add(p_up + 'S')
+            
+    prods_list = list(expanded_prods)
+    
+    # 1. Match exacto por producto alias + labor
+    row = db.session.execute(text("""
+        SELECT auxiliar, supervisor
+        FROM matriz_fenogramas
+        WHERE UPPER(producto) = ANY(:prods) AND UPPER(labor) = UPPER(:labor)
+        LIMIT 1;
+    """), {'prods': prods_list, 'labor': labor_clean}).fetchone()
+    
+    if row and (row.auxiliar or row.supervisor):
+        return (row.auxiliar or default_aux or '').strip(), (row.supervisor or default_sup or '').strip()
+        
+    # 2. Match parcial por producto (LIKE) + labor
+    row_part = db.session.execute(text("""
+        SELECT auxiliar, supervisor
+        FROM matriz_fenogramas
+        WHERE (UPPER(producto) LIKE :p_like OR UPPER(:p_input) LIKE '%' || UPPER(producto) || '%')
+          AND UPPER(labor) = UPPER(:labor)
+        LIMIT 1;
+    """), {
+        'p_like': f"%{prods_list[0]}%" if prods_list else '%',
+        'p_input': (producto_maestro or '').upper().strip(),
+        'labor': labor_clean
+    }).fetchone()
+    
+    if row_part and (row_part.auxiliar or row_part.supervisor):
+        return (row_part.auxiliar or default_aux or '').strip(), (row_part.supervisor or default_sup or '').strip()
+
+    # 3. Fallback: match por nombre de labor en cualquier producto donde haya personal asignado
+    row_fb = db.session.execute(text("""
+        SELECT auxiliar, supervisor
+        FROM matriz_fenogramas
+        WHERE UPPER(labor) = UPPER(:labor) 
+          AND auxiliar IS NOT NULL AND auxiliar != ''
+        LIMIT 1;
+    """), {'labor': labor_clean}).fetchone()
+    
+    if row_fb and (row_fb.auxiliar or row_fb.supervisor):
+        return (row_fb.auxiliar or default_aux or '').strip(), (row_fb.supervisor or default_sup or '').strip()
+
+    return (default_aux or '').strip(), (default_sup or '').strip()
 
 def extract_week_from_ec(ec_file_path):
     try:

@@ -86,26 +86,52 @@
 /* Resumen de Supervisores bajo la gráfica */
 .sup-stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-    gap: 0.5rem;
-    padding: 0.65rem 1rem 0.9rem 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+    gap: 0.65rem;
+    padding: 0.85rem 1rem 1rem 1rem;
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
 }
 .sup-stat-pill {
     background: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-left: 3.5px solid #2563eb;
-    border-radius: 8px;
-    padding: 0.45rem 0.65rem;
+    border: 1px solid #e2e8f0;
+    border-top: 3.5px solid #2563eb;
+    border-radius: 9px;
+    padding: 0.6rem 0.75rem;
     font-size: 0.76rem;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.sup-stat-pill.sup-high { border-left-color: #10b981; }
-.sup-stat-pill.sup-mid  { border-left-color: #f59e0b; }
-.sup-stat-pill.sup-low  { border-left-color: #ef4444; }
+.sup-stat-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+.sup-stat-pill.sup-high { border-top-color: #10b981; }
+.sup-stat-pill.sup-mid  { border-top-color: #f59e0b; }
+.sup-stat-pill.sup-low  { border-top-color: #ef4444; }
+.sup-metric-box {
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 3px 2px;
+    text-align: center;
+    border: 1px solid #f1f5f9;
+}
+.sup-metric-title {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #64748b;
+    margin-bottom: 1px;
+}
+.sup-metric-value {
+    font-size: 0.88rem;
+    font-weight: 800;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
 
 /* ============================================================================
    MATRIZ INTERACTIVA ESTILO POWER BI (AUXILIAR x CULTIVO + DRILL-DOWN)
@@ -368,7 +394,6 @@
                                 <th class="ps-3" style="width: 140px;">Zona</th>
                                 <th class="text-center">Prog.</th>
                                 <th class="text-center">Cumpl.</th>
-                                <th class="text-center">Incump. / Pend.</th>
                                 <th class="text-center" style="width: 135px;">% Cumplimiento</th>
                                 <th class="text-center pe-3" style="width: 60px;"></th>
                             </tr>
@@ -461,15 +486,36 @@
                 <div class="sup-stat-grid">
                     {% for sup in por_supervisor %}
                     <div class="sup-stat-pill {% if sup.pct >= 85 %}sup-high{% elif sup.pct >= 70 %}sup-mid{% else %}sup-low{% endif %}">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="fw-bold text-dark text-truncate" title="{{ sup.supervisor }}">{{ sup.supervisor }}</span>
-                            <span class="fw-bold tabular-nums {% if sup.pct >= 85 %}text-success{% elif sup.pct >= 70 %}text-warning{% else %}text-danger{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-dark text-truncate" style="max-width: 140px;" title="{{ sup.supervisor }}">
+                                <i class="fa-solid fa-user text-secondary me-1" style="font-size: 0.7rem;"></i>{{ sup.supervisor }}
+                            </span>
+                            <span class="badge {% if sup.pct >= 85 %}bg-success-subtle text-success border border-success-subtle{% elif sup.pct >= 70 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-danger-subtle text-danger border border-danger-subtle{% endif %} fw-bold tabular-nums" style="font-size: 0.75rem;">
                                 {{ sup.pct }}%
                             </span>
                         </div>
-                        <div class="d-flex justify-content-between text-muted tabular-nums" style="font-size: 0.7rem;">
-                            <span>Cumpl.: <strong class="text-success">{{ sup.cumplidas }}</strong> / {{ sup.total }}</span>
-                            <span>Quedaron: <strong class="{% if sup.quedaron > 0 %}text-danger{% else %}text-muted{% endif %}">{{ sup.quedaron }}</strong></span>
+                        <div class="row g-1 text-center">
+                            <div class="col-4">
+                                <div class="sup-metric-box">
+                                    <div class="sup-metric-title">ERAN</div>
+                                    <div class="sup-metric-value text-secondary">{{ sup.total }}</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="sup-metric-box" style="background: #f0fdf4;">
+                                    <div class="sup-metric-title text-success">HICIERON</div>
+                                    <div class="sup-metric-value text-success">{{ sup.cumplidas }}</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="sup-metric-box" style="{% if sup.quedaron > 0 %}background: #fef2f2;{% endif %}">
+                                    <div class="sup-metric-title {% if sup.quedaron > 0 %}text-danger{% else %}text-muted{% endif %}">QUEDAN</div>
+                                    <div class="sup-metric-value {% if sup.quedaron > 0 %}text-danger{% else %}text-muted{% endif %}">{{ sup.quedaron }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="progress mt-1" style="height: 4px; background: #e2e8f0;">
+                            <div class="progress-bar {% if sup.pct >= 85 %}bg-success{% elif sup.pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ [sup.pct, 100]|min }}%;"></div>
                         </div>
                     </div>
                     {% endfor %}
@@ -906,7 +952,7 @@ function renderTablaZonasPBI(cultivoFiltrado) {
     filas.sort((a, b) => a.zona.localeCompare(b.zona, undefined, { numeric: true, sensitivity: 'base' }));
 
     if (filas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No hay labores evaluadas en las zonas para <strong>${cultivoFiltrado || 'esta selección'}</strong>.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">No hay labores evaluadas en las zonas para <strong>${cultivoFiltrado || 'esta selección'}</strong>.</td></tr>`;
         return;
     }
 
@@ -942,9 +988,6 @@ function renderTablaZonasPBI(cultivoFiltrado) {
                 <td class="ps-3 fw-bold text-dark">${f.zona}</td>
                 <td class="text-center fw-semibold text-secondary tabular-nums">${f.total}</td>
                 <td class="text-center fw-bold text-success tabular-nums">${f.cumplidas}</td>
-                <td class="text-center tabular-nums">
-                    <span class="text-danger fw-semibold">${f.incumplidas}</span> / <span class="text-muted">${f.pendientes}</span>
-                </td>
                 <td class="text-center">
                     <div class="d-flex align-items-center justify-content-center gap-2">
                         ${pctBadge}
@@ -1116,8 +1159,9 @@ function renderProductoChart() {
     const el = document.getElementById('chart-producto');
     if (!el) return;
 
-    const labels = POR_PRODUCTO.map(p => p.producto_maestro);
-    const pcts = POR_PRODUCTO.map(p => p.pct);
+    // Ordenar de mayor a menor cumplimiento
+    const sortedProductos = [...POR_PRODUCTO].sort((a, b) => b.pct - a.pct);
+    const labels = sortedProductos.map(p => p.producto_maestro);
 
     const options = {
         chart: {
@@ -1128,8 +1172,8 @@ function renderProductoChart() {
             events: {
                 dataPointSelection: function(event, chartContext, config) {
                     const idx = config.dataPointIndex;
-                    if (idx !== undefined && idx >= 0 && POR_PRODUCTO[idx]) {
-                        const cult = POR_PRODUCTO[idx].producto_maestro;
+                    if (idx !== undefined && idx >= 0 && sortedProductos[idx]) {
+                        const cult = sortedProductos[idx].producto_maestro;
                         filtrarPorCultivo(cult === selectedCultivoFilter ? null : cult);
                     }
                 }
@@ -1137,19 +1181,19 @@ function renderProductoChart() {
         },
         series: [{
             name: '% Cumplimiento',
-            data: POR_PRODUCTO.map(p => ({ x: p.producto_maestro, y: p.pct }))
+            data: sortedProductos.map(p => ({ x: p.producto_maestro, y: p.pct }))
         }],
-        colors: ['#2563eb'],
+        colors: ['#4f46e5'],
         fill: {
             type: 'gradient',
             gradient: {
-                shade: 'light',
-                type: 'vertical',
-                shadeIntensity: 0.35,
-                gradientToColors: ['#059669'],
+                shade: 'dark',
+                type: 'horizontal',
+                shadeIntensity: 0.25,
+                gradientToColors: ['#7c3aed'],
                 inverseColors: false,
                 opacityFrom: 0.95,
-                opacityTo: 0.85,
+                opacityTo: 0.90,
                 stops: [0, 100]
             }
         },
@@ -1164,12 +1208,12 @@ function renderProductoChart() {
         stroke: {
             show: true,
             width: 1,
-            colors: ['#1e3a8a']
+            colors: ['#4338ca']
         },
         dataLabels: {
             enabled: true,
             formatter: function(val, opts) {
-                const p = POR_PRODUCTO[opts.dataPointIndex];
+                const p = sortedProductos[opts.dataPointIndex];
                 return p ? `${val}% (${p.cumplidas}/${p.total})` : `${val}%`;
             },
             offsetX: 10,

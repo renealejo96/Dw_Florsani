@@ -22,6 +22,24 @@
     background: #eff6ff !important;
     box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12) !important;
 }
+.matrix-row input:disabled, .matrix-row select:disabled {
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: #1e293b !important;
+    cursor: default !important;
+    box-shadow: none !important;
+    opacity: 0.95 !important;
+    -webkit-text-fill-color: #1e293b !important;
+}
+.matrix-row.row-editing {
+    background-color: #f8fafc !important;
+}
+.matrix-row.row-editing input, .matrix-row.row-editing select {
+    background-color: #ffffff !important;
+    border: 1px solid #3b82f6 !important;
+    cursor: text !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15) !important;
+}
 .matrix-row.row-modified {
     background-color: #fffbeb !important;
     border-left: 3px solid #f59e0b !important;
@@ -57,6 +75,9 @@
             <span id="badge-unsaved-changes" class="badge bg-warning text-dark border border-warning shadow-xs" style="display: none;">
                 <i class="fa-solid fa-pen-nib me-1"></i> 0 cambios pendientes
             </span>
+            <button type="button" id="btn-toggle-all-matrix-edit" class="btn btn-outline-secondary btn-sm fw-bold shadow-xs" onclick="toggleAllMatrixEdit()">
+                <i class="fa-solid fa-lock me-1"></i> Desbloquear Edición
+            </button>
             <button type="button" class="btn btn-outline-dark btn-sm fw-bold shadow-xs" onclick="openUploadMatrixModal()">
                 <i class="fa-solid fa-file-excel text-success me-1"></i> Subir Matriz Excel
             </button>
@@ -166,7 +187,7 @@
                 Reglas Registradas: <span id="total-rules-count" class="badge bg-primary">{{ rules|length }}</span>
             </span>
             <span class="text-muted small">
-                <i class="fa-solid fa-pen-to-square text-primary me-1"></i> Los campos son editables en vivo. Modifica y haz clic en "Guardar y Recalcular".
+                <i class="fa-solid fa-shield-halved text-primary me-1"></i> Modo seguro (Solo lectura por defecto). Haz clic en el lápiz <i class="fa-solid fa-pencil text-primary"></i> de la fila o en "Desbloquear Edición" para editar.
             </span>
         </div>
 
@@ -174,55 +195,43 @@
             <table class="table table-sm table-hover align-middle mb-0 small" id="table-matrix">
                 <thead class="table-light sticky-top">
                     <tr>
-                        <th style="width: 14%;">
-                            Producto <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
-                        </th>
-                        <th style="width: 11%;">
-                            Tipo <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
-                        </th>
-                        <th style="width: 8%;">
-                            Edad (Sem) <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
-                        </th>
-                        <th style="width: 33%;">
-                            Labor Fenograma <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
-                        </th>
-                        <th style="width: 16%;">
-                            Auxiliar <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
-                        </th>
-                        <th style="width: 14%;">
-                            Supervisor <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
-                        </th>
-                        <th style="width: 4%; text-align: center;"></th>
+                        <th style="width: 14%;">Producto</th>
+                        <th style="width: 11%;">Tipo</th>
+                        <th style="width: 8%;">Edad (Sem)</th>
+                        <th style="width: 33%;">Labor Fenograma</th>
+                        <th style="width: 15%;">Auxiliar</th>
+                        <th style="width: 13%;">Supervisor</th>
+                        <th style="width: 6%; text-align: center;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="matrix-tbody">
                     {% for r in rules %}
                         <tr class="matrix-row" data-search="{{ r.producto }} {{ r.actividad_tipo }} {{ r.labor }} {{ r.auxiliar }} {{ r.supervisor }}">
                             <td>
-                                <input type="text" class="form-control form-control-sm m-prod" value="{{ r.producto }}" oninput="markMatrixRowDirty(this)" required>
+                                <input type="text" class="form-control form-control-sm m-prod" value="{{ r.producto }}" oninput="markMatrixRowDirty(this)" disabled required>
                             </td>
                             <td>
-                                <select class="form-select form-select-sm m-tipo" onchange="markMatrixRowDirty(this)">
+                                <select class="form-select form-select-sm m-tipo" onchange="markMatrixRowDirty(this)" disabled>
                                     <option value="Siembra" {% if r.actividad_tipo == 'Siembra' %}selected{% endif %}>Siembra</option>
                                     <option value="Poda" {% if r.actividad_tipo == 'Poda' %}selected{% endif %}>Poda</option>
                                 </select>
                             </td>
                             <td>
-                                <input type="number" class="form-control form-control-sm m-semana" value="{{ r.semana }}" min="0" max="60" oninput="markMatrixRowDirty(this)" required>
+                                <input type="number" class="form-control form-control-sm m-semana" value="{{ r.semana }}" min="0" max="60" oninput="markMatrixRowDirty(this)" disabled required>
                             </td>
                             <td>
-                                <div class="position-relative">
-                                    <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark pe-4" value="{{ r.labor }}" oninput="markMatrixRowDirty(this)" required>
-                                    <i class="fa-solid fa-pen text-muted position-absolute end-0 top-50 translate-middle-y me-2 opacity-50" style="font-size: 0.68rem; pointer-events: none;"></i>
-                                </div>
+                                <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark" value="{{ r.labor }}" oninput="markMatrixRowDirty(this)" disabled required>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm m-aux" value="{{ r.auxiliar or '' }}" oninput="markMatrixRowDirty(this)">
+                                <input type="text" class="form-control form-control-sm m-aux" value="{{ r.auxiliar or '' }}" oninput="markMatrixRowDirty(this)" disabled>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm m-sup" value="{{ r.supervisor or '' }}" oninput="markMatrixRowDirty(this)">
+                                <input type="text" class="form-control form-control-sm m-sup" value="{{ r.supervisor or '' }}" oninput="markMatrixRowDirty(this)" disabled>
                             </td>
-                            <td style="text-align: center;">
+                            <td style="text-align: center; white-space: nowrap;">
+                                <button type="button" class="btn btn-outline-primary btn-sm p-1 px-2 border-0 btn-edit-row me-1" onclick="toggleEditMatrixRow(this)" title="Editar esta regla">
+                                    <i class="fa-solid fa-pencil"></i>
+                                </button>
                                 <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)" title="Eliminar regla">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
@@ -304,6 +313,77 @@
 
 {% block extra_js %}
 <script>
+let globalMatrixEditUnlocked = false;
+
+function toggleEditMatrixRow(btn) {
+    const row = btn.closest('tr');
+    if (!row) return;
+    
+    const isEditing = row.classList.contains('row-editing');
+    const inputs = row.querySelectorAll('input, select');
+    
+    if (isEditing) {
+        // Bloquear fila
+        row.classList.remove('row-editing');
+        inputs.forEach(el => el.disabled = true);
+        btn.innerHTML = '<i class="fa-solid fa-pencil"></i>';
+        btn.classList.remove('btn-primary', 'text-white');
+        btn.classList.add('btn-outline-primary');
+        btn.title = 'Editar esta regla';
+    } else {
+        // Desbloquear fila para editar
+        row.classList.add('row-editing');
+        inputs.forEach(el => el.disabled = false);
+        btn.innerHTML = '<i class="fa-solid fa-unlock text-white"></i>';
+        btn.classList.remove('btn-outline-primary');
+        btn.classList.add('btn-primary', 'text-white');
+        btn.title = 'Fila en edición (clic para fijar)';
+        const laborInp = row.querySelector('.m-labor');
+        if (laborInp) laborInp.focus();
+        markMatrixRowDirty(btn);
+    }
+}
+
+function toggleAllMatrixEdit() {
+    globalMatrixEditUnlocked = !globalMatrixEditUnlocked;
+    const btnGlobal = document.getElementById('btn-toggle-all-matrix-edit');
+    const rows = document.querySelectorAll('.matrix-row');
+    
+    if (globalMatrixEditUnlocked) {
+        if (btnGlobal) {
+            btnGlobal.innerHTML = '<i class="fa-solid fa-lock-open text-warning me-1"></i> Bloquear Todo';
+            btnGlobal.classList.remove('btn-outline-secondary');
+            btnGlobal.classList.add('btn-warning', 'text-dark');
+        }
+        rows.forEach(r => {
+            r.classList.add('row-editing');
+            r.querySelectorAll('input, select').forEach(el => el.disabled = false);
+            const rowBtn = r.querySelector('.btn-edit-row');
+            if (rowBtn) {
+                rowBtn.innerHTML = '<i class="fa-solid fa-unlock text-white"></i>';
+                rowBtn.classList.remove('btn-outline-primary');
+                rowBtn.classList.add('btn-primary', 'text-white');
+            }
+        });
+    } else {
+        if (btnGlobal) {
+            btnGlobal.innerHTML = '<i class="fa-solid fa-lock me-1"></i> Desbloquear Edición';
+            btnGlobal.classList.remove('btn-warning', 'text-dark');
+            btnGlobal.classList.add('btn-outline-secondary');
+        }
+        rows.forEach(r => {
+            r.classList.remove('row-editing');
+            r.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            const rowBtn = r.querySelector('.btn-edit-row');
+            if (rowBtn) {
+                rowBtn.innerHTML = '<i class="fa-solid fa-pencil"></i>';
+                rowBtn.classList.remove('btn-primary', 'text-white');
+                rowBtn.classList.add('btn-outline-primary');
+            }
+        });
+    }
+}
+
 function markMatrixRowDirty(el) {
     const row = el.closest('tr');
     if (row && !row.classList.contains('row-modified')) {
@@ -387,7 +467,7 @@ function filterMatrixTable() {
 function addMatrixRow() {
     const tbody = document.getElementById('matrix-tbody');
     const tr = document.createElement('tr');
-    tr.className = 'matrix-row row-modified bg-warning-subtle';
+    tr.className = 'matrix-row row-modified row-editing bg-warning-subtle';
     const curProd = document.getElementById('prod-filter').value || 'GYPSO XLENCE';
     tr.innerHTML = `
         <td><input type="text" class="form-control form-control-sm m-prod" value="${curProd}" oninput="markMatrixRowDirty(this)" required></td>
@@ -399,15 +479,15 @@ function addMatrixRow() {
         </td>
         <td><input type="number" class="form-control form-control-sm m-semana" value="1" min="0" max="60" oninput="markMatrixRowDirty(this)" required></td>
         <td>
-            <div class="position-relative">
-                <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark pe-4" placeholder="Nueva labor..." oninput="markMatrixRowDirty(this)" required>
-                <i class="fa-solid fa-pen text-muted position-absolute end-0 top-50 translate-middle-y me-2 opacity-50" style="font-size: 0.68rem; pointer-events: none;"></i>
-            </div>
+            <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark" placeholder="Nueva labor..." oninput="markMatrixRowDirty(this)" required>
         </td>
         <td><input type="text" class="form-control form-control-sm m-aux" placeholder="Auxiliar" oninput="markMatrixRowDirty(this)"></td>
         <td><input type="text" class="form-control form-control-sm m-sup" placeholder="Supervisor" oninput="markMatrixRowDirty(this)"></td>
-        <td style="text-align: center;">
-            <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)">
+        <td style="text-align: center; white-space: nowrap;">
+            <button type="button" class="btn btn-primary btn-sm p-1 px-2 border-0 btn-edit-row me-1 text-white" onclick="toggleEditMatrixRow(this)" title="Fila en edición">
+                <i class="fa-solid fa-unlock text-white"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)" title="Eliminar regla">
                 <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
@@ -415,6 +495,8 @@ function addMatrixRow() {
     tbody.prepend(tr);
     document.getElementById('total-rules-count').innerText = document.querySelectorAll('.matrix-row').length;
     updateDirtyBadge();
+    const inp = tr.querySelector('.m-labor');
+    if (inp) inp.focus();
 }
 
 function deleteMatrixRow(btn) {

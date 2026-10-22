@@ -211,6 +211,27 @@
         color: #ffffff;
         transform: scale(1.08);
     }
+    .btn-del-calif {
+        width: 22px;
+        height: 20px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        border-radius: 4px;
+        border: 1px solid #fecaca;
+        background: #fef2f2;
+        color: #ef4444;
+        cursor: pointer;
+        transition: all 0.12s ease-in-out;
+    }
+    .btn-del-calif:hover {
+        background: #dc2626;
+        border-color: #b91c1c;
+        color: #ffffff;
+        transform: scale(1.08);
+    }
     .feno-ctrl-sm {
         height: 27px;
         padding: 0.15rem 1.5rem 0.15rem 0.45rem;
@@ -1109,37 +1130,6 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 145px;">
-                        <div class="th-content-excel">
-                            <span>Auxiliar / Sup.</span>
-                            <div class="dropdown">
-                                <button type="button" class="header-filter-btn" id="btn-col-filter-sup" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Responsable">
-                                    <i class="fa-solid fa-filter"></i>
-                                </button>
-                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-sup">
-                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
-                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Responsable</span>
-                                        <button type="button" class="btn btn-link btn-xs p-0 text-primary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-sup', true)">Todos</button>
-                                    </div>
-                                    <div class="mb-1">
-                                        <input type="text" class="form-control form-control-xs py-0 px-1.5" style="font-size: 0.7rem; height: 20px;" placeholder="Buscar persona..." onkeyup="filterCheckboxLabels(this, 'filter-options-sup')">
-                                    </div>
-                                    <div class="filter-options-scroll" id="filter-options-sup">
-                                        {% for sup in supervisores_zona %}
-                                        <label class="filter-item-label">
-                                            <input type="checkbox" class="filter-chk-sup form-check-input my-0" value="{{ sup }}" checked onchange="applyAllFilters()">
-                                            <span class="text-truncate">{{ sup }}</span>
-                                        </label>
-                                        {% endfor %}
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
-                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-sup', false)">Vaciar</button>
-                                        <button type="button" class="btn btn-primary btn-xs py-0 px-2 fw-semibold" style="font-size: 0.68rem; height: 18px;" onclick="closeBootstrapDropdown(this)">Listo</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </th>
                     <th style="width: 58px;" class="text-center">
                         <div class="th-content-excel justify-content-center">
                             <span>Cumpl.</span>
@@ -1181,7 +1171,41 @@
                         </div>
                     </th>
                     <th style="width: 34px;" class="text-center" title="Labor adicional (+)">+</th>
+                    <th style="width: 145px;">
+                        <div class="th-content-excel">
+                            <span>Auxiliar / Sup.</span>
+                            <div class="dropdown">
+                                <button type="button" class="header-filter-btn" id="btn-col-filter-sup" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Responsable">
+                                    <i class="fa-solid fa-filter"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-sup">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                        <span class="fw-bold text-dark" style="font-size: 0.72rem;">Responsable</span>
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-primary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-sup', true)">Todos</button>
+                                    </div>
+                                    <div class="mb-1">
+                                        <input type="text" class="form-control form-control-xs py-0 px-1.5" style="font-size: 0.7rem; height: 20px;" placeholder="Buscar persona..." onkeyup="filterCheckboxLabels(this, 'filter-options-sup')">
+                                    </div>
+                                    <div class="filter-options-scroll" id="filter-options-sup">
+                                        {% for sup in supervisores_zona %}
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-sup form-check-input my-0" value="{{ sup }}" checked onchange="applyAllFilters()">
+                                            <span class="text-truncate">{{ sup }}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                                        <button type="button" class="btn btn-link btn-xs p-0 text-secondary text-decoration-none" style="font-size: 0.68rem;" onclick="toggleAllCheckboxes('filter-chk-sup', false)">Vaciar</button>
+                                        <button type="button" class="btn btn-primary btn-xs py-0 px-2 fw-semibold" style="font-size: 0.68rem; height: 18px;" onclick="closeBootstrapDropdown(this)">Listo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
                     <th style="width: 155px;">Observaciones</th>
+                    {% if current_user.role == 'ADMIN' %}
+                    <th style="width: 32px;" class="text-center" title="Eliminar labor (Solo Admin)"></th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody id="excel-tbody">
@@ -1244,12 +1268,6 @@
                         {% endif %}
                     </td>
 
-                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
-                        <span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
-                        <span id="sup-name-{{ item.id }}" class="text-muted" style="font-size: 0.66rem;">{% if item.supervisor %}/ {{ item.supervisor }}{% endif %}</span>
-                        <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
-                    </td>
-
                     <td class="text-center" style="{% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}cursor: not-allowed; opacity: 0.65;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' and item.tiene_evaluacion %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
                         <div class="calif-cell-wrap" style="pointer-events: none;">
                             <button type="button"
@@ -1279,6 +1297,12 @@
                         {% endif %}
                     </td>
 
+                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
+                        <span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
+                        <span id="sup-name-{{ item.id }}" class="text-muted" style="font-size: 0.66rem;">{% if item.supervisor %}/ {{ item.supervisor }}{% endif %}</span>
+                        <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
+                    </td>
+
                     <td>
                         <input type="text"
                                id="obs-{{ item.id }}"
@@ -1289,6 +1313,17 @@
                                data-original-obs="{{ item.observacion or '' }}"
                                {% if semana_estado == 'CERRADA' %}disabled{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
                     </td>
+
+                    {% if current_user.role == 'ADMIN' %}
+                    <td class="text-center" style="padding: 1px 2px;">
+                        <button type="button"
+                                class="btn btn-outline-danger btn-xs border-0 p-1 btn-del-calif"
+                                onclick="eliminarFilaCalificacion({{ item.id }}, '{{ bloque }}')"
+                                title="Eliminar labor de este bloque (Solo Admin)">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
                 {% endfor %}
@@ -1725,12 +1760,29 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
         inpObs.oninput = function() { markItemDirty(tempId); };
     }
 
+    // Actualizar auxiliar / supervisor desde el catálogo de labores
+    const auxCell = newRow.querySelector(`[id^="aux-cell-"]`);
+    const prod = parentRow.getAttribute('data-producto') || '';
+    const prodLabores = CATALOGO_LABORES_MAP[prod] || CATALOGO_LABORES_MAP[prod.toUpperCase()] || [];
+    const foundLabor = prodLabores.find(l => l.labor === nuevaLabor);
+    const assignedAux = (foundLabor && foundLabor.auxiliar) || parentRow.getAttribute('data-auxiliar') || '';
+    const assignedSup = (foundLabor && foundLabor.supervisor) || parentRow.getAttribute('data-supervisor') || '';
+    if (auxCell) {
+        auxCell.id = `aux-cell-${tempId}`;
+        auxCell.innerHTML = `<span class="fw-medium text-dark">${escapeHtml(assignedAux || '-')}</span> <span class="text-muted" style="font-size: 0.66rem;">${assignedSup ? '/ ' + escapeHtml(assignedSup) : ''}</span>`;
+    }
+
     const btnEx = newRow.querySelector('.btn-extra-mini');
     if (btnEx) btnEx.style.display = 'none';
 
+    const blq = parentRow.getAttribute('data-bloque');
+    const btnDel = newRow.querySelector('.btn-del-calif');
+    if (btnDel) {
+        btnDel.setAttribute('onclick', `eliminarFilaCalificacion('${tempId}', '${blq}')`);
+    }
+
     parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
 
-    const blq = parentRow.getAttribute('data-bloque');
     offlineExtraItems[tempId] = {
         id: tempId,
         parent_id: parentId,
@@ -1844,6 +1896,11 @@ function confirmarAgregarLaborAdicional() {
                     }
                     const btnEx = newRow.querySelector('.btn-extra-mini');
                     if (btnEx) btnEx.style.display = 'none';
+                    const blqName = parentRow.getAttribute('data-bloque');
+                    const btnDel = newRow.querySelector('.btn-del-calif');
+                    if (btnDel) {
+                        btnDel.setAttribute('onclick', `eliminarFilaCalificacion(${newId}, '${blqName}')`);
+                    }
                     parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
                 }
                 const blq = parentRow.getAttribute('data-bloque');
@@ -2874,6 +2931,78 @@ function descartarArrastreItem(itemId, bloqueCode) {
         }
     })
     .catch(() => showFenoToast('Error de red.', true));
+}
+
+function eliminarFilaCalificacion(itemId, bloqueCode) {
+    if (!confirm('¿Estás seguro de eliminar esta labor del bloque? Esta acción no se puede deshacer.')) {
+        return;
+    }
+    
+    // Si fue creada en modo offline (ID temporal)
+    if (String(itemId).startsWith('temp_') || String(itemId).startsWith('client_extra_')) {
+        const row = document.getElementById(`row-${itemId}`);
+        if (row) row.remove();
+        if (typeof offlineExtraItems !== 'undefined') {
+            delete offlineExtraItems[itemId];
+        }
+        modifiedItems.delete(itemId);
+        persistOfflineChanges();
+        updateSaveButtonsUI();
+        recalculateBlockMetrics(bloqueCode);
+        recalculateZoneKPIs();
+        showFenoToast('Labor temporal eliminada.');
+        return;
+    }
+
+    fetch(`/fenogramas/api/eliminar-calificacion/${itemId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data && data.success) {
+            const row = document.getElementById(`row-${itemId}`);
+            if (data.action === 'deleted') {
+                if (row) row.remove();
+            } else if (data.action === 'reset') {
+                if (row) {
+                    row.classList.remove('row-calificada', 'row-dirty');
+                    const cellLabor = row.querySelector('.cell-labor');
+                    if (cellLabor) {
+                        cellLabor.innerHTML = '<span class="text-muted fst-italic small">Sin labor programada</span>';
+                    }
+                    const auxCell = document.getElementById(`aux-cell-${itemId}`);
+                    if (auxCell) {
+                        auxCell.innerHTML = '<span class="fw-medium text-dark">-</span>';
+                    }
+                    const btnCheck = document.getElementById(`btn-check-${itemId}`);
+                    if (btnCheck) {
+                        btnCheck.className = 'check-circle state-null';
+                        btnCheck.innerHTML = '';
+                        btnCheck.disabled = true;
+                        btnCheck.style.cursor = 'not-allowed';
+                        btnCheck.setAttribute('data-original-val', 'null');
+                        btnCheck.setAttribute('data-current-val', 'null');
+                    }
+                    const inpObs = document.getElementById(`obs-${itemId}`);
+                    if (inpObs) {
+                        inpObs.value = '';
+                        inpObs.setAttribute('data-original-obs', '');
+                    }
+                }
+            }
+            modifiedItems.delete(itemId);
+            updateSaveButtonsUI();
+            recalculateBlockMetrics(bloqueCode);
+            recalculateZoneKPIs();
+            showFenoToast(data.message || 'Labor eliminada correctamente.');
+        } else {
+            alert('Error al eliminar labor: ' + ((data && data.error) || 'Desconocido'));
+        }
+    })
+    .catch(err => {
+        alert('Error de red al eliminar labor: ' + err);
+    });
 }
 
 function abrirModalGenerarSemanaFeno(targetWeek) {

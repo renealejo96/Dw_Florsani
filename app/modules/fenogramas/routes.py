@@ -18,7 +18,8 @@ from app.modules.fenogramas.services.fenograma_service import (
     process_matriz_fenogramas,
     sync_from_mrt_estado_cultivo, cerrar_semana_evaluacion,
     obtener_datos_dashboard, MAX_SEMANAS_ARRASTRE_DEFAULT,
-    clean_block_code
+    clean_block_code, find_responsible_for_labor,
+    get_matching_matrix_products, normalize_key
 )
 
 fenogramas_bp = Blueprint('fenogramas', __name__, url_prefix='/fenogramas')
@@ -466,6 +467,8 @@ def index():
     catalogo_labores_map = defaultdict(list)
     labores_unicas = set()
     auxiliares_map = {}
+    config_mapeos = load_mapeos_config()
+    prod_aliases = {normalize_key(k): v for k, v in config_mapeos.get("producto_aliases", {}).items()}
     
     for cl in catalogo_labores_rows:
         p_name = (cl.producto or '').strip()
@@ -473,11 +476,20 @@ def index():
         aux = (cl.auxiliar or '').strip()
         sup = (cl.supervisor or '').strip()
         
-        catalogo_labores_map[p_name].append({
+        entry = {
             'labor': l_name,
             'auxiliar': aux,
             'supervisor': sup
-        })
+        }
+        catalogo_labores_map[p_name].append(entry)
+        
+        # Expandir hacia nombres y alias de producto (ej. Billion Light -> GYPSOPHILA)
+        target_prods = get_matching_matrix_products(p_name, prod_aliases)
+        for tp in target_prods:
+            if tp and tp.upper() != p_name.upper():
+                catalogo_labores_map[tp].append(entry)
+                catalogo_labores_map[tp.upper()].append(entry)
+
         labores_unicas.add(l_name)
         auxiliares_map[f"{p_name.upper()}|||{l_name.upper()}"] = {'auxiliar': aux, 'supervisor': sup}
         if l_name.upper() not in auxiliares_map:
@@ -662,8 +674,8 @@ def api_calificar_lote():
                         sufijo=parent_calif.sufijo,
                         edad_real=parent_calif.edad_real,
                         labor=labor_extra,
-                        auxiliar=nuevo_aux or parent_calif.auxiliar,
-                        supervisor=nuevo_sup or parent_calif.supervisor,
+                        auxiliar=nuevo_aux or (find_responsible_for_labor(parent_calif.producto_maestro, labor_extra, parent_calif.auxiliar, parent_calif.supervisor)[0]),
+                        supervisor=nuevo_sup or (find_responsible_for_labor(parent_calif.producto_maestro, labor_extra, parent_calif.auxiliar, parent_calif.supervisor)[1]),
                         cumplido=cumplido,
                         observacion=obs,
                         tiene_evaluacion=True,
@@ -744,16 +756,13 @@ def api_duplicar_calificacion():
         if not calif_base:
             return jsonify({'success': False, 'error': 'Calificación base no encontrada'}), 404
 
-        # Buscar responsable en matriz_fenogramas
-        responsable = db.session.execute(text("""
-            SELECT auxiliar, supervisor
-            FROM matriz_fenogramas
-            WHERE UPPER(producto) = UPPER(:prod) AND UPPER(labor) = UPPER(:labor)
-            LIMIT 1;
-        """), {'prod': calif_base.producto_maestro or '', 'labor': nueva_labor}).fetchone()
-
-        aux = (responsable.auxiliar if responsable and responsable.auxiliar else calif_base.auxiliar) or ''
-        sup = (responsable.supervisor if responsable and responsable.supervisor else calif_base.supervisor) or ''
+        # Buscar responsable en matriz_fenogramas con resolución de alias y fallback
+        aux, sup = find_responsible_for_labor(
+            calif_base.producto_maestro,
+            nueva_labor,
+            calif_base.auxiliar,
+            calif_base.supervisor
+        )
 
         existente = Calificacion.query.filter_by(
             semana_anio=calif_base.semana_anio,
@@ -820,6 +829,49 @@ def api_duplicar_calificacion():
             'already_existed': False,
             'message': f'Labor "{nueva_labor}" agregada para evaluación'
         })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@fenogramas_bp.route('/api/eliminar-calificacion/<int:item_id>', methods=['POST', 'DELETE'])
+@login_required
+@permission_required('fenogramas')
+def api_eliminar_calificacion(item_id):
+    """Permite exclusivamente a administradores eliminar o resetear una fila de labor en la matriz de evaluación."""
+    if session.get('role') != 'ADMIN':
+        return jsonify({'success': False, 'error': 'Solo administradores pueden eliminar labores.'}), 403
+
+    calif = Calificacion.query.get(item_id)
+    if not calif:
+        return jsonify({'success': False, 'error': 'Calificación no encontrada.'}), 404
+
+    try:
+        # Verificar si hay otras calificaciones para el mismo rango de camas en este bloque
+        otras = Calificacion.query.filter(
+            Calificacion.id != item_id,
+            Calificacion.semana_anio == calif.semana_anio,
+            Calificacion.anio == calif.anio,
+            Calificacion.bloque == calif.bloque,
+            Calificacion.cama_inicial == calif.cama_inicial,
+            Calificacion.cama_final == calif.cama_final
+        ).count()
+
+        if otras > 0:
+            # Hay más filas para estas camas, podemos eliminarla completamente
+            db.session.delete(calif)
+            db.session.commit()
+            return jsonify({'success': True, 'action': 'deleted', 'id': item_id, 'message': 'Labor eliminada correctamente.'})
+        else:
+            # Es la única fila para este rango de camas: resetear a "No hay actividad"
+            calif.labor = 'No hay actividad'
+            calif.auxiliar = ''
+            calif.supervisor = ''
+            calif.cumplido = None
+            calif.observacion = ''
+            calif.tiene_evaluacion = False
+            db.session.commit()
+            return jsonify({'success': True, 'action': 'reset', 'item': calif.to_dict(), 'message': 'Fila reseteada a sin labor programada.'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
