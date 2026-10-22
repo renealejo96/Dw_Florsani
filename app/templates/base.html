@@ -481,7 +481,7 @@
     {% endif %}
     {% block extra_js %}{% endblock %}
 
-    <!-- PWA Service Worker Registration -->
+    <!-- PWA Service Worker Registration & Persistent Storage -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -494,6 +494,15 @@
                         navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
                             .catch(e => console.warn('PWA ServiceWorker error:', e));
                     });
+
+                // Solicitar persistencia blindada de datos para teléfonos de campo
+                if (navigator.storage && navigator.storage.persist) {
+                    navigator.storage.persist().then(persistent => {
+                        if (persistent) {
+                            console.log('✅ Almacenamiento local persistente blindado contra limpieza automática.');
+                        }
+                    }).catch(() => {});
+                }
             });
         }
     </script>

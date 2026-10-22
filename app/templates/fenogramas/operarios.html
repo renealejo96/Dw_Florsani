@@ -2605,7 +2605,16 @@ function persistOfflineChanges() {
                 payload.push(itemObj);
             }
         });
-        localStorage.setItem(`feno_offline_sync_${SEMANA_ACTUAL}`, JSON.stringify(payload));
+        if (payload.length > 0) {
+            localStorage.setItem(`feno_offline_sync_${SEMANA_ACTUAL}`, JSON.stringify(payload));
+            // Backup histórico redundante por seguridad extrema ante apagado brusco
+            try {
+                localStorage.setItem(`feno_backup_hist_${SEMANA_ACTUAL}`, JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    payload: payload
+                }));
+            } catch (e) {}
+        }
     } catch (e) {
         console.warn('LocalStorage error:', e);
     }
@@ -2613,7 +2622,19 @@ function persistOfflineChanges() {
 
 function restoreOfflineChanges() {
     try {
-        const raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+        let raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+        if (!raw) {
+            // Respaldo secundario si la llave principal fue alterada
+            const backupRaw = localStorage.getItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
+            if (backupRaw) {
+                try {
+                    const parsed = JSON.parse(backupRaw);
+                    if (parsed && Array.isArray(parsed.payload) && parsed.payload.length > 0) {
+                        raw = JSON.stringify(parsed.payload);
+                    }
+                } catch (e) {}
+            }
+        }
         if (!raw) return;
         const items = JSON.parse(raw);
         if (!Array.isArray(items) || items.length === 0) return;
@@ -2988,6 +3009,19 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('offline', () => {
         showFenoToast('📡 Sin conexión a internet (Modo Campo). Tus calificaciones se guardan de forma segura en este teléfono.', true);
     });
+
+    // Advertencia preventiva de batería baja para operarios en campo
+    if ('getBattery' in navigator) {
+        navigator.getBattery().then(battery => {
+            const checkBattery = () => {
+                if (battery.level <= 0.05 && !battery.charging && modifiedItems.size > 0) {
+                    showFenoToast(`⚠️ Batería en ${Math.round(battery.level * 100)}%. Tus ${modifiedItems.size} calificaciones están aseguradas en este teléfono. Procura recargarlo.`, true);
+                }
+            };
+            checkBattery();
+            battery.addEventListener('levelchange', checkBattery);
+        }).catch(() => {});
+    }
 
     if (activeBlockCode) {
         selectBlockFromGrid(activeBlockCode);
