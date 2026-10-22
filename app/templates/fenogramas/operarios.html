@@ -927,7 +927,7 @@
 
             <div class="blq-tile-row1">
                 <span class="blq-code tabular-nums">BL {{ meta.clean_code }}</span>
-                {% if meta.calificadas > 0 %}
+                {% if meta.calificadas > 0 or meta.tiene_notas or meta.ha_sido_editado %}
                 <span class="blq-edited-badge" title="Bloque calificado"><i class="fa-solid fa-pen-to-square"></i></span>
                 {% endif %}
             </div>
@@ -1766,10 +1766,11 @@ function confirmarAgregarLaborAdicional() {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Creando...';
     }
 
-    const modalEl = document.getElementById('modalAgregarLabor');
     const closeModal = () => {
+        const modalEl = document.getElementById('modalAgregarLaborAdicional');
         if (modalEl && window.bootstrap) {
-            bootstrap.Modal.getInstance(modalEl)?.hide();
+            const inst = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+            inst.hide();
         }
         if (btn) {
             btn.disabled = false;
@@ -1795,40 +1796,56 @@ function confirmarAgregarLaborAdicional() {
     .then(data => {
         closeModal();
         if (data && data.success) {
-            const newId = data.id || ('server_' + Date.now());
+            const newId = (data.item && data.item.id) || data.id || ('server_' + Date.now());
             const parentRow = document.getElementById(`row-${currentExtraItemId}`);
             if (parentRow) {
-                const newRow = parentRow.cloneNode(true);
-                newRow.id = `row-${newId}`;
-                newRow.setAttribute('data-item-id', newId);
-                newRow.classList.remove('row-calificada', 'row-dirty');
-                const cellLabor = newRow.querySelector('.cell-labor');
-                if (cellLabor) {
-                    cellLabor.innerHTML = `<span class="fw-bold text-dark">${escapeHtml(nuevaLabor)}</span> <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.65rem;">+ Extra</span>`;
+                if (data.updated_in_place) {
+                    const cellLabor = parentRow.querySelector('.cell-labor');
+                    if (cellLabor) {
+                        cellLabor.innerHTML = `<span class="fw-bold text-dark">${escapeHtml(nuevaLabor)}</span>`;
+                    }
+                    const auxCell = document.getElementById(`aux-cell-${currentExtraItemId}`);
+                    if (auxCell && data.item) {
+                        auxCell.innerHTML = `<span class="fw-medium text-dark">${escapeHtml(data.item.auxiliar || '-')}</span> <span class="text-muted" style="font-size: 0.66rem;">/ ${escapeHtml(data.item.supervisor || '-')}</span>`;
+                    }
+                } else {
+                    const newRow = parentRow.cloneNode(true);
+                    newRow.id = `row-${newId}`;
+                    newRow.setAttribute('data-item-id', newId);
+                    newRow.classList.remove('row-calificada', 'row-dirty');
+                    const cellLabor = newRow.querySelector('.cell-labor');
+                    if (cellLabor) {
+                        cellLabor.innerHTML = `<span class="fw-bold text-dark">${escapeHtml(nuevaLabor)}</span> <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.65rem;">+ Extra</span>`;
+                    }
+                    const auxCell = newRow.querySelector(`[id^="aux-cell-"]`);
+                    if (auxCell && data.item) {
+                        auxCell.id = `aux-cell-${newId}`;
+                        auxCell.innerHTML = `<span class="fw-medium text-dark">${escapeHtml(data.item.auxiliar || '-')}</span> <span class="text-muted" style="font-size: 0.66rem;">/ ${escapeHtml(data.item.supervisor || '-')}</span>`;
+                    }
+                    const btnCheck = newRow.querySelector('.check-circle');
+                    if (btnCheck) {
+                        btnCheck.id = `btn-check-${newId}`;
+                        btnCheck.setAttribute('data-item-id', newId);
+                        btnCheck.setAttribute('data-original-val', 'null');
+                        btnCheck.setAttribute('data-current-val', 'null');
+                        btnCheck.className = 'check-circle state-null';
+                        btnCheck.innerHTML = '';
+                        btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(newId, e); };
+                    }
+                    const tdCheck = btnCheck ? btnCheck.closest('td') : null;
+                    if (tdCheck) tdCheck.onclick = function(e) { toggleCheckCircle(newId, e); };
+                    const inpObs = newRow.querySelector('.obs-excel-input');
+                    if (inpObs) {
+                        inpObs.id = `obs-${newId}`;
+                        inpObs.setAttribute('data-item-id', newId);
+                        inpObs.setAttribute('data-original-obs', '');
+                        inpObs.value = '';
+                        inpObs.oninput = function() { markItemDirty(newId); };
+                    }
+                    const btnEx = newRow.querySelector('.btn-extra-mini');
+                    if (btnEx) btnEx.style.display = 'none';
+                    parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
                 }
-                const btnCheck = newRow.querySelector('.check-circle');
-                if (btnCheck) {
-                    btnCheck.id = `btn-check-${newId}`;
-                    btnCheck.setAttribute('data-item-id', newId);
-                    btnCheck.setAttribute('data-original-val', 'null');
-                    btnCheck.setAttribute('data-current-val', 'null');
-                    btnCheck.className = 'check-circle state-null';
-                    btnCheck.innerHTML = '';
-                    btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(newId, e); };
-                }
-                const tdCheck = btnCheck ? btnCheck.closest('td') : null;
-                if (tdCheck) tdCheck.onclick = function(e) { toggleCheckCircle(newId, e); };
-                const inpObs = newRow.querySelector('.obs-excel-input');
-                if (inpObs) {
-                    inpObs.id = `obs-${newId}`;
-                    inpObs.setAttribute('data-item-id', newId);
-                    inpObs.setAttribute('data-original-obs', '');
-                    inpObs.value = '';
-                    inpObs.oninput = function() { markItemDirty(newId); };
-                }
-                const btnEx = newRow.querySelector('.btn-extra-mini');
-                if (btnEx) btnEx.style.display = 'none';
-                parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
                 const blq = parentRow.getAttribute('data-bloque');
                 recalculateBlockMetrics(blq);
                 recalculateZoneKPIs();

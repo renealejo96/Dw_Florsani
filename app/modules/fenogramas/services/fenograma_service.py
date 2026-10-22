@@ -45,11 +45,31 @@ def clean_str(s):
     if pd.isna(s) or s is None:
         return ""
     s = str(s).strip()
+    # Reemplazo de ligaduras tipográficas Unicode (fi, fl, ff, etc.)
+    s = s.replace('\ufb01', 'fi').replace('\ufb02', 'fl').replace('\ufb00', 'ff').replace('\ufb03', 'ffi').replace('\ufb04', 'ffl')
     s = re.sub(r'[\xa0\xfeff\ufeff\u200b]+', ' ', s)
     s = re.sub(r'^[^\w\(\)"\']+', '', s)
     s = re.sub(r'[\s,\.]+$', '', s)
     s = re.sub(r'\s+', ' ', s)
-    s = re.sub(r'Fincalizaci[oó]n', 'Finalización', s, flags=re.IGNORECASE)
+
+    # Corrección de palabras agrícolas comunes donde la ligadura fi/fl/f se convirtió en espacio o se perdió en Excel
+    correcciones = [
+        (r'\bescari\s*icado\b', 'escarificado'),
+        (r'\bDesin\s*ecci[oó]n\b', 'Desinfección'),
+        (r'\bdesin\s*ecci[oó]n\b', 'desinfección'),
+        (r'\b[ií]tosanitari([oa]s?)\b', r'fitosanitari\1'),
+        (r'\ba\s+ectad([oa]s?)\b', r'afectad\1'),
+        (r'\bcon\s*inamiento\b', 'confinamiento'),
+        (r'\b[oó]liar\b', 'foliar'),
+        (r'\b[oó]llaje\b', 'follaje'),
+        (r'\b[ií]tof[aá]rmaco\b', 'fitofármaco'),
+        (r'\b[ií]totoxicidad\b', 'fitotoxicidad'),
+        (r'\bde\s*oliaci[oó]n\b', 'defoliación'),
+        (r'\bFincalizaci[oó]n\b', 'Finalización')
+    ]
+    for pattern, repl in correcciones:
+        s = re.sub(pattern, repl, s, flags=re.IGNORECASE)
+
     return s.strip()
 
 def clean_block_code(s):
@@ -517,6 +537,35 @@ def sync_excel_to_db(semana_anio=None, anio=None, ec_file_path=None, mf_file_pat
         """), it)
 
     db.session.commit()
+
+    # Limpieza de actividades obsoletas no calificadas (filas fantasma generadas por matrices anteriores)
+    valid_labors_by_crop = set()
+    for it in final_items_map.values():
+        valid_labors_by_crop.add((it['zona'], it['bloque'], it['producto_maestro'], it['cama_inicial'], it['cama_final'], it['sufijo'], it['labor']))
+
+    sem_target = semana_corte if 'semana_corte' in locals() else semana_anio
+    existing_unrated = db.session.execute(text("""
+        SELECT id, zona, bloque, producto_maestro, cama_inicial, cama_final, sufijo, labor
+        FROM calificaciones
+        WHERE semana_anio = :sem
+          AND cumplido IS NULL
+          AND (observacion IS NULL OR TRIM(observacion) = '')
+          AND es_pendiente_anterior = FALSE;
+    """), {'sem': sem_target}).fetchall()
+
+    stale_ids = []
+    for er in existing_unrated:
+        key = (er.zona, er.bloque, er.producto_maestro, er.cama_inicial, er.cama_final, er.sufijo, er.labor)
+        if key not in valid_labors_by_crop:
+            stale_ids.append(er.id)
+
+    if stale_ids:
+        from sqlalchemy import bindparam
+        for i in range(0, len(stale_ids), 500):
+            chunk = stale_ids[i:i+500]
+            db.session.execute(text("DELETE FROM calificaciones WHERE id IN :ids;").bindparams(bindparam('ids', expanding=True)), {'ids': chunk})
+        db.session.commit()
+        print(f"[FENOGRAMAS] Se purgaron {len(stale_ids)} labores fantasma obsoletas sin calificar.")
     carried_count, expired_count = arrastrar_pendientes_semana_anterior(
         semana_destino=semana_anio,
         anio=anio,
@@ -1072,6 +1121,35 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
         """), it)
 
     db.session.commit()
+
+    # Limpieza de actividades obsoletas no calificadas (filas fantasma generadas por matrices anteriores)
+    valid_labors_by_crop = set()
+    for it in final_items_map.values():
+        valid_labors_by_crop.add((it['zona'], it['bloque'], it['producto_maestro'], it['cama_inicial'], it['cama_final'], it['sufijo'], it['labor']))
+
+    sem_target = semana_corte if 'semana_corte' in locals() else semana_anio
+    existing_unrated = db.session.execute(text("""
+        SELECT id, zona, bloque, producto_maestro, cama_inicial, cama_final, sufijo, labor
+        FROM calificaciones
+        WHERE semana_anio = :sem
+          AND cumplido IS NULL
+          AND (observacion IS NULL OR TRIM(observacion) = '')
+          AND es_pendiente_anterior = FALSE;
+    """), {'sem': sem_target}).fetchall()
+
+    stale_ids = []
+    for er in existing_unrated:
+        key = (er.zona, er.bloque, er.producto_maestro, er.cama_inicial, er.cama_final, er.sufijo, er.labor)
+        if key not in valid_labors_by_crop:
+            stale_ids.append(er.id)
+
+    if stale_ids:
+        from sqlalchemy import bindparam
+        for i in range(0, len(stale_ids), 500):
+            chunk = stale_ids[i:i+500]
+            db.session.execute(text("DELETE FROM calificaciones WHERE id IN :ids;").bindparams(bindparam('ids', expanding=True)), {'ids': chunk})
+        db.session.commit()
+        print(f"[FENOGRAMAS] Se purgaron {len(stale_ids)} labores fantasma obsoletas sin calificar.")
     carried_count, expired_count = arrastrar_pendientes_semana_anterior(
         semana_destino=semana_corte,
         anio=anio,

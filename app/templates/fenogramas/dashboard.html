@@ -306,15 +306,16 @@
             </div>
         </div>
 
-        <!-- Incumplidas (0) -->
+        <!-- No Cumplidas / Restantes -->
         <div class="col-md-2 col-sm-6">
             <div class="kpi-bento accent-red">
                 <div class="kpi-icon-box" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">
                     <i class="fa-solid fa-circle-xmark"></i>
                 </div>
                 <div>
-                    <h3 class="h4 fw-bold mb-0 text-danger tabular-nums">{{ kpi_global.incumplidas or 0 }}</h3>
-                    <div class="text-muted small fw-semibold">Incumplidas (0)</div>
+                    <h3 class="h4 fw-bold mb-0 text-danger tabular-nums">{{ ((kpi_global.total or 0) - (kpi_global.cumplidas or 0)) }}</h3>
+                    <div class="text-muted small fw-semibold">No Cumplidas</div>
+                    <span class="text-muted" style="font-size: 0.65rem;">({{ kpi_global.incumplidas or 0 }} calif. 0 + {{ kpi_global.pendientes or 0 }} pend.)</span>
                 </div>
             </div>
         </div>
@@ -346,7 +347,7 @@
                             <i class="fa-solid fa-table-list text-warning me-2"></i>Matriz de Cumplimiento por Zona (Semana {{ semana }})
                         </h6>
                         <span class="text-muted" style="font-size: 0.73rem;">
-                            Estándar mínimo de fenograma: <strong>90%</strong>. Zonas con <strong>&lt; 90%</strong> se destacan en <strong>rojo</strong>.
+                            Escala de fenograma: <strong>&ge; 90% Verde</strong> (Estándar), <strong>70-89% Amarillo</strong> (Atención), <strong>&lt; 70% Rojo</strong> (Crítico).
                         </span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -924,18 +925,30 @@ function renderTablaZonasPBI(cultivoFiltrado) {
 
     let html = '';
     filas.forEach(f => {
-        const esBajoEstandar = f.pct < 90.0;
-        const rowBgStyle = esBajoEstandar
-            ? 'background-color: #fef2f2; border-left: 4.5px solid #ef4444;'
-            : 'background-color: #f0fdf4; border-left: 4.5px solid #10b981;';
-        
-        const pctBadge = esBajoEstandar
-            ? `<span class="badge bg-danger text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`
-            : `<span class="badge bg-success text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`;
-        
-        const estadoBadge = esBajoEstandar
-            ? `<span class="badge bg-danger-subtle text-danger border border-danger fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-triangle-exclamation me-1"></i>&lt; 90% Alerta</span>`
-            : `<span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check me-1"></i>&ge; 90% Estándar</span>`;
+        let rowBgStyle = '';
+        let pctBadge = '';
+        let estadoBadge = '';
+        let progressBarColor = '';
+
+        if (f.pct >= 90.0) {
+            // >= 90%: VERDE (Estándar Cumplido)
+            rowBgStyle = 'background-color: #f0fdf4; border-left: 4.5px solid #10b981;';
+            pctBadge = `<span class="badge bg-success text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`;
+            estadoBadge = `<span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check me-1"></i>&ge; 90% Estándar</span>`;
+            progressBarColor = 'bg-success';
+        } else if (f.pct >= 70.0) {
+            // 70% a 89.9%: AMARILLO (En Proceso / Atención)
+            rowBgStyle = 'background-color: #fefce8; border-left: 4.5px solid #eab308;';
+            pctBadge = `<span class="badge text-dark fw-bold px-2 py-1 shadow-xs" style="background-color: #facc15; font-size: 0.82rem;">${f.pct}%</span>`;
+            estadoBadge = `<span class="badge bg-warning-subtle text-dark border border-warning fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>70-89% Atención</span>`;
+            progressBarColor = 'bg-warning';
+        } else {
+            // < 70%: ROJO (Alerta Crítica)
+            rowBgStyle = 'background-color: #fef2f2; border-left: 4.5px solid #ef4444;';
+            pctBadge = `<span class="badge bg-danger text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`;
+            estadoBadge = `<span class="badge bg-danger-subtle text-danger border border-danger fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-xmark me-1"></i>&lt; 70% Crítico</span>`;
+            progressBarColor = 'bg-danger';
+        }
 
         html += `
             <tr style="${rowBgStyle}">
@@ -949,7 +962,7 @@ function renderTablaZonasPBI(cultivoFiltrado) {
                     <div class="d-flex align-items-center justify-content-center gap-2">
                         ${pctBadge}
                         <div class="progress flex-grow-1" style="height: 6px; max-width: 65px; background-color: #e2e8f0; border-radius: 3px;">
-                            <div class="progress-bar ${esBajoEstandar ? 'bg-danger' : 'bg-success'}" style="width: ${Math.min(f.pct, 100)}%; border-radius: 3px;"></div>
+                            <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(f.pct, 100)}%; border-radius: 3px;"></div>
                         </div>
                     </div>
                 </td>

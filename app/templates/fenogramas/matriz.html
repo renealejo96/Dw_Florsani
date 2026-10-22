@@ -2,6 +2,37 @@
 
 {% block title %}Fenogramas - Gestor de Reglas de Matriz{% endblock %}
 
+{% block extra_css %}
+<style>
+.product-card {
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    border: 1.5px solid #e2e8f0;
+    transition: all 0.2s ease-in-out;
+    user-select: none;
+}
+.product-card:hover {
+    transform: translateY(-2px);
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+.product-card.active-prod-card {
+    border-color: #0d6efd !important;
+    background: #eff6ff !important;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12) !important;
+}
+.matrix-row.row-modified {
+    background-color: #fffbeb !important;
+    border-left: 3px solid #f59e0b !important;
+}
+.matrix-row.row-modified input, .matrix-row.row-modified select {
+    border-color: #fcd34d !important;
+    background-color: #fffdf5 !important;
+}
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="d-flex align-items-center gap-2">
     <i class="fa-solid fa-list-check text-warning"></i>
@@ -23,6 +54,9 @@
         </div>
 
         <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span id="badge-unsaved-changes" class="badge bg-warning text-dark border border-warning shadow-xs" style="display: none;">
+                <i class="fa-solid fa-pen-nib me-1"></i> 0 cambios pendientes
+            </span>
             <button type="button" class="btn btn-outline-dark btn-sm fw-bold shadow-xs" onclick="openUploadMatrixModal()">
                 <i class="fa-solid fa-file-excel text-success me-1"></i> Subir Matriz Excel
             </button>
@@ -38,28 +72,59 @@
         </div>
     </div>
 
-    <!-- Filters Bar -->
-    <div class="bento-card p-3 mb-3">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label small fw-bold text-secondary mb-1">Producto:</label>
-                <select id="prod-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
-                    <option value="">-- Todos los Productos --</option>
-                    {% for p in productos_list %}
-                        <option value="{{ p }}">{{ p }}</option>
-                    {% endfor %}
-                </select>
+    <!-- Product Selection Cards -->
+    <div class="card p-3 mb-3 border shadow-xs bg-light-subtle">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small fw-bold text-uppercase text-secondary" style="letter-spacing: 0.5px; font-size: 0.78rem;">
+                <i class="fa-solid fa-layer-group text-primary me-1"></i> Seleccionar Producto / Cultivo:
+            </span>
+            <span class="small text-muted" id="active-product-label">
+                Mostrando: <span class="badge bg-primary">Todos</span>
+            </span>
+        </div>
+        <div class="d-flex gap-2 overflow-auto pb-1" id="product-cards-container" style="scrollbar-width: thin;">
+            <div class="card p-2 px-3 border product-card active-prod-card" data-prod="" onclick="selectProductCard('', this)" style="cursor: pointer; min-width: 140px; transition: all 0.2s;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="fw-bold small text-dark"><i class="fa-solid fa-border-all text-secondary me-1"></i> Todos</span>
+                    <span class="badge bg-secondary-subtle text-secondary border">{{ rules|length }}</span>
+                </div>
             </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold text-secondary mb-1">Tipo:</label>
+            {% for p in productos_list %}
+            <div class="card p-2 px-3 border product-card" data-prod="{{ p }}" onclick="selectProductCard('{{ p }}', this)" style="cursor: pointer; min-width: 160px; transition: all 0.2s;">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="fw-bold small text-truncate text-dark" style="max-width: 110px;" title="{{ p }}">
+                        <i class="fa-solid fa-seedling text-success me-1"></i> {{ p }}
+                    </span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size: 0.72rem;">
+                        {{ productos_counts.get(p, 0) }}
+                    </span>
+                </div>
+                <div class="text-muted" style="font-size: 0.65rem;">
+                    reglas activas
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Sub-Filters Bar (Tipo, Supervisor, Auxiliar, Buscar) -->
+    <div class="bento-card p-3 mb-3 border shadow-xs" id="subfilters-container">
+        <input type="hidden" id="prod-filter" value="">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2 col-6">
+                <label class="form-label small fw-bold text-secondary mb-1">
+                    <i class="fa-solid fa-code-branch me-1"></i> Tipo:
+                </label>
                 <select id="tipo-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
                     <option value="">-- Todos --</option>
                     <option value="Siembra">Siembra</option>
                     <option value="Poda">Poda</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold text-secondary mb-1">Supervisor:</label>
+            <div class="col-md-3 col-6">
+                <label class="form-label small fw-bold text-secondary mb-1">
+                    <i class="fa-solid fa-user-tie me-1"></i> Supervisor:
+                </label>
                 <select id="sup-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
                     <option value="">-- Todos --</option>
                     {% for s in supervisores_list %}
@@ -67,8 +132,10 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold text-secondary mb-1">Auxiliar:</label>
+            <div class="col-md-3 col-6">
+                <label class="form-label small fw-bold text-secondary mb-1">
+                    <i class="fa-solid fa-user-check me-1"></i> Auxiliar:
+                </label>
                 <select id="aux-filter" class="form-select form-select-sm" onchange="filterMatrixTable()">
                     <option value="">-- Todos --</option>
                     {% for a in auxiliares_list %}
@@ -76,12 +143,18 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label small fw-bold text-secondary mb-1">Buscar Texto:</label>
+            <div class="col-md-3 col-9">
+                <label class="form-label small fw-bold text-secondary mb-1">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i> Buscar Texto:
+                </label>
                 <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
-                    <input type="text" id="search-matrix" class="form-control" placeholder="Labor o nombre..." onkeyup="filterMatrixTable()">
+                    <input type="text" id="search-matrix" class="form-control" placeholder="Labor o persona..." onkeyup="filterMatrixTable()">
                 </div>
+            </div>
+            <div class="col-md-1 col-3 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()" title="Restablecer filtros">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -92,19 +165,33 @@
             <span class="fw-bold small text-dark">
                 Reglas Registradas: <span id="total-rules-count" class="badge bg-primary">{{ rules|length }}</span>
             </span>
-            <span class="text-muted small">Haz doble clic o edita directamente en los campos y presiona Guardar.</span>
+            <span class="text-muted small">
+                <i class="fa-solid fa-pen-to-square text-primary me-1"></i> Los campos son editables en vivo. Modifica y haz clic en "Guardar y Recalcular".
+            </span>
         </div>
 
         <div class="table-responsive" style="max-height: 65vh; overflow-y: auto;">
             <table class="table table-sm table-hover align-middle mb-0 small" id="table-matrix">
                 <thead class="table-light sticky-top">
                     <tr>
-                        <th style="width: 15%;">Producto</th>
-                        <th style="width: 10%;">Tipo</th>
-                        <th style="width: 8%;">Edad (Sem)</th>
-                        <th style="width: 32%;">Labor Fenograma</th>
-                        <th style="width: 16%;">Auxiliar</th>
-                        <th style="width: 15%;">Supervisor</th>
+                        <th style="width: 14%;">
+                            Producto <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
+                        </th>
+                        <th style="width: 11%;">
+                            Tipo <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
+                        </th>
+                        <th style="width: 8%;">
+                            Edad (Sem) <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
+                        </th>
+                        <th style="width: 33%;">
+                            Labor Fenograma <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
+                        </th>
+                        <th style="width: 16%;">
+                            Auxiliar <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
+                        </th>
+                        <th style="width: 14%;">
+                            Supervisor <i class="fa-solid fa-pen text-primary opacity-50 ms-1" style="font-size: 0.65rem;" title="Editable"></i>
+                        </th>
                         <th style="width: 4%; text-align: center;"></th>
                     </tr>
                 </thead>
@@ -112,25 +199,28 @@
                     {% for r in rules %}
                         <tr class="matrix-row" data-search="{{ r.producto }} {{ r.actividad_tipo }} {{ r.labor }} {{ r.auxiliar }} {{ r.supervisor }}">
                             <td>
-                                <input type="text" class="form-control form-control-sm m-prod" value="{{ r.producto }}" required>
+                                <input type="text" class="form-control form-control-sm m-prod" value="{{ r.producto }}" oninput="markMatrixRowDirty(this)" required>
                             </td>
                             <td>
-                                <select class="form-select form-select-sm m-tipo">
+                                <select class="form-select form-select-sm m-tipo" onchange="markMatrixRowDirty(this)">
                                     <option value="Siembra" {% if r.actividad_tipo == 'Siembra' %}selected{% endif %}>Siembra</option>
                                     <option value="Poda" {% if r.actividad_tipo == 'Poda' %}selected{% endif %}>Poda</option>
                                 </select>
                             </td>
                             <td>
-                                <input type="number" class="form-control form-control-sm m-semana" value="{{ r.semana }}" min="0" max="60" required>
+                                <input type="number" class="form-control form-control-sm m-semana" value="{{ r.semana }}" min="0" max="60" oninput="markMatrixRowDirty(this)" required>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark" value="{{ r.labor }}" required>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark pe-4" value="{{ r.labor }}" oninput="markMatrixRowDirty(this)" required>
+                                    <i class="fa-solid fa-pen text-muted position-absolute end-0 top-50 translate-middle-y me-2 opacity-50" style="font-size: 0.68rem; pointer-events: none;"></i>
+                                </div>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm m-aux" value="{{ r.auxiliar or '' }}">
+                                <input type="text" class="form-control form-control-sm m-aux" value="{{ r.auxiliar or '' }}" oninput="markMatrixRowDirty(this)">
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm m-sup" value="{{ r.supervisor or '' }}">
+                                <input type="text" class="form-control form-control-sm m-sup" value="{{ r.supervisor or '' }}" oninput="markMatrixRowDirty(this)">
                             </td>
                             <td style="text-align: center;">
                                 <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)" title="Eliminar regla">
@@ -213,8 +303,54 @@
 
 {% block extra_js %}
 <script>
+function markMatrixRowDirty(el) {
+    const row = el.closest('tr');
+    if (row && !row.classList.contains('row-modified')) {
+        row.classList.add('row-modified');
+        updateDirtyBadge();
+    }
+}
+
+function updateDirtyBadge() {
+    const badge = document.getElementById('badge-unsaved-changes');
+    const count = document.querySelectorAll('.matrix-row.row-modified').length;
+    if (badge) {
+        if (count > 0) {
+            badge.style.display = 'inline-flex';
+            badge.innerHTML = `<i class="fa-solid fa-pen-nib me-1"></i> ${count} fila(s) editada(s)`;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+function selectProductCard(prod, cardEl) {
+    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('active-prod-card'));
+    if (cardEl) {
+        cardEl.classList.add('active-prod-card');
+    }
+    const hiddenInp = document.getElementById('prod-filter');
+    if (hiddenInp) {
+        hiddenInp.value = prod;
+    }
+    const label = document.getElementById('active-product-label');
+    if (label) {
+        label.innerHTML = prod ? `Mostrando: <span class="badge bg-primary">${prod}</span>` : `Mostrando: <span class="badge bg-primary">Todos</span>`;
+    }
+    filterMatrixTable();
+}
+
+function clearFilters() {
+    document.getElementById('tipo-filter').value = '';
+    document.getElementById('sup-filter').value = '';
+    document.getElementById('aux-filter').value = '';
+    document.getElementById('search-matrix').value = '';
+    const allCard = document.querySelector('.product-card[data-prod=""]');
+    selectProductCard('', allCard);
+}
+
 function filterMatrixTable() {
-    const prod = document.getElementById('prod-filter').value.toLowerCase();
+    const prod = (document.getElementById('prod-filter').value || '').toLowerCase();
     const tipo = document.getElementById('tipo-filter').value.toLowerCase();
     const sup = document.getElementById('sup-filter').value.toLowerCase();
     const aux = document.getElementById('aux-filter').value.toLowerCase();
@@ -250,19 +386,25 @@ function filterMatrixTable() {
 function addMatrixRow() {
     const tbody = document.getElementById('matrix-tbody');
     const tr = document.createElement('tr');
-    tr.className = 'matrix-row bg-warning-subtle';
+    tr.className = 'matrix-row row-modified bg-warning-subtle';
+    const curProd = document.getElementById('prod-filter').value || 'GYPSO XLENCE';
     tr.innerHTML = `
-        <td><input type="text" class="form-control form-control-sm m-prod" value="GYPSO XLENCE" required></td>
+        <td><input type="text" class="form-control form-control-sm m-prod" value="${curProd}" oninput="markMatrixRowDirty(this)" required></td>
         <td>
-            <select class="form-select form-select-sm m-tipo">
+            <select class="form-select form-select-sm m-tipo" onchange="markMatrixRowDirty(this)">
                 <option value="Siembra">Siembra</option>
                 <option value="Poda">Poda</option>
             </select>
         </td>
-        <td><input type="number" class="form-control form-control-sm m-semana" value="1" min="0" max="60" required></td>
-        <td><input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark" placeholder="Nueva labor..." required></td>
-        <td><input type="text" class="form-control form-control-sm m-aux" placeholder="Auxiliar"></td>
-        <td><input type="text" class="form-control form-control-sm m-sup" placeholder="Supervisor"></td>
+        <td><input type="number" class="form-control form-control-sm m-semana" value="1" min="0" max="60" oninput="markMatrixRowDirty(this)" required></td>
+        <td>
+            <div class="position-relative">
+                <input type="text" class="form-control form-control-sm m-labor fw-semibold text-dark pe-4" placeholder="Nueva labor..." oninput="markMatrixRowDirty(this)" required>
+                <i class="fa-solid fa-pen text-muted position-absolute end-0 top-50 translate-middle-y me-2 opacity-50" style="font-size: 0.68rem; pointer-events: none;"></i>
+            </div>
+        </td>
+        <td><input type="text" class="form-control form-control-sm m-aux" placeholder="Auxiliar" oninput="markMatrixRowDirty(this)"></td>
+        <td><input type="text" class="form-control form-control-sm m-sup" placeholder="Supervisor" oninput="markMatrixRowDirty(this)"></td>
         <td style="text-align: center;">
             <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteMatrixRow(this)">
                 <i class="fa-solid fa-trash-can"></i>
@@ -271,6 +413,7 @@ function addMatrixRow() {
     `;
     tbody.prepend(tr);
     document.getElementById('total-rules-count').innerText = document.querySelectorAll('.matrix-row').length;
+    updateDirtyBadge();
 }
 
 function deleteMatrixRow(btn) {
@@ -278,6 +421,7 @@ function deleteMatrixRow(btn) {
         const row = btn.closest('tr');
         row.remove();
         document.getElementById('total-rules-count').innerText = document.querySelectorAll('.matrix-row').length;
+        updateDirtyBadge();
     }
 }
 
@@ -301,12 +445,13 @@ function executeMassReplace() {
     document.querySelectorAll(cls).forEach(inp => {
         if (inp.value.toLowerCase().includes(oldVal)) {
             inp.value = newVal;
-            inp.closest('tr').classList.add('bg-warning-subtle');
+            inp.closest('tr').classList.add('row-modified');
             changed++;
         }
     });
 
     bootstrap.Modal.getInstance(document.getElementById('modalReplace')).hide();
+    updateDirtyBadge();
     alert(`Se modificaron ${changed} registros en la tabla. Presiona "Guardar y Recalcular" para persistir.`);
 }
 
@@ -341,12 +486,12 @@ function saveMatrixChanges() {
 
     const btn = document.getElementById('btn-save-matrix');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Guardando...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Guardando y recalculando...';
 
     fetch("{{ url_for('fenogramas.api_guardar_matriz') }}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: items, semana: 30 })
+        body: JSON.stringify({ items: items, semana: {{ semana_activa or 43 }} })
     })
     .then(r => r.json())
     .then(data => {

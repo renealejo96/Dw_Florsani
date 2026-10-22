@@ -265,13 +265,20 @@ def index():
         pct_av = round((calif / total_lab) * 100, 1) if total_lab > 0 else 0.0
         pct_cu = round((cumpl / total_lab) * 100, 1) if (total_lab > 0 and calif > 0) else None
 
+        tiene_notas = any(bool(it.get('observacion') and str(it['observacion']).strip()) for it in items)
+        ha_sido_editado = bool(calif > 0 or tiene_notas)
+
         if total_lab == 0:
             estado_bl = 'SIN_LABOR'
-        elif calif == 0:
+        elif calif == 0 and not tiene_notas:
             estado_bl = 'PENDIENTE'
-        elif pct_cu >= 85:
+        elif calif == 0 and tiene_notas:
+            # Si tiene notas justificando estado o incumplimiento, computa como 0% evaluado
+            pct_cu = 0.0
+            estado_bl = 'BAJO'
+        elif pct_cu is not None and pct_cu >= 85:
             estado_bl = 'ALTO'
-        elif pct_cu >= 70:
+        elif pct_cu is not None and pct_cu >= 70:
             estado_bl = 'MEDIO'
         else:
             estado_bl = 'BAJO'
@@ -354,6 +361,8 @@ def index():
             'pct_avance': pct_av,
             'pct_cumplimiento': pct_cu,
             'estado_bloque': estado_bl,
+            'ha_sido_editado': ha_sido_editado,
+            'tiene_notas': tiene_notas,
             'evaluacion_completa': eval_completa,
             'camas_fisicas': camas_fisicas_bl,
             'area_neta': area_neta_bl,
@@ -778,6 +787,7 @@ def api_duplicar_calificacion():
                 'success': True,
                 'item': calif_base.to_dict(),
                 'already_existed': False,
+                'updated_in_place': True,
                 'message': f'Labor "{nueva_labor}" asignada para evaluación'
             })
 
@@ -905,12 +915,21 @@ def matriz():
     auxiliares_raw = db.session.execute(text("SELECT DISTINCT auxiliar FROM matriz_fenogramas WHERE auxiliar != '' AND auxiliar IS NOT NULL ORDER BY auxiliar ASC;")).fetchall()
     auxiliares_list = [r.auxiliar for r in auxiliares_raw]
 
+    productos_counts = {}
+    for r in rules:
+        p = r.get('producto') or 'Otro'
+        productos_counts[p] = productos_counts.get(p, 0) + 1
+
+    semana_activa = session.get('fenogramas_semana_activa', 43)
+
     return render_template(
         'fenogramas/matriz.html',
         rules=rules,
         productos_list=productos_list,
+        productos_counts=productos_counts,
         supervisores_list=supervisores_list,
-        auxiliares_list=auxiliares_list
+        auxiliares_list=auxiliares_list,
+        semana_activa=semana_activa
     )
 
 
@@ -920,7 +939,7 @@ def matriz():
 def api_guardar_matriz():
     data = request.get_json() or {}
     items = data.get('items', [])
-    semana = data.get('semana', 30)
+    semana = data.get('semana') or session.get('fenogramas_semana_activa', 43)
 
     if not items:
         return jsonify({'success': False, 'error': 'No hay items para guardar'}), 400
@@ -939,9 +958,13 @@ def api_guardar_matriz():
             ))
         db.session.commit()
 
-        # Recalcular la semana
-        count = sync_excel_to_db(semana_anio=semana, anio=2026)
-        return jsonify({'success': True, 'recalculated': count})
+        # Recalcular la semana con el estado de cultivo actual en base de datos
+        try:
+            count = sync_from_mrt_estado_cultivo(semana_corte=semana, anio=2026, fuente='AUTO')
+        except Exception as e_calc:
+            print(f"[AVISO] Error al recalcular semana {semana} tras guardar matriz: {e_calc}")
+            count = len(items)
+        return jsonify({'success': True, 'recalculated': count, 'message': f'Reglas guardadas y semana {semana} actualizada ({count} actividades)'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
