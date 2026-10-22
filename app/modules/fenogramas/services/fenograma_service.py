@@ -58,7 +58,8 @@ def clean_str(s):
     correcciones = [
         (r'\b[sS]ul\s+at([oa]s?)\b', r'sulfat\1'),
         (r'\b[sS]ul\s*at([oa]s?)\b', r'sulfat\1'),
-        (r'\b(?:[oó]rmula|f[oó]rmula)?\s*Mosh[eé]?\b', 'Fórmula de Moshe'),
+        (r'(?:[fF][oó]rmula\s*(?:de\s*)?)+\s*Mosh[eé]\b', 'Fórmula de Moshe'),
+        (r'\b[oó]rmula\s+(?:de\s+)?Mosh[eé]\b', 'Fórmula de Moshe'),
         (r'\b[oó]rmul([ao]s?)\b', r'fórmul\1'),
         (r'\beda\s*ic([oa]s?)\b', r'edáfic\1'),
         (r'\b[uú]lminante\b', 'fulminante'),

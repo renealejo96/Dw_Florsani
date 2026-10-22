@@ -643,6 +643,15 @@ def api_calificar_lote():
                 labor_extra = (item.get('nueva_labor') or item.get('labor') or '').strip()
                 if not labor_extra:
                     continue
+
+                # Si la labor extra no trajo auxiliar o supervisor explícito, resolverlo automáticamente
+                if not nuevo_aux or not nuevo_sup:
+                    auto_aux, auto_sup = find_responsible_for_labor(
+                        parent_calif.producto_maestro, labor_extra, parent_calif.auxiliar, parent_calif.supervisor
+                    )
+                    if not nuevo_aux: nuevo_aux = auto_aux
+                    if not nuevo_sup: nuevo_sup = auto_sup
+
                 existing_extra = Calificacion.query.filter_by(
                     semana_anio=parent_calif.semana_anio,
                     anio=parent_calif.anio,
@@ -674,8 +683,8 @@ def api_calificar_lote():
                         sufijo=parent_calif.sufijo,
                         edad_real=parent_calif.edad_real,
                         labor=labor_extra,
-                        auxiliar=nuevo_aux or (find_responsible_for_labor(parent_calif.producto_maestro, labor_extra, parent_calif.auxiliar, parent_calif.supervisor)[0]),
-                        supervisor=nuevo_sup or (find_responsible_for_labor(parent_calif.producto_maestro, labor_extra, parent_calif.auxiliar, parent_calif.supervisor)[1]),
+                        auxiliar=nuevo_aux,
+                        supervisor=nuevo_sup,
                         cumplido=cumplido,
                         observacion=obs,
                         tiene_evaluacion=True,
@@ -693,6 +702,13 @@ def api_calificar_lote():
                     continue
 
                 if nueva_labor and nueva_labor != calif.labor:
+                    if not nuevo_aux or not nuevo_sup:
+                        auto_aux, auto_sup = find_responsible_for_labor(
+                            calif.producto_maestro, nueva_labor, calif.auxiliar, calif.supervisor
+                        )
+                        if not nuevo_aux: nuevo_aux = auto_aux
+                        if not nuevo_sup: nuevo_sup = auto_sup
+
                     existing = Calificacion.query.filter_by(
                         semana_anio=calif.semana_anio,
                         anio=calif.anio,

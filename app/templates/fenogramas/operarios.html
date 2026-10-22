@@ -1203,7 +1203,7 @@
                         </div>
                     </th>
                     <th style="width: 155px;">Observaciones</th>
-                    {% if current_user.role == 'ADMIN' %}
+                    {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
                     <th style="width: 32px;" class="text-center" title="Eliminar labor (Solo Admin)"></th>
                     {% endif %}
                 </tr>
@@ -1314,7 +1314,7 @@
                                {% if semana_estado == 'CERRADA' %}disabled{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
                     </td>
 
-                    {% if current_user.role == 'ADMIN' %}
+                    {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
                     <td class="text-center" style="padding: 1px 2px;">
                         <button type="button"
                                 class="btn btn-outline-danger btn-xs border-0 p-1 btn-del-calif"
@@ -1721,6 +1721,64 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
     const parentRow = document.getElementById(`row-${parentId}`);
     if (!parentRow) return null;
 
+    const blq = parentRow.getAttribute('data-bloque');
+    const prod = parentRow.getAttribute('data-producto') || '';
+    const prodLabores = CATALOGO_LABORES_MAP[prod] || CATALOGO_LABORES_MAP[prod.toUpperCase()] || [];
+    const foundLabor = prodLabores.find(l => l.labor === nuevaLabor);
+    const assignedAux = (foundLabor && foundLabor.auxiliar) || parentRow.getAttribute('data-auxiliar') || '';
+    const assignedSup = (foundLabor && foundLabor.supervisor) || parentRow.getAttribute('data-supervisor') || '';
+
+    // Si la fila padre es "Sin labor programada" (No hay actividad), actualizar in-place
+    const isParentSinLabor = parentRow.querySelector('.cell-labor')?.innerText.includes('Sin labor') || false;
+    if (isParentSinLabor) {
+        const cellLabor = parentRow.querySelector('.cell-labor');
+        if (cellLabor) {
+            cellLabor.innerHTML = `<span class="fw-bold text-dark">${escapeHtml(nuevaLabor)}</span> <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1" style="font-size: 0.65rem;">+ Asignada</span>`;
+        }
+        const auxCell = document.getElementById(`aux-cell-${parentId}`);
+        if (auxCell) {
+            auxCell.innerHTML = `<span class="fw-medium text-dark">${escapeHtml(assignedAux || '-')}</span> <span class="text-muted" style="font-size: 0.66rem;">${assignedSup ? '/ ' + escapeHtml(assignedSup) : ''}</span>`;
+        }
+        const btnCheck = parentRow.querySelector('.check-circle');
+        if (btnCheck) {
+            btnCheck.removeAttribute('disabled');
+            btnCheck.disabled = false;
+            btnCheck.style.cursor = 'pointer';
+            btnCheck.title = 'Clic para marcar/desmarcar labor ejecutada (✓)';
+            btnCheck.className = 'check-circle state-null';
+            btnCheck.innerHTML = '';
+            btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(parentId, e); };
+        }
+        const tdCheck = btnCheck ? btnCheck.closest('td') : null;
+        if (tdCheck) {
+            tdCheck.style.cursor = 'pointer';
+            tdCheck.style.opacity = '1';
+            tdCheck.onclick = function(e) { toggleCheckCircle(parentId, e); };
+        }
+        const inpObs = parentRow.querySelector('.obs-excel-input');
+        if (inpObs) inpObs.disabled = false;
+
+        offlineExtraItems[parentId] = {
+            id: parentId,
+            parent_id: parentId,
+            nueva_labor: nuevaLabor,
+            labor: nuevaLabor,
+            auxiliar: assignedAux,
+            supervisor: assignedSup,
+            cumplido: null,
+            observacion: inpObs ? inpObs.value : '',
+            is_extra: true,
+            bloque: blq,
+            zona: parentRow.getAttribute('data-zona')
+        };
+        modifiedItems.add(parentId);
+        persistOfflineChanges();
+        updateSaveButtonsUI();
+        recalculateBlockMetrics(blq);
+        recalculateZoneKPIs();
+        return parentId;
+    }
+
     const tempId = 'temp_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
     const newRow = parentRow.cloneNode(true);
     newRow.id = `row-${tempId}`;
@@ -1743,10 +1801,16 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
         btnCheck.setAttribute('data-current-val', 'null');
         btnCheck.className = 'check-circle state-null';
         btnCheck.innerHTML = '';
+        btnCheck.removeAttribute('disabled');
+        btnCheck.disabled = false;
+        btnCheck.style.cursor = 'pointer';
+        btnCheck.title = 'Clic para marcar/desmarcar labor ejecutada (✓)';
         btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(tempId, e); };
     }
     const tdCheck = btnCheck ? btnCheck.closest('td') : null;
     if (tdCheck) {
+        tdCheck.style.cursor = 'pointer';
+        tdCheck.style.opacity = '1';
         tdCheck.onclick = function(e) { toggleCheckCircle(tempId, e); };
     }
 
@@ -1757,16 +1821,12 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
         inpObs.setAttribute('data-item-id', tempId);
         inpObs.setAttribute('data-original-obs', '');
         inpObs.value = '';
+        inpObs.disabled = false;
         inpObs.oninput = function() { markItemDirty(tempId); };
     }
 
     // Actualizar auxiliar / supervisor desde el catálogo de labores
     const auxCell = newRow.querySelector(`[id^="aux-cell-"]`);
-    const prod = parentRow.getAttribute('data-producto') || '';
-    const prodLabores = CATALOGO_LABORES_MAP[prod] || CATALOGO_LABORES_MAP[prod.toUpperCase()] || [];
-    const foundLabor = prodLabores.find(l => l.labor === nuevaLabor);
-    const assignedAux = (foundLabor && foundLabor.auxiliar) || parentRow.getAttribute('data-auxiliar') || '';
-    const assignedSup = (foundLabor && foundLabor.supervisor) || parentRow.getAttribute('data-supervisor') || '';
     if (auxCell) {
         auxCell.id = `aux-cell-${tempId}`;
         auxCell.innerHTML = `<span class="fw-medium text-dark">${escapeHtml(assignedAux || '-')}</span> <span class="text-muted" style="font-size: 0.66rem;">${assignedSup ? '/ ' + escapeHtml(assignedSup) : ''}</span>`;
@@ -1775,7 +1835,6 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
     const btnEx = newRow.querySelector('.btn-extra-mini');
     if (btnEx) btnEx.style.display = 'none';
 
-    const blq = parentRow.getAttribute('data-bloque');
     const btnDel = newRow.querySelector('.btn-del-calif');
     if (btnDel) {
         btnDel.setAttribute('onclick', `eliminarFilaCalificacion('${tempId}', '${blq}')`);
@@ -1788,6 +1847,8 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
         parent_id: parentId,
         nueva_labor: nuevaLabor,
         labor: nuevaLabor,
+        auxiliar: assignedAux,
+        supervisor: assignedSup,
         cumplido: null,
         observacion: '',
         is_extra: true,
@@ -1860,6 +1921,24 @@ function confirmarAgregarLaborAdicional() {
                     if (auxCell && data.item) {
                         auxCell.innerHTML = `<span class="fw-medium text-dark">${escapeHtml(data.item.auxiliar || '-')}</span> <span class="text-muted" style="font-size: 0.66rem;">/ ${escapeHtml(data.item.supervisor || '-')}</span>`;
                     }
+                    const btnCheck = parentRow.querySelector('.check-circle');
+                    if (btnCheck) {
+                        btnCheck.removeAttribute('disabled');
+                        btnCheck.disabled = false;
+                        btnCheck.style.cursor = 'pointer';
+                        btnCheck.title = 'Clic para marcar/desmarcar labor ejecutada (✓)';
+                        btnCheck.className = 'check-circle state-null';
+                        btnCheck.innerHTML = '';
+                        btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(currentExtraItemId, e); };
+                    }
+                    const tdCheck = btnCheck ? btnCheck.closest('td') : null;
+                    if (tdCheck) {
+                        tdCheck.style.cursor = 'pointer';
+                        tdCheck.style.opacity = '1';
+                        tdCheck.onclick = function(e) { toggleCheckCircle(currentExtraItemId, e); };
+                    }
+                    const inpObs = parentRow.querySelector('.obs-excel-input');
+                    if (inpObs) inpObs.disabled = false;
                 } else {
                     const newRow = parentRow.cloneNode(true);
                     newRow.id = `row-${newId}`;
@@ -1882,16 +1961,25 @@ function confirmarAgregarLaborAdicional() {
                         btnCheck.setAttribute('data-current-val', 'null');
                         btnCheck.className = 'check-circle state-null';
                         btnCheck.innerHTML = '';
+                        btnCheck.removeAttribute('disabled');
+                        btnCheck.disabled = false;
+                        btnCheck.style.cursor = 'pointer';
+                        btnCheck.title = 'Clic para marcar/desmarcar labor ejecutada (✓)';
                         btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(newId, e); };
                     }
                     const tdCheck = btnCheck ? btnCheck.closest('td') : null;
-                    if (tdCheck) tdCheck.onclick = function(e) { toggleCheckCircle(newId, e); };
+                    if (tdCheck) {
+                        tdCheck.style.cursor = 'pointer';
+                        tdCheck.style.opacity = '1';
+                        tdCheck.onclick = function(e) { toggleCheckCircle(newId, e); };
+                    }
                     const inpObs = newRow.querySelector('.obs-excel-input');
                     if (inpObs) {
                         inpObs.id = `obs-${newId}`;
                         inpObs.setAttribute('data-item-id', newId);
                         inpObs.setAttribute('data-original-obs', '');
                         inpObs.value = '';
+                        inpObs.disabled = false;
                         inpObs.oninput = function() { markItemDirty(newId); };
                     }
                     const btnEx = newRow.querySelector('.btn-extra-mini');
@@ -2612,6 +2700,10 @@ function markItemDirty(itemId) {
         if (row) row.classList.remove('row-dirty');
     }
 
+    const blq = row ? row.getAttribute('data-bloque') : (btn ? btn.getAttribute('data-bloque') : null);
+    if (blq) recalculateBlockMetrics(blq);
+    recalculateZoneKPIs();
+    persistOfflineChanges();
     updateSaveButtonsUI();
 }
 
@@ -2829,15 +2921,17 @@ function saveAllChanges() {
             id: itemId,
             cumplido: cumplidoVal,
             observacion: obsVal,
-            labor: customLabor,
-            auxiliar: customAux,
-            supervisor: customSup
+            labor: (extra && extra.nueva_labor) ? extra.nueva_labor : customLabor,
+            auxiliar: (extra && extra.auxiliar) ? extra.auxiliar : customAux,
+            supervisor: (extra && extra.supervisor) ? extra.supervisor : customSup
         };
         if (extra) {
             payloadItem.is_extra = true;
             payloadItem.parent_id = extra.parent_id;
             payloadItem.nueva_labor = extra.nueva_labor || customLabor;
             payloadItem.labor = extra.nueva_labor || customLabor;
+            payloadItem.auxiliar = extra.auxiliar || customAux;
+            payloadItem.supervisor = extra.supervisor || customSup;
         }
         payloadItems.push(payloadItem);
     });
