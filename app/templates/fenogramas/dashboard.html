@@ -1216,6 +1216,8 @@ function renderSupervisoresChart() {
     const totalData = POR_SUPERVISOR.map(s => s.total);
     const cumplidasData = POR_SUPERVISOR.map(s => s.cumplidas);
     const pctData = POR_SUPERVISOR.map(s => s.pct);
+    const maxActs = Math.max(...totalData, ...cumplidasData, 10);
+    const maxY = Math.ceil(maxActs * 1.15);
 
     const options = {
         chart: {
@@ -1269,10 +1271,16 @@ function renderSupervisoresChart() {
         },
         yaxis: [
             {
+                seriesName: 'Programadas',
+                min: 0,
+                max: maxY,
                 title: { text: 'N° Actividades', style: { color: '#475569', fontWeight: 700, fontSize: '11px' } },
                 labels: { style: { colors: '#475569' } }
             },
             {
+                seriesName: 'Programadas',
+                min: 0,
+                max: maxY,
                 show: false
             },
             {
@@ -1555,6 +1563,9 @@ function renderModalTasksTable() {
         const badgeEstado = t.es_incumplida
             ? '<span class="badge bg-danger">Incumplida (0)</span>'
             : '<span class="badge bg-warning text-dark">Pendiente</span>';
+        const badgeTipo = t.actividad_tipo === 'Poda'
+            ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>'
+            : '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>';
         const arrastreTag = t.es_arrastre
             ? `<span class="badge bg-danger-subtle text-danger border ms-1" title="Arrastrada de Semana ${t.semana_origen}">Arrastre S${t.semana_origen}</span>`
             : '';
@@ -1565,7 +1576,7 @@ function renderModalTasksTable() {
                 <td>${escapeHtml(t.zona)}</td>
                 <td class="fw-bold text-dark tabular-nums">BL ${escapeHtml(t.bloque)}</td>
                 <td class="tabular-nums">${escapeHtml(t.camas)}</td>
-                <td>${escapeHtml(t.actividad_tipo)}</td>
+                <td class="text-center">${badgeTipo}</td>
                 <td class="text-center tabular-nums fw-semibold">${escapeHtml(t.edad_real)}</td>
                 <td class="fw-semibold text-dark">${escapeHtml(t.labor)} ${arrastreTag}</td>
                 <td class="text-center">${badgeEstado}</td>

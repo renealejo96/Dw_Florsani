@@ -96,7 +96,13 @@
                             <td class="fw-bold">{{ r.zona }}</td>
                             <td><span class="badge bg-dark">{{ r.bloque }}</span></td>
                             <td class="fw-semibold">{{ r.cama_inicial }} - {{ r.cama_final }} {% if r.sufijo %}({{ r.sufijo }}){% endif %}</td>
-                            <td><span class="badge bg-light text-dark border">{{ r.actividad_tipo }}</span></td>
+                            <td class="text-center">
+                                {% if r.actividad_tipo == 'Poda' %}
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>
+                                {% else %}
+                                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>
+                                {% endif %}
+                            </td>
                             <td class="fw-semibold text-dark">{{ r.producto_maestro }}</td>
                             <td><span class="badge bg-light text-secondary border">{{ r.edad_real }} sem</span></td>
                             <td><span class="badge bg-warning-subtle text-warning border border-warning-subtle">Sin labor configurada</span></td>

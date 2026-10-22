@@ -677,28 +677,50 @@
         gap: 0.75rem;
         animation: fenoSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         max-width: 95vw;
+        transition: all 0.2s ease;
+    }
+    .feno-floating-sync.minimized {
+        padding: 0.28rem 0.55rem;
+        gap: 0.4rem;
+        opacity: 0.9;
+    }
+    .feno-floating-sync.minimized:hover {
+        opacity: 1;
+    }
+    .feno-floating-sync.minimized .feno-sync-expandable {
+        display: none !important;
     }
     .excel-sheet-wrap {
-        padding-bottom: 120px !important; /* Espacio de holgura para que el botón flotante nunca tape las últimas filas */
+        padding-bottom: 160px !important; /* Espacio de holgura generoso para que el botón flotante nunca tape las últimas filas */
     }
     .blq-edited-badge {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
+        justify-content: center;
+        width: 17px;
+        height: 17px;
         background: #0f172a;
         color: #facc15;
-        font-size: 0.58rem;
-        font-weight: 800;
-        padding: 1px 5px;
-        border-radius: 10px;
+        font-size: 0.62rem;
+        border-radius: 50%;
         margin-left: 4px;
         vertical-align: middle;
-        letter-spacing: 0.02em;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
     }
     .blq-tile.tile-calificado {
         box-shadow: 0 2px 7px rgba(0, 0, 0, 0.1);
     }
     @media (max-width: 768px) {
+        .feno-floating-sync {
+            left: auto !important;
+            right: 12px !important;
+            transform: none !important;
+            bottom: 12px !important;
+            padding: 0.32rem 0.65rem !important;
+            max-width: calc(100vw - 24px) !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+            animation: fenoSlideUpMobile 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
         .zone-tabs-inline {
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
@@ -709,6 +731,16 @@
         .zone-tab-btn {
             white-space: nowrap !important;
             flex-shrink: 0 !important;
+        }
+    }
+    @keyframes fenoSlideUpMobile {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
     }
     @keyframes fenoSlideUp {
@@ -896,7 +928,7 @@
             <div class="blq-tile-row1">
                 <span class="blq-code tabular-nums">BL {{ meta.clean_code }}</span>
                 {% if meta.calificadas > 0 %}
-                <span class="blq-edited-badge"><i class="fa-solid fa-pen-to-square"></i> Editado</span>
+                <span class="blq-edited-badge" title="Bloque calificado"><i class="fa-solid fa-pen-to-square"></i></span>
                 {% endif %}
             </div>
 
@@ -978,9 +1010,9 @@
     <div class="excel-sheet-wrap">
         <table class="excel-table" id="feno-excel-table">
             <colgroup>
-                <col style="width: 44px;">
-                <col style="width: 76px;">
-                <col style="width: 76px;">
+                <col style="width: 38px;">
+                <col style="width: 66px;">
+                <col style="width: 30px;">
                 <col style="width: 125px;">
                 <col style="width: 40px;">
                 <col style="width: 190px;">
@@ -991,14 +1023,14 @@
             </colgroup>
             <thead>
                 <tr>
-                    <th style="width: 44px;">Blq</th>
-                    <th style="width: 76px;">Camas</th>
-                    <th style="width: 76px;">
-                        <div class="th-content-excel">
+                    <th style="width: 38px;">Blq</th>
+                    <th style="width: 66px;">Camas</th>
+                    <th style="width: 30px; text-align: center; padding: 0 1px;">
+                        <div class="th-content-excel justify-content-center">
                             <span>Tipo</span>
                             <div class="dropdown">
-                                <button type="button" class="header-filter-btn" id="btn-col-filter-tipo" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Tipo">
-                                    <i class="fa-solid fa-filter"></i>
+                                <button type="button" class="header-filter-btn" id="btn-col-filter-tipo" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' data-bs-auto-close="outside" aria-expanded="false" title="Filtrar por Tipo (Poda / Siembra)">
+                                    <i class="fa-solid fa-filter" style="font-size: 0.55rem;"></i>
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-excel shadow-lg" aria-labelledby="btn-col-filter-tipo">
                                     <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
@@ -1008,11 +1040,11 @@
                                     <div class="filter-options-scroll">
                                         <label class="filter-item-label">
                                             <input type="checkbox" class="filter-chk-tipo form-check-input my-0" value="Siembra" checked onchange="applyAllFilters()">
-                                            <span>Siembra</span>
+                                            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle me-1 fw-bold">S</span> Siembra
                                         </label>
                                         <label class="filter-item-label">
                                             <input type="checkbox" class="filter-chk-tipo form-check-input my-0" value="Poda" checked onchange="applyAllFilters()">
-                                            <span>Poda</span>
+                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-1 fw-bold">P</span> Poda
                                         </label>
                                     </div>
                                     <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
@@ -1187,8 +1219,12 @@
                         {% endif %}
                     </td>
 
-                    <td class="{% if item.actividad_tipo == 'Poda' %}text-info-emphasis{% else %}text-success-emphasis{% endif %} fw-medium">
-                        {{ item.actividad_tipo }}
+                    <td class="text-center" style="width: 30px; padding: 2px 0;">
+                        {% if item.actividad_tipo == 'Poda' %}
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>
+                        {% else %}
+                        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>
+                        {% endif %}
                     </td>
 
                     <td title="{{ item.producto_maestro }}">{{ item.producto_maestro }}</td>
@@ -1269,20 +1305,24 @@
 <!-- BARRA FLOTANTE DE GUARDAR Y SINCRONIZAR (MODO OFFLINE / CAMPO) -->
 {% if semana_estado != 'CERRADA' %}
 <div id="feno-floating-sync-bar" class="feno-floating-sync" style="display: none;">
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-1.5 cursor-pointer" onclick="toggleFloatingSyncMinimize()" title="Haga clic para minimizar o expandir">
         <i class="fa-solid fa-cloud-arrow-up text-warning"></i>
-        <span class="fw-bold" style="font-size: 0.76rem;">
+        <span class="fw-bold" style="font-size: 0.74rem;">
             <span id="floating-dirty-count" class="badge bg-warning text-dark me-1">0</span>
-            <span class="d-none d-sm-inline">cambios sin sincronizar</span>
+            <span class="feno-sync-expandable d-none d-sm-inline">sin sincronizar</span>
         </span>
     </div>
     <div class="d-flex align-items-center gap-1.5">
-        <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-1 shadow-sm d-inline-flex align-items-center gap-1.5" style="border-radius: 20px; font-size: 0.76rem; background-color: #10b981; border-color: #059669;" onclick="saveAllChanges()" id="btn-floating-sync">
+        <button type="button" class="btn btn-success btn-sm fw-bold px-2.5 py-1 shadow-sm d-inline-flex align-items-center gap-1.5" style="border-radius: 20px; font-size: 0.75rem; background-color: #10b981; border-color: #059669;" onclick="saveAllChanges()" id="btn-floating-sync">
             <i class="fa-solid fa-floppy-disk"></i>
-            <span>Guardar y Sincronizar</span>
+            <span class="d-none d-sm-inline">Guardar y Sincronizar</span>
+            <span class="d-inline d-sm-none">Guardar</span>
         </button>
-        <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white-50" style="border-radius: 20px; font-size: 0.7rem;" onclick="descartarCambiosLocales()" title="Descartar cambios locales no sincronizados">
+        <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white-50 feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="descartarCambiosLocales()" title="Descartar cambios locales no sincronizados">
             <i class="fa-solid fa-rotate-left"></i>
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-1.5 text-white-50 border-0" style="font-size: 0.68rem;" onclick="toggleFloatingSyncMinimize()" title="Minimizar / Expandir barra flotante" id="btn-minimize-floating">
+            <i class="fa-solid fa-chevron-down" id="icon-minimize-floating"></i>
         </button>
     </div>
 </div>
@@ -2377,7 +2417,8 @@ function recalculateBlockMetrics(bloqueCode) {
         if (!editBadge) {
             editBadge = document.createElement('span');
             editBadge.className = 'blq-edited-badge';
-            editBadge.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Editado';
+            editBadge.title = 'Bloque calificado';
+            editBadge.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
             tile.querySelector('.blq-tile-row1')?.appendChild(editBadge);
         }
     } else if (editBadge) {
@@ -2606,6 +2647,16 @@ function restoreOfflineChanges() {
         }
     } catch (e) {
         console.warn('Error al restaurar cambios offline:', e);
+    }
+}
+
+function toggleFloatingSyncMinimize() {
+    const bar = document.getElementById('feno-floating-sync-bar');
+    const icon = document.getElementById('icon-minimize-floating');
+    if (!bar) return;
+    const isMin = bar.classList.toggle('minimized');
+    if (icon) {
+        icon.className = isMin ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
     }
 }
 
