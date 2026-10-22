@@ -663,20 +663,53 @@
     /* Barra flotante de Guardar y Sincronizar (Modo Offline / Campo) */
     .feno-floating-sync {
         position: fixed;
-        bottom: 22px;
+        bottom: 14px;
         left: 50%;
         transform: translateX(-50%);
         z-index: 1055;
         background: #0f172a;
         color: #ffffff;
-        padding: 0.45rem 0.95rem;
+        padding: 0.38rem 0.85rem;
         border-radius: 50px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.15);
         display: none;
         align-items: center;
-        gap: 0.85rem;
+        gap: 0.75rem;
         animation: fenoSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         max-width: 95vw;
+    }
+    .excel-sheet-wrap {
+        padding-bottom: 120px !important; /* Espacio de holgura para que el botón flotante nunca tape las últimas filas */
+    }
+    .blq-edited-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: #0f172a;
+        color: #facc15;
+        font-size: 0.58rem;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 10px;
+        margin-left: 4px;
+        vertical-align: middle;
+        letter-spacing: 0.02em;
+    }
+    .blq-tile.tile-calificado {
+        box-shadow: 0 2px 7px rgba(0, 0, 0, 0.1);
+    }
+    @media (max-width: 768px) {
+        .zone-tabs-inline {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+            max-width: 100vw;
+            padding: 0.18rem 0.35rem;
+        }
+        .zone-tab-btn {
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+        }
     }
     @keyframes fenoSlideUp {
         from {
@@ -708,8 +741,8 @@
                     class="btn btn-success btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
                     style="height: 27px; font-size: 0.73rem;"
                     onclick="abrirModalGenerarSemanaFeno({{ semana }})"
-                    title="Crear o proyectar calificación para una nueva semana (ej. Semana {{ semana }}) con edades recorridas">
-                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>+ Proyectar / Generar Fenograma
+                    title="Sincronizar camas desde Estado de Cultivo y proyectar labores (Conserva calificaciones hechas)">
+                <i class="fa-solid fa-arrows-rotate me-1"></i>Sincronizar / Proyectar Semana
             </button>
             {% if session.get('role') == 'ADMIN' %}
             <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
@@ -794,14 +827,12 @@
             <span>Guardar y Sincronizar</span>
             <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>
         </button>
-        {% if current_user.role == 'ADMIN' or current_user.has_permission('fenogramas') %}
-        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="cerrarSemanaOperarios({{ semana }})" title="Cerrar la semana: bloquea nuevas calificaciones y arrastra las no cumplidas a la semana {{ semana + 1 }}">
+        {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
+        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="cerrarSemanaOperarios({{ semana }})" title="Solo Administrador: Cerrar la semana y arrastrar labores no cumplidas">
             <i class="fa-solid fa-lock"></i>
             <span>Cerrar Semana</span>
         </button>
-        {% endif %}
-        {% if current_user.role in ['ADMIN', 'AGRONOMO'] %}
-        <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="openUploadMatrixModal()" title="Subir archivo Excel de Matriz de Fenogramas">
+        <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="openUploadMatrixModal()" title="Solo Administrador: Subir archivo Excel de Matriz de Fenogramas">
             <i class="fa-solid fa-file-excel text-success"></i>
             <span>Subir Matriz</span>
         </button>
@@ -829,8 +860,8 @@
     </p>
     <div class="d-flex justify-content-center gap-2">
         <button type="button" class="btn btn-success fw-bold px-3 py-2 shadow-xs d-inline-flex align-items-center gap-2" onclick="abrirModalGenerarSemanaFeno({{ semana }})">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>Proyectar y Generar Fenograma Semana {{ semana }}</span>
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span>Sincronizar / Generar Fenograma Semana {{ semana }}</span>
         </button>
     </div>
 </div>
@@ -864,6 +895,9 @@
 
             <div class="blq-tile-row1">
                 <span class="blq-code tabular-nums">BL {{ meta.clean_code }}</span>
+                {% if meta.calificadas > 0 %}
+                <span class="blq-edited-badge"><i class="fa-solid fa-pen-to-square"></i> Editado</span>
+                {% endif %}
             </div>
 
             <div class="blq-tile-row2">
@@ -908,12 +942,23 @@
 <div id="section-block-matrix" style="display: none;">
     <div class="excel-toolbar">
         <div class="d-flex align-items-center gap-2 flex-wrap">
-            <button type="button" class="btn btn-white border btn-sm py-0 px-2 fw-semibold" style="height: 22px; font-size: 0.7rem;" onclick="returnToBlockGrid()">
-                <i class="fa-solid fa-xmark me-1"></i>Cerrar tabla
+            <button type="button" class="btn btn-dark btn-sm py-1 px-2.5 fw-bold shadow-xs d-inline-flex align-items-center gap-1.5" style="height: 28px; font-size: 0.75rem;" onclick="returnToBlockGrid()" title="Volver a la vista de cuadrícula de bloques">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span>Ver Bloques</span>
             </button>
-            <span id="active-zone-toolbar-badge" class="badge px-2 py-0.5 fw-bold text-dark border shadow-xs" style="background: #facc15; border-color: #ca8a04 !important; font-size: 0.72rem;"><i class="fa-solid fa-map-location-dot me-1 text-dark"></i>{{ zona_sel }}</span>
+            <div class="d-inline-flex align-items-center gap-1" id="single-block-nav-group">
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="height: 28px; font-size: 0.74rem;" onclick="navigateAdjacentBlock(-1)" title="Bloque anterior">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <select id="quick-block-selector" class="form-select form-select-sm fw-bold border-dark shadow-xs" style="height: 28px; font-size: 0.75rem; width: auto; min-width: 130px; max-width: 220px;" onchange="selectBlockFromGrid(this.value)">
+                </select>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="height: 28px; font-size: 0.74rem;" onclick="navigateAdjacentBlock(1)" title="Bloque siguiente">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+            <span id="active-zone-toolbar-badge" class="badge px-2 py-1 fw-bold text-dark border shadow-xs" style="background: #facc15; border-color: #ca8a04 !important; font-size: 0.72rem;"><i class="fa-solid fa-map-location-dot me-1 text-dark"></i>{{ zona_sel }}</span>
             <span id="active-block-live-badge" class="fw-bold text-dark tabular-nums" style="font-size: 0.72rem;"></span>
-            <button type="button" id="btn-clear-filters-toolbar" class="btn btn-xs btn-outline-danger py-0 px-1.5 fw-semibold" style="height: 20px; font-size: 0.68rem; display: none;" onclick="resetAllFilters()" title="Restablecer filtros">
+            <button type="button" id="btn-clear-filters-toolbar" class="btn btn-xs btn-outline-danger py-0 px-1.5 fw-semibold" style="height: 22px; font-size: 0.68rem; display: none;" onclick="resetAllFilters()" title="Restablecer filtros">
                 <i class="fa-solid fa-filter-circle-xmark me-1"></i>Filtros activos (Limpiar)
             </button>
         </div>
@@ -1300,7 +1345,7 @@
         <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
             <div class="modal-header py-2 px-3" style="background: #0f172a; color: #ffffff;">
                 <h6 class="modal-title fw-bold mb-0" style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-wand-magic-sparkles me-2" style="color: #00ff66;"></i>Generar / Actualizar Semana de Fenograma
+                    <i class="fa-solid fa-arrows-rotate me-2" style="color: #00ff66;"></i>Sincronizar / Proyectar Semana de Fenograma
                 </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.7rem;"></button>
             </div>
@@ -1353,11 +1398,15 @@
                     </select>
                 </div>
 
-                <div id="gen-feno-preview-box" class="p-2 rounded-2 border" style="background: #f0fdf4; border-color: #86efac !important; color: #14532d; font-size: 0.76rem;">
+                <div id="gen-feno-preview-box" class="p-2 rounded-2 border mb-2" style="background: #f0fdf4; border-color: #86efac !important; color: #14532d; font-size: 0.76rem;">
                     <i class="fa-solid fa-calculator me-1 text-success"></i>
                     <span id="gen-feno-preview-text">
                         Proyección automática: Se tomará la base cargada y se sumará el diferencial de semanas a la edad de cada cama para asignar las labores fenológicas correspondientes.
                     </span>
+                </div>
+                <div class="p-2 rounded-2 border" style="background: #eff6ff; border-color: #bfdbfe !important; color: #1e40af; font-size: 0.73rem;">
+                    <i class="fa-solid fa-shield-check me-1 text-primary"></i>
+                    <strong>Sincronización Inteligente:</strong> Las camas que tus evaluadores ya hayan calificado <strong>se mantendrán intactas</strong>. El sistema agregará nuevos bloques/camas (ej. reactivados) y limpiará bloques erradicados.
                 </div>
             </div>
             <div class="modal-footer py-2 px-3 bg-white border-top d-flex justify-content-between align-items-center">
@@ -1373,10 +1422,10 @@
                 {% endif %}
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cancelar</button>
-                    <button type="button" id="btn-confirm-gen-feno" class="btn btn-sm fw-bold"
+                    <button type="button" id="btn-confirm-gen-feno" class="btn btn-sm fw-bold shadow-xs"
                             style="background: #16a34a; color: #fff; font-size: 0.78rem;"
                             onclick="ejecutarGeneracionSemanaFeno()">
-                        <i class="fa-solid fa-bolt me-1"></i>Generar Calificación de Semana
+                        <i class="fa-solid fa-arrows-rotate me-1"></i>Sincronizar (Conserva Evaluaciones)
                     </button>
                 </div>
             </div>
@@ -1426,6 +1475,7 @@ const SEMANA_ESTADO = "{{ semana_estado or 'ABIERTA' }}";
 let currentStatusFilter = 'ALL';
 let currentWorkspaceMode = 'grid'; // 'grid' | 'single-block' | 'all-matrix'
 let activeBlockCode = {{ bloque_sel|tojson }};
+let offlineExtraItems = {};
 const CATALOGO_LABORES = {{ catalogo_labores | tojson | safe }};
 const AUXILIARES_MAP = {{ auxiliares_map | tojson | safe }};
 
@@ -1592,6 +1642,75 @@ function limpiarBusquedaModalExtra() {
     renderExtraLaborOptions('');
 }
 
+function crearFilaLaborOffline(parentId, nuevaLabor) {
+    const parentRow = document.getElementById(`row-${parentId}`);
+    if (!parentRow) return null;
+
+    const tempId = 'temp_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const newRow = parentRow.cloneNode(true);
+    newRow.id = `row-${tempId}`;
+    newRow.setAttribute('data-item-id', tempId);
+    newRow.classList.remove('row-calificada', 'row-dirty');
+    newRow.classList.add('row-offline-extra');
+
+    // Actualizar celda de labor
+    const cellLabor = newRow.querySelector('.cell-labor');
+    if (cellLabor) {
+        cellLabor.innerHTML = `<span class="fw-bold text-primary">${escapeHtml(nuevaLabor)}</span> <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1" style="font-size: 0.65rem;">+ Extra (Offline)</span>`;
+    }
+
+    // Actualizar botón de check
+    const btnCheck = newRow.querySelector('.check-circle');
+    if (btnCheck) {
+        btnCheck.id = `btn-check-${tempId}`;
+        btnCheck.setAttribute('data-item-id', tempId);
+        btnCheck.setAttribute('data-original-val', 'null');
+        btnCheck.setAttribute('data-current-val', 'null');
+        btnCheck.className = 'check-circle state-null';
+        btnCheck.innerHTML = '';
+        btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(tempId, e); };
+    }
+    const tdCheck = btnCheck ? btnCheck.closest('td') : null;
+    if (tdCheck) {
+        tdCheck.onclick = function(e) { toggleCheckCircle(tempId, e); };
+    }
+
+    // Actualizar input de observación
+    const inpObs = newRow.querySelector('.obs-excel-input');
+    if (inpObs) {
+        inpObs.id = `obs-${tempId}`;
+        inpObs.setAttribute('data-item-id', tempId);
+        inpObs.setAttribute('data-original-obs', '');
+        inpObs.value = '';
+        inpObs.oninput = function() { markItemDirty(tempId); };
+    }
+
+    const btnEx = newRow.querySelector('.btn-extra-mini');
+    if (btnEx) btnEx.style.display = 'none';
+
+    parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
+
+    const blq = parentRow.getAttribute('data-bloque');
+    offlineExtraItems[tempId] = {
+        id: tempId,
+        parent_id: parentId,
+        nueva_labor: nuevaLabor,
+        labor: nuevaLabor,
+        cumplido: null,
+        observacion: '',
+        is_extra: true,
+        bloque: blq,
+        zona: parentRow.getAttribute('data-zona')
+    };
+
+    modifiedItems.add(tempId);
+    persistOfflineChanges();
+    updateSaveButtonsUI();
+    recalculateBlockMetrics(blq);
+    recalculateZoneKPIs();
+    return tempId;
+}
+
 function confirmarAgregarLaborAdicional() {
     if (!currentExtraItemId) return;
     const sel = document.getElementById('modal-extra-select-labor');
@@ -1607,6 +1726,26 @@ function confirmarAgregarLaborAdicional() {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Creando...';
     }
 
+    const modalEl = document.getElementById('modalAgregarLabor');
+    const closeModal = () => {
+        if (modalEl && window.bootstrap) {
+            bootstrap.Modal.getInstance(modalEl)?.hide();
+        }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Crear Evaluación de Labor';
+        }
+    };
+
+    if (!navigator.onLine) {
+        const createdId = crearFilaLaborOffline(currentExtraItemId, nuevaLabor);
+        closeModal();
+        if (createdId) {
+            showFenoToast(`✓ Labor "${nuevaLabor}" añadida (Modo Offline). Lista para calificar.`);
+        }
+        return;
+    }
+
     fetch('{{ url_for("fenogramas.api_duplicar_calificacion") }}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1614,26 +1753,56 @@ function confirmarAgregarLaborAdicional() {
     })
     .then(res => res.json())
     .then(data => {
+        closeModal();
         if (data && data.success) {
-            showFenoToast(`✓ Labor "${nuevaLabor}" agregada exitosamente`);
-            setTimeout(() => {
-                window.location.reload();
-            }, 500);
-        } else {
-            alert('Error: ' + ((data && data.error) || 'No se pudo agregar la labor'));
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Crear Evaluación de Labor';
+            const newId = data.id || ('server_' + Date.now());
+            const parentRow = document.getElementById(`row-${currentExtraItemId}`);
+            if (parentRow) {
+                const newRow = parentRow.cloneNode(true);
+                newRow.id = `row-${newId}`;
+                newRow.setAttribute('data-item-id', newId);
+                newRow.classList.remove('row-calificada', 'row-dirty');
+                const cellLabor = newRow.querySelector('.cell-labor');
+                if (cellLabor) {
+                    cellLabor.innerHTML = `<span class="fw-bold text-dark">${escapeHtml(nuevaLabor)}</span> <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.65rem;">+ Extra</span>`;
+                }
+                const btnCheck = newRow.querySelector('.check-circle');
+                if (btnCheck) {
+                    btnCheck.id = `btn-check-${newId}`;
+                    btnCheck.setAttribute('data-item-id', newId);
+                    btnCheck.setAttribute('data-original-val', 'null');
+                    btnCheck.setAttribute('data-current-val', 'null');
+                    btnCheck.className = 'check-circle state-null';
+                    btnCheck.innerHTML = '';
+                    btnCheck.onclick = function(e) { e.stopPropagation(); toggleCheckCircle(newId, e); };
+                }
+                const tdCheck = btnCheck ? btnCheck.closest('td') : null;
+                if (tdCheck) tdCheck.onclick = function(e) { toggleCheckCircle(newId, e); };
+                const inpObs = newRow.querySelector('.obs-excel-input');
+                if (inpObs) {
+                    inpObs.id = `obs-${newId}`;
+                    inpObs.setAttribute('data-item-id', newId);
+                    inpObs.setAttribute('data-original-obs', '');
+                    inpObs.value = '';
+                    inpObs.oninput = function() { markItemDirty(newId); };
+                }
+                const btnEx = newRow.querySelector('.btn-extra-mini');
+                if (btnEx) btnEx.style.display = 'none';
+                parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
+                const blq = parentRow.getAttribute('data-bloque');
+                recalculateBlockMetrics(blq);
+                recalculateZoneKPIs();
             }
+            showFenoToast(`✓ Labor "${nuevaLabor}" agregada exitosamente.`);
+        } else {
+            const createdId = crearFilaLaborOffline(currentExtraItemId, nuevaLabor);
+            if (createdId) showFenoToast(`✓ Labor "${nuevaLabor}" añadida localmente.`);
         }
     })
-    .catch(err => {
-        console.error('Error duplicar:', err);
-        alert('Error de red al crear labor adicional');
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Crear Evaluación de Labor';
-        }
+    .catch(() => {
+        closeModal();
+        const createdId = crearFilaLaborOffline(currentExtraItemId, nuevaLabor);
+        if (createdId) showFenoToast(`✓ Labor "${nuevaLabor}" añadida en modo offline.`);
     });
 }
 
@@ -1796,14 +1965,13 @@ function setWorkspaceMode(mode) {
         highlightSelectedTile('');
         updateUrlBlockParam('');
     } else if (mode === 'single-block') {
-        // Mantener visibles las tarjetas de bloque arriba para ver el borde fosforescente del bloque activo
-        if (gridSection) gridSection.style.display = 'block';
+        // En tablet y móvil, ocultar la cuadrícula de bloques para que las actividades tomen toda la pantalla
+        if (gridSection) gridSection.style.display = 'none';
         if (matrixSection) matrixSection.style.display = 'block';
         if (switcher) switcher.style.display = 'inline-flex';
+        populateQuickBlockSelector();
         filterMatrixRowsToBlock(activeBlockCode);
-        setTimeout(() => {
-            if (matrixSection) matrixSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 60);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (mode === 'all-matrix') {
         if (gridSection) gridSection.style.display = 'block';
         if (matrixSection) matrixSection.style.display = 'block';
@@ -1814,6 +1982,24 @@ function setWorkspaceMode(mode) {
         const badge = document.getElementById('active-block-live-badge');
         if (badge) badge.innerText = 'Todos los bloques filtrados';
     }
+}
+
+function populateQuickBlockSelector() {
+    const sel = document.getElementById('quick-block-selector');
+    if (!sel) return;
+    sel.innerHTML = '';
+    const tiles = Array.from(document.querySelectorAll(`.blq-tile[data-zona="${currentActiveZone}"]`));
+    tiles.forEach(t => {
+        const blq = t.getAttribute('data-bloque');
+        const cCode = t.getAttribute('data-clean-code') || blq;
+        const prods = (t.getAttribute('data-productos') || '').replace(/\|/g, ', ');
+        const pctText = document.getElementById(`tile-metric-${blq}`)?.innerText || '';
+        const opt = document.createElement('option');
+        opt.value = blq;
+        opt.innerText = `BL ${cCode} · ${pctText} (${prods})`;
+        if (String(blq) === String(activeBlockCode)) opt.selected = true;
+        sel.appendChild(opt);
+    });
 }
 
 function selectBlockFromGrid(bloqueCode) {
@@ -1836,7 +2022,14 @@ function selectBlockFromGrid(bloqueCode) {
 }
 
 function returnToBlockGrid() {
+    const prevBlq = activeBlockCode;
     setWorkspaceMode('grid');
+    if (prevBlq) {
+        setTimeout(() => {
+            const tile = document.getElementById(`tile-blq-${prevBlq}`);
+            if (tile) tile.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    }
 }
 
 function highlightSelectedTile(bloqueCode) {
@@ -2142,29 +2335,60 @@ function recalculateBlockMetrics(bloqueCode) {
     const checks = document.querySelectorAll(`.check-circle[data-bloque="${bloqueCode}"]`);
     const totalLabores = checks.length;
     let cumplidas = 0;
+    let incumplidas = 0;
+    let tieneNotas = false;
 
     checks.forEach(ch => {
-        if (ch.getAttribute('data-current-val') === '1') cumplidas++;
+        const val = ch.getAttribute('data-current-val');
+        if (val === '1') cumplidas++;
+        else if (val === '0') incumplidas++;
+        const itemId = ch.getAttribute('data-item-id');
+        const inp = document.getElementById(`obs-${itemId}`);
+        if (inp && inp.value && inp.value.trim().length > 0) tieneNotas = true;
     });
 
-    const pctCumplimiento = (totalLabores > 0 && cumplidas > 0)
-        ? Math.round((cumplidas / totalLabores) * 1000) / 10
-        : null;
+    const calificadas = cumplidas + incumplidas;
+    const haSidoEditado = (calificadas > 0 || tieneNotas);
 
+    let pctCumplimiento = null;
     let estado = 'PENDIENTE';
-    if (totalLabores === 0) estado = 'SIN_LABOR';
-    else if (cumplidas === 0) estado = 'PENDIENTE';
-    else if (pctCumplimiento >= 85) estado = 'ALTO';
-    else if (pctCumplimiento >= 70) estado = 'MEDIO';
-    else estado = 'BAJO';
+
+    if (totalLabores === 0) {
+        estado = 'SIN_LABOR';
+    } else if (calificadas === 0 && !tieneNotas) {
+        estado = 'PENDIENTE';
+        pctCumplimiento = null;
+    } else {
+        // Al menos una labor calificada o con observación
+        pctCumplimiento = (totalLabores > 0) ? Math.round((cumplidas / totalLabores) * 1000) / 10 : 0.0;
+        if (pctCumplimiento >= 85) estado = 'ALTO';
+        else if (pctCumplimiento >= 70) estado = 'MEDIO';
+        else estado = 'BAJO'; // ¡0% o bajo se pinta en ROJO INTENSO!
+    }
 
     tile.setAttribute('data-estado', estado);
     tile.classList.remove('state-ALTO', 'state-MEDIO', 'state-BAJO', 'state-PENDIENTE', 'state-SIN_LABOR');
     tile.classList.add(`state-${estado}`);
 
+    // Badge y marca de bloque editado/calificado
+    tile.classList.toggle('tile-calificado', haSidoEditado);
+    let editBadge = tile.querySelector('.blq-edited-badge');
+    if (haSidoEditado) {
+        if (!editBadge) {
+            editBadge = document.createElement('span');
+            editBadge.className = 'blq-edited-badge';
+            editBadge.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Editado';
+            tile.querySelector('.blq-tile-row1')?.appendChild(editBadge);
+        }
+    } else if (editBadge) {
+        editBadge.remove();
+    }
+
     const metricEl = document.getElementById(`tile-metric-${bloqueCode}`);
     if (metricEl) {
-        metricEl.innerText = estado === 'SIN_LABOR' ? 'S/L' : formatPct(pctCumplimiento);
+        if (estado === 'SIN_LABOR') metricEl.innerText = 'S/L';
+        else if (pctCumplimiento === null) metricEl.innerText = 'Pend.';
+        else metricEl.innerText = `${pctCumplimiento}%`;
     }
 
     const progTextEl = document.getElementById(`tile-progress-text-${bloqueCode}`);
@@ -2323,12 +2547,21 @@ function persistOfflineChanges() {
         modifiedItems.forEach(itemId => {
             const btn = document.getElementById(`btn-check-${itemId}`);
             const obsInput = document.getElementById(`obs-${itemId}`);
-            if (btn) {
-                payload.push({
+            const extra = offlineExtraItems[itemId];
+            if (btn || extra) {
+                const itemObj = {
                     id: itemId,
-                    val: btn.getAttribute('data-current-val'),
-                    obs: obsInput ? obsInput.value : ''
-                });
+                    val: btn ? btn.getAttribute('data-current-val') : (extra ? extra.cumplido : 'null'),
+                    obs: obsInput ? obsInput.value : (extra ? extra.observacion : '')
+                };
+                if (extra) {
+                    itemObj.is_extra = true;
+                    itemObj.parent_id = extra.parent_id;
+                    itemObj.nueva_labor = extra.nueva_labor;
+                    itemObj.bloque = extra.bloque;
+                    itemObj.zona = extra.zona;
+                }
+                payload.push(itemObj);
             }
         });
         localStorage.setItem(`feno_offline_sync_${SEMANA_ACTUAL}`, JSON.stringify(payload));
@@ -2347,6 +2580,12 @@ function restoreOfflineChanges() {
         let restoredCount = 0;
         const affectedBlocks = new Set();
         items.forEach(it => {
+            if (it.is_extra || String(it.id).startsWith('temp_')) {
+                if (!document.getElementById(`row-${it.id}`) && it.parent_id) {
+                    crearFilaLaborOffline(it.parent_id, it.nueva_labor || 'Labor Adicional');
+                }
+            }
+
             const btn = document.getElementById(`btn-check-${it.id}`);
             const obsInput = document.getElementById(`obs-${it.id}`);
             if (btn) {
@@ -2439,14 +2678,22 @@ function saveAllChanges() {
         const customAux = row ? row.getAttribute('data-assigned-auxiliar') : null;
         const customSup = row ? row.getAttribute('data-assigned-supervisor') : null;
 
-        payloadItems.push({
+        const extra = offlineExtraItems[itemId];
+        const payloadItem = {
             id: itemId,
             cumplido: cumplidoVal,
             observacion: obsVal,
             labor: customLabor,
             auxiliar: customAux,
             supervisor: customSup
-        });
+        };
+        if (extra) {
+            payloadItem.is_extra = true;
+            payloadItem.parent_id = extra.parent_id;
+            payloadItem.nueva_labor = extra.nueva_labor || customLabor;
+            payloadItem.labor = extra.nueva_labor || customLabor;
+        }
+        payloadItems.push(payloadItem);
     });
 
     const btnHeader = document.getElementById('btn-save-batch');
@@ -2490,10 +2737,15 @@ function saveAllChanges() {
             recalculateZoneKPIs();
             applyAllFilters();
 
+            const hadTempItems = Object.keys(offlineExtraItems).length > 0;
             modifiedItems.clear();
+            offlineExtraItems = {};
             try {
                 localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
             } catch (e) {}
+            if (hadTempItems) {
+                setTimeout(() => window.location.reload(), 700);
+            }
 
             updateSaveButtonsUI();
             if (btnHeader) btnHeader.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Guardar y Sincronizar</span> <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>';
@@ -2588,7 +2840,7 @@ function ejecutarGeneracionSemanaFeno() {
 
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Generando Semana ' + semTarget + '...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Sincronizando Semana ' + semTarget + '...';
     }
 
     fetch('{{ url_for("fenogramas.api_generar_desde_fact") }}', {
@@ -2599,14 +2851,14 @@ function ejecutarGeneracionSemanaFeno() {
             semana_base: semBase || null,
             fuente: fuente,
             anio: 2026,
-            forzar_limpieza: true
+            forzar_limpieza: false
         })
     })
     .then(r => r.json())
     .then(data => {
         if (data.success) {
             try { localStorage.removeItem(`feno_offline_sync_${semTarget}`); } catch(e){}
-            showFenoToast(`Semana ${semTarget} generada exitosamente. Cargando...`);
+            showFenoToast(`Semana ${semTarget} sincronizada exitosamente. Evaluaciones previas conservadas.`);
             setTimeout(() => {
                 window.location.href = `{{ url_for('fenogramas.index') }}?semana=${semTarget}&zona={{ zona_sel }}`;
             }, 600);

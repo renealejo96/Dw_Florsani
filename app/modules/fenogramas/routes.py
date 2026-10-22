@@ -613,6 +613,59 @@ def api_calificar_lote():
                 except ValueError:
                     cumplido = None
 
+            # Soporte offline para labores adicionales agregadas con el botón '+'
+            if item.get('is_extra') or str(item_id).startswith('client_extra_') or str(item_id).startswith('temp_'):
+                parent_id = item.get('parent_id')
+                parent_calif = Calificacion.query.get(parent_id) if parent_id else None
+                if not parent_calif:
+                    continue
+                labor_extra = (item.get('nueva_labor') or item.get('labor') or '').strip()
+                if not labor_extra:
+                    continue
+                existing_extra = Calificacion.query.filter_by(
+                    semana_anio=parent_calif.semana_anio,
+                    anio=parent_calif.anio,
+                    zona=parent_calif.zona,
+                    bloque=parent_calif.bloque,
+                    producto_maestro=parent_calif.producto_maestro,
+                    cama_inicial=parent_calif.cama_inicial,
+                    cama_final=parent_calif.cama_final,
+                    sufijo=parent_calif.sufijo,
+                    labor=labor_extra
+                ).first()
+                if existing_extra:
+                    existing_extra.cumplido = cumplido
+                    existing_extra.observacion = obs
+                    if nuevo_aux: existing_extra.auxiliar = nuevo_aux
+                    if nuevo_sup: existing_extra.supervisor = nuevo_sup
+                    existing_extra.tiene_evaluacion = True
+                    existing_extra.fecha_calificacion = datetime.utcnow()
+                else:
+                    new_calif = Calificacion(
+                        semana_anio=parent_calif.semana_anio,
+                        anio=parent_calif.anio,
+                        zona=parent_calif.zona,
+                        bloque=parent_calif.bloque,
+                        actividad_tipo=parent_calif.actividad_tipo,
+                        producto_maestro=parent_calif.producto_maestro,
+                        cama_inicial=parent_calif.cama_inicial,
+                        cama_final=parent_calif.cama_final,
+                        sufijo=parent_calif.sufijo,
+                        edad_real=parent_calif.edad_real,
+                        labor=labor_extra,
+                        auxiliar=nuevo_aux or parent_calif.auxiliar,
+                        supervisor=nuevo_sup or parent_calif.supervisor,
+                        cumplido=cumplido,
+                        observacion=obs,
+                        tiene_evaluacion=True,
+                        es_pendiente_anterior=False,
+                        semana_origen=parent_calif.semana_anio,
+                        fecha_calificacion=datetime.utcnow()
+                    )
+                    db.session.add(new_calif)
+                updated_count += 1
+                continue
+
             if item_id:
                 calif = Calificacion.query.get(item_id)
                 if not calif:
@@ -1091,7 +1144,7 @@ def api_generar_desde_fact():
         anio = int(data.get('anio', 2026))
         fuente = data.get('fuente', 'AUTO')
         semana_base = data.get('semana_base')
-        forzar_limpieza = bool(data.get('forzar_limpieza', True))
+        forzar_limpieza = bool(data.get('forzar_limpieza', False))
 
         count = sync_from_mrt_estado_cultivo(
             semana_corte=semana_corte,
@@ -1169,6 +1222,7 @@ def api_confirmar_plano():
 
 @fenogramas_bp.route('/api/inyectar-matriz', methods=['POST'])
 @login_required
+@admin_required
 @permission_required('fenogramas')
 def api_inyectar_matriz():
     try:
@@ -1252,6 +1306,7 @@ def api_guardar_mapeos():
 # ==============================================================================
 @fenogramas_bp.route('/api/cerrar-semana', methods=['POST'])
 @login_required
+@admin_required
 @permission_required('fenogramas')
 def api_cerrar_semana():
     data = request.get_json() or {}

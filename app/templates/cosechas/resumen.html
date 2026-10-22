@@ -427,64 +427,47 @@
 <div class="modal fade" id="modalResumenBloque" tabindex="-1" aria-labelledby="modalResumenBloqueLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="modal-header bg-dark text-white py-3 px-4">
-                <div class="d-flex align-items-center gap-2">
-                    <div class="rounded-circle bg-warning p-2 d-flex align-items-center justify-content-center text-dark" style="width: 36px; height: 36px;">
-                        <i class="fa-solid fa-cubes fs-6"></i>
+            <div class="modal-header bg-dark text-white py-2 px-3 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+                    <div class="rounded-circle bg-warning p-1.5 d-none d-sm-flex align-items-center justify-content-center text-dark flex-shrink-0" style="width: 32px; height: 32px;">
+                        <i class="fa-solid fa-cubes" style="font-size: 0.85rem;"></i>
                     </div>
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0 text-white" id="modalResumenBloqueLabel">
-                            Detalle de Cosecha por Bloque: <span id="modal-pm-nombre" class="text-warning"></span>
-                        </h5>
-                        <p class="small text-white-50 mb-0">
-                            Semana <strong id="modal-pm-semana" class="text-white"></strong> &bull; Desglose diario por bloque/módulo y variedad
-                        </p>
+                    <div class="text-truncate">
+                        <h6 class="modal-title fw-bold mb-0 text-white text-truncate" id="modalResumenBloqueLabel" style="font-size: 0.92rem;">
+                            Detalle por Bloque: <span id="modal-pm-nombre" class="text-warning"></span>
+                        </h6>
+                        <span class="small text-white-50" style="font-size: 0.72rem;">
+                            Semana <strong id="modal-pm-semana" class="text-white"></strong> &bull; Desglose diario
+                        </span>
                     </div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <a id="btn-exportar-excel-modal" href="#" class="btn btn-success btn-sm fw-bold shadow-xs">
-                        <i class="fa-solid fa-file-excel me-1"></i> Excel de Bloques
+                <div class="d-flex align-items-center gap-1.5 flex-shrink-0 ms-auto">
+                    <a id="btn-exportar-excel-modal" href="#" class="btn btn-success btn-sm py-0 px-2 fw-semibold d-none d-md-inline-flex align-items-center gap-1" style="height: 27px; font-size: 0.75rem;">
+                        <i class="fa-solid fa-file-excel"></i> <span>Excel</span>
                     </a>
-                    <button type="button" class="btn btn-outline-light btn-sm" onclick="imprimirTablaModal()">
-                        <i class="fa-solid fa-print me-1"></i> Imprimir
+                    <button type="button" class="btn btn-outline-light btn-sm py-0 px-2 d-none d-md-inline-flex align-items-center gap-1" style="height: 27px; font-size: 0.75rem;" onclick="imprimirTablaModal()">
+                        <i class="fa-solid fa-print"></i>
                     </button>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal" aria-label="Cerrar" style="font-size: 0.8rem;"></button>
                 </div>
             </div>
 
-            <!-- Resumen de Métricas Rápidas -->
-            <div class="bg-light p-3 border-bottom">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-4">
-                        <div class="card border-0 bg-white shadow-xs p-2 rounded-3 text-center">
-                            <span class="text-muted small fw-semibold">Total Tallos Cosechados</span>
-                            <h4 class="mb-0 fw-bold text-success font-monospace" id="modal-kpi-tallos">0</h4>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card border-0 bg-white shadow-xs p-2 rounded-3 text-center">
-                            <span class="text-muted small fw-semibold">Bloques / Módulos Activos</span>
-                            <h4 class="mb-0 fw-bold text-primary font-monospace" id="modal-kpi-modulos">0</h4>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card border-0 bg-white shadow-xs p-2 rounded-3 text-center">
-                            <span class="text-muted small fw-semibold">Variedades en Corte</span>
-                            <h4 class="mb-0 fw-bold text-dark font-monospace" id="modal-kpi-variedades">0</h4>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Barra de búsqueda dentro del modal -->
-                <div class="mt-3">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-white border-end-0">
-                            <i class="fa-solid fa-magnifying-glass text-muted"></i>
+            <!-- Barra de búsqueda compacta (sin tarjetas voluminosas) -->
+            <div class="bg-light p-2 border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="input-group input-group-sm shadow-xs flex-grow-1">
+                        <span class="input-group-text bg-white border-end-0 py-0 px-2">
+                            <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 0.75rem;"></i>
                         </span>
-                        <input type="text" id="filtro-modal-input" class="form-control border-start-0 ps-0" placeholder="Filtrar por bloque o variedad..." oninput="filtrarTablaModal(this.value)">
-                        <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filtro-modal-input').value = ''; filtrarTablaModal('');">
+                        <input type="text" id="filtro-modal-input" class="form-control border-start-0 ps-1 py-1" style="font-size: 0.78rem;" placeholder="Buscar bloque o variedad en corte..." oninput="filtrarTablaModal(this.value)">
+                        <button class="btn btn-outline-secondary py-0 px-2" type="button" style="font-size: 0.75rem;" onclick="document.getElementById('filtro-modal-input').value = ''; filtrarTablaModal('');">
                             Limpiar
                         </button>
+                    </div>
+                    <div class="d-inline-flex d-md-none gap-1">
+                        <a id="btn-exportar-excel-modal-mobile" href="#" class="btn btn-success btn-sm py-1 px-2" title="Exportar Excel" onclick="document.getElementById('btn-exportar-excel-modal').click(); return false;">
+                            <i class="fa-solid fa-file-excel"></i>
+                        </a>
                     </div>
                 </div>
             </div>

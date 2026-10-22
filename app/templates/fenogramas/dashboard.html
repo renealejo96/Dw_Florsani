@@ -701,7 +701,13 @@
 
                 <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
                     <span class="small text-muted" id="pbi-modal-footer-count">0 labores listadas</span>
-                    <button type="button" class="btn btn-secondary btn-sm fw-bold" data-bs-dismiss="modal">Cerrar Ventana</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-success btn-sm fw-bold shadow-xs d-inline-flex align-items-center gap-1.5" onclick="exportarExcelModalAuxiliar()" title="Descargar reporte en formato Excel de las labores no realizadas">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span>Exportar a Excel</span>
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm fw-bold" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1131,7 +1137,7 @@ function renderProductoChart() {
         },
         series: [{
             name: '% Cumplimiento',
-            data: pcts
+            data: POR_PRODUCTO.map(p => ({ x: p.producto_maestro, y: p.pct }))
         }],
         colors: ['#2563eb'],
         fill: {
@@ -1171,6 +1177,7 @@ function renderProductoChart() {
             style: { fontSize: '11px', fontWeight: 800, colors: ['#0f172a'] }
         },
         xaxis: {
+            categories: labels,
             min: 0,
             max: 105,
             labels: {
@@ -1179,7 +1186,6 @@ function renderProductoChart() {
             }
         },
         yaxis: {
-            categories: labels,
             labels: {
                 style: { fontWeight: 700, fontSize: '11px', colors: '#1e293b' }
             }
@@ -1460,6 +1466,54 @@ function refreshModalAuxiliarData() {
     }
 
     renderModalTasksTable();
+}
+
+function exportarExcelModalAuxiliar() {
+    const auxRow = MATRIZ_AUX[currentModalAuxIdx];
+    if (!auxRow) {
+        alert('No se pudo identificar al operario/auxiliar seleccionado.');
+        return;
+    }
+    const tasksToExport = currentModalTasks || [];
+    if (tasksToExport.length === 0) {
+        alert('No hay labores pendientes para exportar en este filtro.');
+        return;
+    }
+
+    const headers = ['SUPERVISOR', 'AUXILIAR', 'CULTIVO', 'ZONA', 'BLOQUE', 'CAMAS', 'ACTIVIDAD', 'EDAD_SEMANAS', 'LABOR_NO_REALIZADA', 'ESTADO', 'OBSERVACIONES'];
+    const rows = [headers.join(';')];
+
+    tasksToExport.forEach(t => {
+        const est = t.es_incumplida ? 'INCUMPLIDA (0)' : 'PENDIENTE (Sin calificar)';
+        const obs = (t.observacion || '').replace(/;/g, ',').replace(/[\r\n]+/g, ' ');
+        const row = [
+            `"${auxRow.supervisor || ''}"`,
+            `"${auxRow.auxiliar || ''}"`,
+            `"${t.cultivo || ''}"`,
+            `"${t.zona || ''}"`,
+            `"${t.bloque || ''}"`,
+            `"${t.camas || ''}"`,
+            `"${t.actividad_tipo || ''}"`,
+            t.edad_real || '',
+            `"${t.labor || ''}"`,
+            `"${est}"`,
+            `"${obs}"`
+        ];
+        rows.push(row.join(';'));
+    });
+
+    const csvContent = '\uFEFF' + rows.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const cultSuffix = currentModalCultivo ? `_${currentModalCultivo}` : '_Todos_Cultivos';
+    const cleanAux = (auxRow.auxiliar || 'Auxiliar').replace(/[^a-zA-Z0-9_-]/g, '_');
+    a.href = url;
+    a.download = `Labores_No_Realizadas_${cleanAux}${cultSuffix}_Semana_${SEMANA}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function renderModalTasksTable() {

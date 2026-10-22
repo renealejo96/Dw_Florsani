@@ -14,7 +14,7 @@ class User(db.Model):
     role = db.Column(db.String(30), default='USUARIO', nullable=False)  # ADMIN, USUARIO, AGRONOMO, BODEGA, EVALUADOR_FENOGRAMA, MONITOR_COSECHA, OPERARIO
     finca_id = db.Column(db.Integer, default=1, nullable=False)  # 1: Pyganflor, 2: Malchingui, 3: Urcuquí, 0: Todas
     fincas_permitidas_json = db.Column(db.Text, default='[1]', nullable=True)
-    permissions_json = db.Column(db.Text, default='["fumigacion", "orden_compra", "cosechas", "tpsr", "drench", "trichos", "desinfecciones", "catalogos", "importador"]')
+    permissions_json = db.Column(db.Text, default='["fumigacion", "orden_compra", "cosechas", "fenogramas", "tpsr", "drench", "trichos", "desinfecciones", "catalogos", "importador"]')
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=get_local_now)
     updated_at = db.Column(db.DateTime, default=get_local_now, onupdate=get_local_now)

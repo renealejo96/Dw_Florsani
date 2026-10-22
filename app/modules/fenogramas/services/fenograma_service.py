@@ -3,7 +3,7 @@ import re
 import json
 from datetime import datetime
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from app.extensions import db
 from app.modules.fenogramas.models import (
     SemanaEvaluacion, MatrizFenograma, PlanoCultivo, Calificacion
@@ -967,6 +967,15 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                   OR (COALESCE(es_pendiente_anterior, FALSE) = TRUE AND observacion LIKE '[Pendiente Sem %')
               );
         """), {'sem': semana_corte})
+
+        # Si un bloque fue tumbado/erradicado en el nuevo estado de cultivo, limpiar sus filas huerfanas
+        active_blocks = [str(b).strip() for b in df_plano['BLOQUE'].unique() if str(b).strip()]
+        if active_blocks:
+            db.session.execute(text("""
+                DELETE FROM calificaciones
+                WHERE semana_anio = :sem
+                  AND bloque NOT IN :blocks;
+            """).bindparams(bindparam('blocks', expanding=True)), {'sem': semana_corte, 'blocks': active_blocks})
 
     db.session.commit()
 
