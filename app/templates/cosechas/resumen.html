@@ -101,7 +101,9 @@
     }
     .col-variedad {
         min-width: 200px;
-        width: 200px;
+        width: auto;
+        white-space: normal;
+        word-break: normal;
     }
     .col-dia {
         min-width: 85px;
@@ -126,14 +128,26 @@
             font-size: 0.74rem !important;
         }
         .col-variedad {
-            min-width: 125px !important;
-            max-width: 135px !important;
-            width: 130px !important;
+            min-width: 155px !important;
+            max-width: 220px !important;
+            width: auto !important;
             font-size: 0.73rem !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.2 !important;
             padding-left: 0.4rem !important;
+            padding-right: 0.3rem !important;
+        }
+        .modal-table-bloques td:nth-child(2) {
+            min-width: 155px !important;
+            max-width: 220px !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.2 !important;
         }
         .col-dia {
             min-width: 52px !important;
@@ -335,8 +349,11 @@
                         <tbody>
                             {% for variedad, dias in variedades.items()|sort %}
                             <tr>
-                                <td class="sticky-col col-variedad fw-semibold text-dark">
-                                    <i class="fa-solid fa-leaf text-success me-2"></i>{{ variedad }}
+                                <td class="sticky-col col-variedad fw-semibold text-dark" title="{{ variedad }}">
+                                    <div class="d-inline-flex align-items-baseline gap-1.5" style="white-space: normal;">
+                                        <i class="fa-solid fa-leaf text-success flex-shrink-0" style="font-size: 0.72rem;"></i>
+                                        <span>{{ variedad }}</span>
+                                    </div>
                                 </td>
                                 {% for i in range(7) %}
                                 {% set valor = dias.get(i, 0) %}

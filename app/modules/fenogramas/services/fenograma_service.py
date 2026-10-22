@@ -560,7 +560,6 @@ def sync_excel_to_db(semana_anio=None, anio=None, ec_file_path=None, mf_file_pat
             stale_ids.append(er.id)
 
     if stale_ids:
-        from sqlalchemy import bindparam
         for i in range(0, len(stale_ids), 500):
             chunk = stale_ids[i:i+500]
             db.session.execute(text("DELETE FROM calificaciones WHERE id IN :ids;").bindparams(bindparam('ids', expanding=True)), {'ids': chunk})
@@ -1144,7 +1143,6 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
             stale_ids.append(er.id)
 
     if stale_ids:
-        from sqlalchemy import bindparam
         for i in range(0, len(stale_ids), 500):
             chunk = stale_ids[i:i+500]
             db.session.execute(text("DELETE FROM calificaciones WHERE id IN :ids;").bindparams(bindparam('ids', expanding=True)), {'ids': chunk})
@@ -1217,8 +1215,11 @@ def obtener_datos_dashboard(semana):
         WHERE semana_anio = :semana AND tiene_evaluacion = TRUE;
     """), {'semana': semana}).fetchone()
 
-    total = kpi_global.total_evaluables or 0
-    cumplidas = kpi_global.cumplidas or 0
+    kpi_dict = dict(kpi_global._mapping) if kpi_global else {}
+    total = kpi_dict.get('total_evaluables', 0) or 0
+    cumplidas = kpi_dict.get('cumplidas', 0) or 0
+    kpi_dict['total'] = total
+    kpi_dict['no_cumplidas'] = max(0, total - cumplidas)
     pct_cumplimiento = round((cumplidas / total * 100), 1) if total > 0 else 0
 
     por_zona = db.session.execute(text("""
@@ -1583,7 +1584,7 @@ def obtener_datos_dashboard(semana):
         'semanas_todas': semanas_todas,
         'semana_estado': semana_estado,
         'fecha_cierre': fecha_cierre,
-        'kpi_global': dict(kpi_global._mapping),
+        'kpi_global': kpi_dict,
         'pct_cumplimiento': pct_cumplimiento,
         'por_zona': zonas_list,
         'por_producto': productos_list,

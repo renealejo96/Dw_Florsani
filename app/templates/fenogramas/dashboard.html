@@ -281,20 +281,20 @@
         </div>
 
         <!-- Total Programadas -->
-        <div class="col-md-2 col-sm-6">
+        <div class="col-md-3 col-sm-6">
             <div class="kpi-bento accent-blue">
                 <div class="kpi-icon-box" style="background: rgba(37, 99, 235, 0.14); color: #2563eb;">
                     <i class="fa-solid fa-list-check"></i>
                 </div>
                 <div>
-                    <h3 class="h4 fw-bold mb-0 text-dark tabular-nums">{{ kpi_global.total_evaluables or 0 }}</h3>
+                    <h3 class="h4 fw-bold mb-0 text-dark tabular-nums">{{ kpi_global.total or kpi_global.total_evaluables or 0 }}</h3>
                     <div class="text-muted small fw-semibold">Programadas</div>
                 </div>
             </div>
         </div>
 
         <!-- Cumplidas (1) -->
-        <div class="col-md-2 col-sm-6">
+        <div class="col-md-3 col-sm-6">
             <div class="kpi-bento accent-emerald">
                 <div class="kpi-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
                     <i class="fa-solid fa-circle-check"></i>
@@ -307,28 +307,15 @@
         </div>
 
         <!-- No Cumplidas / Restantes -->
-        <div class="col-md-2 col-sm-6">
+        <div class="col-md-3 col-sm-6">
             <div class="kpi-bento accent-red">
                 <div class="kpi-icon-box" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">
                     <i class="fa-solid fa-circle-xmark"></i>
                 </div>
                 <div>
-                    <h3 class="h4 fw-bold mb-0 text-danger tabular-nums">{{ ((kpi_global.total or 0) - (kpi_global.cumplidas or 0)) }}</h3>
+                    <h3 class="h4 fw-bold mb-0 text-danger tabular-nums">{{ kpi_global.no_cumplidas if kpi_global.no_cumplidas is defined else ((kpi_global.total_evaluables or 0) - (kpi_global.cumplidas or 0)) }}</h3>
                     <div class="text-muted small fw-semibold">No Cumplidas</div>
                     <span class="text-muted" style="font-size: 0.65rem;">({{ kpi_global.incumplidas or 0 }} calif. 0 + {{ kpi_global.pendientes or 0 }} pend.)</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Camas Sin Match -->
-        <div class="col-md-3 col-sm-6">
-            <div class="kpi-bento accent-amber" style="cursor: pointer;" onclick="window.location.href='{{ url_for('fenogramas.sin_match', semana=semana) }}'">
-                <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #d97706;">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                </div>
-                <div>
-                    <h3 class="h4 fw-bold mb-0 text-warning tabular-nums">{{ sin_match_count }}</h3>
-                    <div class="text-muted small fw-semibold">Sin Match &rarr; Ver Auditoría</div>
                 </div>
             </div>
         </div>
@@ -383,7 +370,7 @@
                                 <th class="text-center">Cumpl.</th>
                                 <th class="text-center">Incump. / Pend.</th>
                                 <th class="text-center" style="width: 135px;">% Cumplimiento</th>
-                                <th class="text-center pe-3" style="width: 115px;">Estado</th>
+                                <th class="text-center pe-3" style="width: 60px;"></th>
                             </tr>
                         </thead>
                         <tbody id="tbody-zonas-pbi" style="font-size: 0.79rem;">
@@ -934,19 +921,19 @@ function renderTablaZonasPBI(cultivoFiltrado) {
             // >= 90%: VERDE (Estándar Cumplido)
             rowBgStyle = 'background-color: #f0fdf4; border-left: 4.5px solid #10b981;';
             pctBadge = `<span class="badge bg-success text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`;
-            estadoBadge = `<span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check me-1"></i>&ge; 90% Estándar</span>`;
+            estadoBadge = `<i class="fa-solid fa-circle-check text-success fs-5" title="&ge; 90% Cumplido"></i>`;
             progressBarColor = 'bg-success';
         } else if (f.pct >= 70.0) {
             // 70% a 89.9%: AMARILLO (En Proceso / Atención)
             rowBgStyle = 'background-color: #fefce8; border-left: 4.5px solid #eab308;';
             pctBadge = `<span class="badge text-dark fw-bold px-2 py-1 shadow-xs" style="background-color: #facc15; font-size: 0.82rem;">${f.pct}%</span>`;
-            estadoBadge = `<span class="badge bg-warning-subtle text-dark border border-warning fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>70-89% Atención</span>`;
+            estadoBadge = `<i class="fa-solid fa-triangle-exclamation text-warning fs-5" title="70-89% Atención"></i>`;
             progressBarColor = 'bg-warning';
         } else {
             // < 70%: ROJO (Alerta Crítica)
             rowBgStyle = 'background-color: #fef2f2; border-left: 4.5px solid #ef4444;';
             pctBadge = `<span class="badge bg-danger text-white fw-bold px-2 py-1 shadow-xs" style="font-size: 0.82rem;">${f.pct}%</span>`;
-            estadoBadge = `<span class="badge bg-danger-subtle text-danger border border-danger fw-bold px-2 py-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-xmark me-1"></i>&lt; 70% Crítico</span>`;
+            estadoBadge = `<i class="fa-solid fa-circle-xmark text-danger fs-5" title="&lt; 70% Crítico"></i>`;
             progressBarColor = 'bg-danger';
         }
 
