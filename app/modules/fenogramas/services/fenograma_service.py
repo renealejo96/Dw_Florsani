@@ -54,6 +54,16 @@ def clean_str(s):
 
     # Corrección de palabras agrícolas comunes donde la ligadura fi/fl/f se convirtió en espacio o se perdió en Excel
     correcciones = [
+        (r'\b[sS]ul\s+at([oa]s?)\b', r'sulfat\1'),
+        (r'\b[sS]ul\s*at([oa]s?)\b', r'sulfat\1'),
+        (r'\b(?:[oó]rmula|f[oó]rmula)?\s*Mosh[eé]?\b', 'Fórmula de Moshe'),
+        (r'\b[oó]rmul([ao]s?)\b', r'fórmul\1'),
+        (r'\beda\s*ic([oa]s?)\b', r'edáfic\1'),
+        (r'\b[uú]lminante\b', 'fulminante'),
+        (r'\bin\s*lorescencia\b', 'inflorescencia'),
+        (r'\b([ií]los?)\s+(de\s+camas?|y\s+camas?)\b', r'f\1 \2'),
+        (r'\bde\s+ilos\b', 'de filos'),
+        (r'\blimpieza\s+de\s+ilos\b', 'limpieza de filos'),
         (r'\bescari\s*icado\b', 'escarificado'),
         (r'\bDesin\s*ecci[oó]n\b', 'Desinfección'),
         (r'\bdesin\s*ecci[oó]n\b', 'desinfección'),
@@ -65,10 +75,16 @@ def clean_str(s):
         (r'\b[ií]tof[aá]rmaco\b', 'fitofármaco'),
         (r'\b[ií]totoxicidad\b', 'fitotoxicidad'),
         (r'\bde\s*oliaci[oó]n\b', 'defoliación'),
+        (r'\b[oó]sforo\b', 'fósforo'),
+        (r'\b[oó]sforad([oa]s?)\b', r'fosforad\1'),
         (r'\bFincalizaci[oó]n\b', 'Finalización')
     ]
     for pattern, repl in correcciones:
         s = re.sub(pattern, repl, s, flags=re.IGNORECASE)
+
+    # Normalizaciones directas de mayúsculas en términos recurrentes
+    s = s.replace('Sul ato', 'Sulfato').replace('sul ato', 'sulfato')
+    s = s.replace('Sulfato de magnesio', 'Sulfato de Magnesio').replace('sulfato de magnesio', 'sulfato de magnesio')
 
     return s.strip()
 

@@ -1249,7 +1249,7 @@ def api_confirmar_plano():
 @permission_required('fenogramas')
 def api_inyectar_matriz():
     try:
-        semana = request.form.get('semana', type=int)
+        semana = request.form.get('semana', type=int) or session.get('fenogramas_semana_activa') or 43
         mf_file = request.files.get('file_matriz_fenogramas')
 
         if not mf_file or not mf_file.filename:
