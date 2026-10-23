@@ -115,3 +115,20 @@ with app.app_context():
 
     print(f"[FENOGRAMAS-VPS] Total actividades en Semana {semana_activa}: {total_week}")
     print(f"[FENOGRAMAS-VPS] [OK] Calificaciones humanas preservadas al 100%: {calif_count} evaluaciones activas.")
+
+    # 8. Ajustar particiones de cultivo y conteo de plantas para Bloque 75
+    try:
+        db.session.execute(text("""
+            UPDATE dim_camas 
+            SET cama_estandar = 0.0889, num_plantas = 120, metros_netos = 2.40 
+            WHERE id_cama = '75A-A-C1';
+
+            UPDATE fact_eventos_cultivo
+            SET num_plantas = 120
+            WHERE id_cama = '75A-A-C1' AND tipo_evento = 'SIEMBRA' AND estado_evento = 'ACTIVO';
+        """))
+        db.session.commit()
+        print("[FENOGRAMAS-VPS] [OK] Bloque 75 Cama 1 asegurada a 120 plantas.")
+    except Exception as e_b75:
+        print(f"[FENOGRAMAS-VPS] Aviso ajustando Bloque 75: {e_b75}")
+        db.session.rollback()

@@ -394,6 +394,25 @@ def rotacion_detalle(rotation_id):
                 'crop': (r.crop_master or '').strip()
             }
 
+    # Map each block + suffix to its latest activity_type ('SIEMBRA' or 'PODA')
+    block_event_map = {}
+    for r in cached_crop_records:
+        clean_b = clean_block_name(r.block_num or r.block_full, r.suffix)
+        k_suff = (r.suffix or 'A').strip().upper()
+        act = getattr(r, 'activity_type', None) or ('PODA' if 'PODA' in str(r.status_raw or '').upper() else 'SIEMBRA')
+        block_event_map[f"{clean_b}_{k_suff}"] = act
+        if clean_b not in block_event_map or act == 'PODA':
+            block_event_map[clean_b] = act
+
+    # Also backfill draft_segments if missing activity_type
+    if draft_segments and isinstance(draft_segments, list):
+        for s in draft_segments:
+            if isinstance(s, dict) and not s.get('activity_type'):
+                clean_b = clean_block_name(s.get('block_name'), s.get('suffix'))
+                suff = (s.get('suffix') or 'A').strip().upper()
+                s['activity_type'] = block_event_map.get(f"{clean_b}_{suff}", block_event_map.get(clean_b, 'SIEMBRA'))
+                s['ultimo_evento'] = s['activity_type']
+
     # Map standard rotation formulas by crop_name and phenological_stage for comparison and restoration
     rotation_formulas_map = {}
     for r in rotation.rounds:
@@ -516,6 +535,7 @@ def rotacion_detalle(rotation_id):
         active_crops=active_crops,
         rotation_crops=rotation_crops,
         block_zone_map=block_zone_map,
+        block_event_map=block_event_map,
         review_segments=review_segments,
         draft_segments=draft_segments,
         rotation_formulas_map=rotation_formulas_map,

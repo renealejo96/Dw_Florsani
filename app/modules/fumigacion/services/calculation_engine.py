@@ -421,6 +421,7 @@ class CalculationEngine:
             if proj_age < 2.0:
                 continue
 
+            act_type = 'PODA' if (mr and 'PODA' in str(mr[5] or '').upper()) or ('PODA' in str(r.status_raw or '').upper()) else 'SIEMBRA'
             all_active_records.append(ProjectedCropRecord(
                 id=r.id,
                 week=rot_w_clean or r.week,
@@ -434,7 +435,9 @@ class CalculationEngine:
                 standard_bed=float(mr[8] or r.standard_bed or 0.0),
                 zone=mr[9] if (mr and mr[9]) else r.zone,
                 real_age=proj_age,
-                status_raw=r.status_raw
+                status_raw=mr[5] if (mr and mr[5]) else r.status_raw,
+                activity_type=act_type,
+                ultimo_evento=act_type
             ))
 
         # Agregar camas sembradas en campo vivo que no estaban en el snapshot previo
@@ -468,6 +471,7 @@ class CalculationEngine:
             if proj_age < 2.0:
                 continue
 
+            act_type = 'PODA' if 'PODA' in u_ev else 'SIEMBRA'
             all_active_records.append(ProjectedCropRecord(
                 id=99000000 + len(all_active_records),
                 week=rot_w_clean,
@@ -481,7 +485,9 @@ class CalculationEngine:
                 standard_bed=float(mr[8] or 1.0),
                 zone=mr[9],
                 real_age=proj_age,
-                status_raw='SIEMBRA' if 'SIEMBRA' in u_ev else 'PODA'
+                status_raw='SIEMBRA' if 'SIEMBRA' in u_ev else 'PODA',
+                activity_type=act_type,
+                ultimo_evento=act_type
             ))
 
         return all_active_records
@@ -520,6 +526,16 @@ class CalculationEngine:
             total_liters_all = 0.0
             total_std_beds_all = 0.0
             total_beds_count = 0
+
+            rot_week = round_obj.rotation.week.strip() if (round_obj and round_obj.rotation and round_obj.rotation.week) else ''
+            active_recs_for_map = cached_crop_records if cached_crop_records is not None else cls.get_projected_crop_records(rot_week)
+            block_event_map = {}
+            for r in active_recs_for_map:
+                k_be = (clean_block_name(r.block_num or r.block_full, r.suffix), (r.suffix or 'A').strip().upper())
+                if k_be not in block_event_map:
+                    block_event_map[k_be] = getattr(r, 'activity_type', 'SIEMBRA')
+                elif 'PODA' in str(getattr(r, 'activity_type', '')).upper():
+                    block_event_map[k_be] = 'PODA'
 
             for seg in custom_review_segments:
                 if not isinstance(seg, dict):
@@ -645,6 +661,10 @@ class CalculationEngine:
                             }
                         product_summary_map[summary_key]['total_required_quantity'] += product_amount
 
+                act_type = seg.get('activity_type') or seg.get('ultimo_evento') or seg.get('status_raw')
+                if not act_type or act_type not in ('SIEMBRA', 'PODA'):
+                    act_type = block_event_map.get((clean_blk, suffix), 'SIEMBRA')
+
                 segment_data = {
                     'round_number': round_obj.round_number,
                     'round_name': round_obj.name,
@@ -654,6 +674,8 @@ class CalculationEngine:
                     'zone': zone,
                     'block_name': clean_blk,
                     'suffix': suffix,
+                    'activity_type': act_type,
+                    'ultimo_evento': act_type,
                     'crop_name': crop_name,
                     'variety': variety,
                     'phenological_stage': stage,
@@ -847,6 +869,9 @@ class CalculationEngine:
                     # In fumigation work table, show clean crop name without listing all varieties
                     variety_str = crop_name.title() if crop_name else 'Hypericum'
 
+                    is_poda = any('PODA' in str(getattr(r, 'activity_type', '') or getattr(r, 'status_raw', '')).upper() for r in recs)
+                    activity_type = 'PODA' if is_poda else 'SIEMBRA'
+
                     segment_data = {
                         'round_number': round_obj.round_number,
                         'round_name': round_obj.name,
@@ -856,6 +881,8 @@ class CalculationEngine:
                         'zone': zone,
                         'block_name': clean_blk,
                         'suffix': suffix,
+                        'activity_type': activity_type,
+                        'ultimo_evento': activity_type,
                         'crop_name': crop_name,
                         'variety': variety_str,
                         'phenological_stage': stage,

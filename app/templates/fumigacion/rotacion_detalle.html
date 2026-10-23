@@ -578,6 +578,12 @@
                             </div>
                         </div>
                         <div id="cuadre-validation-status" class="d-flex align-items-center gap-2">
+                            <span class="badge shadow-xs" style="background-color: #bbf7d0; color: #14532d; border: 1.5px solid #16a34a;" title="Último evento registrado en campo: Siembra">
+                                <i class="fa-solid fa-seedling me-1"></i>Siembra
+                            </span>
+                            <span class="badge shadow-xs" style="background-color: #fef08a; color: #713f12; border: 1.5px solid #ca8a04;" title="Último evento registrado en campo: Poda">
+                                <i class="fa-solid fa-scissors me-1"></i>Poda
+                            </span>
                             <span class="badge bg-success-subtle text-success border border-success-subtle">
                                 <i class="fa-solid fa-circle-check me-1"></i> Sin camas duplicadas
                             </span>
@@ -1135,6 +1141,7 @@ const ACTIVE_PRODUCTS = [
 const ROTATION_FORMULAS_MAP = {{ (rotation_formulas_map or {})|tojson }};
 const ROUND_CROP_PRODUCTS_MAP = {{ (round_crop_products_map or {})|tojson }};
 const CROP_STATUS_MAP = {{ (crop_status_map or {})|tojson }};
+const BLOCK_EVENT_MAP = {{ (block_event_map or {})|tojson }};
 
 // Map of calibrated segments per round
 const ROUND_SEGMENTS_MAP = {
@@ -1146,6 +1153,8 @@ const ROUND_SEGMENTS_MAP = {
             zone: "{{ s.zone or '' }}",
             block_name: "{{ s.block_name }}",
             suffix: "{{ s.suffix or 'A' }}",
+            activity_type: "{{ s.activity_type or s.ultimo_evento or 'SIEMBRA' }}",
+            ultimo_evento: "{{ s.ultimo_evento or s.activity_type or 'SIEMBRA' }}",
             crop_name: "{{ s.crop_name }}",
             variety: "{{ s.variety or s.crop_name }}",
             phenological_stage: "{{ s.phenological_stage or 'VEGETATIVO' }}",
@@ -1224,6 +1233,25 @@ function normalizeCropName(name) {
 function cleanBlockName(name, suffix) {
     if (!name) return '';
     return String(name).trim();
+}
+
+function getSegmentActivityType(s) {
+    if (!s) return 'SIEMBRA';
+    const rawAct = String(s.activity_type || s.ultimo_evento || '').toUpperCase();
+    if (rawAct.includes('PODA')) return 'PODA';
+    if (rawAct.includes('SIEMBRA')) return 'SIEMBRA';
+    const cleanBlk = cleanBlockName(s.block_name, s.suffix);
+    const suff = (s.suffix || 'A').trim().toUpperCase();
+    if (BLOCK_EVENT_MAP[cleanBlk + '_' + suff]) {
+        return BLOCK_EVENT_MAP[cleanBlk + '_' + suff];
+    }
+    if (BLOCK_EVENT_MAP[cleanBlk]) {
+        return BLOCK_EVENT_MAP[cleanBlk];
+    }
+    if (s.status_raw && String(s.status_raw).toUpperCase().includes('PODA')) {
+        return 'PODA';
+    }
+    return 'SIEMBRA';
 }
 
 function getDefaultFormula(cropName, stage) {
@@ -1842,6 +1870,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const dupBadge = isDuplicated ? '<i class="fa-solid fa-triangle-exclamation text-danger ms-1" title="Bloque dividido / fraccionado en múltiples pedazos" style="font-size: 0.72rem;"></i>' : '';
         const modCheck = s.is_modified ? '<span class="text-success ms-1 mod-check" title="Bloque modificado manualmente por el agrónomo"><i class="fa-solid fa-pen-to-square"></i></span>' : '';
 
+        const actType = getSegmentActivityType(s);
+        const isPoda = actType === 'PODA';
+        const badgeStyle = isPoda
+            ? 'background-color: #fef08a !important; color: #713f12 !important; border: 1.5px solid #ca8a04 !important;'
+            : 'background-color: #bbf7d0 !important; color: #14532d !important; border: 1.5px solid #16a34a !important;';
+        const actLabel = isPoda ? 'Poda' : 'Siembra';
+
         tr.innerHTML = `
             <td class="text-center align-middle drag-handle-cell" style="width: 18px; cursor: grab;" title="Arrastrar y soltar para reordenar">
                 <i class="fa-solid fa-grip-vertical text-muted drag-handle-icon" style="font-size: 0.75rem;"></i>
@@ -1849,8 +1884,8 @@ document.addEventListener('DOMContentLoaded', function() {
             <td class="text-center" style="width: 24px;">
                 <input type="checkbox" class="form-check-input row-select-checkbox" data-uid="${s.uid}" data-stage="${panelType}">
             </td>
-            <td class="text-center fw-bold font-monospace text-dark cursor-pointer" style="width: 72px;" title="Bloque ${cleanBlk}">
-                <span class="badge ${panelType === 'VEGETATIVO' ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-warning-subtle text-dark border border-warning-subtle'} font-monospace badge-block-name py-1 px-2" style="font-size: 0.85rem; letter-spacing: 0.3px;">
+            <td class="text-center fw-bold font-monospace text-dark cursor-pointer" style="width: 72px;" title="Bloque ${cleanBlk} · ${actLabel}">
+                <span class="badge font-monospace badge-block-name py-1 px-2 shadow-xs" style="font-size: 0.85rem; letter-spacing: 0.3px; ${badgeStyle}">
                     ${cleanBlk}${modCheck}${dupBadge}
                 </span>
             </td>
@@ -1979,6 +2014,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 zone: s.zone || '',
                 block_name: s.block_name,
                 suffix: s.suffix || 'A',
+                activity_type: getSegmentActivityType(s),
+                ultimo_evento: getSegmentActivityType(s),
                 crop_name: s.crop_name,
                 variety: s.variety || s.crop_name,
                 phenological_stage: s.phenological_stage || 'VEGETATIVO',
@@ -2329,6 +2366,8 @@ document.addEventListener('DOMContentLoaded', function() {
             zone: base.zone || '',
             block_name: modalBlockKey,
             suffix: base.suffix || 'A',
+            activity_type: getSegmentActivityType(base),
+            ultimo_evento: getSegmentActivityType(base),
             crop_name: base.crop_name || '',
             variety: base.variety || base.crop_name || '',
             phenological_stage: 'PRODUCTIVO',
@@ -2562,12 +2601,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const defaultProds = getDefaultFormula(crop, stage);
         const totLit = roundToTank20(stdBeds * litBed);
 
+        const blockClean = cleanBlockName(block, suffix);
+        const actForBlock = (BLOCK_EVENT_MAP[blockClean + '_' + suffix] || BLOCK_EVENT_MAP[blockClean] || 'SIEMBRA');
+
         pushState();
         masterSegments.unshift({
             uid: 'seg_' + (++uidCounter),
             zone: zone,
             block_name: block,
             suffix: suffix,
+            activity_type: actForBlock,
+            ultimo_evento: actForBlock,
             crop_name: crop,
             variety: crop,
             phenological_stage: stage,
@@ -2597,11 +2641,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const std = parseFloat(s.standard_beds) || (end - start + 1);
             const litBed = parseFloat(s.liters_per_bed) || 5.5;
             const totLit = roundToTank20(std * litBed);
+            const actType = getSegmentActivityType(s);
 
             return {
                 zone: (s.zone || '').trim(),
                 block_name: (s.block_name || '').trim(),
                 suffix: (s.suffix || 'A').trim().toUpperCase(),
+                activity_type: actType,
+                ultimo_evento: actType,
                 crop_name: (s.crop_name || '').trim(),
                 variety: (s.variety || s.crop_name || '').trim(),
                 phenological_stage: (s.phenological_stage || 'VEGETATIVO').trim().toUpperCase(),
@@ -2997,7 +3044,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const badge = draggedRow.querySelector('.badge-block-name');
                 if (badge) {
-                    badge.className = `badge ${targetStage === 'VEGETATIVO' ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-warning-subtle text-dark border border-warning-subtle'} font-monospace badge-block-name py-1 px-1`;
+                    const actType = getSegmentActivityType(seg);
+                    const isPoda = actType === 'PODA';
+                    badge.style.setProperty('background-color', isPoda ? '#fef08a' : '#bbf7d0', 'important');
+                    badge.style.setProperty('color', isPoda ? '#713f12' : '#14532d', 'important');
+                    badge.style.setProperty('border', isPoda ? '1.5px solid #ca8a04' : '1.5px solid #16a34a', 'important');
                 }
                 const toggleBtn = draggedRow.querySelector('.btn-row-toggle-stage');
                 if (toggleBtn) {
