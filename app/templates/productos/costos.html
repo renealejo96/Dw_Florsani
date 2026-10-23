@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Catálogo de Costos de Insumos & Bodegas | Florsani ERP{% endblock %}
-{% block page_header %}Gestión de Costos y Bodegas de Insumos (Venture){% endblock %}
+{% block page_header %}Gestión de Costos y Bodegas de Insumos{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -87,7 +87,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3 pb-2 border-bottom">
         <div>
             <h4 class="fw-bold mb-1 text-dark">
-                <i class="fa-solid fa-sack-dollar text-warning me-2"></i>Catálogo Maestro de Costos & Bodegas (Venture)
+                <i class="fa-solid fa-sack-dollar text-warning me-2"></i>Catálogo Maestro de Costos & Bodegas de Insumos
             </h4>
             <p class="text-muted mb-0 small">
                 Precios de compra oficiales, factor de conversión (<em>tras</em>), costo unitario por consumo y asignación de bodegas para la liquidación de fumigaciones y desinfecciones.
@@ -151,7 +151,7 @@
         <div class="col-6 col-md-3">
             <div class="kpi-tile-bento kpi-accent-purple">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing: 0.04em;">Bodegas Venture</span>
+                    <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing: 0.04em;">Bodegas de Insumos</span>
                     <span class="badge bg-purple-subtle text-purple rounded-circle p-2" style="background-color: #f3e8ff; color: #8b5cf6;">
                         <i class="fa-solid fa-warehouse"></i>
                     </span>
@@ -169,7 +169,7 @@
                 <div class="col-md-5">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
-                        <input type="text" name="q" class="form-control border-start-0" placeholder="Buscar por código, nombre, artículo Venture o código requisición..." value="{{ search }}">
+                        <input type="text" name="q" class="form-control border-start-0" placeholder="Buscar por código, nombre, artículo o código de requisición..." value="{{ search }}">
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -233,7 +233,7 @@
                     <thead class="table-light text-secondary" style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;">
                         <tr>
                             <th class="ps-4">Insumo / Nombre Agronómico</th>
-                            <th>Artículo Requisición (Venture)</th>
+                            <th>Artículo de Requisición</th>
                             <th>Bodega</th>
                             <th class="text-end">Precio Compra</th>
                             <th class="text-center">U. Compra</th>
@@ -255,17 +255,17 @@
                                 </div>
                             </td>
 
-                            <!-- Artículo Venture -->
+                            <!-- Artículo Requisición -->
                             <td class="py-2">
                                 {% if p.articulo_requisicion %}
                                 <div class="fw-semibold text-dark small text-truncate" style="max-width: 240px;" title="{{ p.articulo_requisicion }}">
                                     {{ p.articulo_requisicion }}
                                 </div>
-                                {% if p.codigo_venture %}
-                                <div class="text-muted font-monospace" style="font-size: 0.72rem;">Cód: {{ p.codigo_venture }}</div>
+                                {% if p.codigo_almacen or p.codigo_almacen %}
+                                <div class="text-muted font-monospace" style="font-size: 0.72rem;">Cód: {{ p.codigo_almacen or p.codigo_almacen }}</div>
                                 {% endif %}
                                 {% else %}
-                                <span class="text-muted small fst-italic">Sin homologar Venture</span>
+                                <span class="text-muted small fst-italic">Sin requisición asociada</span>
                                 {% endif %}
                             </td>
 
@@ -334,7 +334,7 @@
                                         data-code="{{ p.code }}"
                                         data-name="{{ p.commercial_name or p.code }}"
                                         data-art="{{ p.articulo_requisicion or '' }}"
-                                        data-venture="{{ p.codigo_venture or '' }}"
+                                        data-codalmacen="{{ p.codigo_almacen or p.codigo_almacen or '' }}"
                                         data-bodega="{{ p.bodega or '' }}"
                                         data-precio="{{ p.precio_compra or '' }}"
                                         data-ucompra="{{ p.unidad_compra or '' }}"
@@ -388,17 +388,17 @@
                     </div>
 
                     <div class="row g-3">
-                        <!-- Artículo Venture / Requisición -->
+                        <!-- Artículo de Requisición -->
                         <div class="col-md-7">
-                            <label class="form-label small fw-bold text-secondary">Artículo Requisición (Sistema Venture) *</label>
+                            <label class="form-label small fw-bold text-secondary">Artículo de Requisición (Almacén) *</label>
                             <input type="text" class="form-control form-control-sm" id="modalArticuloRequisicion" name="articulo_requisicion" placeholder="Ej: ACTARA - 25 100GR - Gr">
-                            <div class="form-text small" style="font-size: 0.72rem;">Nombre oficial registrado en almacén Venture.</div>
+                            <div class="form-text small" style="font-size: 0.72rem;">Nombre oficial registrado en requisición de almacén.</div>
                         </div>
 
-                        <!-- Código Venture -->
+                        <!-- Código de Almacén -->
                         <div class="col-md-5">
-                            <label class="form-label small fw-bold text-secondary">Código Venture / Referencia</label>
-                            <input type="text" class="form-control form-control-sm font-monospace" id="modalCodigoVenture" name="codigo_venture" placeholder="Opcional">
+                            <label class="form-label small fw-bold text-secondary">Código de Almacén / Referencia</label>
+                            <input type="text" class="form-control form-control-sm font-monospace" id="modalCodigoAlmacen" name="codigo_almacen" placeholder="Opcional">
                         </div>
 
                         <!-- Bodega -->
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('modalProdCode').textContent = this.dataset.code;
             document.getElementById('modalProdName').textContent = this.dataset.name;
             document.getElementById('modalArticuloRequisicion').value = this.dataset.art;
-            document.getElementById('modalCodigoVenture').value = this.dataset.venture;
+            document.getElementById('modalCodigoAlmacen').value = this.dataset.codalmacen;
             document.getElementById('modalBodega').value = this.dataset.bodega;
             document.getElementById('modalUnidadCompra').value = this.dataset.ucompra;
             inpPrecio.value = this.dataset.precio;
@@ -549,7 +549,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const payload = {
             articulo_requisicion: document.getElementById('modalArticuloRequisicion').value,
-            codigo_venture: document.getElementById('modalCodigoVenture').value,
+            codigo_almacen: document.getElementById('modalCodigoAlmacen').value,
             bodega: document.getElementById('modalBodega').value,
             unidad_compra: document.getElementById('modalUnidadCompra').value,
             precio_compra: inpPrecio.value,

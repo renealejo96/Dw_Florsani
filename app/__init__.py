@@ -405,7 +405,7 @@ def create_app(config_class=Config):
             pm = maestro_productos.get(r.variedad, 'SIN CLASIFICAR')
             tallos_por_producto[pm] = tallos_por_producto.get(pm, 0) + (r.total_tallos or 0)
 
-        # Costos Agronómicos y Liquidación por Hectárea (Fumigación, Desinfecciones & Bodega Venture)
+        # Costos Agronómicos y Liquidación por Hectárea (Fumigación, Desinfecciones & Bodegas de Insumos)
         try:
             from app.modules.fumigacion.services.cost_service import CostService
             cost_week = request.args.get('cost_week', 'ALL')

@@ -171,7 +171,7 @@ def toggle_status(product_id):
     return redirect(url_for('productos.index'))
 
 
-# ==================== COSTOS Y BODEGAS (VENTURE) ====================
+# ==================== COSTOS Y BODEGAS DE INSUMOS ====================
 
 @productos_bp.route('/costos')
 @login_required
@@ -197,7 +197,7 @@ def costos():
                 Product.code.ilike(f"%{search}%"),
                 Product.commercial_name.ilike(f"%{search}%"),
                 Product.articulo_requisicion.ilike(f"%{search}%"),
-                Product.codigo_venture.ilike(f"%{search}%")
+                Product.codigo_almacen.ilike(f"%{search}%")
             )
         )
 
@@ -243,7 +243,7 @@ def costo_editar(product_id):
         tras_raw = data.get('factor_conversion')
         bodega_val = data.get('bodega')
         art_req = data.get('articulo_requisicion')
-        cod_v = data.get('codigo_venture')
+        cod_alm = data.get('codigo_almacen')
     else:
         precio_raw = request.form.get('precio_compra')
         u_compra = request.form.get('unidad_compra')
@@ -251,7 +251,7 @@ def costo_editar(product_id):
         tras_raw = request.form.get('factor_conversion')
         bodega_val = request.form.get('bodega')
         art_req = request.form.get('articulo_requisicion')
-        cod_v = request.form.get('codigo_venture')
+        cod_alm = request.form.get('codigo_almacen')
 
     try:
         precio = float(precio_raw) if precio_raw is not None and str(precio_raw).strip() != '' else None
@@ -272,7 +272,8 @@ def costo_editar(product_id):
     product.costo_unitario = costo_u
     if bodega_val: product.bodega = bodega_val.strip().upper()
     if art_req is not None: product.articulo_requisicion = art_req.strip()
-    if cod_v is not None: product.codigo_venture = cod_v.strip()
+    if cod_alm is not None:
+        product.codigo_almacen = cod_alm.strip()
 
     db.session.commit()
     record_audit('PRODUCTOS', 'UPDATE_COST', 'Product', product.id, details={'precio': precio, 'tras': tras, 'costo_unitario': costo_u, 'bodega': product.bodega})

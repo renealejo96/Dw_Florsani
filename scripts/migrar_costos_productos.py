@@ -2,7 +2,7 @@
 PROYECTO: ERP Y DATA WAREHOUSE AGRÍCOLA - GRUPO FLORICULTOR FLORSANI
 ARCHIVO: scripts/migrar_costos_productos.py
 DESCRIPCIÓN: Ingesta y homologación de precios, unidades, factores de conversión ('tras'),
-             artículo de requisición (Venture) y bodega para el catálogo de productos agroquímicos.
+             artículo de requisición de almacén y bodega para el catálogo de productos agroquímicos.
 """
 import sys
 import os
@@ -32,7 +32,7 @@ with app.app_context():
         ALTER TABLE products ADD COLUMN IF NOT EXISTS costo_unitario double precision;
         ALTER TABLE products ADD COLUMN IF NOT EXISTS bodega character varying(100);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS articulo_requisicion character varying(255);
-        ALTER TABLE products ADD COLUMN IF NOT EXISTS codigo_venture character varying(100);
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS codigo_almacen character varying(100);
     """
     db.session.execute(text(alter_sql))
     db.session.commit()
@@ -95,7 +95,7 @@ with app.app_context():
             target.bodega = bodega_val
             target.articulo_requisicion = p_req or target.articulo_requisicion
             if codigo2_val:
-                target.codigo_venture = codigo2_val
+                target.codigo_almacen = codigo2_val
             updated_count += 1
         else:
             # Crear nuevo producto para el ERP
@@ -118,7 +118,7 @@ with app.app_context():
                 costo_unitario=costo_unit,
                 bodega=bodega_val,
                 articulo_requisicion=p_req,
-                codigo_venture=codigo2_val,
+                codigo_almacen=codigo2_val,
                 is_active=True
             )
             db.session.add(new_prod)

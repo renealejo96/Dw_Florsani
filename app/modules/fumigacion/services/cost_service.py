@@ -3,7 +3,7 @@ PROYECTO: ERP Y DATA WAREHOUSE AGRÍCOLA - GRUPO FLORICULTOR FLORSANI
 ARCHIVO: app/modules/fumigacion/services/cost_service.py
 DESCRIPCIÓN: Motor de costeo agronómico para aplicaciones foliares, trichos, desinfecciones y drench.
              Calcula costos totales en $, costo por hectárea ($/ha), desglose por bodega
-             (Venture) y distribución granular bloque a bloque a partir de órdenes impresas/ejecutadas.
+             de almacén y distribución granular bloque a bloque a partir de órdenes impresas/ejecutadas.
 """
 from typing import Dict, List, Any, Optional
 from app.extensions import db
@@ -22,12 +22,13 @@ class CostService:
         for p in all_prods:
             unit_cost = p.calculated_unit_cost or 0.0
             bod = (p.bodega or 'SIN BODEGA').strip().upper()
+            cod_alm = getattr(p, 'codigo_almacen', None) or ''
             info = {
                 'id': p.id,
                 'code': p.code,
                 'commercial_name': p.commercial_name or p.code,
                 'articulo_requisicion': p.articulo_requisicion or '',
-                'codigo_venture': p.codigo_venture or '',
+                'codigo_almacen': cod_alm,
                 'precio_compra': p.precio_compra,
                 'unidad_compra': p.unidad_compra or '',
                 'unidad_consumo': p.unidad_consumo or p.unit or 'CC',

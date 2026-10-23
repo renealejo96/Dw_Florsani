@@ -159,7 +159,7 @@ class Product(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
     
-    # Costos, unidades y categorización de inventario / bodega (Venture)
+    # Costos, unidades y categorización de inventario / bodega de almacén
     precio_compra = db.Column(db.Float, nullable=True)
     unidad_compra = db.Column(db.String(30), nullable=True)
     unidad_consumo = db.Column(db.String(30), nullable=True)
@@ -167,7 +167,7 @@ class Product(db.Model):
     costo_unitario = db.Column(db.Float, nullable=True)
     bodega = db.Column(db.String(100), nullable=True)
     articulo_requisicion = db.Column(db.String(255), nullable=True)
-    codigo_venture = db.Column(db.String(100), nullable=True)
+    codigo_almacen = db.Column(db.String(100), nullable=True)
 
     created_at = db.Column(db.DateTime, default=get_local_now)
     updated_at = db.Column(db.DateTime, default=get_local_now, onupdate=get_local_now)
@@ -209,7 +209,7 @@ class Product(db.Model):
             'costo_unitario': self.calculated_unit_cost,
             'bodega': self.bodega or 'SIN BODEGA',
             'articulo_requisicion': self.articulo_requisicion or '',
-            'codigo_venture': self.codigo_venture or ''
+            'codigo_almacen': self.codigo_almacen or ''
         }
 
 
