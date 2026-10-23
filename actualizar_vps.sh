@@ -39,6 +39,10 @@ docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/sincroniza
 echo "🌾 Sincronizando universalmente particiones de cultivo y conteo de plantas en toda la finca..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_ajustes_cultivo.py
 
+echo "💰 Sincronizando catálogo maestro de costos, factores tras y bodegas (Venture)..."
+docker cp "costos productos.xlsx" dw_florsani_app:/app/ 2>/dev/null || true
+docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_costos_productos.py
+
 # echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (iniciar limpios para Semana 43)..."
 # docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
 
@@ -52,5 +56,6 @@ echo "   ✅ Últimos cambios descargados de GitHub."
 echo "   ✅ Cosechas: Modal interactivo de 'Resumen por Bloque' y Excel activados."
 echo "   ✅ Fenogramas: Selector de 'Labor a Calificar' y reasignación dinámicos."
 echo "   ✅ Fenogramas: Base de pruebas vaciada y lista para generar la Semana 43."
-echo "   ✅ Estimados y cosechas de Render 100% seguros e intactos."
+echo "   ✅ Catálogo de Costos Venture: Precios, factores tras, $/ha y bodegas sincronizados.
+   ✅ Estimados y cosechas de Render 100% seguros e intactos."
 echo "=========================================================="

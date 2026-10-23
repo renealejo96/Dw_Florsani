@@ -158,12 +158,32 @@ class Product(db.Model):
     toxicological_category = db.Column(db.String(50), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    
+    # Costos, unidades y categorización de inventario / bodega (Venture)
+    precio_compra = db.Column(db.Float, nullable=True)
+    unidad_compra = db.Column(db.String(30), nullable=True)
+    unidad_consumo = db.Column(db.String(30), nullable=True)
+    factor_conversion = db.Column(db.Float, default=1.0, nullable=True)
+    costo_unitario = db.Column(db.Float, nullable=True)
+    bodega = db.Column(db.String(100), nullable=True)
+    articulo_requisicion = db.Column(db.String(255), nullable=True)
+    codigo_venture = db.Column(db.String(100), nullable=True)
+
     created_at = db.Column(db.DateTime, default=get_local_now)
     updated_at = db.Column(db.DateTime, default=get_local_now, onupdate=get_local_now)
 
     @property
     def color_info(self):
         return get_toxicological_color_info(self.toxicological_category)
+
+    @property
+    def calculated_unit_cost(self):
+        if self.precio_compra is not None:
+            tras = float(self.factor_conversion or 1.0)
+            if tras > 0:
+                return round(self.precio_compra / tras, 5)
+            return round(self.precio_compra, 5)
+        return round(self.costo_unitario or 0.0, 5)
 
     def to_dict(self):
         return {
@@ -181,7 +201,15 @@ class Product(db.Model):
             'toxicological_category': self.toxicological_category or '',
             'color': self.color_info['name'],
             'is_active': self.is_active,
-            'notes': self.notes or ''
+            'notes': self.notes or '',
+            'precio_compra': self.precio_compra,
+            'unidad_compra': self.unidad_compra or '',
+            'unidad_consumo': self.unidad_consumo or self.unit or 'CC',
+            'factor_conversion': self.factor_conversion or 1.0,
+            'costo_unitario': self.calculated_unit_cost,
+            'bodega': self.bodega or 'SIN BODEGA',
+            'articulo_requisicion': self.articulo_requisicion or '',
+            'codigo_venture': self.codigo_venture or ''
         }
 
 

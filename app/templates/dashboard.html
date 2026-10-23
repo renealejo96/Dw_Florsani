@@ -167,7 +167,7 @@
         </div>
 
         <!-- KPI 5: Camas y Cultivos -->
-        <div class="col-12 col-sm-6 col-lg">
+        <div class="col-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-rose">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="kpi-label"><i class="fa-solid fa-layer-group text-danger me-1"></i> Camas Finca</span>
@@ -179,6 +179,23 @@
                 <div class="kpi-subtext">
                     <span class="badge badge-soft-danger px-2 py-0">{{ crops_count }} cultivos</span>
                     <span class="text-muted small ms-1">en producción</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI 6: Inversión en Campo & Liquidación $/ha -->
+        <div class="col-6 col-lg">
+            <div class="kpi-tile-bento kpi-accent-amber">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-warning me-1"></i> Inversión Insumos</span>
+                    <span class="kpi-icon-badge kpi-icon-amber">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                    </span>
+                </div>
+                <div class="kpi-value text-dark tabular-nums">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                <div class="kpi-subtext">
+                    <span class="badge badge-soft-warning px-2 py-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }}/ha</span>
+                    <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha</span>
                 </div>
             </div>
         </div>
@@ -210,6 +227,9 @@
                     <i class="fa-solid fa-clipboard-list"></i> Órdenes de Fumigación
                 </a>
                 {% endif %}
+                <a href="{{ url_for('productos.costos') }}" class="quick-pill-btn bg-warning-subtle text-dark border border-warning">
+                    <i class="fa-solid fa-sack-dollar text-warning me-1"></i> Costos & Bodegas
+                </a>
             </div>
         </div>
     </div>
@@ -251,6 +271,167 @@
                 </div>
                 <div class="chart-container-box position-relative">
                     <canvas id="chartParticipacionDoughnut"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- BENTO SECTION: COSTOS AGRONÓMICOS & LIQUIDACIÓN POR HECTÁREA   -->
+    <!-- ============================================================== -->
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+        <!-- Section Header -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom">
+            <div>
+                <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle p-2 rounded-3 me-2">
+                        <i class="fa-solid fa-sack-dollar fs-6"></i>
+                    </span>
+                    Liquidación de Costos por Hectárea & Bodegas (Venture)
+                </h5>
+                <p class="text-muted small mb-0">
+                    Costeo total de agroquímicos y fertilizantes aplicados en campo, liquidado por hectárea real (<code class="text-primary">dim_camas</code>) y clasificado por bodega.
+                </p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <!-- Selector de Semana de Costo -->
+                <form method="GET" class="d-flex align-items-center gap-2">
+                    <label class="small text-secondary fw-bold text-nowrap"><i class="fa-solid fa-calendar-day me-1"></i>Semana:</label>
+                    <select name="cost_week" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width: 160px;">
+                        <option value="ALL" {% if cost_week == 'ALL' %}selected{% endif %}>Todas las semanas</option>
+                        {% for cw in available_cost_weeks %}
+                        <option value="{{ cw }}" {% if cost_week == cw %}selected{% endif %}>Semana {{ cw }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <a href="{{ url_for('productos.costos') }}" class="btn btn-outline-primary btn-sm fw-semibold text-nowrap">
+                    <i class="fa-solid fa-table-list me-1"></i> Catálogo de Costos
+                </a>
+            </div>
+        </div>
+
+        <!-- 4 Bento Metric Pills for Costs -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 border bg-light">
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Inversión Total</div>
+                    <div class="h4 fw-bold text-dark font-monospace mb-0">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                    <div class="small text-muted" style="font-size: 0.75rem;">Total insumos aplicados</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 border bg-light">
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Costo Promedio / Ha</div>
+                    <div class="h4 fw-bold text-success font-monospace mb-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-normal text-muted">/ ha</span></div>
+                    <div class="small text-muted" style="font-size: 0.75rem;">Rendimiento económico</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 border bg-light">
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Área Tratada</div>
+                    <div class="h4 fw-bold text-primary font-monospace mb-0">{{ cost_summary.total_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
+                    <div class="small text-muted" style="font-size: 0.75rem;">En {{ cost_summary.blocks_count }} bloques de cultivo</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 border bg-light">
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Órdenes Finalizadas</div>
+                    <div class="h4 fw-bold text-dark font-monospace mb-0">{{ cost_summary.orders_count }}</div>
+                    <div class="small text-muted" style="font-size: 0.75rem;">Programas impresos/costeados</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2 Bento Cards: Breakdown Bodegas & Top Blocks -->
+        <div class="row g-4">
+            <!-- Left: Desglose por Bodega Venture -->
+            <div class="col-12 col-lg-5">
+                <div class="border rounded-3 p-3 h-100 bg-white shadow-xs">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-dark">
+                            <i class="fa-solid fa-warehouse text-primary me-2"></i>Distribución por Bodega (Venture)
+                        </h6>
+                        <span class="badge bg-light text-muted border">{{ cost_summary.by_bodega|length }} bodegas</span>
+                    </div>
+
+                    <!-- Bodega Chart -->
+                    {% if cost_summary.by_bodega %}
+                    <div style="height: 190px; position: relative;" class="mb-3">
+                        <canvas id="chartCostosBodega"></canvas>
+                    </div>
+                    {% endif %}
+
+                    <!-- Bodega Progress Bars List -->
+                    <div class="d-flex flex-column gap-2">
+                        {% for b in cost_summary.by_bodega %}
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center small mb-1">
+                                <span class="fw-semibold text-dark">{{ b.bodega }}</span>
+                                <span class="font-monospace text-secondary">${{ "%.2f"|format(b.cost) }} <strong class="text-dark">({{ b.pct }}%)</strong></span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar {% if loop.index == 1 %}bg-success{% elif loop.index == 2 %}bg-warning{% elif loop.index == 3 %}bg-info{% elif loop.index == 4 %}bg-primary{% else %}bg-secondary{% endif %}" 
+                                     role="progressbar" style="width: {{ b.pct }}%;" aria-valuenow="{{ b.pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4 text-muted small">
+                            No hay órdenes costeadas para la selección actual.
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Top Bloques por Inversión & Costo/Ha -->
+            <div class="col-12 col-lg-7">
+                <div class="border rounded-3 p-3 h-100 bg-white shadow-xs">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-dark">
+                            <i class="fa-solid fa-layer-group text-success me-2"></i>Inversión por Bloque & $/Hectárea
+                        </h6>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                            Top Bloques
+                        </span>
+                    </div>
+
+                    {% if cost_summary.top_blocks %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.82rem;">
+                            <thead class="table-light text-secondary">
+                                <tr>
+                                    <th>Bloque</th>
+                                    <th>Cultivo</th>
+                                    <th>Zona</th>
+                                    <th class="text-end">Área (ha)</th>
+                                    <th class="text-end">Costo Total</th>
+                                    <th class="text-end pe-2">Costo / Ha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for blk in cost_summary.top_blocks %}
+                                <tr>
+                                    <td class="fw-bold font-monospace text-primary">{{ blk.block_name }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ blk.crop or '-' }}</span></td>
+                                    <td class="text-muted small">{{ blk.zone or '-' }}</td>
+                                    <td class="text-end font-monospace">{{ blk.ha }} ha</td>
+                                    <td class="text-end font-monospace fw-bold text-dark">${{ "%.2f"|format(blk.total_cost) }}</td>
+                                    <td class="text-end font-monospace pe-2">
+                                        <span class="badge {% if blk.cost_per_ha > cost_summary.avg_cost_per_ha %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-success-subtle text-success border border-success-subtle{% endif %} fw-bold px-2">
+                                            ${{ "%.2f"|format(blk.cost_per_ha) }} /ha
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted small">
+                        <i class="fa-solid fa-clipboard-check fa-2x mb-2 opacity-50"></i>
+                        <div>No hay bloques tratados registrados en las órdenes de esta semana.</div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -441,6 +622,45 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
+            }
+        });
+    }
+
+    // 5. Bodega Cost Distribution Chart
+    const bodegaCtx = document.getElementById('chartCostosBodega');
+    if (bodegaCtx) {
+        const bodegaData = {{ (cost_summary.by_bodega or []) | tojson | safe }};
+        const bodLabels = bodegaData.map(b => b.bodega);
+        const bodValues = bodegaData.map(b => b.cost);
+
+        new Chart(bodegaCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: bodLabels,
+                datasets: [{
+                    data: bodValues,
+                    backgroundColor: ['#10b981', '#f59e0b', '#06b6d4', '#6366f1', '#8b5cf6', '#ec4899', '#94a3b8'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 10, font: { size: 10, family: 'Plus Jakarta Sans' } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ' ' + ctx.label + ': $' + Number(ctx.raw).toLocaleString() + ' (' + bodegaData[ctx.dataIndex].pct + '%)';
+                            }
+                        }
+                    }
+                },
+                cutout: '65%'
             }
         });
     }

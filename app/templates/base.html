@@ -169,8 +169,11 @@
                     <span class="module-num-badge">5</span>
                     <span class="module-title">Catálogos & Maestros</span>
                 </div>
-                <a href="{{ url_for('productos.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'productos' in request.path %}active-nav{% endif %}">
+                <a href="{{ url_for('productos.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if request.path == url_for('productos.index') or ('/productos/' in request.path and not 'costos' in request.path) %}active-nav{% endif %}">
                     <i class="fa-solid fa-flask-vial me-2 text-primary"></i> Productos y Dosis
+                </a>
+                <a href="{{ url_for('productos.costos') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'productos/costos' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-sack-dollar me-2 text-warning"></i> Costos de Insumos & Bodegas
                 </a>
                 <a href="{{ url_for('cultivos.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'cultivos' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-seedling me-2 text-success"></i> Cultivos y Rangos

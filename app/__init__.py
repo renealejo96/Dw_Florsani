@@ -405,6 +405,22 @@ def create_app(config_class=Config):
             pm = maestro_productos.get(r.variedad, 'SIN CLASIFICAR')
             tallos_por_producto[pm] = tallos_por_producto.get(pm, 0) + (r.total_tallos or 0)
 
+        # Costos Agronómicos y Liquidación por Hectárea (Fumigación, Desinfecciones & Bodega Venture)
+        try:
+            from app.modules.fumigacion.services.cost_service import CostService
+            cost_week = request.args.get('cost_week', 'ALL')
+            cost_summary = CostService.get_dashboard_cost_summary(week=cost_week if cost_week != 'ALL' else None)
+            distinct_order_weeks_raw = db.session.query(FumigationOrder.week).distinct().all()
+            available_cost_weeks = sorted(list(set([w[0] for w in distinct_order_weeks_raw if w[0]])), reverse=True)
+        except Exception:
+            cost_week = 'ALL'
+            cost_summary = {
+                'total_cost': 0.0, 'total_ha': 0.0, 'avg_cost_per_ha': 0.0,
+                'orders_count': 0, 'blocks_count': 0, 'by_bodega': [], 'top_blocks': [],
+                'by_crop': [], 'weekly_history': []
+            }
+            available_cost_weeks = []
+
         return render_template(
             'dashboard.html',
             crops_count=crops_count,
@@ -424,7 +440,10 @@ def create_app(config_class=Config):
             historico_2025_tallos=historico_2025_tallos,
             historico_2026_tallos=historico_2026_tallos,
             tallos_por_producto=tallos_por_producto,
-            cosechas_registros_count=cosechas_registros_count
+            cosechas_registros_count=cosechas_registros_count,
+            cost_summary=cost_summary,
+            cost_week=cost_week,
+            available_cost_weeks=available_cost_weeks
         )
 
     return app
