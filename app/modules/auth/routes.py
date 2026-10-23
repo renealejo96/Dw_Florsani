@@ -8,6 +8,7 @@ from app.shared.audit import record_audit
 auth_bp = Blueprint('auth', __name__)
 
 FINCAS_MAP = {
+    0: 'Todas las Fincas',
     1: 'Pyganflor',
     2: 'Malchingui',
     3: 'Urcuquí'
@@ -92,7 +93,7 @@ def login():
                 return render_template('auth/login.html')
 
             # Validar si el usuario tiene permiso para la finca seleccionada
-            if user.role != 'ADMIN' and user.finca_id != 0 and finca_id not in user.allowed_finca_ids:
+            if user.role != 'ADMIN' and user.finca_id != 0 and finca_id != 0 and finca_id not in user.allowed_finca_ids:
                 # Conectar a la finca asignada automáticamente si no tiene acceso a la que seleccionó
                 finca_id = user.finca_id
                 flash(f"Conectado automáticamente a tu sede de trabajo: {user.finca_nombre}.", "info")
@@ -136,7 +137,7 @@ def cambiar_finca(finca_id):
     if not user:
         return redirect(url_for('auth.login'))
 
-    if user.role != 'ADMIN' and user.finca_id != 0 and finca_id not in user.allowed_finca_ids:
+    if user.role != 'ADMIN' and user.finca_id != 0 and finca_id != 0 and finca_id not in user.allowed_finca_ids:
         flash(f"No tienes autorización para cambiar a la Finca {FINCAS_MAP.get(finca_id)}.", "danger")
         return redirect(request.referrer or url_for('dashboard'))
 

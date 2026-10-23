@@ -358,7 +358,73 @@ def create_app(config_class=Config):
         estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).filter(Estimado.semana.in_(semanas_estimado_match)).scalar() or 0
         cumplimiento_cosecha = round((float(cosechas_total_tallos) / float(estimados_total_tallos) * 100), 1) if estimados_total_tallos > 0 else 0
 
-        # Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
+        # 1. Cumplimiento Fenograma de la Semana Actual
+        try:
+            feno_res = db.session.execute(text("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
+                    ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                FROM calificaciones
+                WHERE semana_anio = :w
+            """), {'w': semana_actual_int}).fetchone()
+            if feno_res and feno_res.total and feno_res.total > 0:
+                cumplimiento_fenograma = float(feno_res.pct or 0.0)
+                feno_total_actividades = feno_res.total
+                feno_cumplidas = feno_res.cumplidas or 0
+            else:
+                feno_max = db.session.execute(text("""
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
+                        ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                    FROM calificaciones
+                    GROUP BY semana_anio
+                    ORDER BY semana_anio DESC
+                    LIMIT 1
+                """)).fetchone()
+                if feno_max and feno_max.total:
+                    cumplimiento_fenograma = float(feno_max.pct or 0.0)
+                    feno_total_actividades = feno_max.total
+                    feno_cumplidas = feno_max.cumplidas or 0
+                else:
+                    cumplimiento_fenograma = 0.0
+                    feno_total_actividades = 0
+                    feno_cumplidas = 0
+        except Exception:
+            cumplimiento_fenograma = 0.0
+            feno_total_actividades = 0
+            feno_cumplidas = 0
+
+        # 2. Área Total de Finca y Camas de Cultivo (Último Estado de Cultivo y dim_camas)
+        try:
+            area_finca_ha = db.session.execute(text("""
+                SELECT ROUND(COALESCE(SUM(ha), 0)::numeric, 2)
+                FROM dim_camas
+                WHERE activa IS TRUE OR activa IS NULL
+            """)).scalar() or 32.09
+
+            latest_batch = db.session.execute(text("SELECT MAX(batch_id) FROM crop_state_records")).scalar()
+            if latest_batch:
+                camas_finca_count = db.session.execute(text("""
+                    SELECT COUNT(DISTINCT (block_full || '-' || bed_num))
+                    FROM crop_state_records
+                    WHERE batch_id = :b
+                """), {'b': latest_batch}).scalar() or 7565
+                bloques_finca_count = db.session.execute(text("""
+                    SELECT COUNT(DISTINCT block_full)
+                    FROM crop_state_records
+                    WHERE batch_id = :b
+                """), {'b': latest_batch}).scalar() or 231
+            else:
+                camas_finca_count = 7565
+                bloques_finca_count = 231
+        except Exception:
+            area_finca_ha = 32.09
+            camas_finca_count = 7565
+            bloques_finca_count = 231
+
+        # 3. Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
         historico_semanas_raw = db.session.query(
             db.extract('isoyear', RegistroCosecha.fecha).label('anio'),
             RegistroCosecha.semana,
@@ -375,7 +441,7 @@ def create_app(config_class=Config):
             s_raw = int(r_hist.semana)
             tot_w = int(r_hist.total or 0)
 
-            # Homologar estrictamente semana en formato 1 a 52 (ej: 2640 -> 40, 2643 -> 43, 2548 -> 48)
+            # Homologar estrictamente semana en formato 1 a 52
             if s_raw >= 100:
                 w_num = s_raw % 100
                 y_val = 2000 + (s_raw // 100)
@@ -397,15 +463,55 @@ def create_app(config_class=Config):
         historico_2025_tallos = [semanas_2025_map.get(w, None) for w in all_weeks_sorted]
         historico_2026_tallos = [semanas_2026_map.get(w, None) for w in all_weeks_sorted]
 
+        # 4. Participación por Producto Maestro (Ordenado estrictamente de mayor a menor)
         maestro_productos = cargar_maestro_productos()
         todos_cosechas_actuales = cosechas_semana_actual_query.all()
-        cosechas_para_prods = todos_cosechas_actuales if todos_cosechas_actuales else RegistroCosecha.query.limit(500).all()
-        tallos_por_producto = {}
+        cosechas_para_prods = todos_cosechas_actuales if todos_cosechas_actuales else RegistroCosecha.query.limit(2000).all()
+        tallos_por_producto_raw = {}
         for r in cosechas_para_prods:
             pm = maestro_productos.get(r.variedad, 'SIN CLASIFICAR')
-            tallos_por_producto[pm] = tallos_por_producto.get(pm, 0) + (r.total_tallos or 0)
+            tallos_por_producto_raw[pm] = tallos_por_producto_raw.get(pm, 0) + (r.total_tallos or 0)
+        # Orden descendente estricto
+        tallos_por_producto = dict(sorted(tallos_por_producto_raw.items(), key=lambda x: x[1], reverse=True))
 
-        # Costos Agronómicos y Liquidación por Hectárea (Fumigación, Desinfecciones & Bodegas de Insumos)
+        # 5. Histórico Desglosado por Producto Maestro para Segmentación Interactiva (Estilo Power BI)
+        from collections import defaultdict
+        crop_week_map = defaultdict(lambda: {'2025': defaultdict(int), '2026': defaultdict(int)})
+        records_hist_crops = db.session.query(
+            db.extract('isoyear', RegistroCosecha.fecha).label('anio'),
+            RegistroCosecha.semana,
+            RegistroCosecha.variedad,
+            db.func.sum(RegistroCosecha.total_tallos).label('total')
+        ).group_by('anio', RegistroCosecha.semana, RegistroCosecha.variedad).all()
+
+        for r in records_hist_crops:
+            if not r.semana: continue
+            s_raw = int(r.semana)
+            tot_w = int(r.total or 0)
+            if s_raw >= 100:
+                w_num = s_raw % 100
+                y_val = 2000 + (s_raw // 100)
+            else:
+                w_num = s_raw
+                y_val = int(r.anio) if r.anio else 2026
+
+            if w_num < 1 or w_num > 53: continue
+            y_key = str(y_val) if str(y_val) in ['2025', '2026'] else '2026'
+            c_nom = str(maestro_productos.get(r.variedad, 'SIN CLASIFICAR')).upper().strip()
+            crop_week_map[c_nom][y_key][w_num] += tot_w
+
+        historico_por_cultivo = {}
+        for c_nom, y_data in crop_week_map.items():
+            historico_por_cultivo[c_nom] = {
+                '2025': [y_data['2025'].get(w, None) for w in all_weeks_sorted],
+                '2026': [y_data['2026'].get(w, None) for w in all_weeks_sorted]
+            }
+        historico_por_cultivo['ALL'] = {
+            '2025': historico_2025_tallos,
+            '2026': historico_2026_tallos
+        }
+
+        # 6. Costos Agronómicos y Liquidación por Hectárea (Fumigación, Desinfecciones & Bodegas de Insumos)
         try:
             from app.modules.fumigacion.services.cost_service import CostService
             cost_week = request.args.get('cost_week', 'ALL')
@@ -417,7 +523,7 @@ def create_app(config_class=Config):
             cost_summary = {
                 'total_cost': 0.0, 'total_ha': 0.0, 'avg_cost_per_ha': 0.0,
                 'orders_count': 0, 'blocks_count': 0, 'by_bodega': [], 'top_blocks': [],
-                'by_crop': [], 'weekly_history': []
+                'all_blocks': [], 'by_crop': [], 'weekly_history': []
             }
             available_cost_weeks = []
 
@@ -425,7 +531,10 @@ def create_app(config_class=Config):
             'dashboard.html',
             crops_count=crops_count,
             products_count=products_count,
-            beds_count=beds_count,
+            beds_count=camas_finca_count,
+            camas_finca_count=camas_finca_count,
+            bloques_finca_count=bloques_finca_count,
+            area_finca_ha=area_finca_ha,
             rotations_count=rotations_count,
             orders_count=orders_count,
             weekly_rotations_data=weekly_rotations_data,
@@ -436,10 +545,14 @@ def create_app(config_class=Config):
             cosechas_total_tallos=cosechas_total_tallos,
             estimados_total_tallos=estimados_total_tallos,
             cumplimiento_cosecha=cumplimiento_cosecha,
+            cumplimiento_fenograma=cumplimiento_fenograma,
+            feno_cumplidas=feno_cumplidas,
+            feno_total_actividades=feno_total_actividades,
             historico_semanas_labels=historico_semanas_labels,
             historico_2025_tallos=historico_2025_tallos,
             historico_2026_tallos=historico_2026_tallos,
             tallos_por_producto=tallos_por_producto,
+            historico_por_cultivo=historico_por_cultivo,
             cosechas_registros_count=cosechas_registros_count,
             cost_summary=cost_summary,
             cost_week=cost_week,

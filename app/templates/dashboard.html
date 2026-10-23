@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard Ejecutivo | ERP Florícola{% endblock %}
-{% block page_header %}Panel de Control Agrícola{% endblock %}
+{% block title %}Dashboard Gerencial | ERP Florícola Florsani{% endblock %}
+{% block page_header %}Dashboard Gerencial{% endblock %}
 
 {% block extra_css %}
 <style>
     .kpi-tile-bento {
         background: #ffffff;
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-md);
+        border: 1px solid var(--card-border, #e2e8f0);
+        border-radius: var(--radius-md, 12px);
         padding: 1.15rem 1.25rem;
-        box-shadow: var(--shadow-xs);
-        transition: var(--transition-smooth);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -21,7 +21,7 @@
     }
     .kpi-tile-bento:hover {
         transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         border-color: #cbd5e1;
     }
     .kpi-tile-bento::before {
@@ -34,66 +34,67 @@
         background: transparent;
         transition: background 0.2s ease;
     }
-    .kpi-accent-green::before { background: var(--brand-primary); }
-    .kpi-accent-blue::before  { background: var(--brand-accent-blue); }
-    .kpi-accent-amber::before { background: var(--brand-accent-amber); }
-    .kpi-accent-rose::before  { background: var(--brand-accent-rose); }
-    .kpi-accent-purple::before{ background: var(--brand-accent-purple); }
-
-    .supermodulo-bento {
-        background: #ffffff;
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-xs);
-        padding: 1.25rem;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: 100%;
-        transition: var(--transition-smooth);
-    }
-    .supermodulo-bento:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-hover);
-        border-color: #cbd5e1;
-    }
+    .kpi-accent-green::before { background: #10b981; }
+    .kpi-accent-blue::before  { background: #3b82f6; }
+    .kpi-accent-amber::before { background: #f59e0b; }
+    .kpi-accent-rose::before  { background: #f43f5e; }
+    .kpi-accent-purple::before{ background: #8b5cf6; }
 
     .chart-bento-card {
         background: #ffffff;
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-xs);
+        border: 1px solid var(--card-border, #e2e8f0);
+        border-radius: var(--radius-lg, 14px);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         padding: 1rem 1.25rem;
-        transition: var(--transition-smooth);
+        transition: all 0.2s ease;
         height: 100%;
     }
     .chart-bento-card:hover {
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
     .chart-container-box {
         position: relative;
-        height: 225px;
-        max-height: 225px;
+        height: 235px;
+        max-height: 235px;
         width: 100%;
     }
-    .chart-container-donut {
-        position: relative;
-        height: 225px;
-        max-height: 225px;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+
+    /* Estilo interactivo Power BI para barras clickeables */
+    #chartParticipacionDoughnut {
+        cursor: pointer;
+    }
+    .powerbi-badge {
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-weight: 700;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
-    <!-- Top Bento KPI Metrics Row -->
+    <!-- Header Page Description -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 pb-2 border-bottom">
+        <div>
+            <h4 class="fw-bold mb-1 text-dark">
+                <i class="fa-solid fa-chart-pie text-primary me-2"></i>Dashboard Gerencial
+            </h4>
+            <p class="text-muted mb-0 small">
+                Consolidado ejecutivo de corte semanal, cumplimiento de fenogramas, área en producción y costos agronómicos por hectárea.
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-secondary border font-monospace px-3 py-1.5">
+                <i class="fa-solid fa-calendar-week text-primary me-1"></i> Semana de Corte: <strong>Sem {{ semana_actual }}</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- Top Bento KPI Metrics Row (5 Tarjetas Homogéneas) -->
     <div class="row g-3 mb-4">
         <!-- KPI 1: Cosechas Totales Semana Actual -->
-        <div class="col-6 col-lg">
+        <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-green">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> Cosecha (Sem {{ semana_actual }})</span>
@@ -111,144 +112,112 @@
             </div>
         </div>
 
-        <!-- KPI 2: Cumplimiento de Estimados Semana Actual -->
-        <div class="col-6 col-lg">
+        <!-- KPI 2: Cumplimiento Fenograma Semana Actual -->
+        <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-amber">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-bullseye text-warning me-1"></i> Cumplimiento (Sem {{ semana_actual }})</span>
+                    <span class="kpi-label"><i class="fa-solid fa-clipboard-check text-warning me-1"></i> Cumplimiento Fenograma (Sem {{ semana_actual }})</span>
                     <span class="kpi-icon-badge kpi-icon-amber">
                         <i class="fa-solid fa-chart-line"></i>
                     </span>
                 </div>
-                <div class="kpi-value {% if cumplimiento_cosecha >= 90 %}text-success{% elif cumplimiento_cosecha >= 70 %}text-warning{% elif cumplimiento_cosecha > 0 %}text-primary{% else %}text-muted{% endif %} tabular-nums">
-                    {% if estimados_total_tallos > 0 %}{{ cumplimiento_cosecha }}%{% else %}N/D{% endif %}
+                <div class="kpi-value {% if cumplimiento_fenograma >= 85 %}text-success{% elif cumplimiento_fenograma >= 60 %}text-warning{% elif cumplimiento_fenograma > 0 %}text-primary{% else %}text-muted{% endif %} tabular-nums">
+                    {{ cumplimiento_fenograma }}%
                 </div>
                 <div class="kpi-subtext">
-                    {% if estimados_total_tallos > 0 %}
-                    <span class="text-muted small">Meta: {{ estimados_total_tallos|format_number(0) }} tallos</span>
+                    {% if feno_total_actividades > 0 %}
+                    <span class="badge badge-soft-warning px-2 py-0">{{ feno_cumplidas|format_number(0) }} / {{ feno_total_actividades|format_number(0) }}</span>
+                    <span class="text-muted small ms-1">labores cumplidas</span>
                     {% else %}
-                    <span class="text-muted small">Sin estimado cargado sem {{ semana_actual }}</span>
+                    <span class="text-muted small">Sin labores registradas sem {{ semana_actual }}</span>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- KPI 3: Rotaciones Planificadas -->
-        <div class="col-6 col-lg">
+        <!-- KPI 3: Área de Finca (ha) -->
+        <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-blue">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-rotate text-primary me-1"></i> Rotaciones</span>
+                    <span class="kpi-label"><i class="fa-solid fa-chart-area text-primary me-1"></i> Área de Finca</span>
                     <span class="kpi-icon-badge kpi-icon-blue">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <i class="fa-solid fa-map"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums">{{ rotations_count }}</div>
+                <div class="kpi-value text-dark tabular-nums">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
                 <div class="kpi-subtext">
-                    <span class="badge badge-soft-info px-2 py-0">{{ orders_count }} órdenes</span>
-                    <span class="text-muted small ms-1">oficiales</span>
+                    <span class="badge badge-soft-info px-2 py-0">Censo Real</span>
+                    <span class="text-muted small ms-1">área total estado de cultivo</span>
                 </div>
             </div>
         </div>
 
-        <!-- KPI 4: Agroquímicos y Dosis -->
-        <div class="col-6 col-lg">
-            <div class="kpi-tile-bento kpi-accent-purple">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-flask-vial text-purple me-1" style="color: var(--brand-accent-purple);"></i> Insumos</span>
-                    <span class="kpi-icon-badge kpi-icon-purple">
-                        <i class="fa-solid fa-vial"></i>
-                    </span>
-                </div>
-                <div class="kpi-value text-dark tabular-nums">{{ products_count }}</div>
-                <div class="kpi-subtext">
-                    <span class="text-muted small">Productos y dosis activas</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- KPI 5: Camas y Cultivos -->
-        <div class="col-6 col-lg">
+        <!-- KPI 4: Camas Finca -->
+        <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-rose">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="kpi-label"><i class="fa-solid fa-layer-group text-danger me-1"></i> Camas Finca</span>
                     <span class="kpi-icon-badge kpi-icon-rose">
-                        <i class="fa-solid fa-map"></i>
+                        <i class="fa-solid fa-cubes-stacked"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums">{{ beds_count }}</div>
+                <div class="kpi-value text-dark tabular-nums">{{ camas_finca_count|format_number(0) }}</div>
                 <div class="kpi-subtext">
-                    <span class="badge badge-soft-danger px-2 py-0">{{ crops_count }} cultivos</span>
-                    <span class="text-muted small ms-1">en producción</span>
+                    <span class="badge badge-soft-danger px-2 py-0">{{ bloques_finca_count }} bloques</span>
+                    <span class="text-muted small ms-1">en producción activa</span>
                 </div>
             </div>
         </div>
 
-        <!-- KPI 6: Inversión en Campo & Liquidación $/ha -->
-        <div class="col-6 col-lg">
-            <div class="kpi-tile-bento kpi-accent-amber">
+        <!-- KPI 5: Inversión en Campo & Liquidación $/ha -->
+        <div class="col-12 col-sm-6 col-lg">
+            <div class="kpi-tile-bento kpi-accent-purple">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-warning me-1"></i> Inversión Insumos</span>
-                    <span class="kpi-icon-badge kpi-icon-amber">
+                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> Inversión Insumos</span>
+                    <span class="kpi-icon-badge kpi-icon-purple">
                         <i class="fa-solid fa-file-invoice-dollar"></i>
                     </span>
                 </div>
                 <div class="kpi-value text-dark tabular-nums">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
                 <div class="kpi-subtext">
-                    <span class="badge badge-soft-warning px-2 py-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }}/ha</span>
-                    <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha</span>
+                    <span class="badge badge-soft-purple px-2 py-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }}/ha</span>
+                    <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha tratadas</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Quick Action Pills Toolbar -->
-    <div class="quick-action-bar mb-4">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="small fw-bold text-secondary text-uppercase" style="letter-spacing: 0.05em; font-size: 0.72rem;">
-                <i class="fa-solid fa-bolt text-warning me-1"></i> Accesos Rápidos Operativos:
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{{ url_for('cosechas.nuevo_registro') }}" class="quick-pill-btn bg-success text-white shadow-xs">
-                    <i class="fa-solid fa-plus"></i> Registrar Cosecha
-                </a>
-                <a href="{{ url_for('cosechas.estimados') }}" class="quick-pill-btn btn-outline-primary bg-white text-primary border">
-                    <i class="fa-solid fa-chart-line"></i> Estimados Semanales
-                </a>
-                <a href="{{ url_for('cosechas.resumen') }}" class="quick-pill-btn btn-outline-secondary bg-white text-secondary border">
-                    <i class="fa-solid fa-calendar-week"></i> Resumen Matricial
-                </a>
-                {% if not current_user or current_user.has_permission('fumigacion') %}
-                <a href="{{ url_for('fumigacion.rotacion_crear') }}" class="quick-pill-btn bg-warning-subtle text-dark border border-warning">
-                    <i class="fa-solid fa-rotate"></i> Nueva Rotación
-                </a>
-                {% endif %}
-                {% if not current_user or current_user.has_permission('ordenes_ver') %}
-                <a href="{{ url_for('fumigacion.ordenes_index') }}" class="quick-pill-btn btn-outline-dark bg-white text-dark border">
-                    <i class="fa-solid fa-clipboard-list"></i> Órdenes de Fumigación
-                </a>
-                {% endif %}
-                <a href="{{ url_for('productos.costos') }}" class="quick-pill-btn bg-warning-subtle text-dark border border-warning">
-                    <i class="fa-solid fa-sack-dollar text-warning me-1"></i> Costos & Bodegas
-                </a>
-            </div>
+    <!-- ============================================================== -->
+    <!-- BANNER SEGMENTACIÓN POWER BI (Activo al dar clic en un cultivo) -->
+    <!-- ============================================================== -->
+    <div id="bannerFiltroPowerBI" class="alert alert-primary py-2.5 px-3.5 mb-3 rounded-3 d-none align-items-center justify-content-between shadow-xs border-primary">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge bg-primary text-white powerbi-badge"><i class="fa-solid fa-filter me-1"></i> Segmentación Power BI:</span>
+            <span class="fs-6 fw-bold font-monospace text-primary text-uppercase" id="nombreCultivoFiltrado">CULTIVO</span>
+            <span class="text-secondary small d-none d-md-inline">&bull; Histórico, costos y bloques filtrados exclusivamente para este producto maestro.</span>
         </div>
+        <button type="button" class="btn btn-outline-danger btn-sm py-1 px-3 fw-bold" id="btnRestablecerFiltroCrop">
+            <i class="fa-solid fa-xmark me-1"></i> Quitar Filtro (Ver Finca Completa)
+        </button>
     </div>
 
-    <!-- Interactive Analytics Bento Row (Chart.js) -->
+    <!-- Interactive Analytics Bento Row (Chart.js con soporte Cross-Filtering Power BI) -->
     <div class="row g-3 mb-4">
         <!-- Main Line Chart: Histórico de Tallos Semanales -->
         <div class="col-12 col-lg-8">
             <div class="chart-bento-card">
-                <div class="chart-header">
+                <div class="chart-header d-flex justify-content-between align-items-start mb-2">
                     <div>
-                        <h6 class="chart-title">
+                        <h6 class="chart-title mb-0" id="tituloHistoricoCosecha">
                             <i class="fa-solid fa-chart-line text-success me-2"></i>
                             Histórico de Cosecha Semanal (Tallos)
                         </h6>
-                        <span class="chart-subtitle">Evolución y volumen de corte semana a semana en formato de líneas</span>
+                        <span class="chart-subtitle text-muted small" id="subtituloHistoricoCosecha">
+                            Evolución y volumen de corte semana a semana en formato de líneas
+                        </span>
                     </div>
-                    <span class="badge badge-soft-success px-3 py-1">
-                        <i class="fa-solid fa-circle-check me-1"></i> En Tiempo Real
+                    <span class="badge badge-soft-success px-2.5 py-1" id="badgeEstadoHistorico">
+                        <i class="fa-solid fa-circle-check me-1"></i> Finca Completa
                     </span>
                 </div>
                 <div class="chart-container-box">
@@ -257,16 +226,18 @@
             </div>
         </div>
 
-        <!-- Donut Chart: Balance y Proporción Operativa -->
+        <!-- Horizontal Bar Chart: Participación por Producto Maestro (Ordenado Descendente) -->
         <div class="col-12 col-lg-4">
             <div class="chart-bento-card">
-                <div class="chart-header">
+                <div class="chart-header d-flex justify-content-between align-items-start mb-2">
                     <div>
-                        <h6 class="chart-title">
+                        <h6 class="chart-title mb-0">
                             <i class="fa-solid fa-chart-bar text-primary me-2"></i>
                             Participación por Producto Maestro
                         </h6>
-                        <span class="chart-subtitle">Corte semanal por especie comercial</span>
+                        <span class="chart-subtitle text-muted small">
+                            Corte acumulado (Mayor a Menor) &bull; <strong class="text-primary"><i class="fa-solid fa-hand-pointer"></i> Clic para filtrar</strong>
+                        </span>
                     </div>
                 </div>
                 <div class="chart-container-box position-relative">
@@ -290,7 +261,7 @@
                     Liquidación de Costos por Hectárea & Bodegas de Insumos
                 </h5>
                 <p class="text-muted small mb-0">
-                    Costeo total de agroquímicos y fertilizantes aplicados en campo, liquidado por hectárea real (<code class="text-primary">dim_camas</code>) y clasificado por bodega.
+                    Costeo total de agroquímicos aplicados en campo, liquidado por hectárea real (<code class="text-primary">dim_camas</code>) y clasificado por bodega.
                 </p>
             </div>
             <div class="d-flex align-items-center gap-2">
@@ -310,41 +281,41 @@
             </div>
         </div>
 
-        <!-- 4 Bento Metric Pills for Costs -->
+        <!-- 4 Bento Metric Pills for Costs (Dinámicos por Power BI) -->
         <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
                 <div class="p-3 rounded-3 border bg-light">
                     <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Inversión Total</div>
-                    <div class="h4 fw-bold text-dark font-monospace mb-0">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
-                    <div class="small text-muted" style="font-size: 0.75rem;">Total insumos aplicados</div>
+                    <div class="h4 fw-bold text-dark font-monospace mb-0" id="kpiCostoTotalVal">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                    <div class="small text-muted" id="kpiCostoTotalSub" style="font-size: 0.75rem;">Total insumos aplicados</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="p-3 rounded-3 border bg-light">
                     <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Costo Promedio / Ha</div>
-                    <div class="h4 fw-bold text-success font-monospace mb-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-normal text-muted">/ ha</span></div>
-                    <div class="small text-muted" style="font-size: 0.75rem;">Rendimiento económico</div>
+                    <div class="h4 fw-bold text-success font-monospace mb-0" id="kpiCostoPromHaVal">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-normal text-muted">/ ha</span></div>
+                    <div class="small text-muted" id="kpiCostoPromHaSub" style="font-size: 0.75rem;">Rendimiento económico</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="p-3 rounded-3 border bg-light">
                     <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Área Tratada</div>
-                    <div class="h4 fw-bold text-primary font-monospace mb-0">{{ cost_summary.total_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
-                    <div class="small text-muted" style="font-size: 0.75rem;">En {{ cost_summary.blocks_count }} bloques de cultivo</div>
+                    <div class="h4 fw-bold text-primary font-monospace mb-0" id="kpiAreaTratadaVal">{{ cost_summary.total_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
+                    <div class="small text-muted" id="kpiAreaTratadaSub" style="font-size: 0.75rem;">En {{ cost_summary.blocks_count }} bloques de cultivo</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="p-3 rounded-3 border bg-light">
                     <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Órdenes Finalizadas</div>
-                    <div class="h4 fw-bold text-dark font-monospace mb-0">{{ cost_summary.orders_count }}</div>
-                    <div class="small text-muted" style="font-size: 0.75rem;">Programas impresos/costeados</div>
+                    <div class="h4 fw-bold text-dark font-monospace mb-0" id="kpiOrdenesCountVal">{{ cost_summary.orders_count }}</div>
+                    <div class="small text-muted" id="kpiOrdenesCountSub" style="font-size: 0.75rem;">Programas impresos/costeados</div>
                 </div>
             </div>
         </div>
 
-        <!-- 2 Bento Cards: Breakdown Bodegas & Top Blocks -->
+        <!-- 2 Bento Cards: Breakdown Bodegas & Top/Specific Blocks -->
         <div class="row g-4">
-            <!-- Left: Desglose por Bodega de Insumos -->
+            <!-- Left: Desglose por Bodega -->
             <div class="col-12 col-lg-5">
                 <div class="border rounded-3 p-3 h-100 bg-white shadow-xs">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -362,7 +333,7 @@
                     {% endif %}
 
                     <!-- Bodega Progress Bars List -->
-                    <div class="d-flex flex-column gap-2">
+                    <div class="d-flex flex-column gap-2" id="contenedorBarrasBodega">
                         {% for b in cost_summary.by_bodega %}
                         <div>
                             <div class="d-flex justify-content-between align-items-center small mb-1">
@@ -383,22 +354,33 @@
                 </div>
             </div>
 
-            <!-- Right: Top Bloques por Inversión & Costo/Ha -->
+            <!-- Right: Inversión por Bloque & $/Hectárea (Buscador y Selector Interactivo) -->
             <div class="col-12 col-lg-7">
                 <div class="border rounded-3 p-3 h-100 bg-white shadow-xs">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0 text-dark">
-                            <i class="fa-solid fa-layer-group text-success me-2"></i>Inversión por Bloque & $/Hectárea
-                        </h6>
-                        <span class="badge bg-success-subtle text-success border border-success-subtle">
-                            Top Bloques
-                        </span>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">
+                                <i class="fa-solid fa-layer-group text-success me-2"></i>Inversión por Bloque & $/Hectárea
+                            </h6>
+                            <span class="text-muted small" id="subtituloTablaBloques">Top bloques por inversión agronómica</span>
+                        </div>
+
+                        <!-- Filtro / Buscador por Bloque Específico -->
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="input-group input-group-sm" style="max-width: 170px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                                <input type="text" id="inputBuscarBloqueCosto" class="form-control border-start-0" placeholder="Buscar bloque...">
+                            </div>
+                            <select id="selectFiltroBloqueCosto" class="form-select form-select-sm" style="width: auto;">
+                                <option value="TOP10">Top 10</option>
+                                <option value="ALL">Todos los Bloques ({{ cost_summary.all_blocks|length if cost_summary.all_blocks else cost_summary.top_blocks|length }})</option>
+                            </select>
+                        </div>
                     </div>
 
-                    {% if cost_summary.top_blocks %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.82rem;">
-                            <thead class="table-light text-secondary">
+                    <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0" id="tablaBloquesCostos" style="font-size: 0.82rem;">
+                            <thead class="table-light text-secondary sticky-top">
                                 <tr>
                                     <th>Bloque</th>
                                     <th>Cultivo</th>
@@ -408,35 +390,15 @@
                                     <th class="text-end pe-2">Costo / Ha</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for blk in cost_summary.top_blocks %}
-                                <tr>
-                                    <td class="fw-bold font-monospace text-primary">{{ blk.block_name }}</td>
-                                    <td><span class="badge bg-light text-dark border">{{ blk.crop or '-' }}</span></td>
-                                    <td class="text-muted small">{{ blk.zone or '-' }}</td>
-                                    <td class="text-end font-monospace">{{ blk.ha }} ha</td>
-                                    <td class="text-end font-monospace fw-bold text-dark">${{ "%.2f"|format(blk.total_cost) }}</td>
-                                    <td class="text-end font-monospace pe-2">
-                                        <span class="badge {% if blk.cost_per_ha > cost_summary.avg_cost_per_ha %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-success-subtle text-success border border-success-subtle{% endif %} fw-bold px-2">
-                                            ${{ "%.2f"|format(blk.cost_per_ha) }} /ha
-                                        </span>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                            <tbody id="tbodyBloquesCostos">
+                                <!-- Filas renderizadas dinámicamente para soportar búsqueda y segmentación -->
                             </tbody>
                         </table>
                     </div>
-                    {% else %}
-                    <div class="text-center py-5 text-muted small">
-                        <i class="fa-solid fa-clipboard-check fa-2x mb-2 opacity-50"></i>
-                        <div>No hay bloques tratados registrados en las órdenes de esta semana.</div>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
-
 </div>
 {% endblock %}
 
@@ -445,49 +407,44 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Data from Backend for Charts
+    // 1. Datos iniciales del Backend
     const tallosPorProducto = {{ (tallos_por_producto or {}) | tojson | safe }};
     const prodLabels = Object.keys(tallosPorProducto);
     const prodValues = Object.values(tallosPorProducto);
 
-    // Histórico de semanas para el Gráfico de Líneas
+    // Histórico de semanas
     const histLabels = {{ (historico_semanas_labels or []) | tojson | safe }};
-    const hist2025Values = {{ (historico_2025_tallos or []) | tojson | safe }};
-    const hist2026Values = {{ (historico_2026_tallos or []) | tojson | safe }};
+    const historicoPorCultivo = {{ (historico_por_cultivo or {}) | tojson | safe }};
 
-    // Fallback if empty for doughnut
-    const displayLabels = prodLabels.length > 0 ? prodLabels : ['GYPSOPHILA', 'ASTER', 'CRASPEDIA', 'DELPHINIUM'];
-    const displayValues = prodValues.length > 0 ? prodValues : [79675, 24500, 15000, 8500];
+    // Datos de costos
+    const costSummaryGlobal = {{ (cost_summary or {}) | tojson | safe }};
+    const allBlocksGlobal = costSummaryGlobal.all_blocks || costSummaryGlobal.top_blocks || [];
+    const topBlocksGlobal = costSummaryGlobal.top_blocks || [];
+    const avgCostHaGlobal = costSummaryGlobal.avg_cost_per_ha || 0.0;
 
-    // UI/UX Pro Max Florícola Color Palette
-    const palette = {
-        primary: '#10b981',       // Emerald
-        secondary: '#3b82f6',     // Blue
-        amber: '#f59e0b',         // Harvest Gold
-        rose: '#f43f5e',          // Rose petal
-        purple: '#8b5cf6',        // Purple
-        cyan: '#06b6d4',          // Cyan
-        slateLight: '#f1f5f9'
-    };
+    // Paleta UI/UX Pro Max Florícola
+    const colorArray = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b', '#84cc16'];
 
-    const colorArray = [palette.primary, palette.secondary, palette.amber, palette.rose, palette.purple, palette.cyan];
+    // Estado de Segmentación Power BI Activa
+    let activeSegmentedCrop = null;
 
-    // 3. Line Chart: Histórico de Tallos Semanales
+    // ==============================================================
+    // 2. LINE CHART: Histórico de Tallos Semanales
+    // ==============================================================
+    let lineChartInstance = null;
     const lineCtx = document.getElementById('chartHistoricoCosechas');
     if (lineCtx) {
-        const ctx2d = lineCtx.getContext('2d');
-        const gradient = ctx2d.createLinearGradient(0, 0, 0, 280);
-        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
-        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+        const initial2025 = (historicoPorCultivo['ALL'] && historicoPorCultivo['ALL']['2025']) ? historicoPorCultivo['ALL']['2025'] : [];
+        const initial2026 = (historicoPorCultivo['ALL'] && historicoPorCultivo['ALL']['2026']) ? historicoPorCultivo['ALL']['2026'] : [];
 
-        new Chart(ctx2d, {
+        lineChartInstance = new Chart(lineCtx.getContext('2d'), {
             type: 'line',
             data: {
                 labels: histLabels,
                 datasets: [
                     {
                         label: 'Cosecha 2026 (Año Actual)',
-                        data: hist2026Values,
+                        data: initial2026,
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.08)',
                         borderWidth: 2.5,
@@ -503,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     {
                         label: 'Cosecha 2025 (Año Anterior)',
-                        data: hist2025Values,
+                        data: initial2025,
                         borderColor: '#6366f1',
                         backgroundColor: 'rgba(99, 102, 241, 0.05)',
                         borderWidth: 2,
@@ -569,17 +526,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 4. Doughnut Chart: Participación Porcentual
-    const donutCtx = document.getElementById('chartParticipacionDoughnut');
-    if (donutCtx) {
-        new Chart(donutCtx.getContext('2d'), {
+    // ==============================================================
+    // 3. BAR CHART: Participación por Producto Maestro (Power BI)
+    // ==============================================================
+    let barChartInstance = null;
+    const barCtx = document.getElementById('chartParticipacionDoughnut');
+    if (barCtx) {
+        const displayLabels = prodLabels.length > 0 ? prodLabels : ['GYPSOPHILA', 'ASTER', 'CRASPEDIA', 'DELPHINIUM'];
+        const displayValues = prodValues.length > 0 ? prodValues : [79675, 24500, 15000, 8500];
+
+        barChartInstance = new Chart(barCtx.getContext('2d'), {
             type: 'bar',
             data: {
                 labels: displayLabels,
                 datasets: [{
                     label: 'Tallos Cosechados',
                     data: displayValues,
-                    backgroundColor: colorArray.slice(0, displayLabels.length),
+                    backgroundColor: displayLabels.map((_, i) => colorArray[i % colorArray.length]),
                     borderRadius: 6,
                     borderWidth: 0
                 }]
@@ -588,10 +551,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: function(evt, elements) {
+                    if (elements && elements.length > 0) {
+                        const idx = elements[0].index;
+                        const clickedCrop = displayLabels[idx];
+                        if (activeSegmentedCrop === clickedCrop) {
+                            restablecerSegmentacionPowerBI();
+                        } else {
+                            aplicarSegmentacionPowerBI(clickedCrop);
+                        }
+                    }
+                },
                 plugins: {
-                    legend: {
-                        display: false
-                    },
+                    legend: { display: false },
                     tooltip: {
                         backgroundColor: '#0f172a',
                         padding: 10,
@@ -600,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             label: function(context) {
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const pct = total > 0 ? ((context.raw / total) * 100).toFixed(1) : 0;
-                                return ` ${Number(context.raw).toLocaleString()} tallos (${pct}%)`;
+                                return ` ${Number(context.raw).toLocaleString()} tallos (${pct}%) - Clic para segmentar`;
                             }
                         }
                     }
@@ -626,10 +598,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 5. Bodega Cost Distribution Chart
+    // ==============================================================
+    // 4. BODEGA DOUGHNUT CHART
+    // ==============================================================
     const bodegaCtx = document.getElementById('chartCostosBodega');
     if (bodegaCtx) {
-        const bodegaData = {{ (cost_summary.by_bodega or []) | tojson | safe }};
+        const bodegaData = costSummaryGlobal.by_bodega || [];
         const bodLabels = bodegaData.map(b => b.bodega);
         const bodValues = bodegaData.map(b => b.cost);
 
@@ -655,7 +629,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {
-                                return ' ' + ctx.label + ': $' + Number(ctx.raw).toLocaleString() + ' (' + bodegaData[ctx.dataIndex].pct + '%)';
+                                return ` ${ctx.label}: $${Number(ctx.raw).toLocaleString()} (${bodegaData[ctx.dataIndex].pct}%)`;
                             }
                         }
                     }
@@ -664,6 +638,185 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // ==============================================================
+    // 5. RENDERIZADO DINÁMICO DE TABLA DE BLOQUES
+    // ==============================================================
+    const tbodyBloques = document.getElementById('tbodyBloquesCostos');
+    const inputBuscarBloque = document.getElementById('inputBuscarBloqueCosto');
+    const selectFiltroBloque = document.getElementById('selectFiltroBloqueCosto');
+
+    function renderTablaBloques(listaBloques) {
+        if (!tbodyBloques) return;
+        tbodyBloques.innerHTML = '';
+
+        if (!listaBloques || listaBloques.length === 0) {
+            tbodyBloques.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted small">
+                        <i class="fa-solid fa-circle-info me-1"></i> No se encontraron bloques que coincidan con la búsqueda.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        listaBloques.forEach(blk => {
+            const tr = document.createElement('tr');
+            const esMayorPromedio = blk.cost_per_ha > avgCostHaGlobal;
+            const badgeClass = esMayorPromedio 
+                ? 'bg-danger-subtle text-danger border border-danger-subtle' 
+                : 'bg-success-subtle text-success border border-success-subtle';
+
+            tr.innerHTML = `
+                <td class="fw-bold font-monospace text-primary">${blk.block_name}</td>
+                <td><span class="badge bg-light text-dark border">${blk.crop || '-'}</span></td>
+                <td class="text-muted small">${blk.zone || '-'}</td>
+                <td class="text-end font-monospace">${blk.ha} ha</td>
+                <td class="text-end font-monospace fw-bold text-dark">$${Number(blk.total_cost).toFixed(2)}</td>
+                <td class="text-end font-monospace pe-2">
+                    <span class="badge ${badgeClass} fw-bold px-2">
+                        $${Number(blk.cost_per_ha).toFixed(2)} /ha
+                    </span>
+                </td>
+            `;
+            tbodyBloques.appendChild(tr);
+        });
+    }
+
+    // Inicializar tabla con Top 10
+    renderTablaBloques(topBlocksGlobal);
+
+    // Búsqueda en tiempo real de bloque específico
+    function aplicarFiltroBloques() {
+        const query = (inputBuscarBloque.value || '').trim().toUpperCase();
+        const modo = selectFiltroBloque.value;
+
+        let baseList = (modo === 'ALL' || query.length > 0) ? allBlocksGlobal : topBlocksGlobal;
+
+        // Si hay un cultivo segmentado por Power BI
+        if (activeSegmentedCrop) {
+            baseList = allBlocksGlobal.filter(b => (b.crop || '').toUpperCase().includes(activeSegmentedCrop));
+        }
+
+        if (query) {
+            baseList = baseList.filter(b => 
+                String(b.block_name).toUpperCase().includes(query) ||
+                String(b.crop || '').toUpperCase().includes(query) ||
+                String(b.zone || '').toUpperCase().includes(query)
+            );
+        }
+
+        renderTablaBloques(baseList);
+    }
+
+    if (inputBuscarBloque) inputBuscarBloque.addEventListener('input', aplicarFiltroBloques);
+    if (selectFiltroBloque) selectFiltroBloque.addEventListener('change', aplicarFiltroBloques);
+
+    // ==============================================================
+    // 6. MOTOR DE SEGMENTACIÓN POWER BI (CROSS-FILTERING)
+    // ==============================================================
+    const bannerPowerBI = document.getElementById('bannerFiltroPowerBI');
+    const lblCultivoFiltrado = document.getElementById('nombreCultivoFiltrado');
+    const btnRestablecerCrop = document.getElementById('btnRestablecerFiltroCrop');
+
+    function aplicarSegmentacionPowerBI(cropName) {
+        activeSegmentedCrop = cropName.toUpperCase().trim();
+
+        // 1. Mostrar banner de segmentación
+        if (bannerPowerBI) {
+            bannerPowerBI.classList.remove('d-none');
+            bannerPowerBI.classList.add('d-flex');
+        }
+        if (lblCultivoFiltrado) lblCultivoFiltrado.textContent = activeSegmentedCrop;
+
+        // 2. Segmentar Gráfica de Líneas (Histórico de Cosecha)
+        if (lineChartInstance && historicoPorCultivo[activeSegmentedCrop]) {
+            const crop2025 = historicoPorCultivo[activeSegmentedCrop]['2025'] || [];
+            const crop2026 = historicoPorCultivo[activeSegmentedCrop]['2026'] || [];
+
+            lineChartInstance.data.datasets[0].data = crop2026;
+            lineChartInstance.data.datasets[1].data = crop2025;
+            lineChartInstance.update();
+
+            document.getElementById('tituloHistoricoCosecha').innerHTML = `
+                <i class="fa-solid fa-chart-line text-success me-2"></i>
+                Histórico Semanal: <span class="text-primary font-monospace">${activeSegmentedCrop}</span>
+            `;
+            document.getElementById('subtituloHistoricoCosecha').textContent = `Volumen de corte específico para ${activeSegmentedCrop} semana a semana`;
+            document.getElementById('badgeEstadoHistorico').className = 'badge bg-primary text-white px-2.5 py-1';
+            document.getElementById('badgeEstadoHistorico').innerHTML = `<i class="fa-solid fa-filter me-1"></i> Filtrado: ${activeSegmentedCrop}`;
+        }
+
+        // 3. Segmentar Métricas de Costos Agronómicos
+        const cropCostData = (costSummaryGlobal.by_crop || []).find(c => (c.crop || '').toUpperCase() === activeSegmentedCrop);
+        if (cropCostData) {
+            document.getElementById('kpiCostoTotalVal').textContent = '$' + Number(cropCostData.total_cost).toFixed(2);
+            document.getElementById('kpiCostoTotalSub').textContent = `Inversión exclusiva en ${activeSegmentedCrop}`;
+
+            document.getElementById('kpiCostoPromHaVal').innerHTML = `$${Number(cropCostData.cost_per_ha).toFixed(2)} <span class="fs-6 fw-normal text-muted">/ ha</span>`;
+            document.getElementById('kpiCostoPromHaSub').textContent = `Costo/ha en ${activeSegmentedCrop}`;
+
+            document.getElementById('kpiAreaTratadaVal').innerHTML = `${Number(cropCostData.ha).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
+            document.getElementById('kpiAreaTratadaSub').textContent = `Área tratada de ${activeSegmentedCrop}`;
+        } else {
+            // Si no tiene aplicaciones en la semana seleccionada
+            document.getElementById('kpiCostoTotalVal').textContent = '$0.00';
+            document.getElementById('kpiCostoTotalSub').textContent = `Sin fumigación para ${activeSegmentedCrop}`;
+            document.getElementById('kpiCostoPromHaVal').innerHTML = `$0.00 <span class="fs-6 fw-normal text-muted">/ ha</span>`;
+            document.getElementById('kpiAreaTratadaVal').innerHTML = `0.00 <span class="fs-6 fw-normal text-muted">ha</span>`;
+        }
+
+        // 4. Filtrar Tabla de Bloques por Cultivo
+        document.getElementById('subtituloTablaBloques').textContent = `Bloques cultivados con ${activeSegmentedCrop}`;
+        aplicarFiltroBloques();
+
+        // 5. Scroll suave a la gráfica para feedback visual inmediato
+        bannerPowerBI.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function restablecerSegmentacionPowerBI() {
+        activeSegmentedCrop = null;
+
+        // 1. Ocultar banner
+        if (bannerPowerBI) {
+            bannerPowerBI.classList.add('d-none');
+            bannerPowerBI.classList.remove('d-flex');
+        }
+
+        // 2. Restaurar Gráfica de Líneas a toda la finca
+        if (lineChartInstance && historicoPorCultivo['ALL']) {
+            lineChartInstance.data.datasets[0].data = historicoPorCultivo['ALL']['2026'] || [];
+            lineChartInstance.data.datasets[1].data = historicoPorCultivo['ALL']['2025'] || [];
+            lineChartInstance.update();
+
+            document.getElementById('tituloHistoricoCosecha').innerHTML = `
+                <i class="fa-solid fa-chart-line text-success me-2"></i>
+                Histórico de Cosecha Semanal (Tallos)
+            `;
+            document.getElementById('subtituloHistoricoCosecha').textContent = `Evolución y volumen de corte semana a semana en formato de líneas`;
+            document.getElementById('badgeEstadoHistorico').className = 'badge badge-soft-success px-2.5 py-1';
+            document.getElementById('badgeEstadoHistorico').innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> Finca Completa`;
+        }
+
+        // 3. Restaurar Métricas de Costos Globales
+        document.getElementById('kpiCostoTotalVal').textContent = '$' + Number(costSummaryGlobal.total_cost || 0).toFixed(2);
+        document.getElementById('kpiCostoTotalSub').textContent = `Total insumos aplicados`;
+
+        document.getElementById('kpiCostoPromHaVal').innerHTML = `$${Number(costSummaryGlobal.avg_cost_per_ha || 0).toFixed(2)} <span class="fs-6 fw-normal text-muted">/ ha</span>`;
+        document.getElementById('kpiCostoPromHaSub').textContent = `Rendimiento económico`;
+
+        document.getElementById('kpiAreaTratadaVal').innerHTML = `${Number(costSummaryGlobal.total_ha || 0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
+        document.getElementById('kpiAreaTratadaSub').textContent = `En ${costSummaryGlobal.blocks_count || 0} bloques de cultivo`;
+
+        // 4. Restaurar Tabla de Bloques
+        document.getElementById('subtituloTablaBloques').textContent = `Top bloques por inversión agronómica`;
+        if (inputBuscarBloque) inputBuscarBloque.value = '';
+        if (selectFiltroBloque) selectFiltroBloque.value = 'TOP10';
+        renderTablaBloques(topBlocksGlobal);
+    }
+
+    if (btnRestablecerCrop) btnRestablecerCrop.addEventListener('click', restablecerSegmentacionPowerBI);
 });
 </script>
 {% endblock %}

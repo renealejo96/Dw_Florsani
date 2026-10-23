@@ -311,6 +311,7 @@ class CostService:
             'blocks_count': len(blocks_treated_set),
             'by_bodega': bodega_list,
             'top_blocks': top_blocks[:10],
+            'all_blocks': top_blocks,
             'by_crop': [{
                 'crop': k, 
                 'total_cost': round(v['total_cost'], 2), 
