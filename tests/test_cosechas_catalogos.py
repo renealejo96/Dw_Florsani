@@ -30,7 +30,23 @@ def test_cosechas_catalogos_suite():
             print(f"Código {c}: en HYPERICUM={c in hyp}, en PROD.NUEVOS={c in pn}")
             assert c in hyp, f"{c} DEBE estar en HYPERICUM"
             assert c not in pn, f"{c} NO debe estar en PROD.NUEVOS"
-        print(">> TEST 1 APROBADO: Códigos correctamente asignados a HYPERICUM.")
+
+        # Verificar crop_state_records (camas de cultivo)
+        from sqlalchemy import text
+        pn_beds = db.session.execute(text("""
+            SELECT count(*) FROM crop_state_records 
+            WHERE UPPER(TRIM(variety)) IN ('H21-117-1', 'H21-68-7', 'H21-67-3')
+              AND UPPER(TRIM(crop_master)) = 'PROD.NUEVOS'
+        """)).scalar()
+        assert pn_beds == 0, f"No debe haber camas en PROD.NUEVOS para estos códigos. Encontradas: {pn_beds}"
+        hyp_beds = db.session.execute(text("""
+            SELECT count(*) FROM crop_state_records 
+            WHERE UPPER(TRIM(variety)) IN ('H21-117-1', 'H21-68-7', 'H21-67-3')
+              AND UPPER(TRIM(crop_master)) = 'HYPERICUM'
+        """)).scalar()
+        assert hyp_beds > 0, "Debe haber camas asignadas a HYPERICUM en crop_state_records"
+        print(f"Beds en crop_state_records: HYPERICUM={hyp_beds}, PROD.NUEVOS={pn_beds}")
+        print(">> TEST 1 APROBADO: Códigos correctamente asignados a HYPERICUM en catálogos y crop_state_records.")
 
         print("\n--- TEST 2: Validación de no permitir duplicados entre cultivos distintos ---")
         resp = client.post('/cosechas/catalogos', data={
@@ -58,6 +74,7 @@ def test_cosechas_catalogos_suite():
         print(">> TEST 3 APROBADO: Advertencia generada al registrar duplicado en mismo cultivo.")
 
         print("\n--- TEST 4: Crear variedad y eliminarla usando la acción del tacho (eliminar_relacion) ---")
+        from app.modules.cosechas.utils import cargar_variedades
         test_code = 'TEST-VAR-COSECHA-999'
         resp_add = client.post('/cosechas/catalogos', data={
             'accion': 'crear_variedad',
@@ -79,10 +96,14 @@ def test_cosechas_catalogos_suite():
         content_del = resp_del.data.decode('utf-8', errors='ignore')
         assert test_code in content_del and 'eliminada de' in content_del and 'HYPERICUM' in content_del
         
-        # Verificar que se eliminó y que no resucita
+        # Verificar que se eliminó de construir_productos_con_variedades, cargar_variedades y dim_variedades
         prods_del = construir_productos_con_variedades()
-        assert test_code not in prods_del.get('HYPERICUM', [])
-        print(f">> TEST 4 APROBADO: Variedad '{test_code}' eliminada correctamente sin efecto zombi.")
+        assert test_code not in prods_del.get('HYPERICUM', []), "No debe estar en productos con variedades"
+        assert test_code not in cargar_variedades(), "No debe estar en cargar_variedades()"
+        
+        in_dim = db.session.execute(text("SELECT count(*) FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': test_code}).scalar()
+        assert in_dim == 0, f"No debe quedar en dim_variedades. Encontrado: {in_dim}"
+        print(f">> TEST 4 APROBADO: Variedad '{test_code}' eliminada completamente sin efecto zombi en CSV ni BD.")
 
         print("\n--- TEST 5: Reasignación de cultivo mediante edición ---")
         test_reasign = 'TEST-REASIGN-VAR-123'
@@ -114,10 +135,10 @@ def test_cosechas_catalogos_suite():
             'producto_maestro': 'HYPERICUM'
         }, follow_redirects=True)
         assert test_reasign not in construir_productos_con_variedades().get('HYPERICUM', [])
+        assert test_reasign not in cargar_variedades()
         print(">> TEST 5 APROBADO: Reasignación y limpieza exitosas.")
 
         print("\n--- TEST 6: Caso Borde - Case insensitive & Whitespace Duplication ---")
-        # Intento de agregar en minúsculas y espacios: '  h21-117-1  ' en GYPSOPHILA
         resp_edge1 = client.post('/cosechas/catalogos', data={
             'accion': 'crear_variedad',
             'variedad': '  h21-117-1  ',
@@ -145,8 +166,27 @@ def test_cosechas_catalogos_suite():
         assert 'No se puede eliminar' in content_del_prod and 'variedades asociadas' in content_del_prod
         print(">> TEST 8 APROBADO: Protección contra eliminación de producto con variedades activas.")
 
+        print("\n--- TEST 9: Caso Borde - Detección de duplicados con guiones/espacios (ej. H-21-67-3 vs H21-67-3) ---")
+        resp_hyphen = client.post('/cosechas/catalogos', data={
+            'accion': 'crear_variedad',
+            'variedad': 'H-21-67-3',
+            'producto_maestro': 'PROD.NUEVOS'
+        }, follow_redirects=True)
+        content_hyphen = resp_hyphen.data.decode('utf-8', errors='ignore')
+        assert 'No se puede agregar la variedad' in content_hyphen and 'HYPERICUM' in content_hyphen
+        print(">> TEST 9 APROBADO: Detección inteligente de duplicado normalizado con guiones (H-21-67-3).")
+
+        print("\n--- TEST 10: Validación de serialización de productos maestros para UI ---")
+        resp_cat_get = client.get('/cosechas/catalogos')
+        assert resp_cat_get.status_code == 200
+        get_html = resp_cat_get.data.decode('utf-8', errors='ignore')
+        assert 'alertaDuplicadoProducto' in get_html
+        assert 'btnGuardarProducto' in get_html
+        assert 'listaProductos' in get_html
+        print(">> TEST 10 APROBADO: Elementos de validación en vivo presentes en el HTML de catálogos.")
+
         print("\n==========================================")
-        print("¡TODOS LOS TESTS DE CATÁLOGOS PASARON CON ÉXITO!")
+        print("¡TODOS LOS 10 TESTS DE CATÁLOGOS PASARON CON ÉXITO!")
         print("==========================================\n")
 
 if __name__ == '__main__':

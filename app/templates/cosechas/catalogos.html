@@ -70,9 +70,10 @@
                             <input type="text" class="form-control text-uppercase" id="producto_maestro" name="producto_maestro" 
                                    maxlength="100" placeholder="Ej: HYPERICUM, GYPSOPHILA, ASTER" 
                                    oninput="this.value = this.value.toUpperCase()" required>
+                            <div id="alertaDuplicadoProducto" class="mt-2 d-none"></div>
                             <div class="form-text small">Se creará en mayúsculas como categoría padre.</div>
                         </div>
-                        <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold">
+                        <button type="submit" id="btnGuardarProducto" class="btn btn-primary btn-sm px-4 fw-bold">
                             <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Producto Maestro
                         </button>
                     </form>
@@ -288,8 +289,56 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Diccionario de mapa {VARIEDAD: PRODUCTO_MAESTRO}
+    // Diccionarios de datos pasados desde el backend
     const mapaVariedades = {{ (mapa_variedades_json or '{}')|safe }};
+    const listaProductos = {{ (productos_maestros_json or '[]')|safe }};
+
+    const norm = s => (s || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+    const mapaVariedadesNorm = {};
+    for (const [v, p] of Object.entries(mapaVariedades)) {
+        const k = norm(v);
+        if (k && !mapaVariedadesNorm[k]) {
+            mapaVariedadesNorm[k] = { variedad: v, producto: p };
+        }
+    }
+    const listaProductosNorm = {};
+    for (const p of listaProductos) {
+        const k = norm(p);
+        if (k && !listaProductosNorm[k]) {
+            listaProductosNorm[k] = p;
+        }
+    }
+
+    // 0. Validación en vivo para creación de Producto Maestro
+    const inputProducto = document.getElementById('producto_maestro');
+    const alertaProd = document.getElementById('alertaDuplicadoProducto');
+    const btnGuardarProd = document.getElementById('btnGuardarProducto');
+
+    function validarDuplicadoProducto() {
+        if (!inputProducto || !alertaProd) return;
+        const val = inputProducto.value.trim().toUpperCase();
+        const valNorm = norm(val);
+
+        if (!val) {
+            alertaProd.className = 'mt-2 d-none';
+            alertaProd.innerHTML = '';
+            if (btnGuardarProd) btnGuardarProd.disabled = false;
+            return;
+        }
+
+        if (listaProductosNorm[valNorm]) {
+            const prodExistente = listaProductosNorm[valNorm];
+            alertaProd.className = 'alert alert-danger py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
+            alertaProd.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>El producto maestro <strong>${val}</strong> ya existe en el catálogo${prodExistente !== val ? ' (como <strong>' + prodExistente + '</strong>)' : ''}. No se permiten duplicados.</span>`;
+            if (btnGuardarProd) btnGuardarProd.disabled = true;
+        } else {
+            alertaProd.className = 'mt-2 d-none';
+            alertaProd.innerHTML = '';
+            if (btnGuardarProd) btnGuardarProd.disabled = false;
+        }
+    }
+
+    if (inputProducto) inputProducto.addEventListener('input', validarDuplicadoProducto);
 
     // 1. Validación en vivo para creación de variedad
     const inputVariedad = document.getElementById('variedad');
@@ -309,15 +358,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        let match = null;
         if (mapaVariedades && mapaVariedades[v]) {
-            const cultivoActual = mapaVariedades[v];
+            match = { variedad: v, producto: mapaVariedades[v] };
+        } else if (mapaVariedadesNorm[norm(v)]) {
+            match = mapaVariedadesNorm[norm(v)];
+        }
+
+        if (match) {
+            const cultivoActual = match.producto;
+            const varExistente = match.variedad;
             if (p && cultivoActual === p) {
                 alertaDuplicado.className = 'alert alert-warning py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
-                alertaDuplicado.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning"></i> <span>La variedad <strong>${v}</strong> ya está asignada a este cultivo (<strong>${p}</strong>).</span>`;
+                alertaDuplicado.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning"></i> <span>La variedad <strong>${v}</strong> ya está asignada a este cultivo (<strong>${p}</strong>${varExistente !== v ? ' como ' + varExistente : ''}).</span>`;
                 if (btnGuardar) btnGuardar.disabled = true;
             } else {
                 alertaDuplicado.className = 'alert alert-danger py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
-                alertaDuplicado.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>No se puede agregar: <strong>${v}</strong> ya está asignada al cultivo <strong>${cultivoActual}</strong>. No se permiten duplicados entre cultivos.</span>`;
+                alertaDuplicado.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>No se puede agregar: <strong>${v}</strong> ya está asignada al cultivo <strong>${cultivoActual}</strong>${varExistente !== v ? ' (registrada como ' + varExistente + ')' : ''}. No se permiten duplicados entre cultivos.</span>`;
                 if (btnGuardar) btnGuardar.disabled = true;
             }
         } else {
@@ -341,17 +398,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const vOrig = (modalVarOrig ? modalVarOrig.value : '').trim().toUpperCase();
         const vNueva = modalVarNueva.value.trim().toUpperCase();
 
-        if (!vNueva || vNueva === vOrig) {
+        if (!vNueva || vNueva === vOrig || norm(vNueva) === norm(vOrig)) {
             modalAlerta.className = 'mt-2 d-none';
             modalAlerta.innerHTML = '';
             if (modalBtnGuardar) modalBtnGuardar.disabled = false;
             return;
         }
 
+        let match = null;
         if (mapaVariedades && mapaVariedades[vNueva]) {
-            const cultivo = mapaVariedades[vNueva];
+            match = { variedad: vNueva, producto: mapaVariedades[vNueva] };
+        } else if (mapaVariedadesNorm[norm(vNueva)]) {
+            match = mapaVariedadesNorm[norm(vNueva)];
+        }
+
+        if (match && match.variedad !== vOrig) {
+            const cultivo = match.producto;
+            const varExistente = match.variedad;
             modalAlerta.className = 'alert alert-danger py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
-            modalAlerta.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>No se puede renombrar: <strong>${vNueva}</strong> ya existe asignada al cultivo <strong>${cultivo}</strong>.</span>`;
+            modalAlerta.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>No se puede renombrar: <strong>${vNueva}</strong> ya existe asignada al cultivo <strong>${cultivo}</strong>${varExistente !== vNueva ? ' (como ' + varExistente + ')' : ''}.</span>`;
             if (modalBtnGuardar) modalBtnGuardar.disabled = true;
         } else {
             modalAlerta.className = 'mt-2 d-none';
@@ -388,11 +453,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     };
 
-    // 3. Buscador interactivo en vivo
+    // 3. Buscador interactivo en vivo con normalización inteligente (ej: H-21-67-3 encuentra H21-67-3)
     const filtroInput = document.getElementById('filtroCatalogo');
     if (filtroInput) {
         filtroInput.addEventListener('input', function() {
             const term = this.value.trim().toUpperCase();
+            const termNorm = norm(term);
             const items = document.querySelectorAll('.variedad-item');
             const cards = document.querySelectorAll('.producto-card-col');
             let visibles = 0;
@@ -400,7 +466,8 @@ document.addEventListener('DOMContentLoaded', function() {
             items.forEach(item => {
                 const varName = (item.dataset.variedad || '').toUpperCase();
                 const prodName = (item.dataset.producto || '').toUpperCase();
-                const match = !term || varName.includes(term) || prodName.includes(term);
+                const match = !term || varName.includes(term) || prodName.includes(term) ||
+                              (termNorm && (norm(varName).includes(termNorm) || norm(prodName).includes(termNorm)));
                 item.style.display = match ? '' : 'none';
                 if (match) visibles++;
             });
@@ -408,7 +475,8 @@ document.addEventListener('DOMContentLoaded', function() {
             cards.forEach(card => {
                 const prod = (card.dataset.producto || '').toUpperCase();
                 const hasVisibleVars = card.querySelectorAll('.variedad-item:not([style*="display: none"])').length > 0;
-                card.style.display = (!term || prod.includes(term) || hasVisibleVars) ? '' : 'none';
+                const prodMatch = !term || prod.includes(term) || (termNorm && norm(prod).includes(termNorm));
+                card.style.display = (prodMatch || hasVisibleVars) ? '' : 'none';
             });
 
             const contador = document.getElementById('contadorVisible');

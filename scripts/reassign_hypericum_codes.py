@@ -1,4 +1,7 @@
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from app import create_app
 from app.extensions import db
 from sqlalchemy import text
@@ -12,11 +15,15 @@ def run():
     with app.app_context():
         print("Iniciando reasignación de códigos a HYPERICUM...")
         
-        # 1. Actualizar fact_eventos_cultivo
+        # 1. Actualizar fact_eventos_cultivo y crop_state_records
         r1 = db.session.execute(text("UPDATE fact_eventos_cultivo SET producto_maestro = 'HYPERICUM', variedad = 'H21-117-1' WHERE UPPER(TRIM(variedad)) = 'H21-117-1'"))
         r2 = db.session.execute(text("UPDATE fact_eventos_cultivo SET producto_maestro = 'HYPERICUM', variedad = 'H21-68-7' WHERE UPPER(TRIM(variedad)) = 'H21-68-7'"))
         r3 = db.session.execute(text("UPDATE fact_eventos_cultivo SET producto_maestro = 'HYPERICUM', variedad = 'H21-67-3' WHERE UPPER(TRIM(variedad)) IN ('H21-67-3', 'H-21-67-3')"))
         print(f"fact_eventos_cultivo actualizados: {r1.rowcount}, {r2.rowcount}, {r3.rowcount}")
+
+        r_csr1 = db.session.execute(text("UPDATE crop_state_records SET crop_master = 'HYPERICUM', variety = 'H21-67-3' WHERE UPPER(TRIM(variety)) IN ('H21-67-3', 'H-21-67-3')"))
+        r_csr2 = db.session.execute(text("UPDATE crop_state_records SET crop_master = 'HYPERICUM' WHERE UPPER(TRIM(variety)) IN ('H21-117-1', 'H21-68-7')"))
+        print(f"crop_state_records actualizados a HYPERICUM: {r_csr1.rowcount + r_csr2.rowcount}")
 
         # 2. Actualizar cat_variedades_maestro
         target_codes = ['H21-117-1', 'H21-68-7', 'H21-67-3']

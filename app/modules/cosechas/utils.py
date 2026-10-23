@@ -43,71 +43,36 @@ def formato_semana(fecha):
     return f"{year:02d}{semana:02d}"
 
 def cargar_variedades():
-    """Cargar variedades desde CSV y complementar con base de datos (cat_variedades_maestro, registro_cosecha, dim_variedades, fact_eventos_cultivo y estimado)"""
+    """Cargar variedades activas autorizadas desde cat_variedades_maestro y variedades.csv (sin resucitar eliminadas)"""
     variedades = set()
+    
+    # 1. Base de datos: cat_variedades_maestro (fuente principal autorizada)
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        vars_cat = db.session.execute(text("SELECT DISTINCT variedad FROM cat_variedades_maestro WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
+        for v in vars_cat:
+            val = (v[0] or '').strip().upper()
+            if val:
+                variedades.add(val)
+    except Exception:
+        pass
+
+    # 2. Archivo CSV variedades.csv
     csv_path = _get_csv_path('variedades.csv')
     try:
         if csv_path.exists():
             with open(csv_path, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    val = (row.get('variedad') or '').strip()
+                    val = (row.get('variedad') or '').strip().upper()
                     if val:
                         variedades.add(val)
     except Exception as e:
         print(f"Error cargando variedades desde CSV: {e}")
-    
-    # Complementar con variedades existentes en la base de datos
-    try:
-        from app.extensions import db
-        from sqlalchemy import text
-        
-        # 0. cat_variedades_maestro
-        try:
-            vars_cat = db.session.execute(text("SELECT DISTINCT variedad FROM cat_variedades_maestro WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
-            for v in vars_cat:
-                if v[0] and v[0].strip():
-                    variedades.add(v[0].strip())
-        except Exception:
-            pass
-
-        # 1. registro_cosecha
-        vars_db = db.session.execute(text("SELECT DISTINCT variedad FROM registro_cosecha WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
-        for v in vars_db:
-            if v[0] and v[0].strip():
-                variedades.add(v[0].strip())
-        
-        # 2. dim_variedades
-        try:
-            vars_dim = db.session.execute(text("SELECT DISTINCT variedad FROM dim_variedades WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
-            for v in vars_dim:
-                if v[0] and v[0].strip():
-                    variedades.add(v[0].strip())
-        except Exception:
-            pass
-
-        # 3. fact_eventos_cultivo
-        try:
-            vars_ev = db.session.execute(text("SELECT DISTINCT variedad FROM fact_eventos_cultivo WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
-            for v in vars_ev:
-                if v[0] and v[0].strip():
-                    variedades.add(v[0].strip())
-        except Exception:
-            pass
-
-        # 4. estimado
-        try:
-            vars_est = db.session.execute(text("SELECT DISTINCT variedad FROM estimado WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
-            for v in vars_est:
-                if v[0] and v[0].strip():
-                    variedades.add(v[0].strip())
-        except Exception:
-            pass
-    except Exception:
-        pass
 
     if not variedades:
-        variedades = {'Gold', 'Red Naomi', 'Explorer', 'Freedom', 'High & Magic'}
+        variedades = {'GOLD', 'RED NAOMI', 'EXPLORER', 'FREEDOM', 'HIGH & MAGIC'}
     
     return sorted(list(variedades), key=lambda x: x.upper())
 
@@ -266,7 +231,7 @@ def cargar_modulos():
     
     return sorted(list(modulos), key=_natural_key)
 
-def sincronizar_variedad_a_bd(variedad, producto_maestro):
+def sincronizar_variedad_a_bd(variedad, producto_maestro, commit=True):
     """Sincroniza una variedad y su producto maestro hacia todas las tablas correspondientes en PostgreSQL"""
     if not variedad or not producto_maestro:
         return
@@ -329,7 +294,8 @@ def sincronizar_variedad_a_bd(variedad, producto_maestro):
         except Exception:
             pass
             
-        db.session.commit()
+        if commit:
+            db.session.commit()
     except Exception as e:
         print(f"Error sincronizando variedad a BD: {e}")
 
@@ -464,6 +430,17 @@ def guardar_relaciones_maestro(relaciones):
         from app.extensions import db
         from sqlalchemy import text
         
+        # Asegurar tabla cat_variedades_maestro una sola vez
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS cat_variedades_maestro (
+                id SERIAL PRIMARY KEY,
+                variedad VARCHAR(150) NOT NULL UNIQUE,
+                producto_maestro VARCHAR(150) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+
         vars_nuevas_set = {v for v, p in relaciones_ordenadas}
         if vars_nuevas_set:
             # Eliminar en BD aquellas variedades que fueron desvinculadas o eliminadas
@@ -472,7 +449,7 @@ def guardar_relaciones_maestro(relaciones):
             db.session.execute(text("DELETE FROM cat_variedades_maestro"))
             
         for variedad, producto in relaciones_ordenadas:
-            sincronizar_variedad_a_bd(variedad, producto)
+            sincronizar_variedad_a_bd(variedad, producto, commit=False)
             
         db.session.commit()
     except Exception as e:
@@ -526,7 +503,7 @@ def cargar_productos_maestros():
     return sorted(list(productos), key=lambda value: value.upper())
 
 def guardar_productos_maestros(productos):
-    """Guardar productos maestros únicos en CSV y sincronizar en PostgreSQL (dim_prod_maestros)"""
+    """Guardar productos maestros únicos en CSV y sincronizar bidireccionalmente en PostgreSQL (dim_prod_maestros)"""
     productos_limpios = sorted({(p or '').strip().upper() for p in productos if (p or '').strip()}, key=lambda value: value.upper())
     csv_path = DATA_DIR / 'productos_maestros.csv'
     try:
@@ -538,8 +515,18 @@ def guardar_productos_maestros(productos):
     except Exception as e:
         print(f"Error escribiendo productos_maestros.csv: {e}")
 
-    for p in productos_limpios:
-        sincronizar_producto_maestro_a_bd(p)
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        if productos_limpios:
+            db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(TRIM(producto_maestro)) NOT IN :prods"), {'prods': tuple(productos_limpios)})
+        else:
+            db.session.execute(text("DELETE FROM dim_prod_maestros"))
+        for p in productos_limpios:
+            sincronizar_producto_maestro_a_bd(p)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error sincronizando productos maestros en BD: {e}")
 
 def construir_productos_con_variedades():
     """Construir estructura {producto_maestro: [variedades]} garantizando que todos los productos y variedades aparezcan"""
