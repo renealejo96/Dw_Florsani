@@ -226,11 +226,12 @@ def registro():
             a_veg = float(r[16]) if r[16] else 0.0
             a_prod = float(r[17]) if r[17] else 0.0
 
-            pct_veg = int(round((c_veg / tot_c) * 100)) if tot_c > 0 else 0
-            pct_prod = int(round((c_prod / tot_c) * 100)) if tot_c > 0 else 0
+            pct_veg = round((c_veg / tot_c) * 100, 1) if tot_c > 0 else 0.0
+            pct_prod = round((c_prod / tot_c) * 100, 1) if tot_c > 0 else 0.0
+            pct_tumb = max(0.0, round(100.0 - pct_veg - pct_prod, 1)) if tot_c > 0 else 0.0
 
             # Estado visual del bloque:
-            if (c_siembra + c_poda) == 0 or (c_vacias > c_siembra and c_vacias > c_poda):
+            if (c_siembra + c_poda) == 0:
                 estado_blq = 'VACIO'
             elif c_poda > c_siembra:
                 estado_blq = 'PODA'
@@ -257,6 +258,7 @@ def registro():
                 'camas_prod': c_prod,
                 'pct_veg': pct_veg,
                 'pct_prod': pct_prod,
+                'pct_tumb': pct_tumb,
                 'area_veg': a_veg,
                 'area_prod': a_prod
             }
@@ -420,6 +422,8 @@ def api_bloque_camas(blq):
             ORDER BY m.num_cama ASC, m.sufijo ASC;
         """
         rows = conn.execute(text(query), {'blq': blq}).fetchall()
+        dens_rows = conn.execute(text("SELECT producto_maestro, plantas_por_cama FROM dim_densidad_plantas;")).fetchall()
+        dens_map = {str(dr[0]).strip().upper(): int(dr[1]) for dr in dens_rows if dr[0] and dr[1]}
 
     camas = []
     for r in rows:
@@ -433,13 +437,27 @@ def api_bloque_camas(blq):
         else:
             etapa = 'PRODUCTIVO'
 
+        cama_std = float(r[5]) if r[5] is not None else 1.0
+        plantas_val = int(r[18]) if r[18] is not None else 0
+        if plantas_val <= 0 and not esta_vacia:
+            prod_nom = str(r[10] or '').strip().upper()
+            d_val = dens_map.get(prod_nom)
+            if not d_val:
+                for dk, dv in dens_map.items():
+                    if dk in prod_nom or prod_nom in dk:
+                        d_val = dv
+                        break
+            if not d_val:
+                d_val = 1350 if 'HYPER' in prod_nom else (400 if 'GYP' in prod_nom else 600)
+            plantas_val = int(round(cama_std * d_val))
+
         camas.append({
             'id_cama': r[0],
             'codigo_bloque': r[1],
             'blq': r[2],
             'sufijo': r[3] or 'A',
             'num_cama': int(r[4]) if r[4] is not None else 0,
-            'cama_estandar': float(r[5]) if r[5] is not None else 1.0,
+            'cama_estandar': cama_std,
             'metros_netos': float(r[6]) if r[6] is not None else 0.0,
             'metros_brutos': float(r[7]) if r[7] is not None else 0.0,
             'ha': float(r[8]) if r[8] is not None else 0.0,
@@ -452,7 +470,7 @@ def api_bloque_camas(blq):
             'semana_campo_ultimo_evento': r[15],
             'semana_abs_ultimo_evento': r[16],
             'edad_semanas': r[17] if r[17] is not None else None,
-            'num_plantas': int(r[18]) if r[18] is not None else 0,
+            'num_plantas': plantas_val,
             'estado_cultivo': r[19] or 'VACIO',
             'veg_max_age': veg_max,
             'etapa_fenologica': etapa,

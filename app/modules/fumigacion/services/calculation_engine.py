@@ -3,6 +3,7 @@ import json
 import re
 import unicodedata
 from functools import lru_cache
+from sqlalchemy import text
 from app.extensions import db
 from app.shared.models import Crop, Product, Litraje, CropStateRecord, AdditionalApplication
 from app.shared.utils import (
@@ -296,6 +297,196 @@ class CalculationEngine:
         return 'Lanza de 3 salidas (C35)'
 
     @classmethod
+    def get_projected_crop_records(cls, rot_week: str):
+        """
+        Retorna las camas vivas proyectadas exactamente a la semana de rotación objetivo.
+        Prioriza la edad real agronómica a partir del último evento de campo (Siembra/Poda)
+        desde mrt_estado_cultivo_actual:
+        Edad(Semana_Objetivo) = Semana_Objetivo - Semana_Evento (ej. 44 - 38 = 6 semanas).
+        Aplica restricción agronómica foliar: camas con edad < 2 semanas no entran a fumigación foliar.
+        """
+        target_year = 2026
+        target_week = 44
+        rot_w_clean = str(rot_week or '').strip()
+        if '-' in rot_w_clean:
+            p = rot_w_clean.split('-')
+            try:
+                target_year = int(p[0])
+                target_week = int(p[1])
+            except Exception:
+                pass
+        elif len(rot_w_clean) == 4 and rot_w_clean.isdigit():
+            try:
+                target_year = 2000 + int(rot_w_clean[:2])
+                target_week = int(rot_w_clean[2:])
+            except Exception:
+                pass
+        elif rot_w_clean.isdigit():
+            try:
+                target_week = int(rot_w_clean)
+            except Exception:
+                pass
+
+        # 1. Cargar eventos reales de campo vivos desde mrt_estado_cultivo_actual
+        mrt_lookup = {}
+        try:
+            with db.engine.connect() as conn:
+                mrt_rows = conn.execute(text("""
+                    SELECT 
+                        COALESCE(blq, codigo_bloque) AS blq,
+                        COALESCE(sufijo, 'A') AS sufijo,
+                        num_cama,
+                        producto_actual,
+                        variedad_actual,
+                        ultimo_evento,
+                        semana_campo_ultimo_evento,
+                        fecha_ultimo_evento,
+                        cama_estandar,
+                        zona
+                    FROM mrt_estado_cultivo_actual
+                    WHERE num_cama IS NOT NULL;
+                """)).fetchall()
+                for mr in mrt_rows:
+                    b_c = clean_block_name(mr[0], mr[1])
+                    s_c = str(mr[1] or 'A').strip().upper()
+                    n_c = int(mr[2])
+                    mrt_lookup[(b_c, n_c, s_c)] = mr
+        except Exception as e_mrt:
+            print(f"[WARN] Error consultando mrt_estado_cultivo_actual para proyeccion de rotacion: {e_mrt}")
+            mrt_lookup = {}
+
+        # 2. Obtener corte base de crop_state_records si existe
+        available_weeks = [w[0] for w in db.session.query(CropStateRecord.week).distinct().order_by(CropStateRecord.week.desc()).all() if w[0]]
+        filter_week = None
+        if rot_w_clean:
+            for aw in available_weeks:
+                if aw.strip() == rot_w_clean or rot_w_clean in aw or aw in rot_w_clean or get_week_difference(rot_w_clean, aw) == 0:
+                    filter_week = aw
+                    break
+        if not filter_week and available_weeks:
+            filter_week = available_weeks[0]
+
+        raw_records = []
+        if filter_week:
+            raw_records = CropStateRecord.query.filter(
+                CropStateRecord.crop_master.isnot(None),
+                ~CropStateRecord.crop_master.in_(['VACIO', 'DESCARTE', 'TUMBAR', 'NAN', 'TOTAL', 'TOTAL_GENERAL']),
+                CropStateRecord.week == filter_week
+            ).all()
+
+        week_offset = get_week_difference(rot_w_clean, filter_week) if (rot_w_clean and filter_week) else 0
+
+        all_active_records = []
+        seen_beds = set()
+
+        for r in raw_records:
+            clean_blk = clean_block_name(r.block_num or r.block_full, r.suffix)
+            bed_num = int(r.bed_num)
+            suf = str(r.suffix or 'A').strip().upper()
+            key_cama = (clean_blk, bed_num, suf)
+            seen_beds.add(key_cama)
+
+            mr = mrt_lookup.get(key_cama)
+            if mr:
+                u_ev = str(mr[5] or '').strip().upper()
+                p_act = str(mr[3] or '').strip().upper()
+                if u_ev == 'TUMBA' or p_act in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', ''):
+                    continue
+
+                proj_age = None
+                if mr[6]:
+                    s_ev_str = str(mr[6]).strip()
+                    if len(s_ev_str) == 4 and s_ev_str.isdigit():
+                        ev_year = 2000 + int(s_ev_str[:2])
+                        ev_week = int(s_ev_str[2:])
+                        proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
+                    elif s_ev_str.isdigit():
+                        ev_week = int(s_ev_str)
+                        proj_age = target_week - ev_week
+                elif mr[7]:
+                    dt = mr[7]
+                    ev_year, ev_week = dt.isocalendar()[0], dt.isocalendar()[1]
+                    proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
+
+                if proj_age is None:
+                    base_age = 10.0 if (r.real_age is None or r.real_age < 0) else float(r.real_age)
+                    proj_age = base_age + week_offset
+            else:
+                base_age = 10.0 if (r.real_age is None or r.real_age < 0) else float(r.real_age)
+                proj_age = base_age + week_offset
+
+            proj_age = max(0.0, round(float(proj_age), 1))
+
+            # Restricción agronómica: solo entran siembras/podas con edad >= 2 semanas (semana <= corte - 2)
+            if proj_age < 2.0:
+                continue
+
+            all_active_records.append(ProjectedCropRecord(
+                id=r.id,
+                week=rot_w_clean or r.week,
+                block_full=r.block_full,
+                block_num=clean_blk,
+                bed_num=r.bed_num,
+                suffix=suf,
+                crop_master=mr[3] if (mr and mr[3]) else r.crop_master,
+                product_name=mr[3] if (mr and mr[3]) else r.product_name,
+                variety=mr[4] if (mr and mr[4]) else r.variety,
+                standard_bed=float(mr[8] or r.standard_bed or 0.0),
+                zone=mr[9] if (mr and mr[9]) else r.zone,
+                real_age=proj_age,
+                status_raw=r.status_raw
+            ))
+
+        # Agregar camas sembradas en campo vivo que no estaban en el snapshot previo
+        for (b_c, n_c, s_c), mr in mrt_lookup.items():
+            if (b_c, n_c, s_c) in seen_beds:
+                continue
+            u_ev = str(mr[5] or '').strip().upper()
+            p_act = str(mr[3] or '').strip().upper()
+            if u_ev in ('TUMBA', 'SIN EVENTO', '') or p_act in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', ''):
+                continue
+
+            proj_age = None
+            if mr[6]:
+                s_ev_str = str(mr[6]).strip()
+                if len(s_ev_str) == 4 and s_ev_str.isdigit():
+                    ev_year = 2000 + int(s_ev_str[:2])
+                    ev_week = int(s_ev_str[2:])
+                    proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
+                elif s_ev_str.isdigit():
+                    ev_week = int(s_ev_str)
+                    proj_age = target_week - ev_week
+            elif mr[7]:
+                dt = mr[7]
+                ev_year, ev_week = dt.isocalendar()[0], dt.isocalendar()[1]
+                proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
+
+            if proj_age is None:
+                proj_age = 10.0
+
+            proj_age = max(0.0, round(float(proj_age), 1))
+            if proj_age < 2.0:
+                continue
+
+            all_active_records.append(ProjectedCropRecord(
+                id=99000000 + len(all_active_records),
+                week=rot_w_clean,
+                block_full=f"BL {b_c}",
+                block_num=b_c,
+                bed_num=n_c,
+                suffix=s_c,
+                crop_master=mr[3],
+                product_name=mr[3],
+                variety=mr[4],
+                standard_bed=float(mr[8] or 1.0),
+                zone=mr[9],
+                real_age=proj_age,
+                status_raw='SIEMBRA' if 'SIEMBRA' in u_ev else 'PODA'
+            ))
+
+        return all_active_records
+
+    @classmethod
     def calculate_round(cls, round_obj, custom_review_segments=None, cached_crop_records=None):
         """
         Calculates application segments, product quantities, assigned operators and toxicological info for a round.
@@ -510,52 +701,8 @@ class CalculationEngine:
         if cached_crop_records is not None:
             all_active_records = cached_crop_records
         else:
-            rot_week = round_obj.rotation.week.strip() if (round_obj and round_obj.rotation and round_obj.rotation.week) else None
-            available_weeks = [w[0] for w in db.session.query(CropStateRecord.week).distinct().order_by(CropStateRecord.week.desc()).all() if w[0]]
-
-            filter_week = None
-            if rot_week:
-                for aw in available_weeks:
-                    if aw.strip() == rot_week or rot_week in aw or aw in rot_week or get_week_difference(rot_week, aw) == 0:
-                        filter_week = aw
-                        break
-
-            if not filter_week and available_weeks:
-                filter_week = available_weeks[0]
-
-            rec_query = CropStateRecord.query.filter(
-                CropStateRecord.crop_master.isnot(None),
-                ~CropStateRecord.crop_master.in_(['VACIO', 'DESCARTE', 'TUMBAR', 'NAN', 'TOTAL', 'TOTAL_GENERAL'])
-            )
-            if filter_week:
-                rec_query = rec_query.filter(CropStateRecord.week == filter_week)
-
-            raw_records = rec_query.all()
-            week_offset = get_week_difference(rot_week, filter_week) if (rot_week and filter_week) else 0
-
-            all_active_records = []
-            for r in raw_records:
-                base_age = 10.0 if (r.real_age is None or r.real_age < 0) else float(r.real_age)
-                proj_age = round(base_age + week_offset, 1)
-                # Restricción agronómica: camas con edad menor a 2 semanas no entran a fumigación foliar
-                if proj_age < 2.0:
-                    continue
-                clean_blk = clean_block_name(r.block_num or r.block_full, r.suffix)
-                all_active_records.append(ProjectedCropRecord(
-                    id=r.id,
-                    week=rot_week or r.week,
-                    block_full=r.block_full,
-                    block_num=clean_blk,
-                    bed_num=r.bed_num,
-                    suffix=r.suffix or 'A',
-                    crop_master=r.crop_master,
-                    product_name=r.product_name,
-                    variety=r.variety,
-                    standard_bed=float(r.standard_bed or 0.0),
-                    zone=r.zone,
-                    real_age=proj_age,
-                    status_raw=r.status_raw
-                ))
+            rot_week = round_obj.rotation.week.strip() if (round_obj and round_obj.rotation and round_obj.rotation.week) else ''
+            all_active_records = cls.get_projected_crop_records(rot_week)
 
         mixes_by_crop_stage = {}
         for it_idx, item in enumerate(sorted(round_obj.items, key=lambda x: x.order_index)):

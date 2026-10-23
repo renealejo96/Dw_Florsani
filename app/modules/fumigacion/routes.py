@@ -330,45 +330,9 @@ def rotacion_detalle(rotation_id):
     elif first_round_id and str(first_round_id) in review_by_round:
         review_segments = review_by_round[str(first_round_id)]
     
-    # Preload target week and crop state records once
+    # Preload target week and projected crop records once
     rot_week = rotation.week.strip() if rotation.week else ''
-    available_weeks = [w[0] for w in db.session.query(CropStateRecord.week).distinct().order_by(CropStateRecord.week.desc()).all() if w[0]]
-    filter_week = None
-    if rot_week:
-        for aw in available_weeks:
-            if aw.strip() == rot_week or rot_week in aw or aw in rot_week or get_week_difference(rot_week, aw) == 0:
-                filter_week = aw
-                break
-    if not filter_week and available_weeks:
-        filter_week = available_weeks[0]
-
-    cached_crop_records = []
-    if filter_week:
-        raw_recs = CropStateRecord.query.filter(
-            CropStateRecord.crop_master.isnot(None),
-            ~CropStateRecord.crop_master.in_(['VACIO', 'DESCARTE', 'TUMBAR', 'NAN', 'TOTAL', 'TOTAL_GENERAL']),
-            CropStateRecord.week == filter_week
-        ).all()
-        week_offset = get_week_difference(rot_week, filter_week) if (rot_week and filter_week) else 0
-        for r in raw_recs:
-            base_age = 10.0 if (r.real_age is None or r.real_age < 0) else float(r.real_age)
-            proj_age = round(base_age + week_offset, 1)
-            clean_blk = clean_block_name(r.block_num or r.block_full, r.suffix)
-            cached_crop_records.append(ProjectedCropRecord(
-                id=r.id,
-                week=rot_week or r.week,
-                block_full=r.block_full,
-                block_num=clean_blk,
-                bed_num=r.bed_num,
-                suffix=r.suffix or 'A',
-                crop_master=r.crop_master,
-                product_name=r.product_name,
-                variety=r.variety,
-                standard_bed=float(r.standard_bed or 0.0),
-                zone=r.zone,
-                real_age=proj_age,
-                status_raw=r.status_raw
-            ))
+    cached_crop_records = CalculationEngine.get_projected_crop_records(rot_week)
 
     # Calculate base rounds (pure theoretical estimate from map + crops) for Paso 1
     rounds_base_calculated = []
@@ -724,18 +688,7 @@ def rotacion_get_cumulative(rotation_id):
     
     # Start with base calculation for this round
     rot_week = rotation.week.strip() if rotation.week else ''
-    available_weeks = [w[0] for w in db.session.query(CropStateRecord.week).distinct().order_by(CropStateRecord.week.desc()).all() if w[0]]
-    filter_week = rot_week if rot_week in available_weeks else (available_weeks[0] if available_weeks else rot_week)
-    cached_crop_records = []
-    if filter_week:
-        cached_crop_records = CropStateRecord.query.filter(
-            CropStateRecord.crop_master.isnot(None),
-            ~CropStateRecord.crop_master.in_(['VACIO', 'DESCARTE', 'TUMBAR', 'NAN', 'TOTAL', 'TOTAL_GENERAL']),
-            CropStateRecord.week == filter_week
-        ).all()
-        for r in cached_crop_records:
-            if r.real_age is None or r.real_age < 0:
-                r.real_age = 10.0
+    cached_crop_records = CalculationEngine.get_projected_crop_records(rot_week)
 
     calc = CalculationEngine.calculate_round(target_round, cached_crop_records=cached_crop_records)
     base_segments = calc.get('segments', [])

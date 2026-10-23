@@ -220,15 +220,15 @@
     }
     .tpsr-mini-stage-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 4px;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 3px;
         width: 100%;
     }
     .tpsr-mini-stage-box {
         background: rgba(255, 255, 255, 0.82);
         border-radius: 4px;
-        padding: 2px 3px;
-        font-size: 0.63rem;
+        padding: 2px 2px;
+        font-size: 0.60rem;
         font-weight: 700;
         text-align: center;
         line-height: 1.15;
@@ -240,6 +240,10 @@
     .tpsr-mini-stage-box.stage-prod {
         border: 1px solid rgba(21, 128, 61, 0.28);
         color: #15803d;
+    }
+    .tpsr-mini-stage-box.stage-tumb {
+        border: 1px solid rgba(100, 116, 139, 0.28);
+        color: #64748b;
     }
 
     /* Colores del bloque según estado dominante */
@@ -312,7 +316,7 @@
     .plano-col-bar-hdr {
         flex: 1;
         display: grid;
-        grid-template-columns: 52px 92px minmax(150px, 1.6fr) 70px 92px 86px 105px 105px;
+        grid-template-columns: 78px 88px minmax(140px, 1.6fr) 62px 85px 80px 95px 95px;
         gap: 8px;
         align-items: center;
         padding: 0 10px;
@@ -358,7 +362,7 @@
     .plano-cama-bar {
         flex: 1;
         display: grid;
-        grid-template-columns: 52px 92px minmax(150px, 1.6fr) 70px 92px 86px 105px 105px;
+        grid-template-columns: 78px 88px minmax(140px, 1.6fr) 62px 85px 80px 95px 95px;
         gap: 8px;
         align-items: center;
         padding: 0 10px;
@@ -407,7 +411,7 @@
     @media (max-width: 992px) {
         .plano-col-bar-hdr,
         .plano-cama-bar {
-            grid-template-columns: 44px 82px 1fr 60px 80px 95px;
+            grid-template-columns: 65px 75px 1fr 50px 75px 85px;
         }
         .hide-md-plano {
             display: none !important;
@@ -628,12 +632,13 @@
              data-area-bruta="{{ b.area_bruta }}"
              data-pct-veg="{{ b.pct_veg }}"
              data-pct-prod="{{ b.pct_prod }}"
+             data-pct-tumb="{{ b.pct_tumb }}"
              data-ha="{{ b.ha }}"
              data-segs="{{ b.segs_str }}"
              data-tecnico="{{ b.tecnico }}"
              data-search="bl {{ b.blq }} bloque {{ b.blq }} {{ b.zona }} {{ b.productos }}"
              onclick="abrirBloqueVisual('{{ b.blq }}')"
-             title="BL {{ b.blq }} ({{ b.zona }}) · {{ b.productos }} · Área: {{ b.area_neta }} m² · Veg: {{ b.pct_veg }}% ({{ b.camas_veg }}c) | Prod: {{ b.pct_prod }}% ({{ b.camas_prod }}c)">
+             title="BL {{ b.blq }} ({{ b.zona }}) · {{ b.productos }} · Área: {{ b.area_neta }} m² · Veg: {{ b.pct_veg }}% | Prod: {{ b.pct_prod }}% | Tumb: {{ b.pct_tumb }}%">
             <div class="w-100 text-center border-bottom pb-1" style="border-color: rgba(15, 23, 42, 0.12) !important;">
                 <span class="blq-header-title tabular-nums">BL {{ b.blq }}</span>
             </div>
@@ -643,6 +648,7 @@
             <div class="tpsr-mini-stage-grid tabular-nums" id="tile-stages-{{ b.blq }}">
                 <div class="tpsr-mini-stage-box stage-veg" title="Vegetativo: {{ b.camas_veg }} camas ({{ b.area_veg }} m²)">Veg {{ b.pct_veg|int if b.pct_veg == (b.pct_veg|int) else b.pct_veg }}%</div>
                 <div class="tpsr-mini-stage-box stage-prod" title="Productivo: {{ b.camas_prod }} camas ({{ b.area_prod }} m²)">Prod {{ b.pct_prod|int if b.pct_prod == (b.pct_prod|int) else b.pct_prod }}%</div>
+                <div class="tpsr-mini-stage-box stage-tumb" title="Tumbado / Vacío: {{ b.camas_vacias }} camas">Tumb {{ b.pct_tumb|int if b.pct_tumb == (b.pct_tumb|int) else b.pct_tumb }}%</div>
             </div>
             <div class="d-flex justify-content-center align-items-center gap-2 w-100 tabular-nums" style="font-size: 0.62rem;" id="tile-counts-{{ b.blq }}">
                 <span class="fw-semibold">🟢{{ b.camas_siembra }}</span>
@@ -677,6 +683,9 @@
                 </span>
                 <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Porcentaje de camas en etapa Productiva">
                     Prod: <strong id="infoBlqPctProd">0%</strong>
+                </span>
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" title="Porcentaje de camas Tumbadas / Vacías">
+                    Tumb: <strong id="infoBlqPctTumb">0%</strong>
                 </span>
                 <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Área Neta Mapeada del Bloque">
                     Área Neta: <strong id="infoBlqAreaNeta">0.0</strong> m²
@@ -728,7 +737,7 @@
         <div class="plano-header-row">
             <div class="plano-col-num-hdr"># CAMA</div>
             <div class="plano-col-bar-hdr">
-                <span>PART.</span>
+                <span class="text-center" title="Semana Siembra / Poda del último evento">SEM. S/P</span>
                 <span>ESTADO</span>
                 <span>PRODUCTO &bull; VARIEDAD ACTUAL</span>
                 <span class="text-center">EDAD</span>
@@ -1345,6 +1354,8 @@ async function abrirBloqueVisual(blq) {
         document.getElementById('infoBlqAreaBruta').innerText = Number(tile.getAttribute('data-area-bruta') || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
         document.getElementById('infoBlqPctVeg').innerText = `${tile.getAttribute('data-pct-veg') || 0}%`;
         document.getElementById('infoBlqPctProd').innerText = `${tile.getAttribute('data-pct-prod') || 0}%`;
+        const elTumbHdr = document.getElementById('infoBlqPctTumb');
+        if (elTumbHdr) elTumbHdr.innerText = `${tile.getAttribute('data-pct-tumb') || 0}%`;
         document.getElementById('infoBlqSegs').innerText = tile.getAttribute('data-segs') || 'A';
         document.getElementById('infoBlqRiego').innerText = tile.getAttribute('data-tecnico') || 'N/A';
     }
@@ -1425,15 +1436,31 @@ function renderizarPlanoVerticalCamas() {
             ? '<span class=" opacity-75">-- DISPONIBLE / VACÍO --</span>'
             : `<strong>${cama.producto || ''}</strong> &bull; ${cama.variedad || ''}`;
 
-        const plantasTxt = cama.esta_vacia ? '0 pl.' : `${Number(cama.num_plantas || 0).toLocaleString()} pl.`;
+        let nPlantas = Number(cama.num_plantas || 0);
+        if (nPlantas <= 0 && !cama.esta_vacia) {
+            const pUpper = String(cama.producto || '').toUpperCase();
+            const dVal = pUpper.includes('HYPER') ? 1350 : (pUpper.includes('GYP') ? 400 : 600);
+            nPlantas = Math.round(Number(cama.cama_estandar || 1.0) * dVal);
+        }
+        const plantasTxt = cama.esta_vacia ? '0 pl.' : `${nPlantas.toLocaleString()} pl.`;
         const stdTxt = `${Number(cama.cama_estandar || 0).toFixed(2)} std`;
         const netaTxt = `${Number(cama.metros_netos || 0).toFixed(1)} m²`;
         const brutaTxt = `${Number(cama.metros_brutos || 0).toFixed(1)} m²`;
 
         // Columna izquierda: número de cama físico (1, 2, 3...) y si está particionada (ej. 3A, 3B)
-        const numLabel = (conteoPorNum[cama.num_cama] > 1)
-            ? `${cama.num_cama}<span class="text-warning" style="font-size:0.63rem;">${cama.sufijo}</span>`
-            : `${cama.num_cama}`;
+        const sufijoBadge = (cama.sufijo && (cama.sufijo !== 'A' || conteoPorNum[cama.num_cama] > 1))
+            ? `<span class="badge bg-warning text-dark ms-1" style="font-size:0.6rem; padding: 1px 3px;">${cama.sufijo}</span>`
+            : '';
+        const numLabel = `${cama.num_cama}${sufijoBadge}`;
+
+        // Semana Siembra / Poda
+        let semSP = '-';
+        if (cama.semana_campo_ultimo_evento) {
+            const scStr = String(cama.semana_campo_ultimo_evento).trim();
+            semSP = scStr.length >= 2 ? `Sem ${parseInt(scStr.slice(-2))}` : `Sem ${scStr}`;
+        } else if (cama.fecha_ultimo_evento && cama.fecha_ultimo_evento !== '-') {
+            semSP = cama.fecha_ultimo_evento;
+        }
 
         return `
             <div class="plano-cama-row ${isSelected ? 'row-active-cama' : ''}" id="rect-cama-${cama.id_cama}">
@@ -1443,8 +1470,8 @@ function renderizarPlanoVerticalCamas() {
                 <div class="plano-cama-bar bar-${estColor}"
                      onclick="alHacerClickRectanguloCama('${cama.id_cama}')"
                      title="Clic para abrir formulario TPSR de Cama #${cama.num_cama} (Seg ${cama.sufijo}) · Área Neta: ${netaTxt} · Área Bruta: ${brutaTxt}">
-                    <div>
-                        <span class="badge-segmento ${getBadgeSegClass(cama.sufijo)}">${cama.sufijo}</span>
+                    <div class="text-center fw-bold tabular-nums" style="font-size: 0.72rem; color: #1e293b;" title="Semana Siembra / Poda del último evento: ${semSP}">
+                        ${semSP}
                     </div>
                     <div class="fw-bold" style="font-size: 0.7rem;">
                         ${estadoLbl}
@@ -1514,16 +1541,18 @@ function actualizarTileBloqueEnMemoria(blq, listaCamas) {
     const totalCamas = listaCamas.length;
     const pctVeg = totalCamas > 0 ? Math.round((cVeg / totalCamas) * 1000) / 10 : 0;
     const pctProd = totalCamas > 0 ? Math.round((cProd / totalCamas) * 1000) / 10 : 0;
+    const pctTumb = totalCamas > 0 ? Math.max(0, Math.round((100 - pctVeg - pctProd) * 10) / 10) : 0;
     const fmtPct = (v) => Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
 
     let estBlq = 'VACIO';
-    if ((cS + cP) === 0 || (cV > cS && cV > cP)) estBlq = 'VACIO';
+    if ((cS + cP) === 0) estBlq = 'VACIO';
     else if (cP > cS) estBlq = 'PODA';
     else estBlq = 'SIEMBRA';
 
     tile.setAttribute('data-estado', estBlq);
     tile.setAttribute('data-pct-veg', pctVeg);
     tile.setAttribute('data-pct-prod', pctProd);
+    tile.setAttribute('data-pct-tumb', pctTumb);
     tile.classList.remove('state-SIEMBRA', 'state-PODA', 'state-VACIO');
     tile.classList.add(`state-${estBlq}`);
 
@@ -1534,7 +1563,11 @@ function actualizarTileBloqueEnMemoria(blq, listaCamas) {
 
     const stagesEl = document.getElementById(`tile-stages-${blq}`);
     if (stagesEl) {
-        stagesEl.innerHTML = `<div class="tpsr-mini-stage-box stage-veg" title="Vegetativo: ${cVeg} camas (${areaVeg.toFixed(1)} m²)">Veg ${fmtPct(pctVeg)}</div><div class="tpsr-mini-stage-box stage-prod" title="Productivo: ${cProd} camas (${areaProd.toFixed(1)} m²)">Prod ${fmtPct(pctProd)}</div>`;
+        stagesEl.innerHTML = `
+            <div class="tpsr-mini-stage-box stage-veg" title="Vegetativo: ${cVeg} camas (${areaVeg.toFixed(1)} m²)">Veg ${fmtPct(pctVeg)}</div>
+            <div class="tpsr-mini-stage-box stage-prod" title="Productivo: ${cProd} camas (${areaProd.toFixed(1)} m²)">Prod ${fmtPct(pctProd)}</div>
+            <div class="tpsr-mini-stage-box stage-tumb" title="Tumbado / Vacío: ${cV} camas">Tumb ${fmtPct(pctTumb)}</div>
+        `;
     }
 
     const countsEl = document.getElementById(`tile-counts-${blq}`);
@@ -1550,6 +1583,8 @@ function actualizarTileBloqueEnMemoria(blq, listaCamas) {
         document.getElementById('infoBlqAreaBruta').innerText = sumBruta.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
         document.getElementById('infoBlqPctVeg').innerText = fmtPct(pctVeg);
         document.getElementById('infoBlqPctProd').innerText = fmtPct(pctProd);
+        const elTumb = document.getElementById('infoBlqPctTumb');
+        if (elTumb) elTumb.innerText = fmtPct(pctTumb);
         document.getElementById('infoBlqSegs').innerText = Array.from(segsSet).sort().join(', ') || 'A';
     }
 }

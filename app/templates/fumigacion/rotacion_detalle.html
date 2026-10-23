@@ -649,14 +649,14 @@
                                         <tr>
                                             <th style="width: 18px;" class="text-center" title="Arrastrar y soltar para ordenar"><i class="fa-solid fa-grip-vertical text-muted" style="font-size: 0.72rem;"></i></th>
                                             <th style="width: 24px;" class="text-center"><input type="checkbox" class="form-check-input select-all-checkbox" data-stage="VEGETATIVO" title="Seleccionar todos en Vegetativo"></th>
-                                            <th style="width: 72px;" title="Bloque físico de campo (ej. 103, 38C, 11A)">Bloque</th>
+                                            <th style="width: 68px;" title="Bloque físico de campo (ej. 103, 38C, 11A)">Bloque</th>
                                             <th style="width: 26px;" title="Segmento / Sufijo del bloque">Seg</th>
-                                            <th style="width: 88px;">Variedad</th>
-                                            <th style="width: 96px;">Camas (Ini-Fin)</th>
-                                            <th style="width: 62px;" title="Camas estándar">Std</th>
-                                            <th style="width: 38px;" title="Edad fenológica">Edad</th>
-                                            <th style="width: 42px;" title="Litros por cama">L/Cam</th>
-                                            <th style="width: 74px;">Lanza</th>
+                                            <th style="width: 84px;">Variedad</th>
+                                            <th style="width: 82px;" title="Cama Inicio - Cama Fin">CI - CF</th>
+                                            <th style="width: 58px;" title="Camas estándar">Std</th>
+                                            <th style="width: 50px;" title="Edad fenológica (semanas)">Edad</th>
+                                            <th style="width: 56px;" title="Litros por cama">L/Cam</th>
+                                            <th style="width: 72px;">Lanza</th>
                                             <th style="width: 88px;" class="text-end">Acciones</th>
                                         </tr>
                                     </thead>
@@ -700,14 +700,14 @@
                                         <tr>
                                             <th style="width: 18px;" class="text-center" title="Arrastrar y soltar para ordenar"><i class="fa-solid fa-grip-vertical text-muted" style="font-size: 0.72rem;"></i></th>
                                             <th style="width: 24px;" class="text-center"><input type="checkbox" class="form-check-input select-all-checkbox" data-stage="PRODUCTIVO" title="Seleccionar todos en Productivo"></th>
-                                            <th style="width: 72px;" title="Bloque físico de campo (ej. 103, 38C, 11A)">Bloque</th>
+                                            <th style="width: 68px;" title="Bloque físico de campo (ej. 103, 38C, 11A)">Bloque</th>
                                             <th style="width: 26px;" title="Segmento / Sufijo del bloque">Seg</th>
-                                            <th style="width: 88px;">Variedad</th>
-                                            <th style="width: 96px;">Camas (Ini-Fin)</th>
-                                            <th style="width: 62px;" title="Camas estándar">Std</th>
-                                            <th style="width: 38px;" title="Edad fenológica">Edad</th>
-                                            <th style="width: 42px;" title="Litros por cama">L/Cam</th>
-                                            <th style="width: 74px;">Lanza</th>
+                                            <th style="width: 84px;">Variedad</th>
+                                            <th style="width: 82px;" title="Cama Inicio - Cama Fin">CI - CF</th>
+                                            <th style="width: 58px;" title="Camas estándar">Std</th>
+                                            <th style="width: 50px;" title="Edad fenológica (semanas)">Edad</th>
+                                            <th style="width: 56px;" title="Litros por cama">L/Cam</th>
+                                            <th style="width: 72px;">Lanza</th>
                                             <th style="width: 88px;" class="text-end">Acciones</th>
                                         </tr>
                                     </thead>
@@ -833,8 +833,8 @@
                     <table class="table table-sm table-bordered align-middle mb-0" id="table-modal-adjust-segments" style="font-size: 0.78rem;">
                         <thead class="table-light text-center">
                             <tr>
-                                <th style="width: 60px;">Cama Ini</th>
-                                <th style="width: 60px;">Cama Fin</th>
+                                <th style="width: 50px;" title="Cama Inicio (CI)">CI</th>
+                                <th style="width: 50px;" title="Cama Fin (CF)">CF</th>
                                 <th style="width: 120px;">Estado</th>
                                 <th style="width: 75px;">Edad</th>
                                 <th style="width: 65px;">Camas Std</th>
@@ -1857,24 +1857,24 @@ document.addEventListener('DOMContentLoaded', function() {
             <td class="text-center fw-bold" style="font-size: 0.72rem; width: 26px;" title="Segmento ${s.suffix || 'A'}">
                 <span class="badge bg-light text-secondary border px-1">${s.suffix || 'A'}</span>
             </td>
-            <td class="text-truncate" style="width: 88px; max-width: 88px; font-weight: 500;" title="${s.variety || s.crop_name}">${s.variety || s.crop_name}</td>
-            <td class="text-center text-nowrap" style="width: 96px;">
+            <td class="text-truncate" style="width: 84px; max-width: 84px; font-weight: 500;" title="${s.variety || s.crop_name}">${s.variety || s.crop_name}</td>
+            <td class="text-center text-nowrap" style="width: 82px;">
                 <div class="d-flex align-items-center justify-content-center gap-1">
-                    <input type="number" min="1" class="form-control form-control-sm text-center row-bed-start font-monospace" style="width: 42px;" value="${s.bed_start || 1}" title="Cama inicio">
+                    <input type="number" min="1" class="form-control form-control-sm text-center row-bed-start font-monospace" style="width: 36px; padding: 2px 2px;" value="${s.bed_start || 1}" title="Cama inicio (CI)">
                     <span class="text-muted small">-</span>
-                    <input type="number" min="1" class="form-control form-control-sm text-center row-bed-end font-monospace" style="width: 42px;" value="${s.bed_end || 1}" title="Cama fin">
+                    <input type="number" min="1" class="form-control form-control-sm text-center row-bed-end font-monospace" style="width: 36px; padding: 2px 2px;" value="${s.bed_end || 1}" title="Cama fin (CF)">
                 </div>
             </td>
-            <td class="text-end" style="width: 62px;">
-                <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-end fw-bold row-std-beds font-monospace" style="width: 60px; padding: 2px 4px;" value="${parseFloat(s.standard_beds || 1).toFixed(2)}" title="Camas estándar">
+            <td class="text-end" style="width: 58px;">
+                <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-end fw-bold row-std-beds font-monospace" style="min-width: 54px; width: 100%; max-width: 62px; padding: 2px 3px;" value="${parseFloat(s.standard_beds || 1).toFixed(2)}" title="Camas estándar">
             </td>
-            <td class="text-center" style="width: 38px;">
-                <input type="text" class="form-control form-control-sm text-center row-age font-monospace" style="width: 36px;" value="${s.real_age || ''}" placeholder="ej. 6" title="Edad fenológica">
+            <td class="text-center" style="width: 50px;">
+                <input type="text" class="form-control form-control-sm text-center row-age font-monospace" style="min-width: 46px; width: 100%; padding: 2px 2px;" value="${s.real_age || ''}" placeholder="ej. 5-6" title="Edad fenológica">
             </td>
-            <td class="text-end" style="width: 42px;">
-                <input type="number" step="0.5" min="0.1" class="form-control form-control-sm text-end row-lit-bed font-monospace" style="width: 40px;" value="${parseFloat(s.liters_per_bed || 5.5).toFixed(1)}" title="Litros por cama">
+            <td class="text-end" style="width: 56px;">
+                <input type="number" step="0.5" min="0.1" class="form-control form-control-sm text-end row-lit-bed font-monospace" style="min-width: 52px; width: 100%; padding: 2px 3px;" value="${parseFloat(s.liters_per_bed || 5.5).toFixed(1)}" title="Litros por cama">
             </td>
-            <td class="text-center" style="width: 74px;">
+            <td class="text-center" style="width: 72px;">
                 <select class="form-select form-select-sm select-row-lance" style="width: 72px;" title="${s.spray_lance}">
                     <option value="Lanza de 3 salidas (C35)" ${s.spray_lance === 'Lanza de 3 salidas (C35)' ? 'selected' : ''}>3 sal (C35)</option>
                     <option value="Aguilón Solidago" ${s.spray_lance === 'Aguilón Solidago' ? 'selected' : ''}>Ag. Solidago</option>
@@ -2172,10 +2172,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             tr.innerHTML = `
                 <td class="text-center py-1">
-                    <input type="number" class="form-control form-control-sm text-center py-0 m-adj-bed-start" data-idx="${idx}" value="${s.bed_start || 1}" min="1" style="width: 55px;">
+                    <input type="number" class="form-control form-control-sm text-center py-0 m-adj-bed-start font-monospace" data-idx="${idx}" value="${s.bed_start || 1}" min="1" style="width: 48px;" title="Cama inicio (CI)">
                 </td>
                 <td class="text-center py-1">
-                    <input type="number" class="form-control form-control-sm text-center py-0 m-adj-bed-end" data-idx="${idx}" value="${s.bed_end || 1}" min="1" style="width: 55px;">
+                    <input type="number" class="form-control form-control-sm text-center py-0 m-adj-bed-end font-monospace" data-idx="${idx}" value="${s.bed_end || 1}" min="1" style="width: 48px;" title="Cama fin (CF)">
                 </td>
                 <td class="text-center py-1">
                     <select class="form-select form-select-sm py-0 m-adj-stage" data-idx="${idx}" style="font-weight: 600;">
