@@ -124,7 +124,7 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
     print(f"  • Eventos activos previamente en base de datos: {len(existing_set):,}")
 
     nuevos_eventos = []
-    camas_a_crear = []
+    camas_a_sincronizar = {}
 
     for _, row in df.iterrows():
         id_cama = row['id_cama']
@@ -141,23 +141,21 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
         sem_siem_excel = pd.to_numeric(row.get('sem_siem'), errors='coerce')
         sem_poda_excel = pd.to_numeric(row.get('sema_poda'), errors='coerce')
 
-        # Si la cama no existe en dim_camas, registrarla
-        if id_cama not in camas_db:
-            camas_a_crear.append({
-                'id_cama': id_cama,
-                'codigo_bloque': cod_bloque,
-                'id_finca': 1,
-                'blq': row['blq_clean'],
-                'sufijo': row['sufijo_clean'],
-                'num_cama': row['num_cama_int'],
-                'cama_estandar': float(pd.to_numeric(row.get('cama_estandar', 1.0), errors='coerce') or 1.0),
-                'metros_netos': float(pd.to_numeric(row.get('metros_netos', 30.0), errors='coerce') or 30.0),
-                'metros_brutos': float(pd.to_numeric(row.get('metros_brutos', 30.0), errors='coerce') or 30.0),
-                'ha': float(pd.to_numeric(row.get('ha', 0.0), errors='coerce') or 0.0),
-                'zona': str(row.get('zona', 'SIN ZONA')).strip(),
-                'tecnico_de_riego': str(row.get('tecnico_de_riego', 'C1')).strip()
-            })
-            camas_db.add(id_cama)
+        # Mantener métricas físicas de la cama sincronizadas con el archivo (particiones, cama estándar, metros)
+        camas_a_sincronizar[id_cama] = {
+            'id_cama': id_cama,
+            'codigo_bloque': cod_bloque,
+            'id_finca': 1,
+            'blq': row['blq_clean'],
+            'sufijo': row['sufijo_clean'],
+            'num_cama': row['num_cama_int'],
+            'cama_estandar': float(pd.to_numeric(row.get('cama_estandar', 1.0), errors='coerce') or 1.0),
+            'metros_netos': float(pd.to_numeric(row.get('metros_netos', 30.0), errors='coerce') or 30.0),
+            'metros_brutos': float(pd.to_numeric(row.get('metros_brutos', 30.0), errors='coerce') or 30.0),
+            'ha': float(pd.to_numeric(row.get('ha', 0.0), errors='coerce') or 0.0),
+            'zona': str(row.get('zona', 'SIN ZONA')).strip(),
+            'tecnico_de_riego': str(row.get('tecnico_de_riego', 'C1')).strip()
+        }
 
         # 1. SIEMBRA
         if pd.notnull(f_siem):
@@ -223,10 +221,10 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
 
     # Guardar en base de datos
     with engine.begin() as conn:
-        # Si hay camas físicas nuevas, insertarlas
-        if camas_a_crear:
-            print(f"  • Insertando {len(camas_a_crear)} nuevas camas físicas en 'dim_camas'...")
-            for c in camas_a_crear:
+        # Sincronizar o insertar camas físicas
+        if camas_a_sincronizar:
+            print(f"  • Sincronizando {len(camas_a_sincronizar)} camas físicas en 'dim_camas'...")
+            for c in camas_a_sincronizar.values():
                 conn.execute(text("""
                     INSERT INTO dim_bloques (codigo_bloque, id_finca, blq, sufijo, zona, tecnico_de_riego)
                     VALUES (:cb, 1, :blq, :suf, :z, :t)
@@ -240,7 +238,12 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
                     ) VALUES (
                         :id_cama, :codigo_bloque, :id_finca, :blq, :sufijo, :num_cama,
                         :cama_estandar, :metros_netos, :metros_brutos, :ha, :zona, :tecnico_de_riego
-                    ) ON CONFLICT (id_cama) DO NOTHING;
+                    ) ON CONFLICT (id_cama) DO UPDATE SET
+                        cama_estandar = EXCLUDED.cama_estandar,
+                        metros_netos = EXCLUDED.metros_netos,
+                        metros_brutos = EXCLUDED.metros_brutos,
+                        ha = EXCLUDED.ha,
+                        zona = COALESCE(EXCLUDED.zona, dim_camas.zona);
                 """), c)
 
         # Insertar nuevos eventos

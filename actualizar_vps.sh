@@ -36,7 +36,7 @@ docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_fin
 echo "🌸 Sincronizando labores y asignaciones de Fenogramas (preservando calificaciones)..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/sincronizar_fenogramas_vps.py
 
-echo "🌾 Ajustando particiones de cultivo y conteo de plantas (Bloque 75 Cama 1)..."
+echo "🌾 Sincronizando universalmente particiones de cultivo y conteo de plantas en toda la finca..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_ajustes_cultivo.py
 
 # echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (iniciar limpios para Semana 43)..."
