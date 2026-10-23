@@ -16,9 +16,10 @@ if [ -d .git ]; then
     git pull origin main
 fi
 
-echo "📂 Copiando catálogos CSV al contenedor dw_florsani_app..."
-docker exec dw_florsani_app mkdir -p /app/data/cosechas
-docker cp data/cosechas/. dw_florsani_app:/app/data/cosechas/
+echo "📂 Copiando catálogos de datos al contenedor dw_florsani_app..."
+docker exec dw_florsani_app mkdir -p /app/data
+docker cp data/. dw_florsani_app:/app/data/
+docker cp "costos productos.xlsx" dw_florsani_app:/app/ 2>/dev/null || true
 
 echo "🔄 Copiando plantillas y código actualizado..."
 docker cp app/. dw_florsani_app:/app/app/

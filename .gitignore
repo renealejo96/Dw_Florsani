@@ -27,6 +27,9 @@ backups/
 *.xls
 *.csv
 !data/cosechas/*.csv
+!costos productos.xlsx
+!data/costos_productos.xlsx
+!data/costos_productos.csv
 
 # Database & Cache
 *.sqlite

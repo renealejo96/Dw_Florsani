@@ -38,16 +38,40 @@ with app.app_context():
     db.session.commit()
     print("[MIGRACION-COSTOS] [OK] Estructura de tabla 'products' actualizada.")
 
-    excel_path = os.path.join(str(Path(__file__).resolve().parent.parent), EXCEL_FILE)
-    if not os.path.exists(excel_path):
-        print(f"[MIGRACION-COSTOS] [ERROR] No se encontró el archivo: {excel_path}")
+    root_dir = str(Path(__file__).resolve().parent.parent)
+    candidates = [
+        os.path.join(root_dir, "data", "costos_productos.csv"),
+        os.path.join(root_dir, "data", "costos_productos.xlsx"),
+        os.path.join(root_dir, "costos productos.xlsx"),
+        os.path.join(root_dir, "costos_productos.xlsx"),
+        "/app/data/costos_productos.csv",
+        "/app/data/costos_productos.xlsx",
+        "/app/costos productos.xlsx",
+        "/app/costos_productos.xlsx"
+    ]
+    data_path = None
+    for cand in candidates:
+        if os.path.exists(cand):
+            data_path = cand
+            break
+
+    if not data_path:
+        print("[MIGRACION-COSTOS] [ERROR] No se encontró el archivo de costos en ninguna de las rutas esperadas:")
+        for cand in candidates:
+            print(f"  - {cand}")
         sys.exit(1)
 
-    print(f"[MIGRACION-COSTOS] 2. Leyendo {EXCEL_FILE} (hoja 'bd')...")
-    df = pd.read_excel(excel_path, sheet_name="bd")
+    print(f"[MIGRACION-COSTOS] 2. Leyendo datos desde {data_path}...")
+    if data_path.endswith('.csv'):
+        df = pd.read_csv(data_path, encoding='utf-8')
+    else:
+        try:
+            df = pd.read_excel(data_path, sheet_name="bd")
+        except Exception:
+            df = pd.read_excel(data_path)
     df.columns = [str(c).strip() for c in df.columns]
 
-    print(f"  • Filas en Excel: {len(df)}")
+    print(f"  • Filas de insumos cargadas: {len(df)}")
 
     # Cargar productos existentes
     existing_prods = Product.query.all()
