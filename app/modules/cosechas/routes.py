@@ -376,12 +376,13 @@ def catalogos():
                 if not producto:
                     flash('Debe ingresar el nombre del producto maestro.', 'danger')
                 else:
-                    productos = set(cargar_productos_maestros())
-                    if producto in productos:
-                        flash('El producto maestro ya existe.', 'warning')
+                    productos_existentes = {p.strip().upper() for p in cargar_productos_maestros()}
+                    if producto in productos_existentes:
+                        flash(f'El producto maestro "{producto}" ya existe en el catálogo.', 'warning')
                     else:
-                        productos.add(producto)
-                        guardar_productos_maestros(productos)
+                        productos_existentes.add(producto)
+                        guardar_productos_maestros(sorted(list(productos_existentes)))
+                        record_audit('COSECHAS', 'PRODUCTO_CREATE', 'Catalogo', None, details=f"Producto maestro '{producto}' creado")
                         flash(f'Producto maestro "{producto}" creado exitosamente.', 'success')
 
             elif accion == 'crear_variedad':
@@ -389,27 +390,33 @@ def catalogos():
                 variedad = request.form.get('variedad', '').strip().upper()
 
                 if not producto or not variedad:
-                    flash('Debe seleccionar producto maestro e ingresar variedad.', 'danger')
+                    flash('Debe seleccionar el producto maestro e ingresar el nombre de la variedad.', 'danger')
                 else:
                     relaciones = cargar_relaciones_maestro()
-                    mapa_variedad = {var.upper(): prod.upper() for var, prod in relaciones}
+                    mapa_variedad = {var.strip().upper(): prod.strip().upper() for var, prod in relaciones}
                     clave_variedad = variedad.upper()
 
-                    if clave_variedad in mapa_variedad and mapa_variedad[clave_variedad] == producto:
-                        flash('La variedad ya existe asignada a ese producto maestro.', 'warning')
+                    if clave_variedad in mapa_variedad:
+                        cultivo_actual = mapa_variedad[clave_variedad]
+                        if cultivo_actual == producto:
+                            flash(f'La variedad "{variedad}" ya se encuentra asignada al cultivo "{producto}".', 'warning')
+                        else:
+                            flash(f'No se puede agregar la variedad "{variedad}" a "{producto}" porque ya está asignada al cultivo "{cultivo_actual}". Para cambiarla de cultivo, use la opción de editar en su tarjeta o elimínela primero de "{cultivo_actual}".', 'danger')
                     else:
-                        relaciones_actualizadas = [(var.upper(), prod.upper()) for var, prod in relaciones if var.upper() != clave_variedad]
+                        relaciones_actualizadas = [(var.strip().upper(), prod.strip().upper()) for var, prod in relaciones]
                         relaciones_actualizadas.append((variedad, producto))
                         guardar_relaciones_maestro(relaciones_actualizadas)
 
                         productos = set(cargar_productos_maestros())
                         productos.add(producto)
-                        guardar_productos_maestros(productos)
+                        guardar_productos_maestros(sorted(list(productos)))
 
                         variedades = set(cargar_variedades())
                         variedades.add(variedad)
-                        guardar_variedades(variedades)
+                        guardar_variedades(sorted(list(variedades)))
 
+                        record_audit('COSECHAS', 'VARIEDAD_CREATE', 'Catalogo', None,
+                                     details=f"Variedad '{variedad}' vinculada al cultivo '{producto}'")
                         flash(f'Variedad "{variedad}" vinculada exitosamente con "{producto}".', 'success')
 
             elif accion == 'editar_variedad':
@@ -422,94 +429,112 @@ def catalogos():
                 if not var_original or not var_nueva or not prod_nuevo:
                     flash('Debe especificar el nombre original, el nuevo nombre y el producto maestro.', 'danger')
                 else:
-                    # 1. Actualizar archivo MAESTRO_PROS.csv
                     relaciones = cargar_relaciones_maestro()
-                    relaciones_actualizadas = []
-                    encontrado = False
-                    for var, prod in relaciones:
-                        if var.upper() == var_original:
-                            relaciones_actualizadas.append((var_nueva, prod_nuevo))
-                            encontrado = True
-                        else:
-                            relaciones_actualizadas.append((var.upper(), prod.upper()))
+                    mapa_variedad = {var.strip().upper(): prod.strip().upper() for var, prod in relaciones}
                     
-                    if not encontrado:
+                    # Si cambió el nombre de la variedad, verificar que no esté ocupada por otro cultivo
+                    if var_nueva != var_original and var_nueva in mapa_variedad:
+                        cultivo_existente = mapa_variedad[var_nueva]
+                        flash(f'No se puede renombrar a "{var_nueva}" porque ya existe asignada al cultivo "{cultivo_existente}".', 'danger')
+                    else:
+                        # 1. Actualizar archivo MAESTRO_PROS.csv y BD
+                        relaciones_actualizadas = [
+                            (var.strip().upper(), prod.strip().upper())
+                            for var, prod in relaciones
+                            if var.strip().upper() != var_original and var.strip().upper() != var_nueva
+                        ]
                         relaciones_actualizadas.append((var_nueva, prod_nuevo))
-                    
-                    guardar_relaciones_maestro(relaciones_actualizadas)
+                        guardar_relaciones_maestro(relaciones_actualizadas)
 
-                    # 2. Actualizar archivo variedades.csv
-                    variedades_set = {v.upper() for v in cargar_variedades() if v.upper() != var_original}
-                    variedades_set.add(var_nueva)
-                    guardar_variedades(sorted(list(variedades_set)))
+                        # 2. Actualizar archivo variedades.csv
+                        variedades_set = {v.strip().upper() for v in cargar_variedades() if v.strip().upper() != var_original}
+                        variedades_set.add(var_nueva)
+                        guardar_variedades(sorted(list(variedades_set)))
 
-                    # 3. Asegurar que prod_nuevo esté en productos maestros
-                    productos_set = {p.upper() for p in cargar_productos_maestros()}
-                    productos_set.add(prod_nuevo)
-                    guardar_productos_maestros(sorted(list(productos_set)))
+                        # 3. Asegurar que prod_nuevo esté en productos maestros
+                        productos_set = {p.strip().upper() for p in cargar_productos_maestros()}
+                        productos_set.add(prod_nuevo)
+                        guardar_productos_maestros(sorted(list(productos_set)))
 
-                    # 4. Sincronización opcional en Base de Datos (Registros históricos y Estimados)
-                    regs_actualizados = 0
-                    ests_actualizados = 0
-                    if actualizar_historico:
-                        # Actualizar en RegistroCosecha
-                        regs = RegistroCosecha.query.filter(RegistroCosecha.variedad.ilike(var_original)).all()
-                        for r in regs:
-                            r.variedad = var_nueva
-                            regs_actualizados += 1
+                        # 4. Sincronización en Base de Datos (Registros históricos, Estimados y Eventos)
+                        regs_actualizados = 0
+                        ests_actualizados = 0
+                        try:
+                            from sqlalchemy import text
+                            db.session.execute(
+                                text("UPDATE fact_eventos_cultivo SET producto_maestro = :pnew, variedad = :vnew WHERE UPPER(TRIM(variedad)) = :vold"),
+                                {'pnew': prod_nuevo, 'vnew': var_nueva, 'vold': var_original}
+                            )
 
-                        # Actualizar en Estimado
-                        ests = Estimado.query.filter(Estimado.variedad.ilike(var_original)).all()
-                        for e in ests:
-                            e.variedad = var_nueva
-                            if prod_nuevo:
-                                e.producto_maestro = prod_nuevo
-                            ests_actualizados += 1
+                            if actualizar_historico:
+                                regs = RegistroCosecha.query.filter(RegistroCosecha.variedad.ilike(var_original)).all()
+                                for r in regs:
+                                    r.variedad = var_nueva
+                                    regs_actualizados += 1
 
-                        db.session.commit()
+                                ests = Estimado.query.filter(Estimado.variedad.ilike(var_original)).all()
+                                for e in ests:
+                                    e.variedad = var_nueva
+                                    if prod_nuevo:
+                                        e.producto_maestro = prod_nuevo
+                                    ests_actualizados += 1
 
-                    record_audit(
-                        'COSECHAS', 'VARIEDAD_EDIT', 'Catalogo', None,
-                        details=f"Variedad editada '{var_original}' -> '{var_nueva}' (Prod: '{prod_original}' -> '{prod_nuevo}'). Registros BD: {regs_actualizados}, Estimados BD: {ests_actualizados}"
-                    )
+                            db.session.commit()
+                        except Exception as e:
+                            print(f"Error sincronizando registros históricos: {e}")
 
-                    msg = f'Variedad "{var_original}" modificada exitosamente a "{var_nueva}" (Producto Maestro: "{prod_nuevo}").'
-                    if actualizar_historico:
-                        msg += f' Se actualizaron {regs_actualizados} registros históricos de cosecha y {ests_actualizados} estimados.'
-                    flash(msg, 'success')
+                        record_audit(
+                            'COSECHAS', 'VARIEDAD_EDIT', 'Catalogo', None,
+                            details=f"Variedad editada '{var_original}' -> '{var_nueva}' (Prod: '{prod_original}' -> '{prod_nuevo}'). Registros BD: {regs_actualizados}, Estimados BD: {ests_actualizados}"
+                        )
+
+                        if prod_original != prod_nuevo and var_original == var_nueva:
+                            msg = f'Variedad "{var_original}" reasignada exitosamente de "{prod_original}" a "{prod_nuevo}".'
+                        else:
+                            msg = f'Variedad "{var_original}" modificada exitosamente a "{var_nueva}" (Producto Maestro: "{prod_nuevo}").'
+                        
+                        if actualizar_historico and (regs_actualizados > 0 or ests_actualizados > 0):
+                            msg += f' Se actualizaron {regs_actualizados} registros históricos de cosecha y {ests_actualizados} estimados.'
+                        flash(msg, 'success')
 
             elif accion == 'eliminar_relacion':
                 variedad = request.form.get('variedad', '').strip().upper()
                 producto = request.form.get('producto_maestro', '').strip().upper()
 
-                relaciones = cargar_relaciones_maestro()
-                antes = len(relaciones)
-                relaciones_nuevas = [
-                    (var, prod)
-                    for var, prod in relaciones
-                    if not (var.upper() == variedad and prod.upper() == producto)
-                ]
-
-                if len(relaciones_nuevas) == antes:
-                    flash('No se encontró la relación para eliminar.', 'warning')
+                if not variedad or not producto:
+                    flash('Debe especificar la variedad y el producto maestro a eliminar.', 'danger')
                 else:
-                    guardar_relaciones_maestro(relaciones_nuevas)
-                    try:
-                        from sqlalchemy import text
-                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(variedad) = :v AND UPPER(producto_maestro) = :p"), {'v': variedad, 'p': producto})
-                        db.session.commit()
-                    except Exception:
-                        pass
+                    relaciones = cargar_relaciones_maestro()
+                    antes = len(relaciones)
+                    relaciones_nuevas = [
+                        (var.strip().upper(), prod.strip().upper())
+                        for var, prod in relaciones
+                        if not (var.strip().upper() == variedad and prod.strip().upper() == producto)
+                    ]
 
-                    # Si la variedad ya no pertenece a ningún otro producto, remover de variedades.csv
-                    otras_rel = [var for var, _ in relaciones_nuevas if var.upper() == variedad]
-                    if not otras_rel:
-                        variedades_set = {v for v in cargar_variedades() if v.upper() != variedad}
-                        guardar_variedades(sorted(list(variedades_set)))
+                    if len(relaciones_nuevas) == antes:
+                        flash(f'No se encontró la relación de "{variedad}" en "{producto}" para eliminar.', 'warning')
+                    else:
+                        guardar_relaciones_maestro(relaciones_nuevas)
+                        try:
+                            from sqlalchemy import text
+                            db.session.execute(
+                                text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) = :v AND UPPER(TRIM(producto_maestro)) = :p"),
+                                {'v': variedad, 'p': producto}
+                            )
+                            db.session.commit()
+                        except Exception:
+                            pass
 
-                    record_audit('COSECHAS', 'VARIEDAD_DELETE', 'Catalogo', None,
-                                 details=f"Variedad '{variedad}' desvinculada de '{producto}'")
-                    flash(f'Variedad "{variedad}" eliminada de "{producto}".', 'success')
+                        # Si la variedad ya no pertenece a ningún otro producto, remover de variedades.csv
+                        otras_rel = [var for var, _ in relaciones_nuevas if var.strip().upper() == variedad]
+                        if not otras_rel:
+                            variedades_set = {v.strip().upper() for v in cargar_variedades() if v.strip().upper() != variedad}
+                            guardar_variedades(sorted(list(variedades_set)))
+
+                        record_audit('COSECHAS', 'VARIEDAD_DELETE', 'Catalogo', None,
+                                     details=f"Variedad '{variedad}' desvinculada de '{producto}'")
+                        flash(f'Variedad "{variedad}" eliminada de "{producto}".', 'success')
 
             elif accion == 'editar_producto':
                 prod_original = request.form.get('producto_original', '').strip().upper()
@@ -579,12 +604,21 @@ def catalogos():
     productos_con_variedades = construir_productos_con_variedades()
     total_variedades = sum(len(variedades) for variedades in productos_con_variedades.values())
 
+    # Mapa serializable para validación instantánea de duplicados en el cliente
+    import json
+    mapa_variedades_dict = {}
+    for prod_k, vars_list in productos_con_variedades.items():
+        for v_item in vars_list:
+            mapa_variedades_dict[v_item.strip().upper()] = prod_k.strip().upper()
+    mapa_variedades_json = json.dumps(mapa_variedades_dict)
+
     return render_template(
         'cosechas/catalogos.html',
         productos_con_variedades=productos_con_variedades,
         productos_maestros=sorted(productos_con_variedades.keys(), key=lambda value: value.upper()),
         total_productos=len(productos_con_variedades),
-        total_variedades=total_variedades
+        total_variedades=total_variedades,
+        mapa_variedades_json=mapa_variedades_json
     )
 
 

@@ -337,8 +337,6 @@ def create_app(config_class=Config):
 
         weeks_list = list(weekly_rotations_data.keys())
         selected_week = request.args.get('week')
-        if not selected_week and weeks_list:
-            selected_week = weeks_list[0]
 
         recent_orders = FumigationOrder.query.order_by(FumigationOrder.created_at.desc()).limit(8).all()
 
@@ -347,9 +345,54 @@ def create_app(config_class=Config):
         from app.modules.cosechas.routes import RegistroCosecha, Estimado, cargar_maestro_productos
         now_dt = get_local_now()
         iso_year, iso_week, _ = now_dt.isocalendar()
-        semana_actual_int = iso_week
-        semanas_cosecha_match = [semana_actual_int, (iso_year % 100) * 100 + semana_actual_int]
-        semanas_estimado_match = [str(semana_actual_int), f"{iso_year % 100:02d}{semana_actual_int:02d}"]
+
+        # Determinar todas las semanas disponibles en el sistema (Cosechas, Fenogramas, Fumigación)
+        harvest_weeks_raw = [r[0] for r in db.session.query(RegistroCosecha.semana).distinct().all() if r[0] is not None]
+        feno_weeks_raw = [r[0] for r in db.session.execute(text("SELECT DISTINCT semana_anio FROM calificaciones")).fetchall() if r[0] is not None]
+        fum_weeks_raw = [r[0] for r in db.session.query(FumigationOrder.week).distinct().all() if r[0] is not None]
+
+        available_weeks_set = {iso_week}
+        for hw in harvest_weeks_raw:
+            try:
+                hw_int = int(hw)
+                w_norm = hw_int % 100 if hw_int >= 100 else hw_int
+                if 1 <= w_norm <= 53:
+                    available_weeks_set.add(w_norm)
+            except Exception:
+                pass
+        for fw in feno_weeks_raw:
+            try:
+                fw_int = int(fw)
+                if 1 <= fw_int <= 53:
+                    available_weeks_set.add(fw_int)
+            except Exception:
+                pass
+        for fumw in fum_weeks_raw:
+            try:
+                if '-' in str(fumw):
+                    fumw_int = int(str(fumw).split('-')[-1])
+                    if 1 <= fumw_int <= 53:
+                        available_weeks_set.add(fumw_int)
+            except Exception:
+                pass
+
+        available_weeks_list = sorted(list(available_weeks_set), reverse=True)
+
+        # Leer semana seleccionada del filtro global (?week=XX)
+        req_week = request.args.get('week')
+        if req_week:
+            try:
+                selected_week_num = int(str(req_week).split('-')[-1])
+            except Exception:
+                selected_week_num = iso_week
+        else:
+            selected_week_num = iso_week
+
+        if not selected_week and weeks_list:
+            selected_week = weeks_list[0]
+
+        semanas_cosecha_match = [selected_week_num, (iso_year % 100) * 100 + selected_week_num]
+        semanas_estimado_match = [str(selected_week_num), f"{iso_year % 100:02d}{selected_week_num:02d}"]
 
         cosechas_semana_actual_query = RegistroCosecha.query.filter(RegistroCosecha.semana.in_(semanas_cosecha_match))
         cosechas_total_tallos = db.session.query(db.func.sum(RegistroCosecha.total_tallos)).filter(RegistroCosecha.semana.in_(semanas_cosecha_match)).scalar() or 0
@@ -358,7 +401,7 @@ def create_app(config_class=Config):
         estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).filter(Estimado.semana.in_(semanas_estimado_match)).scalar() or 0
         cumplimiento_cosecha = round((float(cosechas_total_tallos) / float(estimados_total_tallos) * 100), 1) if estimados_total_tallos > 0 else 0
 
-        # 1. Cumplimiento Fenograma de la Semana Actual
+        # 1. Cumplimiento Fenograma de la Semana Seleccionada
         try:
             feno_res = db.session.execute(text("""
                 SELECT 
@@ -367,30 +410,15 @@ def create_app(config_class=Config):
                     ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
                 FROM calificaciones
                 WHERE semana_anio = :w
-            """), {'w': semana_actual_int}).fetchone()
+            """), {'w': selected_week_num}).fetchone()
             if feno_res and feno_res.total and feno_res.total > 0:
                 cumplimiento_fenograma = float(feno_res.pct or 0.0)
                 feno_total_actividades = feno_res.total
                 feno_cumplidas = feno_res.cumplidas or 0
             else:
-                feno_max = db.session.execute(text("""
-                    SELECT 
-                        COUNT(*) as total,
-                        SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
-                        ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
-                    FROM calificaciones
-                    GROUP BY semana_anio
-                    ORDER BY semana_anio DESC
-                    LIMIT 1
-                """)).fetchone()
-                if feno_max and feno_max.total:
-                    cumplimiento_fenograma = float(feno_max.pct or 0.0)
-                    feno_total_actividades = feno_max.total
-                    feno_cumplidas = feno_max.cumplidas or 0
-                else:
-                    cumplimiento_fenograma = 0.0
-                    feno_total_actividades = 0
-                    feno_cumplidas = 0
+                cumplimiento_fenograma = 0.0
+                feno_total_actividades = 0
+                feno_cumplidas = 0
         except Exception:
             cumplimiento_fenograma = 0.0
             feno_total_actividades = 0
@@ -463,16 +491,68 @@ def create_app(config_class=Config):
         historico_2025_tallos = [semanas_2025_map.get(w, None) for w in all_weeks_sorted]
         historico_2026_tallos = [semanas_2026_map.get(w, None) for w in all_weeks_sorted]
 
-        # 4. Participación por Producto Maestro (Ordenado estrictamente de mayor a menor)
+        # 4. Participación por Producto Maestro (Semana Seleccionada - Orden estrictamente descendente)
         maestro_productos = cargar_maestro_productos()
         todos_cosechas_actuales = cosechas_semana_actual_query.all()
-        cosechas_para_prods = todos_cosechas_actuales if todos_cosechas_actuales else RegistroCosecha.query.limit(2000).all()
+        cosechas_para_prods = todos_cosechas_actuales if todos_cosechas_actuales else []
         tallos_por_producto_raw = {}
         for r in cosechas_para_prods:
             pm = maestro_productos.get(r.variedad, 'SIN CLASIFICAR')
             tallos_por_producto_raw[pm] = tallos_por_producto_raw.get(pm, 0) + (r.total_tallos or 0)
-        # Orden descendente estricto
-        tallos_por_producto = dict(sorted(tallos_por_producto_raw.items(), key=lambda x: x[1], reverse=True))
+
+        total_tallos_semana = sum(tallos_por_producto_raw.values())
+        participacion_productos_lista = []
+        for prod_name, tallos_val in tallos_por_producto_raw.items():
+            pct = round((tallos_val / total_tallos_semana * 100), 1) if total_tallos_semana > 0 else 0.0
+            participacion_productos_lista.append({
+                'producto': prod_name,
+                'tallos': tallos_val,
+                'pct': pct
+            })
+        participacion_productos_lista.sort(key=lambda x: x['tallos'], reverse=True)
+        tallos_por_producto = {item['producto']: item['tallos'] for item in participacion_productos_lista}
+
+        # 4.1 Histórico de Cumplimiento de Fenogramas para Segmentador Multimodal de Líneas
+        feno_trend_raw = db.session.execute(text("""
+            SELECT 
+                semana_anio,
+                COUNT(*) as total,
+                SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
+                ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+            FROM calificaciones
+            GROUP BY semana_anio
+            ORDER BY semana_anio ASC
+        """)).fetchall()
+
+        feno_weeks_list = [int(r.semana_anio) for r in feno_trend_raw]
+        feno_labels = [f"Sem {r.semana_anio}" for r in feno_trend_raw]
+        feno_pcts = [float(r.pct or 0.0) for r in feno_trend_raw]
+
+        feno_crop_trend_raw = db.session.execute(text("""
+            SELECT 
+                semana_anio,
+                UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS'))) as crop,
+                COUNT(*) as total,
+                SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
+                ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+            FROM calificaciones
+            GROUP BY semana_anio, UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS')))
+            ORDER BY semana_anio ASC, crop ASC
+        """)).fetchall()
+
+        feno_por_cultivo = {}
+        for r in feno_crop_trend_raw:
+            c = str(r.crop).upper().strip()
+            if c not in feno_por_cultivo:
+                feno_por_cultivo[c] = {}
+            feno_por_cultivo[c][int(r.semana_anio)] = float(r.pct or 0.0)
+
+        historico_feno_data = {
+            'labels': feno_labels,
+            'global_pct': feno_pcts,
+            'by_crop': feno_por_cultivo,
+            'weeks': feno_weeks_list
+        }
 
         # 5. Histórico Desglosado por Producto Maestro para Segmentación Interactiva (Estilo Power BI)
         from collections import defaultdict
@@ -541,7 +621,10 @@ def create_app(config_class=Config):
             weeks_list=weeks_list,
             selected_week=selected_week,
             recent_orders=recent_orders,
-            semana_actual=semana_actual_int,
+            semana_actual=selected_week_num,
+            semana_actual_iso=iso_week,
+            available_weeks_list=available_weeks_list,
+            selected_week_num=selected_week_num,
             cosechas_total_tallos=cosechas_total_tallos,
             estimados_total_tallos=estimados_total_tallos,
             cumplimiento_cosecha=cumplimiento_cosecha,
@@ -552,7 +635,9 @@ def create_app(config_class=Config):
             historico_2025_tallos=historico_2025_tallos,
             historico_2026_tallos=historico_2026_tallos,
             tallos_por_producto=tallos_por_producto,
+            participacion_productos_lista=participacion_productos_lista,
             historico_por_cultivo=historico_por_cultivo,
+            historico_feno_data=historico_feno_data,
             cosechas_registros_count=cosechas_registros_count,
             cost_summary=cost_summary,
             cost_week=cost_week,

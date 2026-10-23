@@ -352,23 +352,23 @@ def sincronizar_producto_maestro_a_bd(producto_maestro):
         print(f"Error sincronizando producto maestro a BD: {e}")
 
 def cargar_maestro_productos():
-    """Cargar mapeo {variedad: producto_maestro} unificando cat_variedades_maestro, CSV y base de datos"""
+    """Cargar mapeo {variedad: producto_maestro} unificando cat_variedades_maestro y CSV (fuentes canónicas)"""
     mapeo = {}
     
-    # 1. Cargar desde base de datos cat_variedades_maestro (fuente prioritaria)
+    # 1. Cargar desde base de datos cat_variedades_maestro (fuente principal canónica)
     try:
         from app.extensions import db
         from sqlalchemy import text
         res_cat = db.session.execute(text("SELECT variedad, producto_maestro FROM cat_variedades_maestro;")).fetchall()
         for r in res_cat:
-            v = (r[0] or '').strip()
-            p = (r[1] or '').strip()
+            v = (r[0] or '').strip().upper()
+            p = (r[1] or '').strip().upper()
             if v and p:
                 mapeo[v] = p
     except Exception:
         pass
 
-    # 2. Cargar desde CSV MAESTRO_PROS.csv
+    # 2. Cargar desde CSV MAESTRO_PROS.csv (complemento para variedades no en BD)
     csv_path = _get_csv_path('MAESTRO_PROS.csv')
     try:
         if csv_path.exists():
@@ -380,63 +380,36 @@ def cargar_maestro_productos():
                         if ';' in line:
                             partes = line.strip().split(';')
                             if len(partes) >= 2:
-                                variedad = partes[0].strip()
-                                prod_maestro = partes[1].strip()
+                                variedad = partes[0].strip().upper()
+                                prod_maestro = partes[1].strip().upper()
                                 if variedad and prod_maestro and variedad not in mapeo:
                                     mapeo[variedad] = prod_maestro
     except Exception as e:
         print(f"Error cargando maestro productos desde CSV: {e}")
     
-    # 3. Complementar con estimado y fact_eventos_cultivo
-    try:
-        from app.extensions import db
-        from sqlalchemy import text
-        try:
-            res_est = db.session.execute(text("SELECT DISTINCT variedad, producto_maestro FROM estimado WHERE variedad IS NOT NULL AND producto_maestro IS NOT NULL;")).fetchall()
-            for r in res_est:
-                v = (r[0] or '').strip()
-                p = (r[1] or '').strip()
-                if v and p and v not in mapeo:
-                    mapeo[v] = p
-        except Exception:
-            pass
-
-        try:
-            res_ev = db.session.execute(text("SELECT DISTINCT variedad, producto_maestro FROM fact_eventos_cultivo WHERE variedad IS NOT NULL AND producto_maestro IS NOT NULL;")).fetchall()
-            for r in res_ev:
-                v = (r[0] or '').strip()
-                p = (r[1] or '').strip()
-                if v and p and v not in mapeo:
-                    mapeo[v] = p
-        except Exception:
-            pass
-    except Exception:
-        pass
-
     return mapeo
 
 def cargar_relaciones_maestro():
-    """Cargar relaciones variedad-producto maestro como lista de tuplas únicas combinando CSV y BD"""
+    """Cargar relaciones variedad-producto maestro garantizando asignación unívoca y sin resucitar eliminados"""
     relaciones = []
     vistos = set()
     
-    # 1. Cargar desde cat_variedades_maestro de BD
+    # 1. Cargar desde cat_variedades_maestro de BD (fuente principal autorizada)
     try:
         from app.extensions import db
         from sqlalchemy import text
-        res_cat = db.session.execute(text("SELECT variedad, producto_maestro FROM cat_variedades_maestro;")).fetchall()
+        res_cat = db.session.execute(text("SELECT variedad, producto_maestro FROM cat_variedades_maestro ORDER BY producto_maestro, variedad;")).fetchall()
         for r in res_cat:
-            v = (r[0] or '').strip()
-            p = (r[1] or '').strip()
+            v = (r[0] or '').strip().upper()
+            p = (r[1] or '').strip().upper()
             if v and p:
-                clave = (v.upper(), p.upper())
-                if clave not in vistos:
-                    vistos.add(clave)
+                if v not in vistos:
+                    vistos.add(v)
                     relaciones.append((v, p))
     except Exception:
         pass
 
-    # 2. Cargar desde CSV MAESTRO_PROS.csv
+    # 2. Cargar desde CSV MAESTRO_PROS.csv para variedades no registradas en BD
     csv_path = _get_csv_path('MAESTRO_PROS.csv')
     try:
         if csv_path.exists():
@@ -450,41 +423,33 @@ def cargar_relaciones_maestro():
                         partes = line.strip().split(';')
                         if len(partes) < 2:
                             continue
-                        variedad = partes[0].strip()
-                        producto = partes[1].strip()
+                        variedad = partes[0].strip().upper()
+                        producto = partes[1].strip().upper()
                         if not variedad or not producto:
                             continue
-                        clave = (variedad.upper(), producto.upper())
-                        if clave in vistos:
+                        if variedad in vistos:
                             continue
-                        vistos.add(clave)
+                        vistos.add(variedad)
                         relaciones.append((variedad, producto))
     except Exception as e:
         print(f"Error cargando relaciones maestro desde CSV: {e}")
-
-    # 3. Complementar con cualquier mapeo adicional proveniente de la base de datos
-    mapeo_completo = cargar_maestro_productos()
-    for var, prod in mapeo_completo.items():
-        clave = (var.upper(), prod.upper())
-        if clave not in vistos:
-            relaciones.append((var, prod))
-            vistos.add(clave)
 
     relaciones.sort(key=lambda item: (item[1].upper(), item[0].upper()))
     return relaciones
 
 def guardar_relaciones_maestro(relaciones):
-    """Guardar relaciones variedad-producto maestro en CSV y sincronizar en PostgreSQL"""
+    """Guardar relaciones variedad-producto maestro en CSV y sincronizar bidireccionalmente en PostgreSQL"""
     relaciones_unicas = {}
     for variedad, producto in relaciones:
         variedad_limpia = (variedad or '').strip().upper()
         producto_limpio = (producto or '').strip().upper()
         if variedad_limpia and producto_limpio:
+            # Una sola asignación estricta por variedad (evita duplicados entre cultivos)
             relaciones_unicas[variedad_limpia] = (variedad_limpia, producto_limpio)
 
     relaciones_ordenadas = sorted(relaciones_unicas.values(), key=lambda item: (item[1].upper(), item[0].upper()))
     
-    # 1. Guardar en CSV
+    # 1. Guardar en CSV MAESTRO_PROS.csv
     csv_path = DATA_DIR / 'MAESTRO_PROS.csv'
     try:
         with open(csv_path, 'w', encoding='utf-8', newline='') as file:
@@ -494,9 +459,24 @@ def guardar_relaciones_maestro(relaciones):
     except Exception as e:
         print(f"Error escribiendo MAESTRO_PROS.csv: {e}")
 
-    # 2. Sincronizar en BD PostgreSQL
-    for variedad, producto in relaciones_ordenadas:
-        sincronizar_variedad_a_bd(variedad, producto)
+    # 2. Sincronizar en BD PostgreSQL (cat_variedades_maestro)
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        
+        vars_nuevas_set = {v for v, p in relaciones_ordenadas}
+        if vars_nuevas_set:
+            # Eliminar en BD aquellas variedades que fueron desvinculadas o eliminadas
+            db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) NOT IN :vars"), {'vars': tuple(vars_nuevas_set)})
+        else:
+            db.session.execute(text("DELETE FROM cat_variedades_maestro"))
+            
+        for variedad, producto in relaciones_ordenadas:
+            sincronizar_variedad_a_bd(variedad, producto)
+            
+        db.session.commit()
+    except Exception as e:
+        print(f"Error sincronizando relaciones con cat_variedades_maestro en BD: {e}")
 
 def cargar_productos_maestros():
     """Cargar productos maestros unificando CSV, cat_variedades_maestro, dim_prod_maestros y crops"""

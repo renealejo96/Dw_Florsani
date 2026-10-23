@@ -57,3 +57,6 @@ $RECYCLE.BIN/
 
 # Logs
 *.log
+
+# Scratch
+scratch/

@@ -61,7 +61,7 @@
                     <span class="badge bg-white text-primary">Categoría Padre</span>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST">
+                    <form method="POST" action="{{ url_for('cosechas.catalogos') }}">
                         <input type="hidden" name="accion" value="crear_producto">
                         <div class="mb-3">
                             <label for="producto_maestro" class="form-label small fw-semibold text-secondary">
@@ -90,7 +90,7 @@
                     <span class="badge bg-white text-success">Variedad Hija</span>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST">
+                    <form method="POST" action="{{ url_for('cosechas.catalogos') }}" id="formCrearVariedad">
                         <input type="hidden" name="accion" value="crear_variedad">
                         <div class="mb-3">
                             <label for="producto_asignado" class="form-label small fw-semibold text-secondary">
@@ -110,8 +110,9 @@
                             <input type="text" class="form-control text-uppercase" id="variedad" name="variedad" 
                                    maxlength="120" placeholder="Ej: BILLION LIGHTS" 
                                    oninput="this.value = this.value.toUpperCase()" required>
+                            <div id="alertaDuplicadoVariedad" class="mt-2 d-none"></div>
                         </div>
-                        <button type="submit" class="btn btn-success btn-sm px-4 fw-bold">
+                        <button type="submit" id="btnGuardarVariedad" class="btn btn-success btn-sm px-4 fw-bold">
                             <i class="fa-solid fa-plus me-1"></i> Guardar y Vincular Variedad
                         </button>
                     </form>
@@ -162,7 +163,7 @@
                                     {{ vars|length }} variedades
                                 </span>
                                 {% if not vars %}
-                                <form method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar producto maestro {{ prod }} sin variedades?');">
+                                <form method="POST" action="{{ url_for('cosechas.catalogos') }}" class="d-inline" onsubmit="return confirm('¿Eliminar producto maestro {{ prod }} sin variedades?');">
                                     <input type="hidden" name="accion" value="eliminar_producto">
                                     <input type="hidden" name="producto_maestro" value="{{ prod }}">
                                     <button type="submit" class="btn btn-link text-danger p-0 ms-1" title="Eliminar producto maestro">
@@ -188,11 +189,11 @@
                                                 title="Editar / Renombrar variedad">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </button>
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('¿Desvincular o eliminar la variedad {{ v }} de {{ prod }}?');">
+                                        <form method="POST" action="{{ url_for('cosechas.catalogos') }}" class="d-inline form-eliminar-variedad" onsubmit="return confirm('¿Eliminar la variedad {{ v }} del cultivo {{ prod }}?');">
                                             <input type="hidden" name="accion" value="eliminar_relacion">
                                             <input type="hidden" name="producto_maestro" value="{{ prod }}">
                                             <input type="hidden" name="variedad" value="{{ v }}">
-                                            <button type="submit" class="btn btn-outline-danger btn-xs py-0 px-2 border-0 rounded-2" title="Eliminar variedad">
+                                            <button type="submit" class="btn btn-outline-danger btn-xs py-0 px-2 border-0 rounded-2 btn-eliminar-item" title="Eliminar variedad">
                                                 <i class="fa-solid fa-trash-can"></i>
                                             </button>
                                         </form>
@@ -223,7 +224,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
-            <form method="POST">
+            <form method="POST" action="{{ url_for('cosechas.catalogos') }}" id="formEditarVariedad">
                 <input type="hidden" name="accion" value="editar_variedad">
                 <input type="hidden" name="variedad_original" id="modal_var_orig">
                 <input type="hidden" name="producto_original" id="modal_prod_orig">
@@ -243,6 +244,7 @@
                         <input type="text" class="form-control form-control-lg fw-bold text-uppercase" 
                                id="modal_var_nueva" name="variedad_nueva" maxlength="120" 
                                oninput="this.value = this.value.toUpperCase()" required>
+                        <div id="modal_alerta_duplicado" class="mt-2 d-none"></div>
                         <div class="form-text small">
                             Escribe el nuevo nombre autorizado (ej. cambiar <code>SMALL BLOOM</code> a <code>BILLION LIGHTS</code>).
                         </div>
@@ -273,7 +275,7 @@
 
                 <div class="modal-footer bg-light px-4 py-3 rounded-bottom-4">
                     <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-xs">
+                    <button type="submit" id="modal_btn_guardar" class="btn btn-primary btn-sm px-4 fw-bold shadow-xs">
                         <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios
                     </button>
                 </div>
@@ -286,6 +288,80 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Diccionario de mapa {VARIEDAD: PRODUCTO_MAESTRO}
+    const mapaVariedades = {{ (mapa_variedades_json or '{}')|safe }};
+
+    // 1. Validación en vivo para creación de variedad
+    const inputVariedad = document.getElementById('variedad');
+    const selectProd = document.getElementById('producto_asignado');
+    const alertaDuplicado = document.getElementById('alertaDuplicadoVariedad');
+    const btnGuardar = document.getElementById('btnGuardarVariedad');
+
+    function validarDuplicadoCreacion() {
+        if (!inputVariedad || !alertaDuplicado) return;
+        const v = inputVariedad.value.trim().toUpperCase();
+        const p = selectProd ? selectProd.value.trim().toUpperCase() : '';
+
+        if (!v) {
+            alertaDuplicado.className = 'mt-2 d-none';
+            alertaDuplicado.innerHTML = '';
+            if (btnGuardar) btnGuardar.disabled = false;
+            return;
+        }
+
+        if (mapaVariedades && mapaVariedades[v]) {
+            const cultivoActual = mapaVariedades[v];
+            if (p && cultivoActual === p) {
+                alertaDuplicado.className = 'alert alert-warning py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
+                alertaDuplicado.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning"></i> <span>La variedad <strong>${v}</strong> ya está asignada a este cultivo (<strong>${p}</strong>).</span>`;
+                if (btnGuardar) btnGuardar.disabled = true;
+            } else {
+                alertaDuplicado.className = 'alert alert-danger py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
+                alertaDuplicado.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>No se puede agregar: <strong>${v}</strong> ya está asignada al cultivo <strong>${cultivoActual}</strong>. No se permiten duplicados entre cultivos.</span>`;
+                if (btnGuardar) btnGuardar.disabled = true;
+            }
+        } else {
+            alertaDuplicado.className = 'mt-2 d-none';
+            alertaDuplicado.innerHTML = '';
+            if (btnGuardar) btnGuardar.disabled = false;
+        }
+    }
+
+    if (inputVariedad) inputVariedad.addEventListener('input', validarDuplicadoCreacion);
+    if (selectProd) selectProd.addEventListener('change', validarDuplicadoCreacion);
+
+    // 2. Modal Editar y validación de duplicados al renombrar
+    const modalVarOrig = document.getElementById('modal_var_orig');
+    const modalVarNueva = document.getElementById('modal_var_nueva');
+    const modalAlerta = document.getElementById('modal_alerta_duplicado');
+    const modalBtnGuardar = document.getElementById('modal_btn_guardar');
+
+    function validarDuplicadoEdicion() {
+        if (!modalVarNueva || !modalAlerta) return;
+        const vOrig = (modalVarOrig ? modalVarOrig.value : '').trim().toUpperCase();
+        const vNueva = modalVarNueva.value.trim().toUpperCase();
+
+        if (!vNueva || vNueva === vOrig) {
+            modalAlerta.className = 'mt-2 d-none';
+            modalAlerta.innerHTML = '';
+            if (modalBtnGuardar) modalBtnGuardar.disabled = false;
+            return;
+        }
+
+        if (mapaVariedades && mapaVariedades[vNueva]) {
+            const cultivo = mapaVariedades[vNueva];
+            modalAlerta.className = 'alert alert-danger py-1 px-2 small mb-0 mt-2 d-flex align-items-center gap-2';
+            modalAlerta.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> <span>No se puede renombrar: <strong>${vNueva}</strong> ya existe asignada al cultivo <strong>${cultivo}</strong>.</span>`;
+            if (modalBtnGuardar) modalBtnGuardar.disabled = true;
+        } else {
+            modalAlerta.className = 'mt-2 d-none';
+            modalAlerta.innerHTML = '';
+            if (modalBtnGuardar) modalBtnGuardar.disabled = false;
+        }
+    }
+
+    if (modalVarNueva) modalVarNueva.addEventListener('input', validarDuplicadoEdicion);
+
     window.abrirModalEditar = function(prod, variedad) {
         document.getElementById('modal_var_orig').value = variedad;
         document.getElementById('modal_prod_orig').value = prod;
@@ -293,6 +369,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('modal_prod_nuevo').value = prod;
         document.getElementById('modal_txt_orig').textContent = variedad;
         document.getElementById('modal_txt_prod').textContent = prod;
+        if (modalAlerta) {
+            modalAlerta.className = 'mt-2 d-none';
+            modalAlerta.innerHTML = '';
+        }
+        if (modalBtnGuardar) modalBtnGuardar.disabled = false;
         
         const modalEl = document.getElementById('modalEditarVariedad');
         const modal = new bootstrap.Modal(modalEl);
@@ -307,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     };
 
-    // Buscador interactivo en vivo
+    // 3. Buscador interactivo en vivo
     const filtroInput = document.getElementById('filtroCatalogo');
     if (filtroInput) {
         filtroInput.addEventListener('input', function() {
