@@ -531,48 +531,46 @@ def catalogos():
                 variedad = request.form.get('variedad', '').strip().upper()
                 producto = request.form.get('producto_maestro', '').strip().upper()
 
-                if not variedad or not producto:
-                    flash('Debe especificar la variedad y el producto maestro a eliminar.', 'danger')
+                if not variedad:
+                    flash('Debe especificar la variedad a eliminar.', 'danger')
                 else:
                     relaciones = cargar_relaciones_maestro()
-                    antes = len(relaciones)
                     relaciones_nuevas = [
                         (var.strip().upper(), prod.strip().upper())
                         for var, prod in relaciones
-                        if not (var.strip().upper() == variedad and prod.strip().upper() == producto)
+                        if var.strip().upper() != variedad
                     ]
 
-                    if len(relaciones_nuevas) == antes:
-                        flash(f'No se encontró la relación de "{variedad}" en "{producto}" para eliminar.', 'warning')
-                    else:
-                        guardar_relaciones_maestro(relaciones_nuevas)
-                        try:
-                            from sqlalchemy import text
-                            db.session.execute(
-                                text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) = :v AND UPPER(TRIM(producto_maestro)) = :p"),
-                                {'v': variedad, 'p': producto}
-                            )
-                            db.session.commit()
-                        except Exception:
-                            pass
+                    # 1. Guardar relaciones en CSV canónico MAESTRO_PROS.csv y cat_variedades_maestro
+                    guardar_relaciones_maestro(relaciones_nuevas)
 
-                        # Si la variedad ya no pertenece a ningún otro producto, remover de variedades.csv y de dimensiones BD
-                        otras_rel = [var for var, _ in relaciones_nuevas if var.strip().upper() == variedad]
-                        if not otras_rel:
-                            variedades_set = {v.strip().upper() for v in cargar_variedades() if v.strip().upper() != variedad}
-                            guardar_variedades(sorted(list(variedades_set)))
-                            try:
-                                from sqlalchemy import text
-                                db.session.execute(text("DELETE FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
-                                db.session.execute(text("DELETE FROM dim_productos WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
-                                db.session.execute(text("DELETE FROM variedades WHERE UPPER(TRIM(nombre)) = :v"), {'v': variedad})
-                                db.session.commit()
-                            except Exception:
-                                pass
+                    # 2. Forzar eliminación estricta en tablas de base de datos PostgreSQL
+                    try:
+                        from sqlalchemy import text
+                        db.session.execute(
+                            text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) = :v"),
+                            {'v': variedad}
+                        )
+                        db.session.execute(text("DELETE FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
+                        db.session.execute(text("DELETE FROM dim_productos WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
+                        db.session.execute(text("DELETE FROM variedades WHERE UPPER(TRIM(nombre)) = :v"), {'v': variedad})
+                        db.session.execute(text("DELETE FROM crop_state_records WHERE UPPER(TRIM(variety)) = :v"), {'v': variedad})
+                        db.session.execute(text("DELETE FROM fact_eventos_cultivo WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
+                        db.session.commit()
+                    except Exception as e_del:
+                        db.session.rollback()
+                        print(f"Error borrando variedad de base de datos: {e_del}")
 
-                        record_audit('COSECHAS', 'VARIEDAD_DELETE', 'Catalogo', None,
-                                     details=f"Variedad '{variedad}' desvinculada de '{producto}'")
+                    # 3. Remover de variedades.csv y sincronizar
+                    variedades_set = {v.strip().upper() for v in cargar_variedades() if v.strip().upper() != variedad}
+                    guardar_variedades(sorted(list(variedades_set)))
+
+                    record_audit('COSECHAS', 'VARIEDAD_DELETE', 'Catalogo', None,
+                                 details=f"Variedad '{variedad}' eliminada permanentemente del catálogo")
+                    if producto:
                         flash(f'Variedad "{variedad}" eliminada de "{producto}".', 'success')
+                    else:
+                        flash(f'Variedad "{variedad}" eliminada permanentemente del catálogo.', 'success')
 
             elif accion == 'editar_producto':
                 prod_original = request.form.get('producto_original', '').strip().upper()
@@ -625,9 +623,11 @@ def catalogos():
                     try:
                         from sqlalchemy import text
                         db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': producto})
+                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) = :p"), {'p': producto})
                         db.session.commit()
-                    except Exception:
-                        pass
+                    except Exception as e_del_prod:
+                        db.session.rollback()
+                        print(f"Error eliminando producto maestro: {e_del_prod}")
                     record_audit('COSECHAS', 'PRODUCTO_DELETE', 'Catalogo', None, details=f"Producto '{producto}' eliminado")
                     flash(f'Producto maestro "{producto}" eliminado exitosamente.', 'success')
 

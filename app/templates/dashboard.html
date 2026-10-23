@@ -111,13 +111,13 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-green">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> Cosecha (Sem {{ semana_actual }})</span>
+                    <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> <span id="kpiTopCosechaLabel">Cosecha (Sem {{ semana_actual }})</span></span>
                     <span class="kpi-icon-badge kpi-icon-green">
                         <i class="fa-solid fa-seedling"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums">{{ cosechas_total_tallos|format_number(0) }}</div>
-                <div class="kpi-subtext">
+                <div class="kpi-value text-dark tabular-nums" id="kpiTopCosechaVal">{{ cosechas_total_tallos|format_number(0) }}</div>
+                <div class="kpi-subtext" id="kpiTopCosechaSub">
                     <span class="badge badge-soft-success px-2 py-0">
                         {{ cosechas_registros_count }} registros
                     </span>
@@ -130,15 +130,15 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-amber">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-clipboard-check text-warning me-1"></i> Cumplimiento Fenograma (Sem {{ semana_actual }})</span>
+                    <span class="kpi-label"><i class="fa-solid fa-clipboard-check text-warning me-1"></i> <span id="kpiTopFenoLabel">Cumplimiento Fenograma (Sem {{ semana_actual }})</span></span>
                     <span class="kpi-icon-badge kpi-icon-amber">
                         <i class="fa-solid fa-chart-line"></i>
                     </span>
                 </div>
-                <div class="kpi-value {% if cumplimiento_fenograma >= 85 %}text-success{% elif cumplimiento_fenograma >= 60 %}text-warning{% elif cumplimiento_fenograma > 0 %}text-primary{% else %}text-muted{% endif %} tabular-nums">
+                <div class="kpi-value {% if cumplimiento_fenograma >= 85 %}text-success{% elif cumplimiento_fenograma >= 60 %}text-warning{% elif cumplimiento_fenograma > 0 %}text-primary{% else %}text-muted{% endif %} tabular-nums" id="kpiTopFenoVal">
                     {{ cumplimiento_fenograma }}%
                 </div>
-                <div class="kpi-subtext">
+                <div class="kpi-subtext" id="kpiTopFenoSub">
                     {% if feno_total_actividades > 0 %}
                     <span class="badge badge-soft-warning px-2 py-0">{{ feno_cumplidas|format_number(0) }} / {{ feno_total_actividades|format_number(0) }}</span>
                     <span class="text-muted small ms-1">labores cumplidas</span>
@@ -153,13 +153,13 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-blue">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-chart-area text-primary me-1"></i> Área de Finca</span>
+                    <span class="kpi-label"><i class="fa-solid fa-chart-area text-primary me-1"></i> <span id="kpiTopAreaLabel">Área de Finca</span></span>
                     <span class="kpi-icon-badge kpi-icon-blue">
                         <i class="fa-solid fa-map"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
-                <div class="kpi-subtext">
+                <div class="kpi-value text-dark tabular-nums" id="kpiTopAreaVal">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
+                <div class="kpi-subtext" id="kpiTopAreaSub">
                     <span class="badge badge-soft-info px-2 py-0">Censo Real</span>
                     <span class="text-muted small ms-1">área total estado de cultivo</span>
                 </div>
@@ -170,13 +170,13 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-rose">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-layer-group text-danger me-1"></i> Camas Finca</span>
+                    <span class="kpi-label"><i class="fa-solid fa-layer-group text-danger me-1"></i> <span id="kpiTopCamasLabel">Camas Finca</span></span>
                     <span class="kpi-icon-badge kpi-icon-rose">
                         <i class="fa-solid fa-cubes-stacked"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums">{{ camas_finca_count|format_number(0) }}</div>
-                <div class="kpi-subtext">
+                <div class="kpi-value text-dark tabular-nums" id="kpiTopCamasVal">{{ camas_finca_count|format_number(0) }}</div>
+                <div class="kpi-subtext" id="kpiTopCamasSub">
                     <span class="badge badge-soft-danger px-2 py-0">{{ bloques_finca_count }} bloques</span>
                     <span class="text-muted small ms-1">en producción activa</span>
                 </div>
@@ -187,32 +187,18 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-purple">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> Inversión Insumos</span>
+                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> <span id="kpiTopCostosLabel">Inversión Insumos</span></span>
                     <span class="kpi-icon-badge kpi-icon-purple">
                         <i class="fa-solid fa-file-invoice-dollar"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
-                <div class="kpi-subtext">
+                <div class="kpi-value text-dark tabular-nums" id="kpiTopCostosVal">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                <div class="kpi-subtext" id="kpiTopCostosSub">
                     <span class="badge badge-soft-purple px-2 py-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }}/ha</span>
                     <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha tratadas</span>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- ============================================================== -->
-    <!-- BANNER SEGMENTACIÓN POWER BI (Activo al dar clic en un cultivo) -->
-    <!-- ============================================================== -->
-    <div id="bannerFiltroPowerBI" class="alert alert-primary py-2.5 px-3.5 mb-3 rounded-3 d-none align-items-center justify-content-between shadow-xs border-primary">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge bg-primary text-white powerbi-badge"><i class="fa-solid fa-filter me-1"></i> Segmentación Power BI:</span>
-            <span class="fs-6 fw-bold font-monospace text-primary text-uppercase" id="nombreCultivoFiltrado">CULTIVO</span>
-            <span class="text-secondary small d-none d-md-inline">&bull; Histórico, costos y bloques filtrados exclusivamente para este producto maestro.</span>
-        </div>
-        <button type="button" class="btn btn-outline-danger btn-sm py-1 px-3 fw-bold" id="btnRestablecerFiltroCrop">
-            <i class="fa-solid fa-xmark me-1"></i> Quitar Filtro (Ver Finca Completa)
-        </button>
     </div>
 
     <!-- Interactive Analytics Bento Row (Chart.js con soporte Cross-Filtering Power BI) -->
@@ -254,16 +240,24 @@
         <!-- Horizontal Bar Chart: Participación por Producto Maestro (Ordenado Descendente con %) -->
         <div class="col-12 col-lg-4">
             <div class="chart-bento-card">
-                <div class="chart-header d-flex justify-content-between align-items-start mb-2">
+                <div class="chart-header d-flex justify-content-between align-items-center mb-2">
                     <div>
-                        <h6 class="chart-title mb-0">
-                            <i class="fa-solid fa-chart-bar text-primary me-2"></i>
-                            Participación por Producto Maestro
-                        </h6>
-                        <span class="chart-subtitle text-muted small">
-                            <i class="fa-solid fa-hand-pointer text-primary me-1"></i> <strong class="text-primary">Clic en un cultivo</strong> para segmentar todo el dashboard
+                        <div class="d-flex align-items-center gap-2">
+                            <h6 class="chart-title mb-0">
+                                <i class="fa-solid fa-chart-bar text-primary me-1"></i>
+                                Participación por Producto
+                            </h6>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 small fw-semibold d-none" id="chipFiltroCrop">
+                                <i class="fa-solid fa-filter me-1"></i><span id="chipNombreCrop">GYPSOPHILA</span>
+                            </span>
+                        </div>
+                        <span class="chart-subtitle text-muted small" id="subtituloParticipacion">
+                            <i class="fa-solid fa-hand-pointer text-primary me-1"></i> <strong class="text-primary">Clic en una barra</strong> para filtrar
                         </span>
                     </div>
+                    <button type="button" class="btn btn-outline-danger btn-xs py-1 px-2.5 fw-semibold d-none rounded-pill shadow-2xs" id="btnRestablecerFiltroCrop" title="Restablecer vista a toda la finca">
+                        <i class="fa-solid fa-xmark me-1"></i> Quitar filtro
+                    </button>
                 </div>
                 <div class="chart-container-box position-relative">
                     <canvas id="chartParticipacionDoughnut"></canvas>
@@ -490,6 +484,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const avgCostHaGlobal = costSummaryGlobal.avg_cost_per_ha || 0.0;
     const weeklyCostHistory = costSummaryGlobal.weekly_history || [];
     const cropCostSummary = costSummaryGlobal.by_crop || [];
+
+    // Datos pre-agregados por Producto Maestro para filtrado dinámico de las 5 tarjetas Bento KPI
+    const kpiCosechaByCrop = {{ (kpi_cosecha_by_crop_json or '{}') | safe }};
+    const kpiFenoByCrop = {{ (kpi_feno_by_crop_json or '{}') | safe }};
+    const kpiAreaCamasByCrop = {{ (kpi_area_camas_by_crop_json or '{}') | safe }};
+    const kpiCostosByCrop = {{ (kpi_costos_by_crop_json or '{}') | safe }};
+
+    const kpiGlobal = {
+        cosechasTallos: {{ cosechas_total_tallos|default(0) }},
+        cosechasRegs: {{ cosechas_registros_count|default(0) }},
+        fenoPct: {{ cumplimiento_fenograma|default(0.0) }},
+        fenoCumplidas: {{ feno_cumplidas|default(0) }},
+        fenoTotal: {{ feno_total_actividades|default(0) }},
+        areaHa: {{ area_finca_ha|default(0.0) }},
+        camas: {{ camas_finca_count|default(0) }},
+        bloques: {{ bloques_finca_count|default(0) }},
+        costoTotal: {{ cost_summary.total_cost|default(0.0) }},
+        costoPromHa: {{ cost_summary.avg_cost_per_ha|default(0.0) }},
+        costoHa: {{ cost_summary.total_ha|default(0.0) }},
+        semanaActual: {{ semana_actual }}
+    };
 
     // Paleta de colores UI/UX Pro Max Florícola
     const colorArray = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b', '#84cc16'];
@@ -1174,30 +1189,114 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==============================================================
     // 7. MOTOR DE SEGMENTACIÓN POWER BI (CROSS-FILTERING)
     // ==============================================================
-    const bannerPowerBI = document.getElementById('bannerFiltroPowerBI');
-    const lblCultivoFiltrado = document.getElementById('nombreCultivoFiltrado');
+    const chipFiltroCrop = document.getElementById('chipFiltroCrop');
+    const chipNombreCrop = document.getElementById('chipNombreCrop');
     const btnRestablecerCrop = document.getElementById('btnRestablecerFiltroCrop');
 
     function aplicarSegmentacionPowerBI(cropName) {
+        if (!cropName) return;
         activeSegmentedCrop = cropName.toUpperCase().trim();
 
-        // 1. Mostrar banner de segmentación
-        if (bannerPowerBI) {
-            bannerPowerBI.classList.remove('d-none');
-            bannerPowerBI.classList.add('d-flex');
+        // 1. Activar Badge Chip y Botón Quitar Filtro en la cabecera del gráfico
+        if (chipNombreCrop) chipNombreCrop.textContent = activeSegmentedCrop;
+        if (chipFiltroCrop) {
+            chipFiltroCrop.classList.remove('d-none');
+            chipFiltroCrop.classList.add('d-inline-flex');
         }
-        if (lblCultivoFiltrado) lblCultivoFiltrado.textContent = activeSegmentedCrop;
+        if (btnRestablecerCrop) {
+            btnRestablecerCrop.classList.remove('d-none');
+            btnRestablecerCrop.classList.add('d-inline-flex');
+        }
 
-        // 2. Segmentar Gráfica de Líneas Multimodal (Cosecha o Fenograma)
+        // 2. Segmentar las 5 Tarjetas Bento KPI Superiores
+        // -------------------------------------------------------------
+        // KPI 1: Cosecha
+        const cosechaData = kpiCosechaByCrop[activeSegmentedCrop] || { tallos: 0, registros: 0 };
+        const kpiCosechaVal = document.getElementById('kpiTopCosechaVal');
+        const kpiCosechaSub = document.getElementById('kpiTopCosechaSub');
+        const kpiCosechaLbl = document.getElementById('kpiTopCosechaLabel');
+        if (kpiCosechaLbl) kpiCosechaLbl.textContent = `Cosecha ${activeSegmentedCrop} (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiCosechaVal) kpiCosechaVal.textContent = Number(cosechaData.tallos || 0).toLocaleString();
+        if (kpiCosechaSub) {
+            kpiCosechaSub.innerHTML = `
+                <span class="badge badge-soft-success px-2 py-0">${Number(cosechaData.registros || 0)} registros</span>
+                <span class="text-muted small ms-1">tallos semana actual</span>
+            `;
+        }
+
+        // KPI 2: Fenograma
+        const fenoData = kpiFenoByCrop[activeSegmentedCrop] || { pct: 0.0, cumplidas: 0, total: 0 };
+        const kpiFenoVal = document.getElementById('kpiTopFenoVal');
+        const kpiFenoSub = document.getElementById('kpiTopFenoSub');
+        const kpiFenoLbl = document.getElementById('kpiTopFenoLabel');
+        if (kpiFenoLbl) kpiFenoLbl.textContent = `Fenograma ${activeSegmentedCrop} (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiFenoVal) {
+            const pctVal = Number(fenoData.pct || 0.0);
+            kpiFenoVal.textContent = `${pctVal.toFixed(1)}%`;
+            kpiFenoVal.className = 'kpi-value tabular-nums ' + (pctVal >= 85 ? 'text-success' : (pctVal >= 60 ? 'text-warning' : (pctVal > 0 ? 'text-primary' : 'text-muted')));
+        }
+        if (kpiFenoSub) {
+            if (fenoData.total > 0) {
+                kpiFenoSub.innerHTML = `
+                    <span class="badge badge-soft-warning px-2 py-0">${Number(fenoData.cumplidas || 0).toLocaleString()} / ${Number(fenoData.total || 0).toLocaleString()}</span>
+                    <span class="text-muted small ms-1">labores cumplidas</span>
+                `;
+            } else {
+                kpiFenoSub.innerHTML = `<span class="text-muted small">Sin labores registradas sem ${kpiGlobal.semanaActual}</span>`;
+            }
+        }
+
+        // KPI 3: Área
+        const areaData = kpiAreaCamasByCrop[activeSegmentedCrop] || { ha: 0.0, camas: 0, bloques: 0 };
+        const kpiAreaVal = document.getElementById('kpiTopAreaVal');
+        const kpiAreaSub = document.getElementById('kpiTopAreaSub');
+        const kpiAreaLbl = document.getElementById('kpiTopAreaLabel');
+        if (kpiAreaLbl) kpiAreaLbl.textContent = `Área ${activeSegmentedCrop}`;
+        if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(areaData.ha || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
+        if (kpiAreaSub) {
+            const pctArea = kpiGlobal.areaHa > 0 ? ((areaData.ha / kpiGlobal.areaHa) * 100).toFixed(1) : '0.0';
+            kpiAreaSub.innerHTML = `
+                <span class="badge badge-soft-info px-2 py-0">${pctArea}% finca</span>
+                <span class="text-muted small ms-1">área censo activo</span>
+            `;
+        }
+
+        // KPI 4: Camas
+        const kpiCamasVal = document.getElementById('kpiTopCamasVal');
+        const kpiCamasSub = document.getElementById('kpiTopCamasSub');
+        const kpiCamasLbl = document.getElementById('kpiTopCamasLabel');
+        if (kpiCamasLbl) kpiCamasLbl.textContent = `Camas ${activeSegmentedCrop}`;
+        if (kpiCamasVal) kpiCamasVal.textContent = Number(areaData.camas || 0).toLocaleString();
+        if (kpiCamasSub) {
+            kpiCamasSub.innerHTML = `
+                <span class="badge badge-soft-danger px-2 py-0">${Number(areaData.bloques || 0)} bloques</span>
+                <span class="text-muted small ms-1">en producción activa</span>
+            `;
+        }
+
+        // KPI 5: Inversión Insumos (Top Bento)
+        const cropCostData = (costSummaryGlobal.by_crop || []).find(c => (c.crop || '').toUpperCase() === activeSegmentedCrop) || kpiCostosByCrop[activeSegmentedCrop] || { total_cost: 0, cost_per_ha: 0, ha: 0 };
+        const kpiCostosVal = document.getElementById('kpiTopCostosVal');
+        const kpiCostosSub = document.getElementById('kpiTopCostosSub');
+        const kpiCostosLbl = document.getElementById('kpiTopCostosLabel');
+        if (kpiCostosLbl) kpiCostosLbl.textContent = `Inversión ${activeSegmentedCrop}`;
+        if (kpiCostosVal) kpiCostosVal.textContent = '$' + Number(cropCostData.total_cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (kpiCostosSub) {
+            kpiCostosSub.innerHTML = `
+                <span class="badge badge-soft-purple px-2 py-0">$${Number(cropCostData.cost_per_ha || 0).toFixed(2)}/ha</span>
+                <span class="text-muted small ms-1">${Number(cropCostData.ha || 0).toFixed(2)} ha tratadas</span>
+            `;
+        }
+
+        // 3. Segmentar Gráfica de Líneas Multimodal (Cosecha o Fenograma)
         actualizarGraficaLineas();
 
-        // 3. Segmentar Gráfico Combinado ($ vs $/ha)
+        // 4. Segmentar Gráfico Combinado ($ vs $/ha)
         renderComboChart();
 
-        // 4. Segmentar Métricas de Costos Agronómicos
-        const cropCostData = (costSummaryGlobal.by_crop || []).find(c => (c.crop || '').toUpperCase() === activeSegmentedCrop);
-        if (cropCostData) {
-            document.getElementById('kpiCostoTotalVal').textContent = '$' + Number(cropCostData.total_cost).toFixed(2);
+        // 5. Segmentar Métricas de la Sección de Costos Agronómicos
+        if (cropCostData && cropCostData.total_cost > 0) {
+            document.getElementById('kpiCostoTotalVal').textContent = '$' + Number(cropCostData.total_cost).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('kpiCostoTotalSub').textContent = `Inversión exclusiva en ${activeSegmentedCrop}`;
 
             document.getElementById('kpiCostoPromHaVal').innerHTML = `$${Number(cropCostData.cost_per_ha).toFixed(2)} <span class="fs-6 fw-normal text-muted">/ ha</span>`;
@@ -1207,36 +1306,112 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('kpiAreaTratadaSub').textContent = `Área tratada de ${activeSegmentedCrop}`;
         } else {
             document.getElementById('kpiCostoTotalVal').textContent = '$0.00';
-            document.getElementById('kpiCostoTotalSub').textContent = `Sin fumigación para ${activeSegmentedCrop}`;
+            document.getElementById('kpiCostoTotalSub').textContent = `Sin aplicaciones registradas para ${activeSegmentedCrop}`;
             document.getElementById('kpiCostoPromHaVal').innerHTML = `$0.00 <span class="fs-6 fw-normal text-muted">/ ha</span>`;
             document.getElementById('kpiAreaTratadaVal').innerHTML = `0.00 <span class="fs-6 fw-normal text-muted">ha</span>`;
         }
 
-        // 5. Filtrar Tabla de Bloques por Cultivo
+        // 6. Filtrar Tabla de Bloques por Cultivo
         const subtituloBloques = document.getElementById('subtituloTablaBloques');
         if (subtituloBloques) subtituloBloques.textContent = `Bloques cultivados con ${activeSegmentedCrop}`;
         aplicarFiltroBloques();
-
-        // 6. Scroll suave a la gráfica para feedback visual inmediato
-        if (bannerPowerBI) bannerPowerBI.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function restablecerSegmentacionPowerBI() {
         activeSegmentedCrop = null;
 
-        // 1. Ocultar banner
-        if (bannerPowerBI) {
-            bannerPowerBI.classList.add('d-none');
-            bannerPowerBI.classList.remove('d-flex');
+        // 1. Ocultar Badge Chip y Botón Quitar Filtro
+        if (chipFiltroCrop) {
+            chipFiltroCrop.classList.add('d-none');
+            chipFiltroCrop.classList.remove('d-inline-flex');
+        }
+        if (btnRestablecerCrop) {
+            btnRestablecerCrop.classList.add('d-none');
+            btnRestablecerCrop.classList.remove('d-inline-flex');
         }
 
-        // 2. Restaurar Gráfica de Líneas Multimodal
+        // 2. Restaurar las 5 Tarjetas Bento KPI a Totales de Finca Completa
+        // -------------------------------------------------------------
+        // KPI 1: Cosecha
+        const kpiCosechaVal = document.getElementById('kpiTopCosechaVal');
+        const kpiCosechaSub = document.getElementById('kpiTopCosechaSub');
+        const kpiCosechaLbl = document.getElementById('kpiTopCosechaLabel');
+        if (kpiCosechaLbl) kpiCosechaLbl.textContent = `Cosecha (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiCosechaVal) kpiCosechaVal.textContent = Number(kpiGlobal.cosechasTallos || 0).toLocaleString();
+        if (kpiCosechaSub) {
+            kpiCosechaSub.innerHTML = `
+                <span class="badge badge-soft-success px-2 py-0">${Number(kpiGlobal.cosechasRegs || 0)} registros</span>
+                <span class="text-muted small ms-1">tallos semana actual</span>
+            `;
+        }
+
+        // KPI 2: Fenograma
+        const kpiFenoVal = document.getElementById('kpiTopFenoVal');
+        const kpiFenoSub = document.getElementById('kpiTopFenoSub');
+        const kpiFenoLbl = document.getElementById('kpiTopFenoLabel');
+        if (kpiFenoLbl) kpiFenoLbl.textContent = `Cumplimiento Fenograma (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiFenoVal) {
+            const pctVal = Number(kpiGlobal.fenoPct || 0.0);
+            kpiFenoVal.textContent = `${pctVal.toFixed(1)}%`;
+            kpiFenoVal.className = 'kpi-value tabular-nums ' + (pctVal >= 85 ? 'text-success' : (pctVal >= 60 ? 'text-warning' : (pctVal > 0 ? 'text-primary' : 'text-muted')));
+        }
+        if (kpiFenoSub) {
+            if (kpiGlobal.fenoTotal > 0) {
+                kpiFenoSub.innerHTML = `
+                    <span class="badge badge-soft-warning px-2 py-0">${Number(kpiGlobal.fenoCumplidas || 0).toLocaleString()} / ${Number(kpiGlobal.fenoTotal || 0).toLocaleString()}</span>
+                    <span class="text-muted small ms-1">labores cumplidas</span>
+                `;
+            } else {
+                kpiFenoSub.innerHTML = `<span class="text-muted small">Sin labores registradas sem ${kpiGlobal.semanaActual}</span>`;
+            }
+        }
+
+        // KPI 3: Área
+        const kpiAreaVal = document.getElementById('kpiTopAreaVal');
+        const kpiAreaSub = document.getElementById('kpiTopAreaSub');
+        const kpiAreaLbl = document.getElementById('kpiTopAreaLabel');
+        if (kpiAreaLbl) kpiAreaLbl.textContent = `Área de Finca`;
+        if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(kpiGlobal.areaHa || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
+        if (kpiAreaSub) {
+            kpiAreaSub.innerHTML = `
+                <span class="badge badge-soft-info px-2 py-0">Censo Real</span>
+                <span class="text-muted small ms-1">área total estado de cultivo</span>
+            `;
+        }
+
+        // KPI 4: Camas
+        const kpiCamasVal = document.getElementById('kpiTopCamasVal');
+        const kpiCamasSub = document.getElementById('kpiTopCamasSub');
+        const kpiCamasLbl = document.getElementById('kpiTopCamasLabel');
+        if (kpiCamasLbl) kpiCamasLbl.textContent = `Camas Finca`;
+        if (kpiCamasVal) kpiCamasVal.textContent = Number(kpiGlobal.camas || 0).toLocaleString();
+        if (kpiCamasSub) {
+            kpiCamasSub.innerHTML = `
+                <span class="badge badge-soft-danger px-2 py-0">${Number(kpiGlobal.bloques || 0)} bloques</span>
+                <span class="text-muted small ms-1">en producción activa</span>
+            `;
+        }
+
+        // KPI 5: Inversión Insumos (Top Bento)
+        const kpiCostosVal = document.getElementById('kpiTopCostosVal');
+        const kpiCostosSub = document.getElementById('kpiTopCostosSub');
+        const kpiCostosLbl = document.getElementById('kpiTopCostosLabel');
+        if (kpiCostosLbl) kpiCostosLbl.textContent = `Inversión Insumos`;
+        if (kpiCostosVal) kpiCostosVal.textContent = '$' + Number(kpiGlobal.costoTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (kpiCostosSub) {
+            kpiCostosSub.innerHTML = `
+                <span class="badge badge-soft-purple px-2 py-0">$${Number(kpiGlobal.costoPromHa || 0).toFixed(2)}/ha</span>
+                <span class="text-muted small ms-1">${Number(kpiGlobal.costoHa || 0).toFixed(2)} ha tratadas</span>
+            `;
+        }
+
+        // 3. Restaurar Gráfica de Líneas Multimodal
         actualizarGraficaLineas();
 
-        // 3. Restaurar Gráfico Combinado
+        // 4. Restaurar Gráfico Combinado
         renderComboChart();
 
-        // 4. Restaurar Métricas de Costos Globales
+        // 5. Restaurar Métricas de Costos Globales
         document.getElementById('kpiCostoTotalVal').textContent = '$' + Number(costSummaryGlobal.total_cost || 0).toFixed(2);
         document.getElementById('kpiCostoTotalSub').textContent = `Total insumos aplicados`;
 
@@ -1246,7 +1421,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('kpiAreaTratadaVal').innerHTML = `${Number(costSummaryGlobal.total_ha || 0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
         document.getElementById('kpiAreaTratadaSub').textContent = `En ${costSummaryGlobal.blocks_count || 0} bloques de cultivo`;
 
-        // 5. Restaurar Tabla de Bloques
+        // 6. Restaurar Tabla de Bloques
         const subtituloBloques = document.getElementById('subtituloTablaBloques');
         if (subtituloBloques) subtituloBloques.textContent = `Top bloques por inversión agronómica`;
         if (inputBuscarBloque) inputBuscarBloque.value = '';

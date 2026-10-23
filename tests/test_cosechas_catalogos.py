@@ -185,8 +185,101 @@ def test_cosechas_catalogos_suite():
         assert 'listaProductos' in get_html
         print(">> TEST 10 APROBADO: Elementos de validación en vivo presentes en el HTML de catálogos.")
 
+        print("\n--- TEST 11: Eliminación definitiva en PROD.NUEVOS (sin resurrección zombie ni en recarga ni en VPS) ---")
+        zombie_var = 'TEST-PROD-NUEVO-ZOMBIE-1'
+        # 1. Crear en PROD.NUEVOS
+        client.post('/cosechas/catalogos', data={
+            'accion': 'crear_variedad',
+            'variedad': zombie_var,
+            'producto_maestro': 'PROD.NUEVOS'
+        }, follow_redirects=True)
+        assert zombie_var in construir_productos_con_variedades().get('PROD.NUEVOS', []), "Debe estar creada en PROD.NUEVOS"
+
+        # Simular inserción en crop_state_records y fact_eventos_cultivo
+        from app.shared.utils import get_local_now
+        cama_row = db.session.execute(text("SELECT id_cama, codigo_bloque, num_cama FROM dim_camas LIMIT 1")).fetchone()
+        cama_id = cama_row.id_cama if cama_row else 'B_TEST-1'
+        blk_code = cama_row.codigo_bloque if cama_row else 'B_TEST'
+        bed_num = cama_row.num_cama if cama_row else 1
+
+        db.session.execute(text("""
+            INSERT INTO crop_state_records (block_full, bed_num, suffix, variety, crop_master, week, standard_bed)
+            VALUES (:b, :num, 'A', :v, 'PROD.NUEVOS', '2026-43', 1.0)
+        """), {'b': blk_code, 'num': bed_num, 'v': zombie_var})
+        db.session.execute(text("""
+            INSERT INTO fact_eventos_cultivo (id_cama, codigo_bloque, variedad, producto_maestro, fecha_evento, tipo_evento, estado_evento)
+            VALUES (:cama, :b, :v, 'PROD.NUEVOS', :now, 'SIEMBRA', 'ACTIVO')
+        """), {'cama': cama_id, 'b': blk_code, 'v': zombie_var, 'now': get_local_now()})
+        db.session.commit()
+
+        # 2. Eliminar enviando casing diferente ('prod nuevos')
+        resp_del_zombie = client.post('/cosechas/catalogos', data={
+            'accion': 'eliminar_relacion',
+            'variedad': zombie_var,
+            'producto_maestro': 'prod nuevos'
+        }, follow_redirects=True)
+        assert resp_del_zombie.status_code == 200
+
+        # 3. Comprobar que desapareció de la BD y CSV
+        prods_after_del = construir_productos_con_variedades()
+        assert zombie_var not in prods_after_del.get('PROD.NUEVOS', []), "No debe estar en PROD.NUEVOS"
+        assert zombie_var not in cargar_relaciones_maestro(), "No debe estar en cargar_relaciones_maestro"
+        assert zombie_var not in cargar_variedades(), "No debe estar en cargar_variedades"
+
+        # Comprobar eliminación en cascada en BD
+        cnt_cat = db.session.execute(text("SELECT count(*) FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) = :v"), {'v': zombie_var}).scalar()
+        cnt_dim = db.session.execute(text("SELECT count(*) FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': zombie_var}).scalar()
+        cnt_csr = db.session.execute(text("SELECT count(*) FROM crop_state_records WHERE UPPER(TRIM(variety)) = :v"), {'v': zombie_var}).scalar()
+        cnt_evt = db.session.execute(text("SELECT count(*) FROM fact_eventos_cultivo WHERE UPPER(TRIM(variedad)) = :v"), {'v': zombie_var}).scalar()
+        assert cnt_cat == 0, f"No debe quedar en cat_variedades_maestro. Encontrados: {cnt_cat}"
+        assert cnt_dim == 0, f"No debe quedar en dim_variedades. Encontrados: {cnt_dim}"
+        assert cnt_csr == 0, f"No debe quedar en crop_state_records. Encontrados: {cnt_csr}"
+        assert cnt_evt == 0, f"No debe quedar en fact_eventos_cultivo. Encontrados: {cnt_evt}"
+
+        # 4. Simular recarga fresca (evitar efecto zombie)
+        from app.modules.cosechas.utils import cargar_maestro_productos
+        maestro_fresh = cargar_maestro_productos()
+        assert zombie_var not in maestro_fresh, "No debe resucitar al recargar el maestro de productos"
+        print(">> TEST 11 APROBADO: Variedad en PROD.NUEVOS eliminada permanentemente y sin resurrección zombie.")
+
+        print("\n--- TEST 12: Dashboard Gerencial - 5 Bento KPIs dinámicos, Chip sutil y eliminación de banner AI ---")
+        resp_dash = client.get('/')
+        assert resp_dash.status_code == 200, f"Dashboard debe responder 200, obtenido {resp_dash.status_code}"
+        dash_html = resp_dash.data.decode('utf-8', errors='ignore')
+
+        # Verificar que el banner estridente NO existe
+        assert 'id="bannerFiltroPowerBI"' not in dash_html, "bannerFiltroPowerBI NO debe estar en el HTML"
+        assert 'Segmentación Power BI:' not in dash_html, "Texto de banner Power BI no debe estar"
+
+        # Verificar presencia de chip y botón sutil en la cabecera del gráfico
+        assert 'id="chipFiltroCrop"' in dash_html, "chipFiltroCrop DEBE estar en el HTML"
+        assert 'id="chipNombreCrop"' in dash_html, "chipNombreCrop DEBE estar en el HTML"
+        assert 'id="btnRestablecerFiltroCrop"' in dash_html, "btnRestablecerFiltroCrop DEBE estar en el HTML"
+
+        # Verificar IDs de las 5 tarjetas Bento KPI
+        assert 'id="kpiTopCosechaVal"' in dash_html, "kpiTopCosechaVal debe existir"
+        assert 'id="kpiTopCosechaLabel"' in dash_html, "kpiTopCosechaLabel debe existir"
+        assert 'id="kpiTopFenoVal"' in dash_html, "kpiTopFenoVal debe existir"
+        assert 'id="kpiTopFenoLabel"' in dash_html, "kpiTopFenoLabel debe existir"
+        assert 'id="kpiTopAreaVal"' in dash_html, "kpiTopAreaVal debe existir"
+        assert 'id="kpiTopAreaLabel"' in dash_html, "kpiTopAreaLabel debe existir"
+        assert 'id="kpiTopCamasVal"' in dash_html, "kpiTopCamasVal debe existir"
+        assert 'id="kpiTopCamasLabel"' in dash_html, "kpiTopCamasLabel debe existir"
+        assert 'id="kpiTopCostosVal"' in dash_html, "kpiTopCostosVal debe existir"
+        assert 'id="kpiTopCostosLabel"' in dash_html, "kpiTopCostosLabel debe existir"
+
+        # Verificar serialización de datos de segmentación por producto
+        assert 'kpiCosechaByCrop' in dash_html, "kpiCosechaByCrop debe ser inyectado en script"
+        assert 'kpiFenoByCrop' in dash_html, "kpiFenoByCrop debe ser inyectado en script"
+        assert 'kpiAreaCamasByCrop' in dash_html, "kpiAreaCamasByCrop debe ser inyectado en script"
+        assert 'kpiCostosByCrop' in dash_html, "kpiCostosByCrop debe ser inyectado en script"
+        assert 'kpiGlobal' in dash_html, "kpiGlobal debe ser inyectado en script"
+        assert 'aplicarSegmentacionPowerBI' in dash_html, "aplicarSegmentacionPowerBI debe existir en script"
+        assert 'restablecerSegmentacionPowerBI' in dash_html, "restablecerSegmentacionPowerBI debe existir en script"
+        print(">> TEST 12 APROBADO: Dashboard Gerencial cuenta con todos los KPIs, chip sutil y datos dinámicos.")
+
         print("\n==========================================")
-        print("¡TODOS LOS 10 TESTS DE CATÁLOGOS PASARON CON ÉXITO!")
+        print("¡TODOS LOS 12 TESTS DE CATÁLOGOS Y DASHBOARD PASARON CON ÉXITO!")
         print("==========================================\n")
 
 if __name__ == '__main__':

@@ -183,6 +183,60 @@ def create_app(config_class=Config):
             db.session.rollback()
             print(f"[SYSTEM] Aviso en migración de fenograma: {ex_mig}")
 
+        # One-time migration to synchronize cat_variedades_maestro with MAESTRO_PROS.csv on VPS
+        try:
+            mig_cat_done = db.session.execute(text(
+                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'sync_catalogos_vps_clean_v3'"
+            )).scalar()
+
+            if not mig_cat_done:
+                from app.modules.cosechas.utils import _get_csv_path
+                csv_path = _get_csv_path('MAESTRO_PROS.csv')
+                if csv_path.exists():
+                    csv_vars_map = {}
+                    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+                        for line in f.read().strip().split('\n')[1:]:
+                            if ';' in line:
+                                p = line.strip().split(';')
+                                if len(p) >= 2:
+                                    v = p[0].strip().upper()
+                                    m = p[1].strip().upper()
+                                    if v and m:
+                                        csv_vars_map[v] = m
+                    
+                    if csv_vars_map:
+                        db.session.execute(text("""
+                            CREATE TABLE IF NOT EXISTS cat_variedades_maestro (
+                                id SERIAL PRIMARY KEY,
+                                variedad VARCHAR(150) NOT NULL UNIQUE,
+                                producto_maestro VARCHAR(150) NOT NULL,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """))
+                        # Eliminar de BD cualquier variedad que ya fue eliminada del CSV canónico
+                        db.session.execute(text(
+                            "DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) NOT IN :vars"
+                        ), {'vars': tuple(csv_vars_map.keys())})
+
+                        # Sincronizar inserciones y actualizaciones
+                        for v, m in csv_vars_map.items():
+                            db.session.execute(text("""
+                                INSERT INTO cat_variedades_maestro (variedad, producto_maestro)
+                                VALUES (:var, :prod)
+                                ON CONFLICT (variedad) DO UPDATE 
+                                SET producto_maestro = EXCLUDED.producto_maestro, updated_at = CURRENT_TIMESTAMP;
+                            """), {'var': v, 'prod': m})
+                
+                db.session.execute(text(
+                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('sync_catalogos_vps_clean_v3')"
+                ))
+                db.session.commit()
+                print("[SYSTEM] Sincronización canónica de catálogo de variedades completada con éxito.")
+        except Exception as ex_mig_cat:
+            db.session.rollback()
+            print(f"[SYSTEM] Aviso en migración de catálogo: {ex_mig_cat}")
+
     # Register blueprints
     from app.modules.auth.routes import auth_bp
     from app.modules.orden_compra.routes import orden_compra_bp
@@ -607,6 +661,94 @@ def create_app(config_class=Config):
             }
             available_cost_weeks = []
 
+        # 7. Pre-agregados por Producto Maestro para Filtrado Dinámico de las 5 Tarjetas Bento KPI
+        import json
+        kpi_cosecha_by_crop = defaultdict(lambda: {'tallos': 0, 'registros': 0})
+        for r in cosechas_para_prods:
+            pm = str(maestro_productos.get(r.variedad, 'SIN CLASIFICAR')).upper().strip()
+            kpi_cosecha_by_crop[pm]['tallos'] += int(r.total_tallos or 0)
+            kpi_cosecha_by_crop[pm]['registros'] += 1
+
+        kpi_feno_by_crop = {}
+        try:
+            feno_kpi_rows = db.session.execute(text("""
+                SELECT 
+                    UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS'))) as crop,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
+                    ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                FROM calificaciones
+                WHERE semana_anio = :w
+                GROUP BY UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS')))
+            """), {'w': selected_week_num}).fetchall()
+            for r in feno_kpi_rows:
+                c_nom = str(r.crop).upper().strip()
+                kpi_feno_by_crop[c_nom] = {
+                    'pct': float(r.pct or 0.0),
+                    'cumplidas': int(r.cumplidas or 0),
+                    'total': int(r.total or 0)
+                }
+        except Exception:
+            kpi_feno_by_crop = {}
+
+        kpi_area_camas_by_crop = {}
+        try:
+            mrt_crop_rows = db.session.execute(text("""
+                SELECT 
+                    UPPER(TRIM(producto_actual)) as crop,
+                    COUNT(DISTINCT id_cama) as camas,
+                    COUNT(DISTINCT codigo_bloque) as bloques,
+                    ROUND(COALESCE(SUM(ha), 0)::numeric, 2) as ha
+                FROM mrt_estado_cultivo_actual
+                WHERE producto_actual IS NOT NULL AND TRIM(producto_actual) != ''
+                GROUP BY UPPER(TRIM(producto_actual))
+            """)).fetchall()
+            for r in mrt_crop_rows:
+                c_nom = str(r.crop).upper().strip()
+                kpi_area_camas_by_crop[c_nom] = {
+                    'ha': float(r.ha or 0.0),
+                    'camas': int(r.camas or 0),
+                    'bloques': int(r.bloques or 0)
+                }
+        except Exception:
+            pass
+
+        if not kpi_area_camas_by_crop and latest_batch:
+            try:
+                csr_crop_rows = db.session.execute(text("""
+                    SELECT 
+                        UPPER(TRIM(crop_master)) as crop,
+                        COUNT(DISTINCT (block_full || '-' || bed_num)) as camas,
+                        COUNT(DISTINCT block_full) as bloques
+                    FROM crop_state_records
+                    WHERE batch_id = :b AND crop_master IS NOT NULL
+                    GROUP BY UPPER(TRIM(crop_master))
+                """), {'b': latest_batch}).fetchall()
+                for r in csr_crop_rows:
+                    c_nom = str(r.crop).upper().strip()
+                    kpi_area_camas_by_crop[c_nom] = {
+                        'ha': round(float(r.camas or 0) * 0.0042, 2),
+                        'camas': int(r.camas or 0),
+                        'bloques': int(r.bloques or 0)
+                    }
+            except Exception:
+                pass
+
+        kpi_costos_by_crop = {}
+        for c in cost_summary.get('by_crop', []):
+            c_nom = str(c.get('crop') or '').upper().strip()
+            if c_nom:
+                kpi_costos_by_crop[c_nom] = {
+                    'total_cost': float(c.get('total_cost') or 0.0),
+                    'cost_per_ha': float(c.get('cost_per_ha') or 0.0),
+                    'ha': float(c.get('ha') or 0.0)
+                }
+
+        kpi_cosecha_by_crop_json = json.dumps(dict(kpi_cosecha_by_crop))
+        kpi_feno_by_crop_json = json.dumps(kpi_feno_by_crop)
+        kpi_area_camas_by_crop_json = json.dumps(kpi_area_camas_by_crop)
+        kpi_costos_by_crop_json = json.dumps(kpi_costos_by_crop)
+
         return render_template(
             'dashboard.html',
             crops_count=crops_count,
@@ -641,7 +783,11 @@ def create_app(config_class=Config):
             cosechas_registros_count=cosechas_registros_count,
             cost_summary=cost_summary,
             cost_week=cost_week,
-            available_cost_weeks=available_cost_weeks
+            available_cost_weeks=available_cost_weeks,
+            kpi_cosecha_by_crop_json=kpi_cosecha_by_crop_json,
+            kpi_feno_by_crop_json=kpi_feno_by_crop_json,
+            kpi_area_camas_by_crop_json=kpi_area_camas_by_crop_json,
+            kpi_costos_by_crop_json=kpi_costos_by_crop_json
         )
 
     return app

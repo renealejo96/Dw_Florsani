@@ -43,8 +43,9 @@ def formato_semana(fecha):
     return f"{year:02d}{semana:02d}"
 
 def cargar_variedades():
-    """Cargar variedades activas autorizadas desde cat_variedades_maestro y variedades.csv (sin resucitar eliminadas)"""
+    """Cargar variedades activas autorizadas desde cat_variedades_maestro (fuente principal autorizada sin resucitar eliminadas)"""
     variedades = set()
+    db_count = 0
     
     # 1. Base de datos: cat_variedades_maestro (fuente principal autorizada)
     try:
@@ -55,21 +56,23 @@ def cargar_variedades():
             val = (v[0] or '').strip().upper()
             if val:
                 variedades.add(val)
+                db_count += 1
     except Exception:
         pass
 
-    # 2. Archivo CSV variedades.csv
-    csv_path = _get_csv_path('variedades.csv')
-    try:
-        if csv_path.exists():
-            with open(csv_path, 'r', encoding='utf-8') as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    val = (row.get('variedad') or '').strip().upper()
-                    if val:
-                        variedades.add(val)
-    except Exception as e:
-        print(f"Error cargando variedades desde CSV: {e}")
+    # 2. Archivo CSV variedades.csv solo si la BD no tiene registros (instalación inicial)
+    if db_count == 0:
+        csv_path = _get_csv_path('variedades.csv')
+        try:
+            if csv_path.exists():
+                with open(csv_path, 'r', encoding='utf-8') as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        val = (row.get('variedad') or '').strip().upper()
+                        if val:
+                            variedades.add(val)
+        except Exception as e:
+            print(f"Error cargando variedades desde CSV: {e}")
 
     if not variedades:
         variedades = {'GOLD', 'RED NAOMI', 'EXPLORER', 'FREEDOM', 'HIGH & MAGIC'}
@@ -320,6 +323,7 @@ def sincronizar_producto_maestro_a_bd(producto_maestro):
 def cargar_maestro_productos():
     """Cargar mapeo {variedad: producto_maestro} unificando cat_variedades_maestro y CSV (fuentes canónicas)"""
     mapeo = {}
+    db_count = 0
     
     # 1. Cargar desde base de datos cat_variedades_maestro (fuente principal canónica)
     try:
@@ -331,27 +335,29 @@ def cargar_maestro_productos():
             p = (r[1] or '').strip().upper()
             if v and p:
                 mapeo[v] = p
+                db_count += 1
     except Exception:
         pass
 
-    # 2. Cargar desde CSV MAESTRO_PROS.csv (complemento para variedades no en BD)
-    csv_path = _get_csv_path('MAESTRO_PROS.csv')
-    try:
-        if csv_path.exists():
-            with open(csv_path, 'r', encoding='utf-8-sig') as file:
-                content = file.read()
-                lines = content.strip().split('\n')
-                if len(lines) > 1:
-                    for line in lines[1:]:
-                        if ';' in line:
-                            partes = line.strip().split(';')
-                            if len(partes) >= 2:
-                                variedad = partes[0].strip().upper()
-                                prod_maestro = partes[1].strip().upper()
-                                if variedad and prod_maestro and variedad not in mapeo:
-                                    mapeo[variedad] = prod_maestro
-    except Exception as e:
-        print(f"Error cargando maestro productos desde CSV: {e}")
+    # 2. Cargar desde CSV MAESTRO_PROS.csv solo si la BD está vacía (instalación inicial)
+    if db_count == 0:
+        csv_path = _get_csv_path('MAESTRO_PROS.csv')
+        try:
+            if csv_path.exists():
+                with open(csv_path, 'r', encoding='utf-8-sig') as file:
+                    content = file.read()
+                    lines = content.strip().split('\n')
+                    if len(lines) > 1:
+                        for line in lines[1:]:
+                            if ';' in line:
+                                partes = line.strip().split(';')
+                                if len(partes) >= 2:
+                                    variedad = partes[0].strip().upper()
+                                    prod_maestro = partes[1].strip().upper()
+                                    if variedad and prod_maestro and variedad not in mapeo:
+                                        mapeo[variedad] = prod_maestro
+        except Exception as e:
+            print(f"Error cargando maestro productos desde CSV: {e}")
     
     return mapeo
 
@@ -359,6 +365,7 @@ def cargar_relaciones_maestro():
     """Cargar relaciones variedad-producto maestro garantizando asignación unívoca y sin resucitar eliminados"""
     relaciones = []
     vistos = set()
+    db_count = 0
     
     # 1. Cargar desde cat_variedades_maestro de BD (fuente principal autorizada)
     try:
@@ -372,33 +379,35 @@ def cargar_relaciones_maestro():
                 if v not in vistos:
                     vistos.add(v)
                     relaciones.append((v, p))
+                    db_count += 1
     except Exception:
         pass
 
-    # 2. Cargar desde CSV MAESTRO_PROS.csv para variedades no registradas en BD
-    csv_path = _get_csv_path('MAESTRO_PROS.csv')
-    try:
-        if csv_path.exists():
-            with open(csv_path, 'r', encoding='utf-8-sig') as file:
-                content = file.read()
-                lines = content.strip().split('\n')
-                if len(lines) > 1:
-                    for line in lines[1:]:
-                        if ';' not in line:
-                            continue
-                        partes = line.strip().split(';')
-                        if len(partes) < 2:
-                            continue
-                        variedad = partes[0].strip().upper()
-                        producto = partes[1].strip().upper()
-                        if not variedad or not producto:
-                            continue
-                        if variedad in vistos:
-                            continue
-                        vistos.add(variedad)
-                        relaciones.append((variedad, producto))
-    except Exception as e:
-        print(f"Error cargando relaciones maestro desde CSV: {e}")
+    # 2. Solo si la tabla en BD está vacía (instalación inicial), poblar desde CSV
+    if db_count == 0:
+        csv_path = _get_csv_path('MAESTRO_PROS.csv')
+        try:
+            if csv_path.exists():
+                with open(csv_path, 'r', encoding='utf-8-sig') as file:
+                    content = file.read()
+                    lines = content.strip().split('\n')
+                    if len(lines) > 1:
+                        for line in lines[1:]:
+                            if ';' not in line:
+                                continue
+                            partes = line.strip().split(';')
+                            if len(partes) < 2:
+                                continue
+                            variedad = partes[0].strip().upper()
+                            producto = partes[1].strip().upper()
+                            if not variedad or not producto:
+                                continue
+                            if variedad in vistos:
+                                continue
+                            vistos.add(variedad)
+                            relaciones.append((variedad, producto))
+        except Exception as e:
+            print(f"Error cargando relaciones maestro desde CSV: {e}")
 
     relaciones.sort(key=lambda item: (item[1].upper(), item[0].upper()))
     return relaciones
@@ -453,6 +462,10 @@ def guardar_relaciones_maestro(relaciones):
             
         db.session.commit()
     except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         print(f"Error sincronizando relaciones con cat_variedades_maestro en BD: {e}")
 
 def cargar_productos_maestros():
