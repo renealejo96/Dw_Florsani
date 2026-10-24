@@ -884,6 +884,19 @@
             <i class="fa-solid fa-satellite-dish text-primary"></i>
             <span class="d-none d-md-inline">Conexión / Cola</span>
         </button>
+        <div class="dropdown d-inline-block">
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 shadow-xs" style="height: 27px; font-size: 0.72rem;" data-bs-toggle="dropdown" aria-expanded="false" title="Herramientas de Respaldo y Cola Offline">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.78rem;">
+                <li><button class="dropdown-item" type="button" onclick="abrirModalInspeccionOffline()"><i class="fa-solid fa-list-check me-2 text-primary"></i>Ver Cola & Diagnóstico</button></li>
+                <li><button class="dropdown-item" type="button" onclick="copiarRespaldoOfflineJSON()"><i class="fa-solid fa-copy me-2 text-info"></i>Copiar Respaldo (JSON)</button></li>
+                <li><button class="dropdown-item" type="button" onclick="descargarRespaldoOfflineJSON()"><i class="fa-solid fa-download me-2 text-secondary"></i>Descargar Respaldo (.json)</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item" type="button" onclick="abrirModalImportarRespaldo()"><i class="fa-solid fa-file-import me-2 text-success"></i>Importar Respaldo JSON...</button></li>
+                <li><button class="dropdown-item text-success fw-bold" type="button" onclick="forzarSincronizacionOffline()"><i class="fa-solid fa-bolt me-2"></i>Forzar Sincronización</button></li>
+            </ul>
+        </div>
         {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
         <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="cerrarSemanaOperarios({{ semana }})" title="Solo Administrador: Cerrar la semana y arrastrar labores no cumplidas">
             <i class="fa-solid fa-lock"></i>
@@ -1363,6 +1376,9 @@
         <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="abrirModalInspeccionOffline()" title="Inspeccionar cola de cambios y conectividad">
             <i class="fa-solid fa-list-check me-1"></i>Cola (<span id="floating-dirty-count-sub">0</span>)
         </button>
+        <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="copiarRespaldoOfflineJSON()" title="Copiar respaldo JSON de calificaciones al portapapeles">
+            <i class="fa-solid fa-copy me-1"></i>Copiar
+        </button>
         <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white-50 feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="descartarCambiosLocales()" title="Descartar cambios locales no sincronizados">
             <i class="fa-solid fa-rotate-left"></i>
         </button>
@@ -1476,10 +1492,52 @@
                     </table>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center">
-                    <span id="diag-ping-result" class="small text-muted"></span>
-                    <button type="button" class="btn btn-success btn-sm fw-bold px-3" onclick="bootstrap.Modal.getInstance(document.getElementById('modalInspeccionOffline'))?.hide(); saveAllChanges();">
-                        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar Ahora
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 border-top pt-2">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 fw-semibold" onclick="copiarRespaldoOfflineJSON()" title="Copiar todo el JSON de calificaciones para enviarlo por WhatsApp o pegarlo en la PC">
+                            <i class="fa-solid fa-copy me-1"></i> Copiar Respaldo JSON
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 fw-semibold" onclick="descargarRespaldoOfflineJSON()" title="Descargar archivo .json con las calificaciones">
+                            <i class="fa-solid fa-download me-1"></i> Descargar Archivo
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-success btn-sm fw-bold px-3" onclick="bootstrap.Modal.getInstance(document.getElementById('modalInspeccionOffline'))?.hide(); forzarSincronizacionOffline();">
+                            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Forzar Sincronización
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 text-end">
+                    <span id="diag-ping-result" class="small text-muted" style="font-size: 0.72rem;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: IMPORTAR RESPALDO JSON MANUALMENTE (RESCATE DE CALIFICACIONES) -->
+<div class="modal fade" id="modalImportarRespaldoJSON" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header py-2 px-3 bg-dark text-white">
+                <h6 class="modal-title fw-bold mb-0">
+                    <i class="fa-solid fa-file-import text-success me-1"></i> Importar Respaldo de Campo (JSON)
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.7rem;"></button>
+            </div>
+            <div class="modal-body p-3" style="background: #f8fafc; font-size: 0.85rem;">
+                <p class="small text-muted mb-2">
+                    Si el dispositivo de campo tuvo problemas para sincronizar directamente, copia el respaldo JSON en la tablet, envíalo y pégalo aquí para guardarlo en la base de datos de inmediato.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold mb-1">Contenido JSON de calificaciones:</label>
+                    <textarea id="import-json-textarea" class="form-control font-monospace" rows="6" placeholder='[{"id": 17582, "val": "1", "obs": ""}, ...]' style="font-size: 0.74rem;"></textarea>
+                </div>
+                <div id="import-json-status" class="alert alert-info py-1.5 px-2.5 small d-none"></div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-sm btn-success fw-bold px-3" onclick="aplicarJSONImportado()">
+                        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Aplicar al Sistema
                     </button>
                 </div>
             </div>
@@ -2946,6 +3004,11 @@ function markItemDirty(itemId, triggerSideEffects = true) {
     }
 }
 
+let isSyncInProgress = false;
+let syncRetryCount = 0;
+const MAX_SYNC_RETRIES = 2;
+let syncWatchdogTimer = null;
+
 function updateSaveButtonsUI(isLoading = false) {
     const count = modifiedItems.size;
     const saveBtnHeader = document.getElementById('btn-save-batch');
@@ -2968,8 +3031,24 @@ function updateSaveButtonsUI(isLoading = false) {
             floatingBtn.disabled = true;
             floatingBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sincronizando...';
         }
+
+        // Watchdog de seguridad (12 segundos): si la petición de red se congela en tablet, restablecer botones automáticamente
+        if (syncWatchdogTimer) clearTimeout(syncWatchdogTimer);
+        syncWatchdogTimer = setTimeout(() => {
+            console.warn('[FENOGRAMAS-SYNC] Watchdog activado: proceso de red excedió 12s. Restableciendo botones.');
+            isSyncInProgress = false;
+            syncRetryCount = 0;
+            updateSaveButtonsUI(false);
+            showFenoToast('⚠️ La sincronización tardó demasiado. Puedes reintentar ahora o abrir "Ver Cola".', true);
+        }, 12000);
         return;
     }
+
+    if (syncWatchdogTimer) {
+        clearTimeout(syncWatchdogTimer);
+        syncWatchdogTimer = null;
+    }
+    isSyncInProgress = false;
 
     if (count > 0) {
         if (saveBtnHeader) {
@@ -3210,8 +3289,40 @@ function descartarCambiosLocales() {
     showFenoToast('Cambios pendientes descartados.');
 }
 
-async function saveAllChanges() {
-    if (modifiedItems.size === 0) return;
+function forzarSincronizacionOffline() {
+    isSyncInProgress = false;
+    syncRetryCount = 0;
+    if (syncWatchdogTimer) {
+        clearTimeout(syncWatchdogTimer);
+        syncWatchdogTimer = null;
+    }
+    updateSaveButtonsUI(false);
+    showFenoToast('⚡ Iniciando sincronización forzada...', false);
+    setTimeout(() => saveAllChanges(true), 150);
+}
+
+async function saveAllChanges(isForced = false) {
+    if (isForced) {
+        isSyncInProgress = false;
+        syncRetryCount = 0;
+        if (syncWatchdogTimer) {
+            clearTimeout(syncWatchdogTimer);
+            syncWatchdogTimer = null;
+        }
+    }
+
+    if (isSyncInProgress) {
+        console.warn('[FENOGRAMAS-SYNC] Sincronización en curso, omitiendo llamada duplicada.');
+        return;
+    }
+
+    if (modifiedItems.size === 0) {
+        updateSaveButtonsUI(false);
+        return;
+    }
+
+    isSyncInProgress = true;
+    updateSaveButtonsUI(true);
 
     const payloadItems = [];
     const affectedBlocks = new Set();
@@ -3266,11 +3377,13 @@ async function saveAllChanges() {
         payloadItems.push(payloadItem);
     });
 
-    updateSaveButtonsUI(true);
+    const abortCtrl = new AbortController();
+    const abortTimer = setTimeout(() => abortCtrl.abort(), 12000);
 
     try {
         const res = await fetch('{{ url_for("fenogramas.api_calificar_lote") }}', {
             method: 'POST',
+            signal: abortCtrl.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -3278,6 +3391,7 @@ async function saveAllChanges() {
             },
             body: JSON.stringify({ items: payloadItems })
         });
+        clearTimeout(abortTimer);
 
         const contentType = res.headers.get('content-type') || '';
         let data = null;
@@ -3293,18 +3407,23 @@ async function saveAllChanges() {
         }
 
         if (res.status === 401 || (data && data.auth_required)) {
+            isSyncInProgress = false;
             updateSaveButtonsUI(false);
             abrirModalReauth(payloadItems.length);
             return;
         }
 
         if (!res.ok) {
+            isSyncInProgress = false;
             updateSaveButtonsUI(false);
             showFenoToast(`Error al guardar (HTTP ${res.status}): ${data?.error || 'Error interno'}`, true);
             return;
         }
 
         if (data && data.success) {
+            syncRetryCount = 0;
+            isSyncInProgress = false;
+
             payloadItems.forEach(item => {
                 const btn = document.getElementById(`btn-check-${item.id}`);
                 const obsInput = document.getElementById(`obs-${item.id}`);
@@ -3327,6 +3446,11 @@ async function saveAllChanges() {
             offlineExtraItems = {};
             try {
                 localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+                // Limpiar también cualquier clave alternativa de feno_offline_sync_*
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (k && k.startsWith('feno_offline_sync_')) localStorage.removeItem(k);
+                }
             } catch (e) {}
             FenoIndexedDB.clear(SEMANA_ACTUAL);
 
@@ -3337,30 +3461,36 @@ async function saveAllChanges() {
                 setTimeout(() => window.location.reload(), 700);
             }
         } else {
+            isSyncInProgress = false;
             updateSaveButtonsUI(false);
             showFenoToast('Error: ' + (data?.error || 'Desconocido'), true);
         }
     } catch (err) {
-        console.warn('Network sync failed:', err);
+        clearTimeout(abortTimer);
+        console.warn('[FENOGRAMAS-SYNC] Excepción de conexión:', err);
+        isSyncInProgress = false;
         updateSaveButtonsUI(false);
 
-        // Diagnóstico activo: verificar si el servidor responde
-        try {
-            const pingRes = await fetch('/fenogramas/api/ping', { cache: 'no-store' });
-            if (pingRes.ok) {
-                const pingData = await pingRes.json();
-                if (pingData.authenticated === false) {
-                    abrirModalReauth(payloadItems.length);
-                    return;
-                } else if (pingData.authenticated === true) {
-                    showFenoToast('✓ Conexión con el servidor detectada. Reintentando sincronización...', false);
-                    setTimeout(() => saveAllChanges(), 600);
-                    return;
+        if (syncRetryCount < MAX_SYNC_RETRIES) {
+            syncRetryCount++;
+            try {
+                const pingRes = await fetch('/fenogramas/api/ping?t=' + Date.now(), { cache: 'no-store' });
+                if (pingRes.ok) {
+                    const pingData = await pingRes.json();
+                    if (pingData.authenticated === false) {
+                        abrirModalReauth(payloadItems.length);
+                        return;
+                    } else if (pingData.authenticated === true) {
+                        showFenoToast(`Reintentando sincronización (${syncRetryCount}/${MAX_SYNC_RETRIES})...`, false);
+                        setTimeout(() => saveAllChanges(true), 800);
+                        return;
+                    }
                 }
-            }
-        } catch (pingErr) {}
+            } catch (pingErr) {}
+        }
 
-        showFenoToast(`⚠️ Sin conexión con el servidor: ${payloadItems.length} cambios guardados de forma segura en este dispositivo. Se sincronizarán al detectar red.`, true);
+        syncRetryCount = 0;
+        showFenoToast(`⚠️ Sin conexión con el servidor: tus ${payloadItems.length} calificaciones están 100% seguras en la tablet. Pulsa "Ver Cola" o "Reintentar".`, true);
     }
 }
 
@@ -3536,12 +3666,42 @@ async function probarPingServidor(interactive = false) {
     }
 }
 
-function copiarRespaldoOfflineJSON() {
+function getRawOfflineBackupJSON() {
     let raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
     if (!raw) {
         const hist = localStorage.getItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
         if (hist) raw = hist;
     }
+    if (!raw) {
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('feno_offline_sync_')) {
+                const val = localStorage.getItem(k);
+                if (val && val.length > 5) {
+                    raw = val;
+                    break;
+                }
+            }
+        }
+    }
+    if (!raw && modifiedItems.size > 0) {
+        const payload = [];
+        modifiedItems.forEach(itemId => {
+            const btn = document.getElementById(`btn-check-${itemId}`);
+            const obsInput = document.getElementById(`obs-${itemId}`);
+            const cached = offlineQueueCache.get(itemId);
+            const extra = offlineExtraItems[itemId] || (cached && cached.is_extra ? cached : null);
+            let val = btn ? (btn.getAttribute('data-current-val') || 'null') : (cached ? cached.val : null);
+            let obs = obsInput ? obsInput.value : (cached ? cached.obs : '');
+            payload.push({ id: itemId, val: val, obs: obs, is_extra: !!extra });
+        });
+        raw = JSON.stringify(payload);
+    }
+    return raw;
+}
+
+function copiarRespaldoOfflineJSON() {
+    const raw = getRawOfflineBackupJSON();
     if (!raw) {
         showFenoToast('No hay datos en la cola local para copiar.');
         return;
@@ -3559,23 +3719,134 @@ function copiarRespaldoOfflineJSON() {
             const success = document.execCommand('copy');
             document.body.removeChild(ta);
             if (success) {
-                showFenoToast('✓ Respaldo JSON copiado al portapapeles.');
+                showFenoToast('✓ ¡Respaldo JSON copiado al portapapeles! Puedes enviarlo por WhatsApp o pegarlo.');
             } else {
-                showFenoToast('No se pudo copiar automáticamente. Consulta con Sistemas.');
+                prompt('Copia manualmente este respaldo JSON:', raw);
             }
         } catch (e) {
-            showFenoToast('No se pudo copiar automáticamente. Consulta con Sistemas.');
+            prompt('Copia manualmente este respaldo JSON:', raw);
         }
     };
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(raw).then(() => {
-            showFenoToast('✓ Respaldo JSON copiado al portapapeles.');
+            showFenoToast('✓ ¡Respaldo JSON copiado al portapapeles! Puedes enviarlo por WhatsApp o pegarlo.');
         }).catch(() => {
             doFallbackCopy();
         });
     } else {
         doFallbackCopy();
+    }
+}
+
+function descargarRespaldoOfflineJSON() {
+    const raw = getRawOfflineBackupJSON();
+    if (!raw) {
+        showFenoToast('No hay datos en la cola local para descargar.');
+        return;
+    }
+    try {
+        const blob = new Blob([raw], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `respaldo_fenogramas_sem${SEMANA_ACTUAL}_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showFenoToast('✓ Archivo de respaldo descargado correctamente.');
+    } catch (e) {
+        copiarRespaldoOfflineJSON();
+    }
+}
+
+function abrirModalImportarRespaldo() {
+    const el = document.getElementById('modalImportarRespaldoJSON');
+    if (!el) return;
+    const statusEl = document.getElementById('import-json-status');
+    if (statusEl) statusEl.classList.add('d-none');
+    const ta = document.getElementById('import-json-textarea');
+    if (ta) ta.value = '';
+    const modal = bootstrap.Modal.getOrCreateInstance(el);
+    modal.show();
+}
+
+async function aplicarJSONImportado() {
+    const ta = document.getElementById('import-json-textarea');
+    const statusEl = document.getElementById('import-json-status');
+    if (!ta || !ta.value.trim()) {
+        alert('Por favor pega el JSON de calificaciones primero.');
+        return;
+    }
+    let parsed = null;
+    try {
+        parsed = JSON.parse(ta.value.trim());
+    } catch (e) {
+        alert('El formato no es un JSON válido: ' + e.message);
+        return;
+    }
+
+    let items = [];
+    if (Array.isArray(parsed)) items = parsed;
+    else if (parsed.items && Array.isArray(parsed.items)) items = parsed.items;
+    else if (parsed.payload && Array.isArray(parsed.payload)) items = parsed.payload;
+
+    if (!items || items.length === 0) {
+        alert('El JSON no contiene calificaciones para procesar.');
+        return;
+    }
+
+    const normalizedItems = items.map(it => {
+        let c = it.cumplido;
+        if (c === undefined && it.val !== undefined) {
+            c = (it.val === '1' || it.val === 1) ? 1 : ((it.val === '0' || it.val === 0) ? 0 : null);
+        }
+        return {
+            id: it.id,
+            cumplido: c,
+            observacion: it.observacion || it.obs || '',
+            labor: it.nueva_labor || it.labor || null,
+            auxiliar: it.auxiliar || null,
+            supervisor: it.supervisor || null,
+            is_extra: !!it.is_extra,
+            parent_id: it.parent_id || null
+        };
+    });
+
+    if (statusEl) {
+        statusEl.className = 'alert alert-info py-1.5 px-2.5 small';
+        statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando ${normalizedItems.length} calificaciones en el servidor...`;
+        statusEl.classList.remove('d-none');
+    }
+
+    try {
+        const res = await fetch('{{ url_for("fenogramas.api_calificar_lote") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ items: normalizedItems })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (statusEl) {
+                statusEl.className = 'alert alert-success py-1.5 px-2.5 small';
+                statusEl.innerHTML = `✓ ¡Éxito! Se guardaron ${data.updated} calificaciones en la base de datos. Recargando...`;
+            }
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            if (statusEl) {
+                statusEl.className = 'alert alert-danger py-1.5 px-2.5 small';
+                statusEl.innerHTML = `Error: ${data.error || 'No se pudo guardar'}`;
+            }
+        }
+    } catch (e) {
+        if (statusEl) {
+            statusEl.className = 'alert alert-danger py-1.5 px-2.5 small';
+            statusEl.innerHTML = `Error de red: ${e.message}`;
+        }
     }
 }
 

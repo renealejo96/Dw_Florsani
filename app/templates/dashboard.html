@@ -86,18 +86,30 @@
         </div>
         <div class="d-flex align-items-center gap-2">
             <form method="GET" class="d-flex align-items-center gap-2 m-0 bg-white p-1.5 px-2.5 rounded-3 border shadow-xs">
-                <label for="selectSemanaCorte" class="small text-secondary fw-bold text-nowrap mb-0">
-                    <i class="fa-solid fa-calendar-week text-primary me-1"></i> Semana de Corte:
+                <label for="selectAnioCorte" class="small text-secondary fw-bold text-nowrap mb-0">
+                    <i class="fa-solid fa-calendar text-primary me-1"></i> Año:
                 </label>
-                <select id="selectSemanaCorte" name="week" class="form-select form-select-sm fw-bold border-primary-subtle text-primary bg-light" onchange="this.form.submit()" style="min-width: 145px; font-family: monospace;">
-                    {% for w in available_weeks_list %}
-                    <option value="{{ w }}" {% if selected_week_num == w %}selected{% endif %}>
-                        Semana {{ w }}{% if w == semana_actual_iso %} (Actual){% endif %}
+                <select id="selectAnioCorte" name="year" class="form-select form-select-sm fw-bold border-primary-subtle text-primary bg-light" onchange="this.form.submit()" style="min-width: 95px; font-family: monospace;">
+                    {% for y in available_years_list %}
+                    <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>
+                        {{ y }}{% if y == semana_actual_year %} (Actual){% endif %}
                     </option>
                     {% endfor %}
                 </select>
-                {% if selected_week_num != semana_actual_iso %}
-                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm py-0 px-2 small" title="Volver a la semana actual">
+
+                <label for="selectSemanaCorte" class="small text-secondary fw-bold text-nowrap mb-0 ms-1">
+                    <i class="fa-solid fa-calendar-week text-primary me-1"></i> Sem:
+                </label>
+                <select id="selectSemanaCorte" name="week" class="form-select form-select-sm fw-bold border-primary-subtle text-primary bg-light" onchange="this.form.submit()" style="min-width: 140px; font-family: monospace;">
+                    {% for w in available_weeks_list %}
+                    <option value="{{ w }}" {% if selected_week_num == w %}selected{% endif %}>
+                        Semana {{ w }}{% if w == semana_actual_iso and selected_year == semana_actual_year %} (Actual){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                {% if selected_week_num != semana_actual_iso or selected_year != semana_actual_year %}
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm py-0 px-2 small ms-1" title="Volver a la semana y año actual">
                     <i class="fa-solid fa-rotate-left"></i>
                 </a>
                 {% endif %}
@@ -111,7 +123,7 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-green">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> <span id="kpiTopCosechaLabel">Cosecha (Sem {{ semana_actual }})</span></span>
+                    <span class="kpi-label"><i class="fa-solid fa-scissors text-success me-1"></i> <span id="kpiTopCosechaLabel">Cosecha (Sem {{ semana_actual }} · {{ selected_year }})</span></span>
                     <span class="kpi-icon-badge kpi-icon-green">
                         <i class="fa-solid fa-seedling"></i>
                     </span>
@@ -121,7 +133,7 @@
                     <span class="badge badge-soft-success px-2 py-0">
                         {{ cosechas_registros_count }} registros
                     </span>
-                    <span class="text-muted small ms-1">tallos semana actual</span>
+                    <span class="text-muted small ms-1">tallos semana y año seleccionados</span>
                 </div>
             </div>
         </div>
@@ -130,7 +142,7 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-amber">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-clipboard-check text-warning me-1"></i> <span id="kpiTopFenoLabel">Cumplimiento Fenograma (Sem {{ semana_actual }})</span></span>
+                    <span class="kpi-label"><i class="fa-solid fa-clipboard-check text-warning me-1"></i> <span id="kpiTopFenoLabel">Cumplimiento Fenograma (Sem {{ semana_actual }} · {{ selected_year }})</span></span>
                     <span class="kpi-icon-badge kpi-icon-amber">
                         <i class="fa-solid fa-chart-line"></i>
                     </span>
@@ -143,7 +155,7 @@
                     <span class="badge badge-soft-warning px-2 py-0">{{ feno_cumplidas|format_number(0) }} / {{ feno_total_actividades|format_number(0) }}</span>
                     <span class="text-muted small ms-1">labores cumplidas</span>
                     {% else %}
-                    <span class="text-muted small">Sin labores registradas sem {{ semana_actual }}</span>
+                    <span class="text-muted small">Sin labores registradas sem {{ semana_actual }} ({{ selected_year }})</span>
                     {% endif %}
                 </div>
             </div>
@@ -503,7 +515,8 @@ document.addEventListener('DOMContentLoaded', function() {
         costoTotal: {{ cost_summary.total_cost|default(0.0) }},
         costoPromHa: {{ cost_summary.avg_cost_per_ha|default(0.0) }},
         costoHa: {{ cost_summary.total_ha|default(0.0) }},
-        semanaActual: {{ semana_actual }}
+        semanaActual: {{ semana_actual }},
+        anioActual: {{ selected_year }}
     };
 
     // Paleta de colores UI/UX Pro Max Florícola
@@ -1263,12 +1276,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const kpiCosechaVal = document.getElementById('kpiTopCosechaVal');
         const kpiCosechaSub = document.getElementById('kpiTopCosechaSub');
         const kpiCosechaLbl = document.getElementById('kpiTopCosechaLabel');
-        if (kpiCosechaLbl) kpiCosechaLbl.textContent = `Cosecha ${activeSegmentedCrop} (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiCosechaLbl) kpiCosechaLbl.textContent = `Cosecha ${activeSegmentedCrop} (Sem ${kpiGlobal.semanaActual} · ${kpiGlobal.anioActual})`;
         if (kpiCosechaVal) kpiCosechaVal.textContent = Number(cosechaData.tallos || 0).toLocaleString();
         if (kpiCosechaSub) {
             kpiCosechaSub.innerHTML = `
                 <span class="badge badge-soft-success px-2 py-0">${Number(cosechaData.registros || 0)} registros</span>
-                <span class="text-muted small ms-1">tallos semana actual</span>
+                <span class="text-muted small ms-1">tallos semana y año seleccionados</span>
             `;
         }
 
@@ -1277,7 +1290,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const kpiFenoVal = document.getElementById('kpiTopFenoVal');
         const kpiFenoSub = document.getElementById('kpiTopFenoSub');
         const kpiFenoLbl = document.getElementById('kpiTopFenoLabel');
-        if (kpiFenoLbl) kpiFenoLbl.textContent = `Fenograma ${activeSegmentedCrop} (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiFenoLbl) kpiFenoLbl.textContent = `Fenograma ${activeSegmentedCrop} (Sem ${kpiGlobal.semanaActual} · ${kpiGlobal.anioActual})`;
         if (kpiFenoVal) {
             const pctVal = Number(fenoData.pct || 0.0);
             kpiFenoVal.textContent = `${pctVal.toFixed(1)}%`;
@@ -1290,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="text-muted small ms-1">labores cumplidas</span>
                 `;
             } else {
-                kpiFenoSub.innerHTML = `<span class="text-muted small">Sin labores registradas sem ${kpiGlobal.semanaActual}</span>`;
+                kpiFenoSub.innerHTML = `<span class="text-muted small">Sin labores registradas sem ${kpiGlobal.semanaActual} (${kpiGlobal.anioActual})</span>`;
             }
         }
 
@@ -1391,12 +1404,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const kpiCosechaVal = document.getElementById('kpiTopCosechaVal');
         const kpiCosechaSub = document.getElementById('kpiTopCosechaSub');
         const kpiCosechaLbl = document.getElementById('kpiTopCosechaLabel');
-        if (kpiCosechaLbl) kpiCosechaLbl.textContent = `Cosecha (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiCosechaLbl) kpiCosechaLbl.textContent = `Cosecha (Sem ${kpiGlobal.semanaActual} · ${kpiGlobal.anioActual})`;
         if (kpiCosechaVal) kpiCosechaVal.textContent = Number(kpiGlobal.cosechasTallos || 0).toLocaleString();
         if (kpiCosechaSub) {
             kpiCosechaSub.innerHTML = `
                 <span class="badge badge-soft-success px-2 py-0">${Number(kpiGlobal.cosechasRegs || 0)} registros</span>
-                <span class="text-muted small ms-1">tallos semana actual</span>
+                <span class="text-muted small ms-1">tallos semana y año seleccionados</span>
             `;
         }
 
@@ -1404,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const kpiFenoVal = document.getElementById('kpiTopFenoVal');
         const kpiFenoSub = document.getElementById('kpiTopFenoSub');
         const kpiFenoLbl = document.getElementById('kpiTopFenoLabel');
-        if (kpiFenoLbl) kpiFenoLbl.textContent = `Cumplimiento Fenograma (Sem ${kpiGlobal.semanaActual})`;
+        if (kpiFenoLbl) kpiFenoLbl.textContent = `Cumplimiento Fenograma (Sem ${kpiGlobal.semanaActual} · ${kpiGlobal.anioActual})`;
         if (kpiFenoVal) {
             const pctVal = Number(kpiGlobal.fenoPct || 0.0);
             kpiFenoVal.textContent = `${pctVal.toFixed(1)}%`;
@@ -1417,7 +1430,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="text-muted small ms-1">labores cumplidas</span>
                 `;
             } else {
-                kpiFenoSub.innerHTML = `<span class="text-muted small">Sin labores registradas sem ${kpiGlobal.semanaActual}</span>`;
+                kpiFenoSub.innerHTML = `<span class="text-muted small">Sin labores registradas sem ${kpiGlobal.semanaActual} (${kpiGlobal.anioActual})</span>`;
             }
         }
 

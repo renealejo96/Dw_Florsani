@@ -626,8 +626,31 @@ def api_ping():
 @login_required
 @permission_required('fenogramas')
 def api_calificar_lote():
-    data = request.get_json() or {}
-    items = data.get('items', [])
+    data = request.get_json(silent=True)
+    if not data:
+        raw_body = request.get_data(as_text=True)
+        if raw_body:
+            try:
+                data = json.loads(raw_body)
+            except Exception:
+                pass
+        if not data and request.form.get('json_data'):
+            try:
+                data = json.loads(request.form.get('json_data'))
+            except Exception:
+                pass
+    data = data or {}
+    items = []
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        if 'items' in data and isinstance(data['items'], list):
+            items = data['items']
+        elif 'payload' in data and isinstance(data['payload'], list):
+            items = data['payload']
+        elif 'items' in data and isinstance(data['items'], str):
+            try: items = json.loads(data['items'])
+            except Exception: pass
     if not items:
         return jsonify({'success': True, 'updated': 0, 'message': 'No hay cambios para guardar'})
 

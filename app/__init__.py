@@ -462,6 +462,29 @@ def create_app(config_class=Config):
         now_dt = get_local_now()
         iso_year, iso_week, _ = now_dt.isocalendar()
 
+        # Determinar todos los años disponibles en el sistema (Cosechas, Fenogramas)
+        available_years_set = {iso_year}
+        try:
+            for r in db.session.execute(text("SELECT DISTINCT EXTRACT(isoyear FROM fecha)::int FROM registro_cosecha WHERE fecha IS NOT NULL")).fetchall():
+                if r[0] and 2020 <= int(r[0]) <= 2035:
+                    available_years_set.add(int(r[0]))
+            for r in db.session.execute(text("SELECT DISTINCT anio FROM calificaciones WHERE anio IS NOT NULL")).fetchall():
+                if r[0] and 2020 <= int(r[0]) <= 2035:
+                    available_years_set.add(int(r[0]))
+        except Exception:
+            pass
+        available_years_list = sorted(list(available_years_set), reverse=True)
+
+        # Leer año seleccionado del filtro global (?year=YYYY)
+        req_year = request.args.get('year')
+        if req_year:
+            try:
+                selected_year = int(req_year)
+            except Exception:
+                selected_year = iso_year
+        else:
+            selected_year = iso_year
+
         # Determinar todas las semanas disponibles en el sistema (Cosechas, Fenogramas, Fumigación)
         harvest_weeks_raw = [r[0] for r in db.session.query(RegistroCosecha.semana).distinct().all() if r[0] is not None]
         feno_weeks_raw = [r[0] for r in db.session.execute(text("SELECT DISTINCT semana_anio FROM calificaciones")).fetchall() if r[0] is not None]
@@ -507,17 +530,29 @@ def create_app(config_class=Config):
         if not selected_week and weeks_list:
             selected_week = weeks_list[0]
 
-        semanas_cosecha_match = [selected_week_num, (iso_year % 100) * 100 + selected_week_num]
-        semanas_estimado_match = [str(selected_week_num), f"{iso_year % 100:02d}{selected_week_num:02d}"]
+        semanas_cosecha_match = [selected_week_num, (selected_year % 100) * 100 + selected_week_num]
+        semanas_estimado_match = [str(selected_week_num), f"{selected_year % 100:02d}{selected_week_num:02d}"]
 
-        cosechas_semana_actual_query = RegistroCosecha.query.filter(RegistroCosecha.semana.in_(semanas_cosecha_match))
-        cosechas_total_tallos = db.session.query(db.func.sum(RegistroCosecha.total_tallos)).filter(RegistroCosecha.semana.in_(semanas_cosecha_match)).scalar() or 0
+        cosechas_semana_actual_query = RegistroCosecha.query.filter(
+            RegistroCosecha.semana.in_(semanas_cosecha_match),
+            db.or_(
+                db.extract('isoyear', RegistroCosecha.fecha) == selected_year,
+                db.and_(RegistroCosecha.fecha == None, RegistroCosecha.semana == (selected_year % 100) * 100 + selected_week_num)
+            )
+        )
+        cosechas_total_tallos = db.session.query(db.func.sum(RegistroCosecha.total_tallos)).filter(
+            RegistroCosecha.semana.in_(semanas_cosecha_match),
+            db.or_(
+                db.extract('isoyear', RegistroCosecha.fecha) == selected_year,
+                db.and_(RegistroCosecha.fecha == None, RegistroCosecha.semana == (selected_year % 100) * 100 + selected_week_num)
+            )
+        ).scalar() or 0
         cosechas_registros_count = cosechas_semana_actual_query.count()
 
         estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).filter(Estimado.semana.in_(semanas_estimado_match)).scalar() or 0
         cumplimiento_cosecha = round((float(cosechas_total_tallos) / float(estimados_total_tallos) * 100), 1) if estimados_total_tallos > 0 else 0
 
-        # 1. Cumplimiento Fenograma de la Semana Seleccionada
+        # 1. Cumplimiento Fenograma de la Semana y Año Seleccionados
         try:
             feno_res = db.session.execute(text("""
                 SELECT 
@@ -525,8 +560,8 @@ def create_app(config_class=Config):
                     SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
                     ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
                 FROM calificaciones
-                WHERE semana_anio = :w
-            """), {'w': selected_week_num}).fetchone()
+                WHERE semana_anio = :w AND (anio = :y OR anio IS NULL)
+            """), {'w': selected_week_num, 'y': selected_year}).fetchone()
             if feno_res and feno_res.total and feno_res.total > 0:
                 cumplimiento_fenograma = float(feno_res.pct or 0.0)
                 feno_total_actividades = feno_res.total
@@ -748,9 +783,9 @@ def create_app(config_class=Config):
                     SUM(CASE WHEN cumplido = 1 THEN 1 ELSE 0 END) as cumplidas,
                     ROUND(100.0 * SUM(CASE WHEN cumplido = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
                 FROM calificaciones
-                WHERE semana_anio = :w
+                WHERE semana_anio = :w AND (anio = :y OR anio IS NULL)
                 GROUP BY UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS')))
-            """), {'w': selected_week_num}).fetchall()
+            """), {'w': selected_week_num, 'y': selected_year}).fetchall()
             for r in feno_kpi_rows:
                 c_nom = str(r.crop).upper().strip()
                 item = {
@@ -861,8 +896,11 @@ def create_app(config_class=Config):
             recent_orders=recent_orders,
             semana_actual=selected_week_num,
             semana_actual_iso=iso_week,
+            semana_actual_year=iso_year,
             available_weeks_list=available_weeks_list,
             selected_week_num=selected_week_num,
+            available_years_list=available_years_list,
+            selected_year=selected_year,
             cosechas_total_tallos=cosechas_total_tallos,
             estimados_total_tallos=estimados_total_tallos,
             cumplimiento_cosecha=cumplimiento_cosecha,
