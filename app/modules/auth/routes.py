@@ -1,6 +1,6 @@
 import functools
 import json
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g, jsonify
 from app.extensions import db
 from app.shared.models import User
 from app.shared.audit import record_audit
@@ -14,10 +14,27 @@ FINCAS_MAP = {
     3: 'Urcuquí'
 }
 
+def is_api_request():
+    """Detecta si la petición entrante es AJAX / Fetch / API."""
+    return bool(
+        request.is_json
+        or request.path.startswith('/api/')
+        or '/api/' in request.path
+        or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or 'application/json' in request.headers.get('Accept', '')
+    )
+
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if 'user_id' not in session:
+            if is_api_request():
+                return jsonify({
+                    'success': False,
+                    'error': 'Tu sesión ha expirado por inactividad. Inicia sesión para continuar.',
+                    'code': 'SESSION_EXPIRED',
+                    'auth_required': True
+                }), 401
             return redirect(url_for('auth.login', next=request.url))
         return view(**kwargs)
     return wrapped_view
@@ -26,8 +43,21 @@ def admin_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if 'user_id' not in session:
+            if is_api_request():
+                return jsonify({
+                    'success': False,
+                    'error': 'Tu sesión ha expirado por inactividad. Inicia sesión para continuar.',
+                    'code': 'SESSION_EXPIRED',
+                    'auth_required': True
+                }), 401
             return redirect(url_for('auth.login', next=request.url))
         if session.get('role') != 'ADMIN':
+            if is_api_request():
+                return jsonify({
+                    'success': False,
+                    'error': 'Acceso restringido: Se requieren permisos de Administrador.',
+                    'code': 'ADMIN_REQUIRED'
+                }), 403
             flash("Acceso restringido: Se requieren permisos de Administrador para esta sección.", "danger")
             return redirect(url_for('dashboard'))
         return view(**kwargs)
@@ -38,9 +68,23 @@ def permission_required(*perm_names):
         @functools.wraps(view)
         def wrapped_view(**kwargs):
             if 'user_id' not in session:
+                if is_api_request():
+                    return jsonify({
+                        'success': False,
+                        'error': 'Tu sesión ha expirado por inactividad. Inicia sesión para continuar.',
+                        'code': 'SESSION_EXPIRED',
+                        'auth_required': True
+                    }), 401
                 return redirect(url_for('auth.login', next=request.url))
-            user = User.query.get(session['user_id'])
+            user = db.session.get(User, session['user_id'])
             if not user or not user.is_active:
+                if is_api_request():
+                    return jsonify({
+                        'success': False,
+                        'error': 'Acceso denegado: Cuenta de usuario inactiva.',
+                        'code': 'USER_INACTIVE',
+                        'auth_required': True
+                    }), 403
                 flash("Acceso denegado: Cuenta de usuario inactiva.", "danger")
                 return redirect(url_for('auth.login'))
             if user.role == 'ADMIN':
@@ -68,11 +112,18 @@ def permission_required(*perm_names):
                     'fenogramas': 'Módulo de Fenogramas'
                 }
                 needed = ", ".join([labels.get(p, p) for p in perm_names])
+                if is_api_request():
+                    return jsonify({
+                        'success': False,
+                        'error': f'Acceso denegado: Tu perfil no tiene habilitado el acceso a {needed}.',
+                        'code': 'FORBIDDEN'
+                    }), 403
                 flash(f"Acceso denegado: Tu perfil no tiene habilitado el acceso a '{needed}'.", "warning")
                 return redirect(url_for('dashboard'))
             return view(**kwargs)
         return wrapped_view
     return decorator
+
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -98,6 +149,7 @@ def login():
                 finca_id = user.finca_id
                 flash(f"Conectado automáticamente a tu sede de trabajo: {user.finca_nombre}.", "info")
 
+            session.permanent = True
             session['user_id'] = user.id
             session['username'] = user.username
             session['full_name'] = user.full_name
@@ -124,6 +176,45 @@ def login():
             flash("Usuario o contraseña incorrectos. Por favor verifique sus credenciales.", "danger")
 
     return render_template('auth/login.html')
+
+
+@auth_bp.route('/api/quick-login', methods=['POST'])
+def api_quick_login():
+    """Reautentica la sesión en vivo vía AJAX sin recargar la página para evitar pérdida de datos en campo."""
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip().lower()
+    password = data.get('password') or ''
+    if not username or not password:
+        return jsonify({'success': False, 'error': 'Usuario y contraseña requeridos'}), 400
+
+    user = User.query.filter(db.func.lower(User.username) == username).first()
+    if not user or not user.check_password(password):
+        return jsonify({'success': False, 'error': 'Usuario o contraseña incorrectos'}), 401
+    if not user.is_active:
+        return jsonify({'success': False, 'error': 'Cuenta de usuario inactiva'}), 403
+
+    session.permanent = True
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['full_name'] = user.full_name
+    session['role'] = user.role
+    session['permissions'] = user.permissions
+    finca_id = user.finca_id or 1
+    session['finca_id'] = finca_id
+    session['finca_nombre'] = FINCAS_MAP.get(finca_id, 'Pyganflor')
+
+    record_audit('AUTH', 'QUICK_REAUTH', 'User', user.id, user=user.username, details={'finca': session['finca_nombre']})
+    return jsonify({
+        'success': True,
+        'message': 'Sesión restablecida exitosamente',
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'full_name': user.full_name,
+            'role': user.role
+        }
+    })
+
 
 
 @auth_bp.route('/cambiar-finca/<int:finca_id>')

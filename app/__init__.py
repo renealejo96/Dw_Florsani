@@ -327,13 +327,31 @@ def create_app(config_class=Config):
     # Force login by default for all application routes
     @app.before_request
     def check_authenticated_user():
-        from flask import request, redirect, url_for
+        from flask import request, redirect, url_for, jsonify
         if request.endpoint:
-            if request.endpoint.startswith('static') or request.endpoint in ['auth.login', 'auth.logout', 'service_worker_file']:
+            if request.endpoint.startswith('static') or request.endpoint in [
+                'auth.login', 'auth.logout', 'auth.api_quick_login',
+                'fenogramas.api_ping', 'service_worker_file'
+            ]:
                 return None
         
         if 'user_id' not in session:
+            # Si es una petición API / JSON / AJAX, retornar 401 JSON en lugar de redirección HTML 302
+            is_api = bool(
+                request.is_json
+                or (request.path and ('/api/' in request.path or request.path.startswith('/api/')))
+                or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                or 'application/json' in request.headers.get('Accept', '')
+            )
+            if is_api:
+                return jsonify({
+                    'success': False,
+                    'error': 'Tu sesión ha expirado por inactividad. Inicia sesión para continuar.',
+                    'code': 'SESSION_EXPIRED',
+                    'auth_required': True
+                }), 401
             return redirect(url_for('auth.login'))
+
 
     @app.route('/sw.js')
     def service_worker_file():

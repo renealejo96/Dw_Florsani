@@ -8,6 +8,8 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
 from app.extensions import db
+from app.shared.models import User
+from app.shared.audit import record_audit
 from app.modules.auth.routes import login_required, permission_required, admin_required
 from app.modules.fenogramas.models import (
     SemanaEvaluacion, MatrizFenograma, PlanoCultivo, Calificacion
@@ -607,6 +609,19 @@ def api_calificar():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@fenogramas_bp.route('/api/ping', methods=['GET'])
+def api_ping():
+    """Health check ultraliviano para verificar conectividad y autenticación desde el dispositivo."""
+    user_id = session.get('user_id')
+    user = db.session.get(User, user_id) if user_id else None
+    return jsonify({
+        'status': 'ok',
+        'authenticated': bool(user and user.is_active),
+        'username': user.username if user else None,
+        'server_time': datetime.utcnow().isoformat()
+    })
+
+
 @fenogramas_bp.route('/api/calificar-lote', methods=['POST'])
 @login_required
 @permission_required('fenogramas')
@@ -617,6 +632,7 @@ def api_calificar_lote():
         return jsonify({'success': True, 'updated': 0, 'message': 'No hay cambios para guardar'})
 
     updated_count = 0
+    now_utc = datetime.utcnow()
     try:
         for item in items:
             item_id = item.get('id')
@@ -628,16 +644,26 @@ def api_calificar_lote():
 
             if cumplido is not None:
                 try:
-                    cumplido = int(cumplido)
-                    if cumplido not in [0, 1]:
+                    c_str = str(cumplido).strip().lower()
+                    if c_str in ('null', 'none', ''):
                         cumplido = None
-                except ValueError:
+                    else:
+                        cumplido = int(cumplido)
+                        if cumplido not in [0, 1]:
+                            cumplido = None
+                except (ValueError, TypeError):
                     cumplido = None
 
             # Soporte offline para labores adicionales agregadas con el botón '+'
             if item.get('is_extra') or str(item_id).startswith('client_extra_') or str(item_id).startswith('temp_'):
                 parent_id = item.get('parent_id')
-                parent_calif = Calificacion.query.get(parent_id) if parent_id else None
+                clean_parent_id = None
+                try:
+                    clean_parent_id = int(parent_id)
+                except (ValueError, TypeError):
+                    clean_parent_id = None
+
+                parent_calif = db.session.get(Calificacion, clean_parent_id) if clean_parent_id else None
                 if not parent_calif:
                     continue
                 labor_extra = (item.get('nueva_labor') or item.get('labor') or '').strip()
@@ -669,7 +695,7 @@ def api_calificar_lote():
                     if nuevo_aux: existing_extra.auxiliar = nuevo_aux
                     if nuevo_sup: existing_extra.supervisor = nuevo_sup
                     existing_extra.tiene_evaluacion = True
-                    existing_extra.fecha_calificacion = datetime.utcnow()
+                    existing_extra.fecha_calificacion = now_utc
                 else:
                     new_calif = Calificacion(
                         semana_anio=parent_calif.semana_anio,
@@ -690,14 +716,20 @@ def api_calificar_lote():
                         tiene_evaluacion=True,
                         es_pendiente_anterior=False,
                         semana_origen=parent_calif.semana_anio,
-                        fecha_calificacion=datetime.utcnow()
+                        fecha_calificacion=now_utc
                     )
                     db.session.add(new_calif)
                 updated_count += 1
                 continue
 
-            if item_id:
-                calif = Calificacion.query.get(item_id)
+            clean_id = None
+            try:
+                clean_id = int(item_id)
+            except (ValueError, TypeError):
+                clean_id = None
+
+            if clean_id:
+                calif = db.session.get(Calificacion, clean_id)
                 if not calif:
                     continue
 
@@ -729,7 +761,7 @@ def api_calificar_lote():
                         if nuevo_sup:
                             existing.supervisor = nuevo_sup
                         existing.tiene_evaluacion = True
-                        existing.fecha_calificacion = datetime.utcnow()
+                        existing.fecha_calificacion = now_utc
                     else:
                         calif.labor = nueva_labor
                         if nuevo_aux:
@@ -739,20 +771,22 @@ def api_calificar_lote():
                         calif.cumplido = cumplido
                         calif.observacion = obs
                         calif.tiene_evaluacion = True
-                        calif.fecha_calificacion = datetime.utcnow()
+                        calif.fecha_calificacion = now_utc
                 else:
                     calif.cumplido = cumplido
                     calif.observacion = obs
                     calif.tiene_evaluacion = True
-                    calif.fecha_calificacion = datetime.utcnow()
+                    calif.fecha_calificacion = now_utc
 
                 updated_count += 1
 
         db.session.commit()
+        record_audit('FENOGRAMAS', 'BATCH_EVALUATE', 'Calificacion', None, user=session.get('username'), details={'count': updated_count, 'total_sent': len(items)})
         return jsonify({'success': True, 'updated': updated_count})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': f'Error guardando calificaciones en servidor: {str(e)}'}), 500
+
 
 
 @fenogramas_bp.route('/api/duplicar-calificacion', methods=['POST'])

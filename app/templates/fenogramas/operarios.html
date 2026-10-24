@@ -880,6 +880,10 @@
             <span>Guardar y Sincronizar</span>
             <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>
         </button>
+        <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="abrirModalInspeccionOffline()" title="Inspeccionar cola de calificaciones y probar conectividad con el servidor">
+            <i class="fa-solid fa-satellite-dish text-primary"></i>
+            <span class="d-none d-md-inline">Conexión / Cola</span>
+        </button>
         {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
         <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="cerrarSemanaOperarios({{ semana }})" title="Solo Administrador: Cerrar la semana y arrastrar labores no cumplidas">
             <i class="fa-solid fa-lock"></i>
@@ -1353,6 +1357,9 @@
             <span class="d-none d-sm-inline">Guardar y Sincronizar</span>
             <span class="d-inline d-sm-none">Guardar</span>
         </button>
+        <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="abrirModalInspeccionOffline()" title="Inspeccionar cola de cambios y conectividad">
+            <i class="fa-solid fa-list-check me-1"></i>Cola (<span id="floating-dirty-count-sub">0</span>)
+        </button>
         <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white-50 feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="descartarCambiosLocales()" title="Descartar cambios locales no sincronizados">
             <i class="fa-solid fa-rotate-left"></i>
         </button>
@@ -1362,6 +1369,120 @@
     </div>
 </div>
 {% endif %}
+
+<!-- MODAL: REAUTENTICACIÓN EN VIVO (EVITA PÉRDIDA DE CALIFICACIONES EN CAMPO) -->
+<div class="modal fade" id="modalReauthFenogramas" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header py-2.5 px-3 bg-warning text-dark">
+                <h6 class="modal-title fw-bold mb-0">
+                    <i class="fa-solid fa-shield-halved me-1 text-danger"></i> Sesión Expirada (Modo Campo)
+                </h6>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-info py-2 px-3 small mb-3">
+                    <i class="fa-solid fa-circle-check text-success me-1"></i>
+                    <strong id="reauth-pending-count-text">Tus calificaciones están seguras en este dispositivo.</strong>
+                    <p class="mb-0 mt-1 text-muted" style="font-size: 0.76rem;" id="reauth-desc-text">
+                        Tu conexión Wi-Fi funciona correctamente, pero la sesión de usuario expiró mientras evaluabas en campo. Ingresa tu contraseña para sincronizar al servidor sin salir de esta pantalla ni perder datos.
+                    </p>
+                </div>
+                <form id="form-reauth-fenogramas" onsubmit="handleReauthSubmit(event)">
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold mb-1">Usuario</label>
+                        <input type="text" id="reauth-username" class="form-control form-control-sm" value="{{ session.get('username', '') }}" required autocomplete="username">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold mb-1">Contraseña</label>
+                        <input type="password" id="reauth-password" class="form-control form-control-sm" placeholder="Ingresa tu contraseña" required autocomplete="current-password">
+                    </div>
+                    <div id="reauth-error-alert" class="alert alert-danger py-1.5 px-2.5 small mb-2 d-none"></div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="cerrarModalReauth()">
+                            Continuar Offline
+                        </button>
+                        <button type="submit" id="btn-submit-reauth" class="btn btn-success btn-sm fw-bold px-3">
+                            <i class="fa-solid fa-key me-1"></i> Iniciar Sesión y Sincronizar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: INSPECCIÓN DE COLA OFFLINE Y DIAGNÓSTICO DE RED -->
+<div class="modal fade" id="modalInspeccionOffline" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header py-2.5 px-3 bg-dark text-white">
+                <h6 class="modal-title fw-bold mb-0">
+                    <i class="fa-solid fa-satellite-dish text-success me-2"></i>Diagnóstico de Red & Cola Offline
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.7rem;"></button>
+            </div>
+            <div class="modal-body p-3" style="background: #f8fafc; font-size: 0.85rem;">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <div class="card h-100 border p-2 text-center bg-white shadow-xs">
+                            <div class="small text-muted mb-1">Conexión de Red</div>
+                            <div id="diag-net-status" class="fw-bold text-success"><i class="fa-solid fa-wifi me-1"></i>En línea</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border p-2 text-center bg-white shadow-xs">
+                            <div class="small text-muted mb-1">Sesión en Servidor</div>
+                            <div id="diag-auth-status" class="fw-bold text-primary"><i class="fa-solid fa-spinner fa-spin me-1"></i>Verificando...</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border p-2 text-center bg-white shadow-xs">
+                            <div class="small text-muted mb-1">Calificaciones en Cola</div>
+                            <div id="diag-queue-count" class="fw-bold text-warning fs-6">0 pendientes</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold small text-dark"><i class="fa-solid fa-list me-1"></i>Calificaciones Pendientes de Sincronizar:</span>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" onclick="probarPingServidor(true)">
+                            <i class="fa-solid fa-arrows-rotate me-1"></i>Probar Ping
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="copiarRespaldoOfflineJSON()">
+                            <i class="fa-solid fa-copy me-1"></i>Copiar JSON
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded bg-white shadow-xs mb-3" style="max-height: 240px; overflow-y: auto;">
+                    <table class="table table-sm table-striped mb-0 text-center" style="font-size: 0.78rem;">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>#</th>
+                                <th>ID</th>
+                                <th>Bloque</th>
+                                <th>Labor</th>
+                                <th>Estado</th>
+                                <th>Obs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-inspeccion-cola">
+                            <tr><td colspan="6" class="text-muted py-3">No hay cambios pendientes de sincronizar.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <span id="diag-ping-result" class="small text-muted"></span>
+                    <button type="button" class="btn btn-success btn-sm fw-bold px-3" onclick="bootstrap.Modal.getInstance(document.getElementById('modalInspeccionOffline'))?.hide(); saveAllChanges();">
+                        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar Ahora
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- MODAL: ASIGNAR LABOR ADICIONAL EN MISMO RANGO DE CAMAS -->
 <div class="modal fade" id="modalAgregarLaborAdicional" tabindex="-1" aria-hidden="true">
@@ -1554,6 +1675,84 @@ let offlineExtraItems = {};
 const CATALOGO_LABORES = {{ catalogo_labores | tojson | safe }};
 const AUXILIARES_MAP = {{ auxiliares_map | tojson | safe }};
 
+/* ============================================================================
+   RESPALDO REDUNDANTE EN INDEXEDDB (Protección extrema anti-pérdida de datos)
+   ============================================================================ */
+const FenoIndexedDB = {
+    dbName: 'FlorsaniFenogramasDB',
+    version: 1,
+    db: null,
+    async open() {
+        if (this.db) return this.db;
+        return new Promise((resolve) => {
+            if (!window.indexedDB) return resolve(null);
+            try {
+                const req = window.indexedDB.open(this.dbName, this.version);
+                req.onupgradeneeded = (e) => {
+                    const d = e.target.result;
+                    if (!d.objectStoreNames.contains('offline_queue')) {
+                        d.createObjectStore('offline_queue', { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = (e) => {
+                    this.db = e.target.result;
+                    resolve(this.db);
+                };
+                req.onerror = () => resolve(null);
+            } catch (e) {
+                resolve(null);
+            }
+        });
+    },
+    async saveBatch(semana, items) {
+        const d = await this.open();
+        if (!d || !Array.isArray(items)) return;
+        try {
+            const tx = d.transaction('offline_queue', 'readwrite');
+            const store = tx.objectStore('offline_queue');
+            items.forEach(it => {
+                store.put({ ...it, semana: semana, updated_at: Date.now() });
+            });
+        } catch (e) {
+            console.warn('IndexedDB save error:', e);
+        }
+    },
+    async getAll(semana) {
+        const d = await this.open();
+        if (!d) return [];
+        return new Promise((resolve) => {
+            try {
+                const tx = d.transaction('offline_queue', 'readonly');
+                const store = tx.objectStore('offline_queue');
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const list = req.result || [];
+                    resolve(list.filter(it => !semana || it.semana == semana));
+                };
+                req.onerror = () => resolve([]);
+            } catch (e) {
+                resolve([]);
+            }
+        });
+    },
+    async clear(semana) {
+        const d = await this.open();
+        if (!d) return;
+        try {
+            const tx = d.transaction('offline_queue', 'readwrite');
+            const store = tx.objectStore('offline_queue');
+            const req = store.getAll();
+            req.onsuccess = () => {
+                (req.result || []).forEach(it => {
+                    if (!semana || it.semana == semana) {
+                        store.delete(it.id);
+                    }
+                });
+            };
+        } catch (e) {}
+    }
+};
+
 function handleLaborSelectChange(itemId, newLabor) {
     const row = document.getElementById(`row-${itemId}`);
     const sel = document.getElementById(`sel-labor-${itemId}`);
@@ -1717,7 +1916,7 @@ function limpiarBusquedaModalExtra() {
     renderExtraLaborOptions('');
 }
 
-function crearFilaLaborOffline(parentId, nuevaLabor) {
+function crearFilaLaborOffline(parentId, nuevaLabor, forcedTempId = null) {
     const parentRow = document.getElementById(`row-${parentId}`);
     if (!parentRow) return null;
 
@@ -1779,7 +1978,7 @@ function crearFilaLaborOffline(parentId, nuevaLabor) {
         return parentId;
     }
 
-    const tempId = 'temp_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const tempId = forcedTempId || ('temp_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
     const newRow = parentRow.cloneNode(true);
     newRow.id = `row-${tempId}`;
     newRow.setAttribute('data-item-id', tempId);
@@ -2675,7 +2874,7 @@ function recalculateZoneKPIs() {
     }
 }
 
-function markItemDirty(itemId) {
+function markItemDirty(itemId, triggerSideEffects = true) {
     const btn = document.getElementById(`btn-check-${itemId}`);
     const obsInput = document.getElementById(`obs-${itemId}`);
     const selLabor = document.getElementById(`sel-labor-${itemId}`);
@@ -2700,51 +2899,73 @@ function markItemDirty(itemId) {
         if (row) row.classList.remove('row-dirty');
     }
 
-    const blq = row ? row.getAttribute('data-bloque') : (btn ? btn.getAttribute('data-bloque') : null);
-    if (blq) recalculateBlockMetrics(blq);
-    recalculateZoneKPIs();
-    persistOfflineChanges();
-    updateSaveButtonsUI();
+    if (triggerSideEffects) {
+        const blq = row ? row.getAttribute('data-bloque') : (btn ? btn.getAttribute('data-bloque') : null);
+        if (blq) recalculateBlockMetrics(blq);
+        recalculateZoneKPIs();
+        persistOfflineChanges();
+        updateSaveButtonsUI();
+    }
 }
 
-function updateSaveButtonsUI() {
+function updateSaveButtonsUI(isLoading = false) {
     const count = modifiedItems.size;
     const saveBtnHeader = document.getElementById('btn-save-batch');
-    const dirtyBadge = document.getElementById('dirty-count-badge');
     const saveBtnToolbar = document.getElementById('btn-save-toolbar');
-    const toolbarCount = document.getElementById('toolbar-dirty-count');
     const floatingBar = document.getElementById('feno-floating-sync-bar');
     const floatingCount = document.getElementById('floating-dirty-count');
+    const floatingCountSub = document.getElementById('floating-dirty-count-sub');
     const floatingBtn = document.getElementById('btn-floating-sync');
 
-    if (count > 0) {
-        if (saveBtnHeader) saveBtnHeader.disabled = false;
-        if (dirtyBadge) {
-            dirtyBadge.style.display = 'inline-block';
-            dirtyBadge.innerText = count;
+    if (isLoading) {
+        if (saveBtnHeader) {
+            saveBtnHeader.disabled = true;
+            saveBtnHeader.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sincronizando...';
         }
-        if (saveBtnToolbar) saveBtnToolbar.disabled = false;
-        if (toolbarCount) toolbarCount.innerText = count;
+        if (saveBtnToolbar) {
+            saveBtnToolbar.disabled = true;
+            saveBtnToolbar.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sincronizando...';
+        }
+        if (floatingBtn) {
+            floatingBtn.disabled = true;
+            floatingBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sincronizando...';
+        }
+        return;
+    }
+
+    if (count > 0) {
+        if (saveBtnHeader) {
+            saveBtnHeader.disabled = false;
+            saveBtnHeader.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> <span>Guardar y Sincronizar</span> <span id="dirty-count-badge" class="badge bg-white text-dark ms-1">${count}</span>`;
+        }
+        if (saveBtnToolbar) {
+            saveBtnToolbar.disabled = false;
+            saveBtnToolbar.innerHTML = `<i class="fa-solid fa-floppy-disk me-1"></i>Guardar (<span id="toolbar-dirty-count">${count}</span>)`;
+        }
         if (floatingBar) floatingBar.style.display = 'flex';
         if (floatingCount) floatingCount.innerText = count;
+        if (floatingCountSub) floatingCountSub.innerText = count;
         if (floatingBtn) {
             floatingBtn.disabled = false;
-            floatingBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Guardar y Sincronizar';
+            floatingBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> <span class="d-none d-sm-inline">Guardar y Sincronizar</span><span class="d-inline d-sm-none">Guardar</span>';
         }
         persistOfflineChanges();
     } else {
-        if (saveBtnHeader) saveBtnHeader.disabled = true;
-        if (dirtyBadge) {
-            dirtyBadge.style.display = 'none';
-            dirtyBadge.innerText = '0';
+        if (saveBtnHeader) {
+            saveBtnHeader.disabled = true;
+            saveBtnHeader.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Guardar y Sincronizar</span> <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>';
         }
-        if (saveBtnToolbar) saveBtnToolbar.disabled = true;
-        if (toolbarCount) toolbarCount.innerText = '0';
+        if (saveBtnToolbar) {
+            saveBtnToolbar.disabled = true;
+            saveBtnToolbar.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i>Guardar (<span id="toolbar-dirty-count">0</span>)';
+        }
         if (floatingBar) floatingBar.style.display = 'none';
         if (floatingCount) floatingCount.innerText = '0';
-        try {
-            localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
-        } catch (e) {}
+        if (floatingCountSub) floatingCountSub.innerText = '0';
+        if (floatingBtn) {
+            floatingBtn.disabled = true;
+            floatingBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> <span class="d-none d-sm-inline">Guardar y Sincronizar</span><span class="d-inline d-sm-none">Guardar</span>';
+        }
     }
 }
 
@@ -2780,13 +3001,16 @@ function persistOfflineChanges() {
                     payload: payload
                 }));
             } catch (e) {}
+
+            // Respaldo simultáneo en IndexedDB
+            FenoIndexedDB.saveBatch(SEMANA_ACTUAL, payload);
         }
     } catch (e) {
         console.warn('LocalStorage error:', e);
     }
 }
 
-function restoreOfflineChanges() {
+async function restoreOfflineChanges() {
     try {
         let raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
         if (!raw) {
@@ -2801,8 +3025,20 @@ function restoreOfflineChanges() {
                 } catch (e) {}
             }
         }
-        if (!raw) return;
-        const items = JSON.parse(raw);
+
+        let items = [];
+        if (raw) {
+            try { items = JSON.parse(raw); } catch (e) {}
+        }
+
+        // Si aún no hay items, consultar IndexedDB
+        if (!Array.isArray(items) || items.length === 0) {
+            const idbItems = await FenoIndexedDB.getAll(SEMANA_ACTUAL);
+            if (Array.isArray(idbItems) && idbItems.length > 0) {
+                items = idbItems;
+            }
+        }
+
         if (!Array.isArray(items) || items.length === 0) return;
 
         let restoredCount = 0;
@@ -2810,7 +3046,7 @@ function restoreOfflineChanges() {
         items.forEach(it => {
             if (it.is_extra || String(it.id).startsWith('temp_')) {
                 if (!document.getElementById(`row-${it.id}`) && it.parent_id) {
-                    crearFilaLaborOffline(it.parent_id, it.nueva_labor || 'Labor Adicional');
+                    crearFilaLaborOffline(it.parent_id, it.nueva_labor || 'Labor Adicional', it.id);
                 }
             }
 
@@ -2819,7 +3055,8 @@ function restoreOfflineChanges() {
             if (btn) {
                 setCheckCircleState(btn, it.val);
                 if (obsInput && it.obs !== undefined) obsInput.value = it.obs;
-                markItemDirty(it.id);
+                // Marcar sucio sin disparar recálculos pesados por cada item (se hace una sola vez al final)
+                markItemDirty(it.id, false);
                 const blq = btn.getAttribute('data-bloque');
                 if (blq) affectedBlocks.add(blq);
                 restoredCount++;
@@ -2829,8 +3066,9 @@ function restoreOfflineChanges() {
         if (restoredCount > 0) {
             affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
             recalculateZoneKPIs();
-            updateSaveButtonsUI();
-            showFenoToast(`Se restauraron ${restoredCount} cambios locales pendientes de sincronizar.`);
+            persistOfflineChanges();
+            updateSaveButtonsUI(false);
+            showFenoToast(`✓ Se restauraron ${restoredCount} calificaciones locales pendientes de sincronizar.`);
         }
     } catch (e) {
         console.warn('Error al restaurar cambios offline:', e);
@@ -2866,13 +3104,13 @@ function descartarCambiosLocales() {
         if (obsInput) {
             obsInput.value = obsInput.getAttribute('data-original-obs') || '';
         }
-        const selLabor = document.getElementById(`sel-labor-${id}`);
+        const selLabor = document.getElementById(`sel-labor-${itemId}`);
         if (selLabor) {
             const origLab = selLabor.getAttribute('data-original-labor') || '';
             selLabor.value = origLab;
             selLabor.classList.remove('labor-cambiada');
         }
-        const badgeReas = document.getElementById(`badge-reasignada-${id}`);
+        const badgeReas = document.getElementById(`badge-reasignada-${itemId}`);
         if (badgeReas) badgeReas.classList.add('d-none');
         if (row) {
             row.classList.remove('row-dirty');
@@ -2883,14 +3121,15 @@ function descartarCambiosLocales() {
     try {
         localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
     } catch (e) {}
+    FenoIndexedDB.clear(SEMANA_ACTUAL);
 
     affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
     recalculateZoneKPIs();
-    updateSaveButtonsUI();
+    updateSaveButtonsUI(false);
     showFenoToast('Cambios pendientes descartados.');
 }
 
-function saveAllChanges() {
+async function saveAllChanges() {
     if (modifiedItems.size === 0) return;
 
     const payloadItems = [];
@@ -2936,31 +3175,45 @@ function saveAllChanges() {
         payloadItems.push(payloadItem);
     });
 
-    const btnHeader = document.getElementById('btn-save-batch');
-    const btnToolbar = document.getElementById('btn-save-toolbar');
-    const btnFloating = document.getElementById('btn-floating-sync');
+    updateSaveButtonsUI(true);
 
-    if (btnHeader) {
-        btnHeader.disabled = true;
-        btnHeader.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
-    }
-    if (btnToolbar) {
-        btnToolbar.disabled = true;
-        btnToolbar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
-    }
-    if (btnFloating) {
-        btnFloating.disabled = true;
-        btnFloating.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
-    }
+    try {
+        const res = await fetch('{{ url_for("fenogramas.api_calificar_lote") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ items: payloadItems })
+        });
 
-    fetch('{{ url_for("fenogramas.api_calificar_lote") }}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: payloadItems })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
+        const contentType = res.headers.get('content-type') || '';
+        let data = null;
+        if (contentType.includes('application/json')) {
+            data = await res.json();
+        } else {
+            const textResponse = await res.text();
+            if (res.status === 401 || res.status === 302 || textResponse.includes('name="password"') || textResponse.includes('Iniciar Sesión')) {
+                data = { success: false, auth_required: true, error: 'Sesión expirada' };
+            } else {
+                data = { success: false, error: `Error del servidor HTTP ${res.status}` };
+            }
+        }
+
+        if (res.status === 401 || (data && data.auth_required)) {
+            updateSaveButtonsUI(false);
+            abrirModalReauth(payloadItems.length);
+            return;
+        }
+
+        if (!res.ok) {
+            updateSaveButtonsUI(false);
+            showFenoToast(`Error al guardar (HTTP ${res.status}): ${data?.error || 'Error interno'}`, true);
+            return;
+        }
+
+        if (data && data.success) {
             payloadItems.forEach(item => {
                 const btn = document.getElementById(`btn-check-${item.id}`);
                 const obsInput = document.getElementById(`obs-${item.id}`);
@@ -2983,23 +3236,224 @@ function saveAllChanges() {
             try {
                 localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
             } catch (e) {}
+            FenoIndexedDB.clear(SEMANA_ACTUAL);
+
+            updateSaveButtonsUI(false);
+            showFenoToast(`✓ ¡Sincronizado! Se guardaron ${data.updated} calificación(es) en el servidor.`);
+
             if (hadTempItems) {
                 setTimeout(() => window.location.reload(), 700);
             }
-
-            updateSaveButtonsUI();
-            if (btnHeader) btnHeader.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Guardar y Sincronizar</span> <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>';
-            if (btnToolbar) btnToolbar.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i>Guardar (<span id="toolbar-dirty-count">0</span>)';
-            showFenoToast(`✓ ¡Sincronizado! Se guardaron ${data.updated} calificación(es) en el servidor.`);
         } else {
-            updateSaveButtonsUI();
-            showFenoToast('Error: ' + (data.error || 'Desconocido'), true);
+            updateSaveButtonsUI(false);
+            showFenoToast('Error: ' + (data?.error || 'Desconocido'), true);
         }
-    })
-    .catch((err) => {
+    } catch (err) {
         console.warn('Network sync failed:', err);
-        updateSaveButtonsUI();
-        showFenoToast(`⚠️ Sin conexión: ${payloadItems.length} cambios guardados localmente en este dispositivo. Conéctate a la red para sincronizar.`, true);
+        updateSaveButtonsUI(false);
+
+        // Diagnóstico activo: verificar si el servidor responde
+        try {
+            const pingRes = await fetch('/fenogramas/api/ping', { cache: 'no-store' });
+            if (pingRes.ok) {
+                const pingData = await pingRes.json();
+                if (pingData.authenticated === false) {
+                    abrirModalReauth(payloadItems.length);
+                    return;
+                }
+            }
+        } catch (pingErr) {}
+
+        showFenoToast(`⚠️ Sin conexión con el servidor: ${payloadItems.length} cambios guardados de forma segura en este dispositivo. Revisa tu Wi-Fi.`, true);
+    }
+}
+
+/* ============================================================================
+   REAUTENTICACIÓN EN VIVO (MODO CAMPO) & INSPECCIÓN DE COLA
+   ============================================================================ */
+function abrirModalReauth(pendingCount) {
+    const elModal = document.getElementById('modalReauthFenogramas');
+    if (!elModal) return;
+    const txtCount = document.getElementById('reauth-pending-count-text');
+    if (txtCount) {
+        txtCount.innerText = `Tienes ${pendingCount || modifiedItems.size} calificación(es) aseguradas en este dispositivo.`;
+    }
+    const errAlert = document.getElementById('reauth-error-alert');
+    if (errAlert) errAlert.classList.add('d-none');
+    const modal = bootstrap.Modal.getOrCreateInstance(elModal);
+    modal.show();
+    setTimeout(() => {
+        document.getElementById('reauth-password')?.focus();
+    }, 400);
+}
+
+function cerrarModalReauth() {
+    const elModal = document.getElementById('modalReauthFenogramas');
+    if (!elModal) return;
+    const modal = bootstrap.Modal.getInstance(elModal);
+    if (modal) modal.hide();
+    showFenoToast(`Tus ${modifiedItems.size} calificaciones continúan guardadas en el dispositivo. Sincroniza al volver a tener sesión.`, false);
+}
+
+async function handleReauthSubmit(e) {
+    e.preventDefault();
+    const btnSubmit = document.getElementById('btn-submit-reauth');
+    const errAlert = document.getElementById('reauth-error-alert');
+    const userInp = document.getElementById('reauth-username');
+    const passInp = document.getElementById('reauth-password');
+
+    if (!userInp || !passInp) return;
+    if (errAlert) errAlert.classList.add('d-none');
+    if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...';
+    }
+
+    try {
+        const res = await fetch('/auth/api/quick-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                username: userInp.value.trim(),
+                password: passInp.value
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            passInp.value = '';
+            const elModal = document.getElementById('modalReauthFenogramas');
+            const modal = bootstrap.Modal.getInstance(elModal);
+            if (modal) modal.hide();
+            showFenoToast(`✓ ¡Sesión restablecida! Sincronizando tus calificaciones ahora...`);
+            // Sincronizar inmediatamente los cambios pendientes
+            setTimeout(() => {
+                saveAllChanges();
+            }, 300);
+        } else {
+            if (errAlert) {
+                errAlert.innerText = data.error || 'Credenciales incorrectas.';
+                errAlert.classList.remove('d-none');
+            }
+        }
+    } catch (err) {
+        if (errAlert) {
+            errAlert.innerText = 'Error de red al conectar con el servidor: ' + err.message;
+            errAlert.classList.remove('d-none');
+        }
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-key me-1"></i> Iniciar Sesión y Sincronizar';
+        }
+    }
+}
+
+async function abrirModalInspeccionOffline() {
+    const elModal = document.getElementById('modalInspeccionOffline');
+    if (!elModal) return;
+
+    const tbody = document.getElementById('tbody-inspeccion-cola');
+    const queueBadge = document.getElementById('diag-queue-count');
+
+    if (queueBadge) queueBadge.innerText = `${modifiedItems.size} pendientes`;
+
+    if (tbody) {
+        tbody.innerHTML = '';
+        if (modifiedItems.size === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-muted py-3">No hay cambios pendientes de sincronizar en este dispositivo.</td></tr>';
+        } else {
+            let idx = 1;
+            modifiedItems.forEach(itemId => {
+                const btn = document.getElementById(`btn-check-${itemId}`);
+                const obsInput = document.getElementById(`obs-${itemId}`);
+                const row = document.getElementById(`row-${itemId}`);
+                const extra = offlineExtraItems[itemId];
+
+                const blq = row ? row.getAttribute('data-bloque') : (extra ? extra.bloque : '-');
+                const labor = (extra && extra.nueva_labor) ? extra.nueva_labor : (row ? (row.querySelector('.cell-labor')?.innerText.replace('Sin match', '').trim()) : '-');
+                const currVal = btn ? btn.getAttribute('data-current-val') : (extra ? extra.cumplido : 'null');
+                const obs = obsInput ? obsInput.value : (extra ? extra.observacion : '');
+
+                let badgeVal = '<span class="badge bg-secondary">Sin calificar</span>';
+                if (currVal === '1') badgeVal = '<span class="badge bg-success">✓ Cumplido</span>';
+                else if (currVal === '0') badgeVal = '<span class="badge bg-danger">✗ No cumplido</span>';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-muted">${idx++}</td>
+                    <td class="fw-bold text-dark font-monospace">${escapeHtml(String(itemId))}</td>
+                    <td class="fw-bold">${escapeHtml(String(blq))}</td>
+                    <td class="text-start">${escapeHtml(String(labor))}</td>
+                    <td>${badgeVal}</td>
+                    <td class="text-start small text-muted">${escapeHtml(String(obs || '-'))}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(elModal);
+    modal.show();
+    probarPingServidor(false);
+}
+
+async function probarPingServidor(interactive = false) {
+    const netEl = document.getElementById('diag-net-status');
+    const authEl = document.getElementById('diag-auth-status');
+    const pingResEl = document.getElementById('diag-ping-result');
+
+    if (interactive && pingResEl) {
+        pingResEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Probando conectividad...';
+    }
+
+    const t0 = performance.now();
+    try {
+        const res = await fetch('/fenogramas/api/ping?t=' + Date.now(), { cache: 'no-store' });
+        const latency = Math.round(performance.now() - t0);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (netEl) netEl.innerHTML = `<i class="fa-solid fa-wifi text-success me-1"></i>En línea (${latency}ms)`;
+            if (authEl) {
+                if (data.authenticated) {
+                    authEl.innerHTML = `<i class="fa-solid fa-circle-check text-success me-1"></i>Activa (${escapeHtml(data.username || 'Usuario')})`;
+                } else {
+                    authEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>Expirada`;
+                }
+            }
+            if (pingResEl) {
+                pingResEl.innerHTML = `Servidor respondió en <strong>${latency}ms</strong>. Sesión: <strong>${data.authenticated ? 'Activa' : 'Expirada'}</strong>.`;
+            }
+            if (interactive && !data.authenticated) {
+                abrirModalReauth(modifiedItems.size);
+            }
+        } else {
+            if (netEl) netEl.innerHTML = `<i class="fa-solid fa-wifi text-warning me-1"></i>HTTP ${res.status}`;
+            if (authEl) authEl.innerHTML = `<i class="fa-solid fa-question text-muted me-1"></i>Desconocido`;
+            if (pingResEl) pingResEl.innerText = `Servidor respondió con código ${res.status}.`;
+        }
+    } catch (e) {
+        if (netEl) netEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>Sin conexión`;
+        if (authEl) authEl.innerHTML = `<i class="fa-solid fa-minus text-muted me-1"></i>Inalcanzable`;
+        if (pingResEl) pingResEl.innerText = `No se pudo conectar al servidor Florsani: ${e.message}`;
+    }
+}
+
+function copiarRespaldoOfflineJSON() {
+    let raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+    if (!raw) {
+        const hist = localStorage.getItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
+        if (hist) raw = hist;
+    }
+    if (!raw) {
+        showFenoToast('No hay datos en la cola local para copiar.');
+        return;
+    }
+    navigator.clipboard.writeText(raw).then(() => {
+        showFenoToast('✓ Respaldo JSON copiado al portapapeles.');
+    }).catch(() => {
+        showFenoToast('No se pudo copiar automáticamente. Consulta con Sistemas.');
     });
 }
 
@@ -3238,16 +3692,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Detección en vivo de conectividad online / offline en campo
-    window.addEventListener('online', () => {
-        showFenoToast('📡 Conexión a internet restablecida.');
+    window.addEventListener('online', async () => {
+        showFenoToast('📡 Conexión Wi-Fi detectada.');
         if (modifiedItems.size > 0) {
+            try {
+                const pingRes = await fetch('/fenogramas/api/ping', { cache: 'no-store' });
+                if (pingRes.ok) {
+                    const pingData = await pingRes.json();
+                    if (pingData.authenticated === false) {
+                        abrirModalReauth(modifiedItems.size);
+                        return;
+                    }
+                }
+            } catch (e) {}
             showFenoToast(`🔄 Sincronizando automáticamente ${modifiedItems.size} calificación(es) pendientes...`);
             saveAllChanges();
         }
     });
 
     window.addEventListener('offline', () => {
-        showFenoToast('📡 Sin conexión a internet (Modo Campo). Tus calificaciones se guardan de forma segura en este teléfono.', true);
+        showFenoToast('📡 Sin conexión a internet (Modo Campo). Tus calificaciones se guardan de forma segura en este dispositivo.', true);
     });
 
     // Advertencia preventiva de batería baja para operarios en campo

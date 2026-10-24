@@ -62,3 +62,9 @@ class Config:
     Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
     MAX_CONTENT_LENGTH = 64 * 1024 * 1024  # 64 MB
     DEBUG = os.environ.get('FLASK_DEBUG', 'false').lower() in ('true', '1', 't')
+
+    # Session settings for offline field workers (protects against sudden session drops in greenhouses)
+    from datetime import timedelta
+    PERMANENT_SESSION_LIFETIME = timedelta(days=14)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
