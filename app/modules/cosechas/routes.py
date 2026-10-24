@@ -416,6 +416,13 @@ def catalogos():
                         else:
                             flash(f'No se puede agregar la variedad "{variedad}" a "{producto}" porque ya está asignada al cultivo "{cultivo_actual}" (registrada como "{var_existente}"). Para cambiarla de cultivo, use la opción de editar en su tarjeta o elimínela primero de "{cultivo_actual}".', 'danger')
                     else:
+                        try:
+                            from sqlalchemy import text
+                            db.session.execute(text("DELETE FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+
                         relaciones_actualizadas = [(var.strip().upper(), prod.strip().upper()) for var, prod in relaciones]
                         relaciones_actualizadas.append((variedad, producto))
                         guardar_relaciones_maestro(relaciones_actualizadas)
@@ -463,6 +470,13 @@ def catalogos():
                         var_existente, cultivo_existente = colision
                         flash(f'No se puede renombrar a "{var_nueva}" porque ya existe asignada al cultivo "{cultivo_existente}" (como "{var_existente}").', 'danger')
                     else:
+                        try:
+                            from sqlalchemy import text
+                            db.session.execute(text("DELETE FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': var_nueva})
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+
                         # 1. Actualizar archivo MAESTRO_PROS.csv y BD
                         relaciones_actualizadas = [
                             (var.strip().upper(), prod.strip().upper())
@@ -509,6 +523,7 @@ def catalogos():
                                         e.producto_maestro = prod_nuevo
                                     ests_actualizados += 1
 
+                            db.session.execute(text("DELETE FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': var_nueva})
                             db.session.commit()
                         except Exception as e:
                             print(f"Error sincronizando registros históricos: {e}")
@@ -534,23 +549,31 @@ def catalogos():
                 if not variedad:
                     flash('Debe especificar la variedad a eliminar.', 'danger')
                 else:
-                    relaciones = cargar_relaciones_maestro()
-                    relaciones_nuevas = [
-                        (var.strip().upper(), prod.strip().upper())
-                        for var, prod in relaciones
-                        if var.strip().upper() != variedad
-                    ]
+                    from sqlalchemy import text
 
-                    # 1. Guardar relaciones en CSV canónico MAESTRO_PROS.csv y cat_variedades_maestro
-                    guardar_relaciones_maestro(relaciones_nuevas)
-
-                    # 2. Forzar eliminación estricta en tablas de base de datos PostgreSQL
+                    # 1. Registrar permanentemente en tabla de lápidas (tombstones) cat_variedades_eliminadas
                     try:
-                        from sqlalchemy import text
-                        db.session.execute(
-                            text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) = :v"),
-                            {'v': variedad}
-                        )
+                        db.session.execute(text("""
+                            CREATE TABLE IF NOT EXISTS cat_variedades_eliminadas (
+                                id SERIAL PRIMARY KEY,
+                                variedad VARCHAR(150) NOT NULL UNIQUE,
+                                producto_maestro VARCHAR(150),
+                                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """))
+                        db.session.execute(text("""
+                            INSERT INTO cat_variedades_eliminadas (variedad, producto_maestro)
+                            VALUES (:v, :p)
+                            ON CONFLICT (variedad) DO NOTHING;
+                        """), {'v': variedad, 'p': producto})
+                        db.session.commit()
+                    except Exception as e_tomb:
+                        db.session.rollback()
+                        print(f"Error registrando tombstone en BD: {e_tomb}")
+
+                    # 2. Forzar eliminación estricta en todas las tablas de base de datos PostgreSQL
+                    try:
+                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
                         db.session.execute(text("DELETE FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
                         db.session.execute(text("DELETE FROM dim_productos WHERE UPPER(TRIM(variedad)) = :v"), {'v': variedad})
                         db.session.execute(text("DELETE FROM variedades WHERE UPPER(TRIM(nombre)) = :v"), {'v': variedad})
@@ -561,7 +584,16 @@ def catalogos():
                         db.session.rollback()
                         print(f"Error borrando variedad de base de datos: {e_del}")
 
-                    # 3. Remover de variedades.csv y sincronizar
+                    # 3. Guardar relaciones en CSV canónico MAESTRO_PROS.csv excluyendo la variedad eliminada
+                    relaciones = cargar_relaciones_maestro()
+                    relaciones_nuevas = [
+                        (var.strip().upper(), prod.strip().upper())
+                        for var, prod in relaciones
+                        if var.strip().upper() != variedad
+                    ]
+                    guardar_relaciones_maestro(relaciones_nuevas)
+
+                    # 4. Remover de variedades.csv y sincronizar
                     variedades_set = {v.strip().upper() for v in cargar_variedades() if v.strip().upper() != variedad}
                     guardar_variedades(sorted(list(variedades_set)))
 

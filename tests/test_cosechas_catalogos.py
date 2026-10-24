@@ -103,6 +103,8 @@ def test_cosechas_catalogos_suite():
         
         in_dim = db.session.execute(text("SELECT count(*) FROM dim_variedades WHERE UPPER(TRIM(variedad)) = :v"), {'v': test_code}).scalar()
         assert in_dim == 0, f"No debe quedar en dim_variedades. Encontrado: {in_dim}"
+        db.session.execute(text("DELETE FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': test_code})
+        db.session.commit()
         print(f">> TEST 4 APROBADO: Variedad '{test_code}' eliminada completamente sin efecto zombi en CSV ni BD.")
 
         print("\n--- TEST 5: Reasignación de cultivo mediante edición ---")
@@ -136,6 +138,8 @@ def test_cosechas_catalogos_suite():
         }, follow_redirects=True)
         assert test_reasign not in construir_productos_con_variedades().get('HYPERICUM', [])
         assert test_reasign not in cargar_variedades()
+        db.session.execute(text("DELETE FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': test_reasign})
+        db.session.commit()
         print(">> TEST 5 APROBADO: Reasignación y limpieza exitosas.")
 
         print("\n--- TEST 6: Caso Borde - Case insensitive & Whitespace Duplication ---")
@@ -236,11 +240,20 @@ def test_cosechas_catalogos_suite():
         assert cnt_csr == 0, f"No debe quedar en crop_state_records. Encontrados: {cnt_csr}"
         assert cnt_evt == 0, f"No debe quedar en fact_eventos_cultivo. Encontrados: {cnt_evt}"
 
+        # Comprobar registro en tabla de lápidas (tombstones)
+        cnt_tomb = db.session.execute(text("SELECT count(*) FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': zombie_var}).scalar()
+        assert cnt_tomb > 0, f"Debe quedar registrada en cat_variedades_eliminadas. Encontrados: {cnt_tomb}"
+
         # 4. Simular recarga fresca (evitar efecto zombie)
         from app.modules.cosechas.utils import cargar_maestro_productos
         maestro_fresh = cargar_maestro_productos()
         assert zombie_var not in maestro_fresh, "No debe resucitar al recargar el maestro de productos"
-        print(">> TEST 11 APROBADO: Variedad en PROD.NUEVOS eliminada permanentemente y sin resurrección zombie.")
+
+        # Limpiar variedad de prueba de cat_variedades_eliminadas
+        db.session.execute(text("DELETE FROM cat_variedades_eliminadas WHERE UPPER(TRIM(variedad)) = :v"), {'v': zombie_var})
+        db.session.commit()
+
+        print(">> TEST 11 APROBADO: Variedad en PROD.NUEVOS eliminada permanentemente con lápida (tombstone) y sin resurrección zombie.")
 
         print("\n--- TEST 12: Dashboard Gerencial - 5 Bento KPIs dinámicos, Chip sutil y eliminación de banner AI ---")
         resp_dash = client.get('/')

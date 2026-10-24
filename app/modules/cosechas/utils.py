@@ -42,10 +42,25 @@ def formato_semana(fecha):
     semana = fecha.isocalendar()[1]
     return f"{year:02d}{semana:02d}"
 
+def _get_tombstones_set():
+    """Retorna el conjunto de variedades registradas en cat_variedades_eliminadas"""
+    tombstones = set()
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        rows = db.session.execute(text("SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas WHERE variedad IS NOT NULL")).fetchall()
+        for r in rows:
+            if r[0]:
+                tombstones.add(r[0].strip().upper())
+    except Exception:
+        pass
+    return tombstones
+
 def cargar_variedades():
     """Cargar variedades activas autorizadas desde cat_variedades_maestro (fuente principal autorizada sin resucitar eliminadas)"""
     variedades = set()
     db_count = 0
+    tombstones = _get_tombstones_set()
     
     # 1. Base de datos: cat_variedades_maestro (fuente principal autorizada)
     try:
@@ -54,7 +69,7 @@ def cargar_variedades():
         vars_cat = db.session.execute(text("SELECT DISTINCT variedad FROM cat_variedades_maestro WHERE variedad IS NOT NULL AND TRIM(variedad) != '';")).fetchall()
         for v in vars_cat:
             val = (v[0] or '').strip().upper()
-            if val:
+            if val and val not in tombstones:
                 variedades.add(val)
                 db_count += 1
     except Exception:
@@ -69,7 +84,7 @@ def cargar_variedades():
                     reader = csv.DictReader(file)
                     for row in reader:
                         val = (row.get('variedad') or '').strip().upper()
-                        if val:
+                        if val and val not in tombstones:
                             variedades.add(val)
         except Exception as e:
             print(f"Error cargando variedades desde CSV: {e}")
@@ -324,6 +339,7 @@ def cargar_maestro_productos():
     """Cargar mapeo {variedad: producto_maestro} unificando cat_variedades_maestro y CSV (fuentes canónicas)"""
     mapeo = {}
     db_count = 0
+    tombstones = _get_tombstones_set()
     
     # 1. Cargar desde base de datos cat_variedades_maestro (fuente principal canónica)
     try:
@@ -333,7 +349,7 @@ def cargar_maestro_productos():
         for r in res_cat:
             v = (r[0] or '').strip().upper()
             p = (r[1] or '').strip().upper()
-            if v and p:
+            if v and p and v not in tombstones:
                 mapeo[v] = p
                 db_count += 1
     except Exception:
@@ -354,7 +370,7 @@ def cargar_maestro_productos():
                                 if len(partes) >= 2:
                                     variedad = partes[0].strip().upper()
                                     prod_maestro = partes[1].strip().upper()
-                                    if variedad and prod_maestro and variedad not in mapeo:
+                                    if variedad and prod_maestro and variedad not in tombstones and variedad not in mapeo:
                                         mapeo[variedad] = prod_maestro
         except Exception as e:
             print(f"Error cargando maestro productos desde CSV: {e}")
@@ -366,6 +382,7 @@ def cargar_relaciones_maestro():
     relaciones = []
     vistos = set()
     db_count = 0
+    tombstones = _get_tombstones_set()
     
     # 1. Cargar desde cat_variedades_maestro de BD (fuente principal autorizada)
     try:
@@ -375,7 +392,7 @@ def cargar_relaciones_maestro():
         for r in res_cat:
             v = (r[0] or '').strip().upper()
             p = (r[1] or '').strip().upper()
-            if v and p:
+            if v and p and v not in tombstones:
                 if v not in vistos:
                     vistos.add(v)
                     relaciones.append((v, p))
@@ -400,7 +417,7 @@ def cargar_relaciones_maestro():
                                 continue
                             variedad = partes[0].strip().upper()
                             producto = partes[1].strip().upper()
-                            if not variedad or not producto:
+                            if not variedad or not producto or variedad in tombstones:
                                 continue
                             if variedad in vistos:
                                 continue
@@ -414,11 +431,12 @@ def cargar_relaciones_maestro():
 
 def guardar_relaciones_maestro(relaciones):
     """Guardar relaciones variedad-producto maestro en CSV y sincronizar bidireccionalmente en PostgreSQL"""
+    tombstones = _get_tombstones_set()
     relaciones_unicas = {}
     for variedad, producto in relaciones:
         variedad_limpia = (variedad or '').strip().upper()
         producto_limpio = (producto or '').strip().upper()
-        if variedad_limpia and producto_limpio:
+        if variedad_limpia and producto_limpio and variedad_limpia not in tombstones:
             # Una sola asignación estricta por variedad (evita duplicados entre cultivos)
             relaciones_unicas[variedad_limpia] = (variedad_limpia, producto_limpio)
 

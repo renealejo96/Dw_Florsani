@@ -183,13 +183,49 @@ def create_app(config_class=Config):
             db.session.rollback()
             print(f"[SYSTEM] Aviso en migración de fenograma: {ex_mig}")
 
-        # One-time migration to synchronize cat_variedades_maestro with MAESTRO_PROS.csv on VPS
+        # One-time migration to synchronize cat_variedades_maestro and enforce tombstones on VPS
         try:
             mig_cat_done = db.session.execute(text(
-                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'sync_catalogos_vps_clean_v3'"
+                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'sync_catalogos_vps_tombstones_v6'"
             )).scalar()
 
             if not mig_cat_done:
+                # 1. Crear tabla de variedades eliminadas (lápidas / tombstones)
+                db.session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS cat_variedades_eliminadas (
+                        id SERIAL PRIMARY KEY,
+                        variedad VARCHAR(150) NOT NULL UNIQUE,
+                        producto_maestro VARCHAR(150),
+                        deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+                
+                # 2. Registrar variedades de prueba o eliminadas en tombstone table
+                for tomb_var, tomb_prod in [('150020-26', 'PROD.NUEVOS'), ('BLANCA', 'PROD.NUEVOS')]:
+                    db.session.execute(text("""
+                        INSERT INTO cat_variedades_eliminadas (variedad, producto_maestro)
+                        VALUES (:v, :p)
+                        ON CONFLICT (variedad) DO NOTHING;
+                    """), {'v': tomb_var, 'p': tomb_prod})
+
+                # 3. Purgar variedades eliminadas de todas las tablas activas
+                db.session.execute(text("""
+                    DELETE FROM cat_variedades_maestro 
+                    WHERE UPPER(TRIM(variedad)) IN (SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas);
+                """))
+                db.session.execute(text("""
+                    DELETE FROM dim_variedades 
+                    WHERE UPPER(TRIM(variedad)) IN (SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas);
+                """))
+                db.session.execute(text("""
+                    DELETE FROM dim_productos 
+                    WHERE UPPER(TRIM(variedad)) IN (SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas);
+                """))
+                db.session.execute(text("""
+                    DELETE FROM variedades 
+                    WHERE UPPER(TRIM(nombre)) IN (SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas);
+                """))
+
                 from app.modules.cosechas.utils import _get_csv_path
                 csv_path = _get_csv_path('MAESTRO_PROS.csv')
                 if csv_path.exists():
@@ -204,6 +240,12 @@ def create_app(config_class=Config):
                                     if v and m:
                                         csv_vars_map[v] = m
                     
+                    # Excluir cualquier variedad presente en cat_variedades_eliminadas
+                    tomb_rows = db.session.execute(text("SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas;")).fetchall()
+                    tomb_set = {r[0] for r in tomb_rows if r[0]}
+                    for v_tomb in tomb_set:
+                        csv_vars_map.pop(v_tomb, None)
+
                     if csv_vars_map:
                         db.session.execute(text("""
                             CREATE TABLE IF NOT EXISTS cat_variedades_maestro (
@@ -214,7 +256,7 @@ def create_app(config_class=Config):
                                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             );
                         """))
-                        # Eliminar de BD cualquier variedad que ya fue eliminada del CSV canónico
+                        # Eliminar de BD cualquier variedad que ya fue eliminada del CSV canónico o esté en tombstones
                         db.session.execute(text(
                             "DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) NOT IN :vars"
                         ), {'vars': tuple(csv_vars_map.keys())})
@@ -229,13 +271,13 @@ def create_app(config_class=Config):
                             """), {'var': v, 'prod': m})
                 
                 db.session.execute(text(
-                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('sync_catalogos_vps_clean_v3')"
+                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('sync_catalogos_vps_tombstones_v6')"
                 ))
                 db.session.commit()
-                print("[SYSTEM] Sincronización canónica de catálogo de variedades completada con éxito.")
+                print("[SYSTEM] Sincronización canónica con lápidas (tombstones) de variedades completada con éxito.")
         except Exception as ex_mig_cat:
             db.session.rollback()
-            print(f"[SYSTEM] Aviso en migración de catálogo: {ex_mig_cat}")
+            print(f"[SYSTEM] Aviso en migración de catálogo con lápidas: {ex_mig_cat}")
 
     # Register blueprints
     from app.modules.auth.routes import auth_bp
@@ -669,25 +711,40 @@ def create_app(config_class=Config):
             kpi_cosecha_by_crop[pm]['tallos'] += int(r.total_tallos or 0)
             kpi_cosecha_by_crop[pm]['registros'] += 1
 
+        # Generar alias recíprocos singular/plural (ej: EUCALIPTO <-> EUCALIPTOS)
+        for k in list(kpi_cosecha_by_crop.keys()):
+            val = kpi_cosecha_by_crop[k]
+            if k.endswith('S') and k[:-1] not in kpi_cosecha_by_crop:
+                kpi_cosecha_by_crop[k[:-1]] = val
+            elif not k.endswith('S') and (k + 'S') not in kpi_cosecha_by_crop:
+                kpi_cosecha_by_crop[k + 'S'] = val
+
         kpi_feno_by_crop = {}
         try:
             feno_kpi_rows = db.session.execute(text("""
                 SELECT 
                     UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS'))) as crop,
                     COUNT(*) as total,
-                    SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
-                    ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                    SUM(CASE WHEN cumplido = 1 THEN 1 ELSE 0 END) as cumplidas,
+                    ROUND(100.0 * SUM(CASE WHEN cumplido = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
                 FROM calificaciones
                 WHERE semana_anio = :w
                 GROUP BY UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS')))
             """), {'w': selected_week_num}).fetchall()
             for r in feno_kpi_rows:
                 c_nom = str(r.crop).upper().strip()
-                kpi_feno_by_crop[c_nom] = {
+                item = {
                     'pct': float(r.pct or 0.0),
                     'cumplidas': int(r.cumplidas or 0),
                     'total': int(r.total or 0)
                 }
+                kpi_feno_by_crop[c_nom] = item
+                if c_nom.endswith('S'):
+                    kpi_feno_by_crop.setdefault(c_nom[:-1], item)
+                else:
+                    kpi_feno_by_crop.setdefault(c_nom + 'S', item)
+                first_tok = c_nom.split()[0].replace('-', ' ')
+                kpi_feno_by_crop.setdefault(first_tok, item)
         except Exception:
             kpi_feno_by_crop = {}
 
@@ -705,11 +762,18 @@ def create_app(config_class=Config):
             """)).fetchall()
             for r in mrt_crop_rows:
                 c_nom = str(r.crop).upper().strip()
-                kpi_area_camas_by_crop[c_nom] = {
+                item = {
                     'ha': float(r.ha or 0.0),
                     'camas': int(r.camas or 0),
                     'bloques': int(r.bloques or 0)
                 }
+                kpi_area_camas_by_crop[c_nom] = item
+                if c_nom.endswith('S'):
+                    kpi_area_camas_by_crop.setdefault(c_nom[:-1], item)
+                else:
+                    kpi_area_camas_by_crop.setdefault(c_nom + 'S', item)
+                first_tok = c_nom.split()[0].replace('-', ' ')
+                kpi_area_camas_by_crop.setdefault(first_tok, item)
         except Exception:
             pass
 
@@ -726,11 +790,16 @@ def create_app(config_class=Config):
                 """), {'b': latest_batch}).fetchall()
                 for r in csr_crop_rows:
                     c_nom = str(r.crop).upper().strip()
-                    kpi_area_camas_by_crop[c_nom] = {
+                    item = {
                         'ha': round(float(r.camas or 0) * 0.0042, 2),
                         'camas': int(r.camas or 0),
                         'bloques': int(r.bloques or 0)
                     }
+                    kpi_area_camas_by_crop[c_nom] = item
+                    if c_nom.endswith('S'):
+                        kpi_area_camas_by_crop.setdefault(c_nom[:-1], item)
+                    else:
+                        kpi_area_camas_by_crop.setdefault(c_nom + 'S', item)
             except Exception:
                 pass
 
@@ -738,11 +807,18 @@ def create_app(config_class=Config):
         for c in cost_summary.get('by_crop', []):
             c_nom = str(c.get('crop') or '').upper().strip()
             if c_nom:
-                kpi_costos_by_crop[c_nom] = {
+                item = {
                     'total_cost': float(c.get('total_cost') or 0.0),
                     'cost_per_ha': float(c.get('cost_per_ha') or 0.0),
                     'ha': float(c.get('ha') or 0.0)
                 }
+                kpi_costos_by_crop[c_nom] = item
+                if c_nom.endswith('S'):
+                    kpi_costos_by_crop.setdefault(c_nom[:-1], item)
+                else:
+                    kpi_costos_by_crop.setdefault(c_nom + 'S', item)
+                first_tok = c_nom.split()[0].replace('-', ' ')
+                kpi_costos_by_crop.setdefault(first_tok, item)
 
         kpi_cosecha_by_crop_json = json.dumps(dict(kpi_cosecha_by_crop))
         kpi_feno_by_crop_json = json.dumps(kpi_feno_by_crop)

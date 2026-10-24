@@ -831,7 +831,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (elements && elements.length > 0) {
                         const idx = elements[0].index;
                         const clickedCrop = displayCropNames[idx];
-                        if (activeSegmentedCrop === clickedCrop) {
+                        if (activeSegmentedCrop && isCropMatch(activeSegmentedCrop, clickedCrop)) {
                             restablecerSegmentacionPowerBI();
                         } else {
                             aplicarSegmentacionPowerBI(clickedCrop);
@@ -873,6 +873,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+    }
+
+    function normCrop(s) {
+        return (s || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+    }
+
+    function isCropMatch(cropA, cropB) {
+        if (!cropA || !cropB) return false;
+        const a = normCrop(cropA);
+        const b = normCrop(cropB);
+        if (a === b) return true;
+        const aNoS = a.endsWith('S') ? a.slice(0, -1) : a;
+        const bNoS = b.endsWith('S') ? b.slice(0, -1) : b;
+        return aNoS === bNoS || a.startsWith(bNoS) || b.startsWith(aNoS);
+    }
+
+    function findCropData(dataMap, cropName) {
+        if (!dataMap || !cropName) return null;
+        const target = cropName.toUpperCase().trim();
+        if (dataMap[target] !== undefined) return dataMap[target];
+
+        const targetNorm = normCrop(target);
+        const targetNoS = targetNorm.endsWith('S') ? targetNorm.slice(0, -1) : targetNorm;
+
+        for (const [k, v] of Object.entries(dataMap)) {
+            const kNorm = normCrop(k);
+            const kNoS = kNorm.endsWith('S') ? kNorm.slice(0, -1) : kNorm;
+            if (kNorm === targetNorm || kNoS === targetNoS || kNorm.startsWith(targetNoS) || targetNorm.startsWith(kNoS)) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    function updateBarChartHighlight() {
+        if (!barChartInstance) return;
+        if (!activeSegmentedCrop) {
+            barChartInstance.data.datasets[0].backgroundColor = displayCropNames.map((_, i) => colorArray[i % colorArray.length]);
+        } else {
+            barChartInstance.data.datasets[0].backgroundColor = displayCropNames.map((name, i) => {
+                return isCropMatch(name, activeSegmentedCrop)
+                    ? colorArray[i % colorArray.length]
+                    : 'rgba(203, 213, 225, 0.4)';
+            });
+        }
+        barChartInstance.update();
     }
 
     // ==============================================================
@@ -1207,11 +1253,13 @@ document.addEventListener('DOMContentLoaded', function() {
             btnRestablecerCrop.classList.remove('d-none');
             btnRestablecerCrop.classList.add('d-inline-flex');
         }
+        const subPart = document.getElementById('subtituloParticipacion');
+        if (subPart) subPart.innerHTML = '<i class="fa-solid fa-filter text-primary me-1"></i> Filtrando métricas por <strong>' + activeSegmentedCrop + '</strong>';
 
         // 2. Segmentar las 5 Tarjetas Bento KPI Superiores
         // -------------------------------------------------------------
         // KPI 1: Cosecha
-        const cosechaData = kpiCosechaByCrop[activeSegmentedCrop] || { tallos: 0, registros: 0 };
+        const cosechaData = findCropData(kpiCosechaByCrop, activeSegmentedCrop) || { tallos: 0, registros: 0 };
         const kpiCosechaVal = document.getElementById('kpiTopCosechaVal');
         const kpiCosechaSub = document.getElementById('kpiTopCosechaSub');
         const kpiCosechaLbl = document.getElementById('kpiTopCosechaLabel');
@@ -1225,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // KPI 2: Fenograma
-        const fenoData = kpiFenoByCrop[activeSegmentedCrop] || { pct: 0.0, cumplidas: 0, total: 0 };
+        const fenoData = findCropData(kpiFenoByCrop, activeSegmentedCrop) || { pct: 0.0, cumplidas: 0, total: 0 };
         const kpiFenoVal = document.getElementById('kpiTopFenoVal');
         const kpiFenoSub = document.getElementById('kpiTopFenoSub');
         const kpiFenoLbl = document.getElementById('kpiTopFenoLabel');
@@ -1247,7 +1295,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // KPI 3: Área
-        const areaData = kpiAreaCamasByCrop[activeSegmentedCrop] || { ha: 0.0, camas: 0, bloques: 0 };
+        const areaData = findCropData(kpiAreaCamasByCrop, activeSegmentedCrop) || { ha: 0.0, camas: 0, bloques: 0 };
         const kpiAreaVal = document.getElementById('kpiTopAreaVal');
         const kpiAreaSub = document.getElementById('kpiTopAreaSub');
         const kpiAreaLbl = document.getElementById('kpiTopAreaLabel');
@@ -1275,7 +1323,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // KPI 5: Inversión Insumos (Top Bento)
-        const cropCostData = (costSummaryGlobal.by_crop || []).find(c => (c.crop || '').toUpperCase() === activeSegmentedCrop) || kpiCostosByCrop[activeSegmentedCrop] || { total_cost: 0, cost_per_ha: 0, ha: 0 };
+        const cropCostData = (costSummaryGlobal.by_crop || []).find(c => isCropMatch(c.crop, activeSegmentedCrop)) || findCropData(kpiCostosByCrop, activeSegmentedCrop) || { total_cost: 0, cost_per_ha: 0, ha: 0 };
         const kpiCostosVal = document.getElementById('kpiTopCostosVal');
         const kpiCostosSub = document.getElementById('kpiTopCostosSub');
         const kpiCostosLbl = document.getElementById('kpiTopCostosLabel');
@@ -1287,6 +1335,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <span class="text-muted small ms-1">${Number(cropCostData.ha || 0).toFixed(2)} ha tratadas</span>
             `;
         }
+
+        // 3. Resaltar visualmente la barra seleccionada en el gráfico
+        updateBarChartHighlight();
 
         // 3. Segmentar Gráfica de Líneas Multimodal (Cosecha o Fenograma)
         actualizarGraficaLineas();
@@ -1329,6 +1380,10 @@ document.addEventListener('DOMContentLoaded', function() {
             btnRestablecerCrop.classList.add('d-none');
             btnRestablecerCrop.classList.remove('d-inline-flex');
         }
+        const subPart = document.getElementById('subtituloParticipacion');
+        if (subPart) subPart.innerHTML = '<i class="fa-solid fa-hand-pointer text-primary me-1"></i> <strong class="text-primary">Clic en una barra</strong> para filtrar';
+
+        updateBarChartHighlight();
 
         // 2. Restaurar las 5 Tarjetas Bento KPI a Totales de Finca Completa
         // -------------------------------------------------------------
