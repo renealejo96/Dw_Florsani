@@ -14,6 +14,16 @@ from app.modules.cosechas.utils import cargar_relaciones_maestro, cargar_product
 
 app = create_app()
 with app.app_context():
+    db.session.rollback()
+    print("[0] Creando tabla cat_variedades_eliminadas si no existe...")
+    db.session.execute(text("""
+        CREATE TABLE IF NOT EXISTS cat_variedades_eliminadas (
+            id SERIAL PRIMARY KEY,
+            variedad VARCHAR(150) NOT NULL UNIQUE,
+            eliminado_en TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+    """))
+    db.session.commit()
     print("[1] Creando tabla cat_variedades_maestro si no existe...")
     db.session.execute(text("""
         CREATE TABLE IF NOT EXISTS cat_variedades_maestro (

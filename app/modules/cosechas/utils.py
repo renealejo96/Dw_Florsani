@@ -53,7 +53,11 @@ def _get_tombstones_set():
             if r[0]:
                 tombstones.add(r[0].strip().upper())
     except Exception:
-        pass
+        try:
+            from app.extensions import db
+            db.session.rollback()
+        except Exception:
+            pass
     return tombstones
 
 def cargar_variedades():
@@ -471,7 +475,9 @@ def guardar_relaciones_maestro(relaciones):
         vars_nuevas_set = {v for v, p in relaciones_ordenadas}
         if vars_nuevas_set:
             # Eliminar en BD aquellas variedades que fueron desvinculadas o eliminadas
-            db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) NOT IN :vars"), {'vars': tuple(vars_nuevas_set)})
+            from sqlalchemy import bindparam
+            stmt = text("DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) NOT IN :vars").bindparams(bindparam('vars', expanding=True))
+            db.session.execute(stmt, {'vars': tuple(vars_nuevas_set)})
         else:
             db.session.execute(text("DELETE FROM cat_variedades_maestro"))
             
@@ -550,7 +556,9 @@ def guardar_productos_maestros(productos):
         from app.extensions import db
         from sqlalchemy import text
         if productos_limpios:
-            db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(TRIM(producto_maestro)) NOT IN :prods"), {'prods': tuple(productos_limpios)})
+            from sqlalchemy import bindparam
+            stmt = text("DELETE FROM dim_prod_maestros WHERE UPPER(TRIM(producto_maestro)) NOT IN :prods").bindparams(bindparam('prods', expanding=True))
+            db.session.execute(stmt, {'prods': tuple(productos_limpios)})
         else:
             db.session.execute(text("DELETE FROM dim_prod_maestros"))
         for p in productos_limpios:

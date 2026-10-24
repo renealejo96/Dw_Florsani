@@ -186,7 +186,7 @@ def create_app(config_class=Config):
         # One-time migration to synchronize cat_variedades_maestro and enforce tombstones on VPS
         try:
             mig_cat_done = db.session.execute(text(
-                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'sync_catalogos_vps_tombstones_v6'"
+                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'sync_catalogos_vps_tombstones_v7'"
             )).scalar()
 
             if not mig_cat_done:
@@ -257,9 +257,11 @@ def create_app(config_class=Config):
                             );
                         """))
                         # Eliminar de BD cualquier variedad que ya fue eliminada del CSV canónico o esté en tombstones
-                        db.session.execute(text(
+                        from sqlalchemy import bindparam
+                        stmt = text(
                             "DELETE FROM cat_variedades_maestro WHERE UPPER(TRIM(variedad)) NOT IN :vars"
-                        ), {'vars': tuple(csv_vars_map.keys())})
+                        ).bindparams(bindparam('vars', expanding=True))
+                        db.session.execute(stmt, {'vars': tuple(csv_vars_map.keys())})
 
                         # Sincronizar inserciones y actualizaciones
                         for v, m in csv_vars_map.items():
@@ -271,7 +273,7 @@ def create_app(config_class=Config):
                             """), {'var': v, 'prod': m})
                 
                 db.session.execute(text(
-                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('sync_catalogos_vps_tombstones_v6')"
+                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('sync_catalogos_vps_tombstones_v7')"
                 ))
                 db.session.commit()
                 print("[SYSTEM] Sincronización canónica con lápidas (tombstones) de variedades completada con éxito.")
