@@ -463,7 +463,7 @@
     }
     .excel-table {
         width: 100%;
-        min-width: 960px !important;
+        min-width: 880px !important;
         border-collapse: collapse;
         font-size: 0.71rem;
         line-height: 1.15;
@@ -523,8 +523,8 @@
         border-right: none;
     }
     .excel-table td.cell-labor {
-        width: 190px;
-        min-width: 180px;
+        width: 195px;
+        min-width: 175px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -658,7 +658,7 @@
 
     @media (max-width: 991.98px) {
         .excel-table {
-            min-width: 960px !important;
+            min-width: 880px !important;
         }
         .check-circle {
             width: 18px;
@@ -1038,13 +1038,16 @@
                 <col style="width: 38px;">
                 <col style="width: 66px;">
                 <col style="width: 30px;">
-                <col style="width: 125px;">
-                <col style="width: 40px;">
-                <col style="width: 190px;">
-                <col style="width: 145px;">
-                <col style="width: 58px;">
-                <col style="width: 36px;">
+                <col style="width: 88px;">
+                <col style="width: 38px;">
+                <col style="width: 195px;">
+                <col style="width: 50px;">
+                <col style="width: 32px;">
                 <col style="width: 160px;">
+                <col style="width: 145px;">
+                {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
+                <col style="width: 32px;">
+                {% endif %}
             </colgroup>
             <thead>
                 <tr>
@@ -1080,7 +1083,7 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 125px;">
+                    <th style="width: 88px;">
                         <div class="th-content-excel">
                             <span>Producto</span>
                             <div class="dropdown">
@@ -1111,8 +1114,8 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 40px;" class="text-center">Sem</th>
-                    <th style="width: 190px; min-width: 180px;">
+                    <th style="width: 38px;" class="text-center">Sem</th>
+                    <th style="width: 195px; min-width: 175px;">
                         <div class="th-content-excel">
                             <span>Labor a Calificar</span>
                             <div class="dropdown">
@@ -1134,7 +1137,7 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 58px;" class="text-center">
+                    <th style="width: 50px;" class="text-center px-1">
                         <div class="th-content-excel justify-content-center">
                             <span>Cumpl.</span>
                             <div class="dropdown">
@@ -1174,7 +1177,8 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 34px;" class="text-center" title="Labor adicional (+)">+</th>
+                    <th style="width: 32px;" class="text-center" title="Labor adicional (+)">+</th>
+                    <th style="width: 160px;">Observaciones</th>
                     <th style="width: 145px;">
                         <div class="th-content-excel">
                             <span>Auxiliar / Sup.</span>
@@ -1206,7 +1210,6 @@
                             </div>
                         </div>
                     </th>
-                    <th style="width: 155px;">Observaciones</th>
                     {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
                     <th style="width: 32px;" class="text-center" title="Eliminar labor (Solo Admin)"></th>
                     {% endif %}
@@ -1255,7 +1258,7 @@
                         {% endif %}
                     </td>
 
-                    <td title="{{ item.producto_maestro }}">{{ item.producto_maestro }}</td>
+                    <td class="text-truncate" style="max-width: 88px;" title="{{ item.producto_maestro }}">{{ item.producto_maestro }}</td>
 
                     <td class="text-center tabular-nums fw-semibold">{{ item.edad_real }}</td>
 
@@ -1301,12 +1304,6 @@
                         {% endif %}
                     </td>
 
-                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
-                        <span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
-                        <span id="sup-name-{{ item.id }}" class="text-muted" style="font-size: 0.66rem;">{% if item.supervisor %}/ {{ item.supervisor }}{% endif %}</span>
-                        <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
-                    </td>
-
                     <td>
                         <input type="text"
                                id="obs-{{ item.id }}"
@@ -1316,6 +1313,12 @@
                                value="{{ item.observacion or '' }}"
                                data-original-obs="{{ item.observacion or '' }}"
                                {% if semana_estado == 'CERRADA' %}disabled{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
+                    </td>
+
+                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
+                        <span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
+                        <span id="sup-name-{{ item.id }}" class="text-muted" style="font-size: 0.66rem;">{% if item.supervisor %}/ {{ item.supervisor }}{% endif %}</span>
+                        <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
                     </td>
 
                     {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
