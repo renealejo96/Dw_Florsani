@@ -1665,7 +1665,18 @@
 
 {% block extra_js %}
 <script>
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 const modifiedItems = new Set();
+const offlineQueueCache = new Map();
 const SEMANA_ACTUAL = {{ semana }};
 const SEMANA_ESTADO = "{{ semana_estado or 'ABIERTA' }}";
 let currentStatusFilter = 'ALL';
@@ -2343,6 +2354,7 @@ function switchZoneClient(targetZone) {
 
     // 7. Re-filtrar para la nueva zona
     applyAllFilters();
+    recalculateZoneKPIs();
 }
 
 /* ============================================================================
@@ -2836,18 +2848,30 @@ function updateActiveBlockContextHeader(bloqueCode) {
 }
 
 function recalculateZoneKPIs() {
-    const allChecks = document.querySelectorAll('.check-circle');
-    const totalLabores = allChecks.length;
+    const zoneRows = document.querySelectorAll(`#excel-tbody .excel-row[data-zona="${currentActiveZone}"]`);
+    let totalLabores = 0;
     let cumplidas = 0;
+    const zoneBlocks = new Set();
 
-    allChecks.forEach(ch => {
-        if (ch.getAttribute('data-current-val') === '1') cumplidas++;
+    zoneRows.forEach(row => {
+        const blq = row.getAttribute('data-bloque');
+        if (blq) zoneBlocks.add(blq);
+
+        const ch = row.querySelector('.check-circle');
+        if (!ch) return;
+        // Evaluable si no está deshabilitado por falta de labor
+        const hasEval = !ch.classList.contains('state-disabled') && ch.getAttribute('title') !== 'Sin labor programada para calificar';
+        if (hasEval) {
+            totalLabores++;
+            if (ch.getAttribute('data-current-val') === '1') cumplidas++;
+        }
     });
 
-    const noEjecutadas = totalLabores - cumplidas;
+    const noEjecutadas = Math.max(0, totalLabores - cumplidas);
     const pctCumplimiento = (totalLabores > 0 && cumplidas > 0)
         ? Math.round((cumplidas / totalLabores) * 1000) / 10
-        : null;
+        : (totalLabores > 0 ? 0.0 : null);
+    const pctAvance = (totalLabores > 0) ? Math.round((cumplidas / totalLabores) * 1000) / 10 : 0.0;
 
     const setTxt = (id, val) => {
         const el = document.getElementById(id);
@@ -2858,18 +2882,29 @@ function recalculateZoneKPIs() {
     setTxt('kpi-total-labores', totalLabores);
     setTxt('kpi-cumplidas', cumplidas);
     setTxt('kpi-pendientes-lab', noEjecutadas);
+    if (zoneBlocks.size > 0) {
+        setTxt('kpi-total-bloques', zoneBlocks.size);
+        setTxt('kpi-visible-bloques', zoneBlocks.size);
+        setTxt('kpi-bloques-count', zoneBlocks.size);
+    }
+    setTxt('kpi-avance-val', `${pctAvance}%`);
+    setTxt('kpi-cumpl-val', pctCumplimiento !== null ? `${pctCumplimiento}%` : 'N/D');
+    setTxt('kpi-calif-count', `${cumplidas}/${totalLabores}`);
+    setTxt('kpi-cumpl-count', `${cumplidas}/${totalLabores}`);
+    setTxt('kpi-pend-count', noEjecutadas);
 
-    const zoneTabPct = document.getElementById('active-zone-tab-pct');
-    if (zoneTabPct) {
-        zoneTabPct.className = 'zone-tab-pct ';
+    // Actualizar badge en la pestaña de la zona activa
+    const tabPctBadge = document.getElementById(`zone-tab-pct-${currentActiveZone}`);
+    if (tabPctBadge) {
+        tabPctBadge.className = 'zone-tab-pct ';
         if (pctCumplimiento === null) {
-            zoneTabPct.classList.add('bg-secondary', 'bg-opacity-25', 'text-secondary');
-            zoneTabPct.innerText = 'Pend.';
+            tabPctBadge.classList.add('bg-secondary', 'bg-opacity-25', 'text-secondary');
+            tabPctBadge.innerText = 'Pend.';
         } else {
-            if (pctCumplimiento >= 85) zoneTabPct.classList.add('bg-success', 'text-white');
-            else if (pctCumplimiento >= 70) zoneTabPct.classList.add('bg-warning', 'text-dark');
-            else zoneTabPct.classList.add('bg-danger', 'text-white');
-            zoneTabPct.innerText = formatPct(pctCumplimiento);
+            if (pctCumplimiento >= 85) tabPctBadge.classList.add('bg-success', 'text-white');
+            else if (pctCumplimiento >= 70) tabPctBadge.classList.add('bg-warning', 'text-dark');
+            else tabPctBadge.classList.add('bg-danger', 'text-white');
+            tabPctBadge.innerText = formatPct(pctCumplimiento);
         }
     }
 }
@@ -2976,25 +3011,45 @@ function persistOfflineChanges() {
             const btn = document.getElementById(`btn-check-${itemId}`);
             const obsInput = document.getElementById(`obs-${itemId}`);
             const extra = offlineExtraItems[itemId];
-            if (btn || extra) {
-                const itemObj = {
-                    id: itemId,
-                    val: btn ? btn.getAttribute('data-current-val') : (extra ? extra.cumplido : 'null'),
-                    obs: obsInput ? obsInput.value : (extra ? extra.observacion : '')
-                };
-                if (extra) {
-                    itemObj.is_extra = true;
-                    itemObj.parent_id = extra.parent_id;
-                    itemObj.nueva_labor = extra.nueva_labor;
-                    itemObj.bloque = extra.bloque;
-                    itemObj.zona = extra.zona;
-                }
-                payload.push(itemObj);
+            const cached = offlineQueueCache.get(itemId);
+
+            let val = 'null';
+            if (btn) val = btn.getAttribute('data-current-val');
+            else if (cached && cached.val !== undefined) val = cached.val;
+            else if (extra && extra.cumplido !== undefined) val = extra.cumplido;
+
+            let obs = '';
+            if (obsInput) obs = obsInput.value;
+            else if (cached && cached.obs !== undefined) obs = cached.obs;
+            else if (extra && extra.observacion) obs = extra.observacion;
+
+            const itemObj = {
+                id: itemId,
+                val: val,
+                obs: obs
+            };
+
+            if (extra) {
+                itemObj.is_extra = true;
+                itemObj.parent_id = extra.parent_id;
+                itemObj.nueva_labor = extra.nueva_labor;
+                itemObj.bloque = extra.bloque;
+                itemObj.zona = extra.zona;
+            } else if (cached && cached.is_extra) {
+                itemObj.is_extra = true;
+                itemObj.parent_id = cached.parent_id;
+                itemObj.nueva_labor = cached.nueva_labor;
+                itemObj.bloque = cached.bloque;
+                itemObj.zona = cached.zona;
             }
+
+            payload.push(itemObj);
+            offlineQueueCache.set(itemId, itemObj);
         });
+
         if (payload.length > 0) {
             localStorage.setItem(`feno_offline_sync_${SEMANA_ACTUAL}`, JSON.stringify(payload));
-            // Backup histórico redundante por seguridad extrema ante apagado brusco
+            // Backup histórico redundante por seguridad extrema ante reinicio
             try {
                 localStorage.setItem(`feno_backup_hist_${SEMANA_ACTUAL}`, JSON.stringify({
                     timestamp: new Date().toISOString(),
@@ -3026,6 +3081,26 @@ async function restoreOfflineChanges() {
             }
         }
 
+        // Búsqueda de respaldo inteligente: si no hay en la semana activa, buscar si hay cambios pendientes guardados en otra semana
+        if (!raw) {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith('feno_offline_sync_')) {
+                    const testVal = localStorage.getItem(k);
+                    if (testVal && testVal.length > 10) {
+                        try {
+                            const parsed = JSON.parse(testVal);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                raw = testVal;
+                                console.log(`Restaurando desde clave alternativa ${k} (${parsed.length} items)`);
+                                break;
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        }
+
         let items = [];
         if (raw) {
             try { items = JSON.parse(raw); } catch (e) {}
@@ -3044,6 +3119,10 @@ async function restoreOfflineChanges() {
         let restoredCount = 0;
         const affectedBlocks = new Set();
         items.forEach(it => {
+            if (!it || it.id === undefined) return;
+            offlineQueueCache.set(it.id, it);
+            modifiedItems.add(it.id);
+
             if (it.is_extra || String(it.id).startsWith('temp_')) {
                 if (!document.getElementById(`row-${it.id}`) && it.parent_id) {
                     crearFilaLaborOffline(it.parent_id, it.nueva_labor || 'Labor Adicional', it.id);
@@ -3055,18 +3134,16 @@ async function restoreOfflineChanges() {
             if (btn) {
                 setCheckCircleState(btn, it.val);
                 if (obsInput && it.obs !== undefined) obsInput.value = it.obs;
-                // Marcar sucio sin disparar recálculos pesados por cada item (se hace una sola vez al final)
                 markItemDirty(it.id, false);
                 const blq = btn.getAttribute('data-bloque');
                 if (blq) affectedBlocks.add(blq);
-                restoredCount++;
             }
+            restoredCount++;
         });
 
         if (restoredCount > 0) {
             affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
             recalculateZoneKPIs();
-            persistOfflineChanges();
             updateSaveButtonsUI(false);
             showFenoToast(`✓ Se restauraron ${restoredCount} calificaciones locales pendientes de sincronizar.`);
         }
@@ -3118,6 +3195,7 @@ function descartarCambiosLocales() {
     });
 
     modifiedItems.clear();
+    offlineQueueCache.clear();
     try {
         localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
     } catch (e) {}
@@ -3140,27 +3218,37 @@ async function saveAllChanges() {
         const obsInput = document.getElementById(`obs-${itemId}`);
         const row = document.getElementById(`row-${itemId}`);
         const selLabor = document.getElementById(`sel-labor-${itemId}`);
+        const cached = offlineQueueCache.get(itemId);
+        const extra = offlineExtraItems[itemId] || (cached && cached.is_extra ? cached : null);
 
-        const currVal = btn ? btn.getAttribute('data-current-val') : 'null';
+        let currVal = 'null';
+        if (btn) currVal = btn.getAttribute('data-current-val') || 'null';
+        else if (cached && cached.val !== undefined) currVal = cached.val;
+        else if (extra && extra.cumplido !== undefined) currVal = extra.cumplido;
+
         let cumplidoVal = null;
-        if (currVal === '1') cumplidoVal = 1;
-        if (currVal === '0') cumplidoVal = 0;
+        if (currVal === '1' || currVal === 1) cumplidoVal = 1;
+        if (currVal === '0' || currVal === 0) cumplidoVal = 0;
 
-        const obsVal = obsInput ? obsInput.value : '';
-        if (row && row.getAttribute('data-bloque')) {
-            affectedBlocks.add(row.getAttribute('data-bloque'));
+        let obsVal = '';
+        if (obsInput) obsVal = obsInput.value;
+        else if (cached && cached.obs !== undefined) obsVal = cached.obs;
+        else if (extra && extra.observacion) obsVal = extra.observacion;
+
+        const rowBlq = row ? row.getAttribute('data-bloque') : (extra ? extra.bloque : (cached?.bloque || null));
+        if (rowBlq) {
+            affectedBlocks.add(rowBlq);
         }
 
         const customLabor = selLabor ? selLabor.value : (row ? row.getAttribute('data-assigned-labor') : null);
         const customAux = row ? row.getAttribute('data-assigned-auxiliar') : null;
         const customSup = row ? row.getAttribute('data-assigned-supervisor') : null;
 
-        const extra = offlineExtraItems[itemId];
         const payloadItem = {
             id: itemId,
             cumplido: cumplidoVal,
             observacion: obsVal,
-            labor: (extra && extra.nueva_labor) ? extra.nueva_labor : customLabor,
+            labor: (extra && extra.nueva_labor) ? extra.nueva_labor : (cached?.nueva_labor || customLabor),
             auxiliar: (extra && extra.auxiliar) ? extra.auxiliar : customAux,
             supervisor: (extra && extra.supervisor) ? extra.supervisor : customSup
         };
@@ -3232,6 +3320,7 @@ async function saveAllChanges() {
 
             const hadTempItems = Object.keys(offlineExtraItems).length > 0;
             modifiedItems.clear();
+            offlineQueueCache.clear();
             offlineExtraItems = {};
             try {
                 localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
@@ -3260,11 +3349,15 @@ async function saveAllChanges() {
                 if (pingData.authenticated === false) {
                     abrirModalReauth(payloadItems.length);
                     return;
+                } else if (pingData.authenticated === true) {
+                    showFenoToast('✓ Conexión con el servidor detectada. Reintentando sincronización...', false);
+                    setTimeout(() => saveAllChanges(), 600);
+                    return;
                 }
             }
         } catch (pingErr) {}
 
-        showFenoToast(`⚠️ Sin conexión con el servidor: ${payloadItems.length} cambios guardados de forma segura en este dispositivo. Revisa tu Wi-Fi.`, true);
+        showFenoToast(`⚠️ Sin conexión con el servidor: ${payloadItems.length} cambios guardados de forma segura en este dispositivo. Se sincronizarán al detectar red.`, true);
     }
 }
 
@@ -3450,11 +3543,37 @@ function copiarRespaldoOfflineJSON() {
         showFenoToast('No hay datos en la cola local para copiar.');
         return;
     }
-    navigator.clipboard.writeText(raw).then(() => {
-        showFenoToast('✓ Respaldo JSON copiado al portapapeles.');
-    }).catch(() => {
-        showFenoToast('No se pudo copiar automáticamente. Consulta con Sistemas.');
-    });
+
+    const doFallbackCopy = () => {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = raw;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (success) {
+                showFenoToast('✓ Respaldo JSON copiado al portapapeles.');
+            } else {
+                showFenoToast('No se pudo copiar automáticamente. Consulta con Sistemas.');
+            }
+        } catch (e) {
+            showFenoToast('No se pudo copiar automáticamente. Consulta con Sistemas.');
+        }
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(raw).then(() => {
+            showFenoToast('✓ Respaldo JSON copiado al portapapeles.');
+        }).catch(() => {
+            doFallbackCopy();
+        });
+    } else {
+        doFallbackCopy();
+    }
 }
 
 function descartarArrastreItem(itemId, bloqueCode) {
@@ -3692,22 +3811,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Detección en vivo de conectividad online / offline en campo
-    window.addEventListener('online', async () => {
+    let onlineDebounceTimer = null;
+    window.addEventListener('online', () => {
         showFenoToast('📡 Conexión Wi-Fi detectada.');
-        if (modifiedItems.size > 0) {
-            try {
-                const pingRes = await fetch('/fenogramas/api/ping', { cache: 'no-store' });
-                if (pingRes.ok) {
-                    const pingData = await pingRes.json();
-                    if (pingData.authenticated === false) {
-                        abrirModalReauth(modifiedItems.size);
-                        return;
+        if (onlineDebounceTimer) clearTimeout(onlineDebounceTimer);
+        onlineDebounceTimer = setTimeout(async () => {
+            if (modifiedItems.size > 0) {
+                try {
+                    const pingRes = await fetch('/fenogramas/api/ping', { cache: 'no-store' });
+                    if (pingRes.ok) {
+                        const pingData = await pingRes.json();
+                        if (pingData.authenticated === false) {
+                            abrirModalReauth(modifiedItems.size);
+                            return;
+                        } else if (pingData.authenticated === true) {
+                            showFenoToast(`🔄 Sincronizando automáticamente ${modifiedItems.size} calificación(es) pendientes...`);
+                            saveAllChanges();
+                            return;
+                        }
                     }
+                } catch (e) {
+                    console.log('Esperando estabilización de red Wi-Fi...');
                 }
-            } catch (e) {}
-            showFenoToast(`🔄 Sincronizando automáticamente ${modifiedItems.size} calificación(es) pendientes...`);
-            saveAllChanges();
-        }
+            }
+        }, 1200);
     });
 
     window.addEventListener('offline', () => {

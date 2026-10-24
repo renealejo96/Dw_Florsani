@@ -171,6 +171,102 @@ class TestFenogramasSync(unittest.TestCase):
             c.observacion = ''
             db.session.commit()
 
+    def test_06_calificar_lote_extra_offline_item(self):
+        """Creación y actualización de labores extras offline (+ Extra) con asignación de responsables y preservación de sufijo."""
+        with self.app.app_context():
+            admin_user = User.query.filter_by(role='ADMIN').first()
+            user_id = admin_user.id
+            username = admin_user.username
+            role = admin_user.role
+            perms = admin_user.permissions
+            finca_id = admin_user.finca_id
+            parent_calif = Calificacion.query.filter(Calificacion.zona == 'PALMERAS3').first()
+            parent_id = parent_calif.id
+
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = user_id
+            sess['username'] = username
+            sess['role'] = role
+            sess['permissions'] = perms
+            sess['finca_id'] = finca_id
+            sess['finca_nombre'] = 'Pyganflor'
+
+        extra_payload = {
+            'items': [{
+                'id': 'temp_offline_999',
+                'parent_id': parent_id,
+                'is_extra': True,
+                'nueva_labor': 'Deshierbe Manual Extra Test',
+                'cumplido': 1,
+                'observacion': 'Labor extra creada offline en campo',
+                'auxiliar': 'Auxiliar Test',
+                'supervisor': 'Supervisor Test'
+            }]
+        }
+
+        res = self.client.post('/fenogramas/api/calificar-lote', json=extra_payload)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json().get('success'))
+        self.assertEqual(res.get_json().get('updated'), 1)
+
+        # Verificar que se creó en base de datos con los atributos correctos
+        with self.app.app_context():
+            extra_db = Calificacion.query.filter_by(
+                semana_anio=parent_calif.semana_anio,
+                bloque=parent_calif.bloque,
+                labor='Deshierbe Manual Extra Test'
+            ).first()
+            self.assertIsNotNone(extra_db)
+            self.assertEqual(extra_db.cumplido, 1.0)
+            self.assertEqual(extra_db.observacion, 'Labor extra creada offline en campo')
+            self.assertEqual(extra_db.auxiliar, 'Auxiliar Test')
+            self.assertEqual(extra_db.supervisor, 'Supervisor Test')
+            self.assertTrue(extra_db.tiene_evaluacion)
+
+            # Limpiar registro creado para el test
+            db.session.delete(extra_db)
+            db.session.commit()
+
+    def test_07_login_redirect_preserves_next_url(self):
+        """Si la sesión expira en vista HTML, el redirect a login debe preservar next=request.url."""
+        res = self.client.get('/fenogramas/?semana=43&zona=PALMERAS3')
+        self.assertEqual(res.status_code, 302)
+        location = res.headers.get('Location')
+        self.assertIn('/auth/login', location)
+        self.assertIn('next=', location)
+        self.assertIn('zona%3DPALMERAS3', location)
+
+    def test_08_quick_login_case_insensitivity_and_inactive(self):
+        """quick_login debe ser tolerante a mayúsculas/minúsculas en el usuario y rechazar usuarios inactivos."""
+        # Usuario en mayúsculas 'ADMIN'
+        res_caps = self.client.post('/auth/api/quick-login', json={'username': 'ADMIN', 'password': 'admin123'})
+        self.assertEqual(res_caps.status_code, 200)
+        self.assertTrue(res_caps.get_json().get('success'))
+
+        # Usuario inactivo
+        with self.app.app_context():
+            test_inactive = User.query.filter_by(username='test_inactive_feno').first()
+            if not test_inactive:
+                test_inactive = User(
+                    username='test_inactive_feno',
+                    full_name='Usuario Inactivo Test',
+                    role='OPERARIO',
+                    is_active=False
+                )
+                test_inactive.set_password('pass123')
+                db.session.add(test_inactive)
+                db.session.commit()
+
+        res_inactive = self.client.post('/auth/api/quick-login', json={'username': 'test_inactive_feno', 'password': 'pass123'})
+        self.assertEqual(res_inactive.status_code, 403)
+        self.assertFalse(res_inactive.get_json().get('success'))
+
+        with self.app.app_context():
+            u = User.query.filter_by(username='test_inactive_feno').first()
+            if u:
+                db.session.delete(u)
+                db.session.commit()
+
 
 if __name__ == '__main__':
     unittest.main()

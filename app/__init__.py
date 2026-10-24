@@ -350,7 +350,7 @@ def create_app(config_class=Config):
                     'code': 'SESSION_EXPIRED',
                     'auth_required': True
                 }), 401
-            return redirect(url_for('auth.login'))
+            return redirect(url_for('auth.login', next=request.url))
 
 
     @app.route('/sw.js')
