@@ -593,13 +593,13 @@
                             <div class="form-check form-check-inline mb-0">
                                 <input class="form-check-input" type="checkbox" id="cb-filter-coincident">
                                 <label class="form-check-label small text-primary fw-semibold" for="cb-filter-coincident">
-                                    <i class="fa-solid fa-code-compare text-primary me-1"></i> Solo bloques en ambos lados (Veg y Prod)
+                                    <i class="fa-solid fa-code-compare text-primary me-1"></i> Solo bloques en ambos lados (Veg y Prod) (<span id="count-coincident-badge">0</span>)
                                 </label>
                             </div>
                             <div class="form-check form-check-inline mb-0">
                                 <input class="form-check-input" type="checkbox" id="cb-filter-duplicates">
                                 <label class="form-check-label small text-danger fw-semibold" for="cb-filter-duplicates">
-                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Solo bloques divididos / con duplicados
+                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Solo bloques divididos / con duplicados (<span id="count-duplicates-badge">0</span>)
                                 </label>
                             </div>
                             <div class="form-check form-check-inline mb-0">
@@ -1582,6 +1582,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==================== RENDER CUADRE PANELS (VEGETATIVO & PRODUCTIVO) ====================
     function renderCuadrePanels() {
         const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const normSelectedCrop = (selectedCrop && selectedCrop !== 'ALL') ? normalizeCropName(selectedCrop) : null;
         const searchQ = (searchInput ? searchInput.value : '').trim().toUpperCase().replace(/\s+/g, '');
         const onlyCoincident = filterCoincidentCb ? filterCoincidentCb.checked : false;
         const onlyDuplicates = filterDuplicatesCb ? filterDuplicatesCb.checked : false;
@@ -1598,36 +1599,71 @@ document.addEventListener('DOMContentLoaded', function() {
         let prodCount = 0, prodBeds = 0, prodLiters = 0;
         let modifiedInCurrentCropCount = 0;
 
-        // Group segments by block to calculate occurrences and differences
+        // Group segments by block STRICTLY for the active crop to avoid cross-crop collision
         const blockSummary = {};
         const vegBlockCounts = {};
         const prodBlockCounts = {};
 
         masterSegments.forEach(s => {
-            const bKey = cleanBlockName(s.block_name, s.suffix).trim().toUpperCase();
             const sCrop = normalizeCropName(s.crop_name);
-            const matchCrop = (selectedCrop === 'ALL' || selectedCrop === 'ALL' || sCrop === selectedCrop || sCrop.startsWith(selectedCrop) || selectedCrop.startsWith(sCrop));
-            if (matchCrop && s.is_modified) {
+            const matchCrop = (!normSelectedCrop || sCrop === normSelectedCrop || sCrop.startsWith(normSelectedCrop) || normSelectedCrop.startsWith(sCrop));
+            if (!matchCrop) return;
+
+            if (s.is_modified) {
                 modifiedInCurrentCropCount++;
             }
 
+            const bKey = cleanBlockName(s.block_name, s.suffix).trim().toUpperCase();
             if (!blockSummary[bKey]) {
-                blockSummary[bKey] = { count: 0, veg: 0, prod: 0, crops: new Set() };
+                blockSummary[bKey] = { 
+                    count: 0, 
+                    veg: 0, 
+                    prod: 0, 
+                    bedsSeen: new Set(),
+                    hasOverlappingBeds: false
+                };
             }
             blockSummary[bKey].count++;
             if (s.phenological_stage === 'VEGETATIVO') {
                 blockSummary[bKey].veg++;
                 vegBlockCounts[bKey] = (vegBlockCounts[bKey] || 0) + 1;
-            }
-            if (s.phenological_stage === 'PRODUCTIVO') {
+            } else if (s.phenological_stage === 'PRODUCTIVO') {
                 blockSummary[bKey].prod++;
                 prodBlockCounts[bKey] = (prodBlockCounts[bKey] || 0) + 1;
             }
-            blockSummary[bKey].crops.add(s.crop_name);
+
+            const start = parseInt(s.bed_start) || 1;
+            const end = parseInt(s.bed_end) || start;
+            for (let b = start; b <= end; b++) {
+                if (blockSummary[bKey].bedsSeen.has(b)) {
+                    blockSummary[bKey].hasOverlappingBeds = true;
+                } else {
+                    blockSummary[bKey].bedsSeen.add(b);
+                }
+            }
+        });
+
+        // Compute count badges for quick filter buttons
+        let coincidentBlocksCount = 0;
+        let duplicateBlocksCount = 0;
+        Object.keys(blockSummary).forEach(bKey => {
+            const b = blockSummary[bKey];
+            if (b.veg > 0 && b.prod > 0) {
+                coincidentBlocksCount++;
+            }
+            if (b.count > 1 || b.hasOverlappingBeds) {
+                duplicateBlocksCount++;
+            }
         });
 
         const countModBadge = document.getElementById('count-modified-badge');
         if (countModBadge) countModBadge.textContent = modifiedInCurrentCropCount;
+
+        const countCoinBadge = document.getElementById('count-coincident-badge');
+        if (countCoinBadge) countCoinBadge.textContent = coincidentBlocksCount;
+
+        const countDupBadge = document.getElementById('count-duplicates-badge');
+        if (countDupBadge) countDupBadge.textContent = duplicateBlocksCount;
 
         // Filter and sort master segments
         const vegSegments = [];
@@ -1635,22 +1671,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
         masterSegments.forEach(s => {
             const sCrop = normalizeCropName(s.crop_name);
+            const matchCrop = (!normSelectedCrop || sCrop === normSelectedCrop || sCrop.startsWith(normSelectedCrop) || normSelectedCrop.startsWith(sCrop));
+            if (!matchCrop) return;
+
             const bKey = cleanBlockName(s.block_name, s.suffix).trim().toUpperCase();
             const sBlock = bKey.replace(/\s+/g, '');
-            const bInfo = blockSummary[bKey] || { veg: 0, prod: 0, count: 0 };
-            const isDuplicated = (s.phenological_stage === 'VEGETATIVO' && vegBlockCounts[bKey] > 1) || (s.phenological_stage === 'PRODUCTIVO' && prodBlockCounts[bKey] > 1);
+            const bInfo = blockSummary[bKey] || { veg: 0, prod: 0, count: 0, hasOverlappingBeds: false };
 
-            const matchCrop = (selectedCrop === 'ALL' || selectedCrop === 'ALL' || sCrop === selectedCrop || sCrop.startsWith(selectedCrop) || selectedCrop.startsWith(sCrop));
+            const isDividedOrDuplicated = (bInfo.count > 1 || bInfo.hasOverlappingBeds);
+            const isStageDuplicated = (s.phenological_stage === 'VEGETATIVO' && (vegBlockCounts[bKey] || 0) > 1) || (s.phenological_stage === 'PRODUCTIVO' && (prodBlockCounts[bKey] || 0) > 1);
+
             const matchSearch = (!searchQ || sBlock.includes(searchQ));
             const matchCoincident = (!onlyCoincident || (bInfo.veg > 0 && bInfo.prod > 0));
-            const matchDuplicates = (!onlyDuplicates || isDuplicated);
+            const matchDuplicates = (!onlyDuplicates || isDividedOrDuplicated);
             const matchModified = (!onlyModified || s.is_modified);
 
-            if (matchCrop && matchSearch && matchCoincident && matchDuplicates && matchModified) {
+            if (matchSearch && matchCoincident && matchDuplicates && matchModified) {
+                const item = {
+                    seg: s,
+                    bInfo: bInfo,
+                    isDivided: isDividedOrDuplicated,
+                    isStageDuplicated: isStageDuplicated
+                };
                 if (s.phenological_stage === 'VEGETATIVO') {
-                    vegSegments.push({ seg: s, isDuplicated: isDuplicated });
+                    vegSegments.push(item);
                 } else {
-                    prodSegments.push({ seg: s, isDuplicated: isDuplicated });
+                    prodSegments.push(item);
                 }
             }
         });
@@ -1663,7 +1709,7 @@ document.addEventListener('DOMContentLoaded', function() {
             vegCount++;
             vegBeds += parseFloat(s.standard_beds || 0);
             vegLiters += parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0);
-            tbodyVeg.appendChild(createSegmentRowElement(s, 'VEGETATIVO', blockSummary, item.isDuplicated));
+            tbodyVeg.appendChild(createSegmentRowElement(s, 'VEGETATIVO', blockSummary, item));
         });
 
         // Render Productivo Rows
@@ -1672,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', function() {
             prodCount++;
             prodBeds += parseFloat(s.standard_beds || 0);
             prodLiters += parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0);
-            tbodyProd.appendChild(createSegmentRowElement(s, 'PRODUCTIVO', blockSummary, item.isDuplicated));
+            tbodyProd.appendChild(createSegmentRowElement(s, 'PRODUCTIVO', blockSummary, item));
         });
 
         // Update Panel Summaries
@@ -1920,14 +1966,19 @@ document.addEventListener('DOMContentLoaded', function() {
         updatePanelSummaries();
     }
 
-    function createSegmentRowElement(s, panelType, blockSummary, isDuplicated) {
+    function createSegmentRowElement(s, panelType, blockSummary, meta) {
+        const cleanBlk = cleanBlockName(s.block_name, s.suffix);
+        const bKey = cleanBlk.toUpperCase();
+        const bInfo = (meta && meta.bInfo) ? meta.bInfo : (blockSummary[bKey] || null);
+        const isDivided = meta ? meta.isDivided : false;
+        const isStageDup = meta ? meta.isStageDuplicated : false;
+
         const tr = document.createElement('tr');
         let rowClasses = `cuadre-row ${panelType === 'VEGETATIVO' ? 'row-state-veg' : 'row-state-prod'}`;
         if (s.is_modified) rowClasses += ' row-modified';
-        if (isDuplicated) rowClasses += ' row-duplicated';
+        if (isDivided || isStageDup) rowClasses += ' row-duplicated';
         tr.className = rowClasses;
 
-        const cleanBlk = cleanBlockName(s.block_name, s.suffix);
         tr.id = `row-${s.uid}`;
         tr.dataset.uid = s.uid;
         tr.dataset.block = cleanBlk;
@@ -1936,8 +1987,6 @@ document.addEventListener('DOMContentLoaded', function() {
         tr.dataset.stage = panelType;
         tr.draggable = true;
 
-        const bKey = cleanBlk.toUpperCase();
-        const bInfo = blockSummary[bKey];
         if (bInfo && bInfo.veg > 0 && bInfo.prod > 0) {
             tr.classList.add('row-has-difference');
         }
@@ -1945,7 +1994,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const isCustomMix = s.is_custom_mix;
         const totalLiters = parseFloat(s.total_liters || (s.standard_beds * s.liters_per_bed) || 0).toFixed(1);
 
-        const dupBadge = isDuplicated ? '<i class="fa-solid fa-triangle-exclamation text-danger ms-1" title="Bloque dividido / fraccionado en múltiples pedazos" style="font-size: 0.72rem;"></i>' : '';
+        let dupBadge = '';
+        if (bInfo && bInfo.hasOverlappingBeds) {
+            dupBadge = '<i class="fa-solid fa-triangle-exclamation text-danger ms-1" title="Alerta: Camas solapadas / repetidas en este bloque" style="font-size: 0.72rem;"></i>';
+        } else if (isStageDup) {
+            dupBadge = '<i class="fa-solid fa-copy text-danger ms-1" title="Bloque repetido en esta misma etapa" style="font-size: 0.72rem;"></i>';
+        } else if (bInfo && bInfo.count > 1) {
+            dupBadge = '<i class="fa-solid fa-arrows-split-up-and-left text-warning ms-1" title="Bloque dividido en múltiples partes" style="font-size: 0.72rem;"></i>';
+        }
+
         const modCheck = s.is_modified ? '<span class="text-success ms-1 mod-check" title="Bloque modificado manualmente por el agrónomo"><i class="fa-solid fa-pen-to-square"></i></span>' : '';
 
         const actType = getSegmentActivityType(s);
@@ -2148,19 +2205,26 @@ document.addEventListener('DOMContentLoaded', function() {
     function highlightAndFocusBlock(blockName) {
         if (!blockName) return;
         activeFocusedBlock = cleanBlockName(blockName).trim().toUpperCase();
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const normSelectedCrop = (selectedCrop && selectedCrop !== 'ALL') ? normalizeCropName(selectedCrop) : null;
 
         // Clear previous highlights
         document.querySelectorAll('.cuadre-row').forEach(r => {
             r.classList.remove('row-highlight-matching', 'row-active-focus');
         });
 
-        // Find matching segments across both panels
-        const matchingSegs = masterSegments.filter(s => cleanBlockName(s.block_name, s.suffix).trim().toUpperCase() === activeFocusedBlock);
+        // Find matching segments across both panels strictly for the active crop
+        const matchingSegs = masterSegments.filter(s => 
+            cleanBlockName(s.block_name, s.suffix).trim().toUpperCase() === activeFocusedBlock &&
+            (!normSelectedCrop || normalizeCropName(s.crop_name) === normSelectedCrop)
+        );
         if (matchingSegs.length === 0) return;
 
         // Highlight matching rows
         document.querySelectorAll(`.cuadre-row[data-block="${activeFocusedBlock}"]`).forEach(r => {
-            r.classList.add('row-highlight-matching');
+            if (!normSelectedCrop || normalizeCropName(r.dataset.crop) === normSelectedCrop) {
+                r.classList.add('row-highlight-matching');
+            }
         });
 
         // Update Visual Comparison Card
@@ -2213,23 +2277,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const statusContainer = document.getElementById('cuadre-validation-status');
         if (!statusContainer) return;
 
-        // Group by block to detect duplicate beds
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const normSelectedCrop = (selectedCrop && selectedCrop !== 'ALL') ? normalizeCropName(selectedCrop) : null;
+
+        // Group by block to detect duplicate beds strictly for the active crop
         const blockBedsMap = {};
         let duplicateErrors = [];
 
         masterSegments.forEach(s => {
-            const bKey = (s.block_name || '').trim().toUpperCase();
+            const sCrop = normalizeCropName(s.crop_name);
+            if (normSelectedCrop && sCrop !== normSelectedCrop && !sCrop.startsWith(normSelectedCrop) && !normSelectedCrop.startsWith(sCrop)) {
+                return;
+            }
+            const bKey = cleanBlockName(s.block_name, s.suffix).trim().toUpperCase();
             if (!blockBedsMap[bKey]) blockBedsMap[bKey] = [];
 
-            const start = parseInt(s.bed_start);
-            const end = parseInt(s.bed_end);
+            const start = parseInt(s.bed_start) || 1;
+            const end = parseInt(s.bed_end) || start;
             if (start > end) {
                 duplicateErrors.push(`Bloque ${bKey}: Cama inicio (${start}) mayor que fin (${end}).`);
             }
 
             for (let b = start; b <= end; b++) {
                 if (blockBedsMap[bKey].includes(b)) {
-                    duplicateErrors.push(`Bloque ${bKey}: Cama ${b} está duplicada en más de un segmento.`);
+                    duplicateErrors.push(`Bloque ${bKey}: Cama ${b} está repetida en más de un segmento.`);
                 } else {
                     blockBedsMap[bKey].push(b);
                 }
@@ -2257,7 +2328,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function openAdjustBlockModal(blockName) {
         modalBlockKey = blockName.trim().toUpperCase();
-        const segs = masterSegments.filter(s => (s.block_name || '').trim().toUpperCase() === modalBlockKey);
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const normSelectedCrop = (selectedCrop && selectedCrop !== 'ALL') ? normalizeCropName(selectedCrop) : null;
+
+        const segs = masterSegments.filter(s => 
+            cleanBlockName(s.block_name, s.suffix).trim().toUpperCase() === modalBlockKey &&
+            (!normSelectedCrop || normalizeCropName(s.crop_name) === normSelectedCrop)
+        );
         if (segs.length === 0) return;
 
         modalBlockSegments = JSON.parse(JSON.stringify(segs));
@@ -2466,10 +2543,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Save Adjust Modal Changes to Master Segments
     document.getElementById('btn-m-adj-save')?.addEventListener('click', function() {
         pushState();
-        // Remove existing segments for this block
-        masterSegments = masterSegments.filter(s => (s.block_name || '').trim().toUpperCase() !== modalBlockKey);
+        const selectedCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const normSelectedCrop = (selectedCrop && selectedCrop !== 'ALL') ? normalizeCropName(selectedCrop) : null;
+
+        // Remove existing segments for this block ONLY for this active crop!
+        masterSegments = masterSegments.filter(s => 
+            !(cleanBlockName(s.block_name, s.suffix).trim().toUpperCase() === modalBlockKey &&
+              (!normSelectedCrop || normalizeCropName(s.crop_name) === normSelectedCrop))
+        );
         // Append updated segments
-        modalBlockSegments.forEach(s => masterSegments.push(s));
+        modalBlockSegments.forEach(s => {
+            s.is_modified = true;
+            masterSegments.push(s);
+        });
         
         bootstrap.Modal.getInstance(document.getElementById('modalAdjustBlock')).hide();
         renderCuadrePanels();
