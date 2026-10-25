@@ -50,8 +50,25 @@
         margin-bottom: 12px !important;
     }
     .card-header {
-        background-color: #0f172a !important;
-        color: #ffffff !important;
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        border: 1px solid #000000 !important;
+        border-bottom: 2px solid #000000 !important;
+        padding: 5px 8px !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .card-header h6 {
+        color: #000000 !important;
+        font-weight: 800 !important;
+        font-size: 0.82rem !important;
+    }
+    .card-header span, .card-header .badge {
+        color: #000000 !important;
+        border: 1px solid #000000 !important;
+        background-color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 0.70rem !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
@@ -513,15 +530,17 @@
                 </div>
 
                 <!-- Document Header for Print Mode Only -->
-                <div class="d-none d-print-block mb-3 border-bottom pb-2">
+                <div class="d-none d-print-block mb-3 border-bottom border-2 border-dark pb-2">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h4 class="fw-bold text-uppercase mb-0">FINCA FLORÍCOLA PYGANFLOR &bull; PLANILLA DE SALIDAS DE BODEGA</h4>
-                            <div class="small text-muted">Despacho Oficial de Agroquímicos &bull; Semana {{ rotation.week }} (Versión {{ rotation.version }})</div>
+                            <h4 class="fw-bolder text-uppercase mb-1 text-dark" style="letter-spacing: 0.04em; font-size: 1.15rem;">
+                                FINCA FLORÍCOLA PYGANFLOR &nbsp;&bull;&nbsp; PLANILLA DE SALIDAS DE BODEGA
+                            </h4>
+                            <div class="small text-secondary fw-semibold">Despacho Oficial de Agroquímicos &bull; Semana {{ rotation.week }} (Versión {{ rotation.version }})</div>
                         </div>
                         <div class="text-end small">
                             <div><strong>Fecha Emisión:</strong> {{ rotation.created_at|format_local_datetime }}</div>
-                            <div><strong>Estado:</strong> {{ rotation.status }}</div>
+                            <div><strong>Estado:</strong> <span class="badge border border-dark text-dark">{{ rotation.status }}</span></div>
                             <div><strong>Impreso por:</strong> {{ current_user.full_name if current_user else 'Bodega' }}</div>
                         </div>
                     </div>

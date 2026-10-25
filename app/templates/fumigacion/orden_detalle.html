@@ -336,62 +336,74 @@ tr {
             <i class="fa-solid fa-file-excel me-1"></i> Excel Bodega
         </a>
 
-        <!-- Status Change Dropdown (Soporte individual por programa y global) -->
-        <div class="dropdown d-inline-block">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle shadow-sm" type="button" data-bs-toggle="dropdown" id="btn-status-dropdown">
-                Estado: <strong id="top-status-text">{{ order.status }}</strong>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width: 250px;">
-                <li class="dropdown-header small fw-bold text-uppercase" id="dropdown-header-status-program">
-                    <i class="fa-solid fa-layer-group text-primary me-1"></i> Programa Activo
-                </li>
-                <li>
-                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
-                        <input type="hidden" name="status" value="APROBADA">
-                        <input type="hidden" name="program_cat" id="input-status-cat-aprobada" value="ALL">
-                        <button type="submit" class="dropdown-item small text-success fw-bold">
-                            <i class="fa-solid fa-circle-check me-2"></i> Marcar como APROBADA (Agrónomo)
-                        </button>
-                    </form>
-                </li>
-                <li>
-                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
-                        <input type="hidden" name="status" value="EJECUTADA">
-                        <input type="hidden" name="program_cat" id="input-status-cat-ejecutada" value="ALL">
-                        <button type="submit" class="dropdown-item small text-primary fw-bold">
-                            <i class="fa-solid fa-spray-can me-2"></i> Marcar como EJECUTADA (Estadística)
-                        </button>
-                    </form>
-                </li>
-                <li><hr class="dropdown-divider"></li>
-                <li class="dropdown-header small text-muted text-uppercase" style="font-size: 0.68rem;">Toda la Orden (Todos los cultivos)</li>
-                <li>
-                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
-                        <input type="hidden" name="status" value="APROBADA">
-                        <input type="hidden" name="program_cat" value="ALL">
-                        <button type="submit" class="dropdown-item small text-success">
-                            <i class="fa-solid fa-check-double me-2"></i> Aprobar TODO el programa oficial
-                        </button>
-                    </form>
-                </li>
-                <li>
-                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
-                        <input type="hidden" name="status" value="EJECUTADA">
-                        <input type="hidden" name="program_cat" value="ALL">
-                        <button type="submit" class="dropdown-item small text-primary">
-                            <i class="fa-solid fa-spray-can me-2"></i> Ejecutar TODO el programa oficial
-                        </button>
-                    </form>
-                </li>
-                <li>
-                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
-                        <input type="hidden" name="status" value="CANCELADA">
-                        <button type="submit" class="dropdown-item small text-danger">
-                            <i class="fa-solid fa-ban me-2"></i> CANCELAR Programa
-                        </button>
-                    </form>
-                </li>
-            </ul>
+        <!-- Flujo Didáctico de Aprobación (Etiqueta de Estado Actual no editable + Flecha + Botón de Acción) -->
+        <div class="d-flex align-items-center gap-2 bg-white px-2 py-1 border rounded shadow-sm flex-wrap" id="didactic-approval-container">
+            <div class="d-flex align-items-center gap-1">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.04em;">
+                    <i class="fa-solid fa-layer-group text-primary me-1"></i><span id="didactic-prog-label">PROGRAMA</span>:
+                </span>
+                <!-- Etiqueta NO editable del estado actual -->
+                <span class="badge py-1 px-2 fw-bold text-uppercase shadow-xs" id="didactic-current-badge" style="cursor: default; font-size: 0.72rem;">
+                    APROBADA
+                </span>
+            </div>
+
+            <!-- Flecha indicadora didáctica -->
+            <div class="d-flex align-items-center" id="didactic-arrow-box">
+                <i class="fa-solid fa-arrow-right text-primary fs-6 mx-1"></i>
+            </div>
+
+            <!-- Botón de acción para avanzar el estado según corresponda -->
+            <div id="didactic-action-box">
+                <!-- Se llena dinámicamente con JS según el estado -->
+            </div>
+
+            <!-- Menú de opciones secundarias (revertir o cambiar orden completa) -->
+            <div class="dropdown d-inline-block ms-1">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle py-0 px-2" type="button" data-bs-toggle="dropdown" style="font-size: 0.70rem;" title="Opciones adicionales de estado">
+                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm small">
+                    <li class="dropdown-header small text-muted text-uppercase" style="font-size: 0.68rem;">Toda la Orden (General)</li>
+                    <li>
+                        <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                            <input type="hidden" name="status" value="APROBADA">
+                            <input type="hidden" name="program_cat" value="ALL">
+                            <button type="submit" class="dropdown-item small text-success fw-semibold">
+                                <i class="fa-solid fa-check-double me-2"></i> Aprobar TODOS los programas
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                            <input type="hidden" name="status" value="EJECUTADA">
+                            <input type="hidden" name="program_cat" value="ALL">
+                            <button type="submit" class="dropdown-item small text-primary fw-semibold">
+                                <i class="fa-solid fa-spray-can me-2"></i> Ejecutar TODOS los programas
+                            </button>
+                        </form>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="dropdown-header small text-muted text-uppercase" style="font-size: 0.68rem;">Reversión y Cancelación</li>
+                    <li>
+                        <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                            <input type="hidden" name="status" value="GENERADA">
+                            <input type="hidden" name="program_cat" id="input-dropdown-revert-cat" value="ALL">
+                            <button type="submit" class="dropdown-item small text-warning text-dark">
+                                <i class="fa-solid fa-rotate-left me-2"></i> Revertir a BORRADOR / GENERADA
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                            <input type="hidden" name="status" value="CANCELADA">
+                            <button type="submit" class="dropdown-item small text-danger">
+                                <i class="fa-solid fa-ban me-2"></i> CANCELAR Programa
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 </div>
@@ -751,28 +763,97 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateStatusUIForCategory(cat) {
-        const topStatusText = document.getElementById('top-status-text');
         const printStatusBadge = document.getElementById('printable-status-badge');
-        const headerStatusProg = document.getElementById('dropdown-header-status-program');
-        const inputCatAprobada = document.getElementById('input-status-cat-aprobada');
-        const inputCatEjecutada = document.getElementById('input-status-cat-ejecutada');
+        const didacticProgLabel = document.getElementById('didactic-prog-label');
+        const didacticBadge = document.getElementById('didactic-current-badge');
+        const didacticArrow = document.getElementById('didactic-arrow-box');
+        const didacticAction = document.getElementById('didactic-action-box');
+        const revertInputCat = document.getElementById('input-dropdown-revert-cat');
 
         let st = ORDER_GLOBAL_STATUS;
-        let label = 'Orden General';
+        let label = 'TODA LA ORDEN';
 
-        if (cat === 'GYPSO' || cat === 'VARIEDADES' || cat === 'PIV') {
-            st = ORDER_PROGRAM_STATUSES[cat] || ORDER_GLOBAL_STATUS;
-            label = `Programa ${cat}`;
-            if (inputCatAprobada) inputCatAprobada.value = cat;
-            if (inputCatEjecutada) inputCatEjecutada.value = cat;
+        if (cat === 'GYPSO') {
+            st = ORDER_PROGRAM_STATUSES['GYPSO'] || ORDER_GLOBAL_STATUS;
+            label = '🌸 GYPSO';
+        } else if (cat === 'VARIEDADES') {
+            st = ORDER_PROGRAM_STATUSES['VARIEDADES'] || ORDER_GLOBAL_STATUS;
+            label = '🌺 VARIEDADES';
+        } else if (cat === 'PIV') {
+            st = ORDER_PROGRAM_STATUSES['PIV'] || ORDER_GLOBAL_STATUS;
+            label = '🌿 PIV';
         } else {
-            if (inputCatAprobada) inputCatAprobada.value = 'ALL';
-            if (inputCatEjecutada) inputCatEjecutada.value = 'ALL';
+            st = ORDER_GLOBAL_STATUS;
+            label = '📋 TODA LA ORDEN';
         }
 
-        if (headerStatusProg) headerStatusProg.innerHTML = `<i class="fa-solid fa-layer-group text-primary me-1"></i> ${label}`;
-        if (topStatusText) topStatusText.textContent = `${label}: ${st}`;
+        if (revertInputCat) revertInputCat.value = (cat && cat !== 'ALL') ? cat : 'ALL';
+        if (didacticProgLabel) didacticProgLabel.textContent = label;
 
+        // 1. Etiqueta NO editable del estado actual (claridad didáctica total)
+        if (didacticBadge) {
+            didacticBadge.className = 'badge py-1 px-2 fw-bold text-uppercase shadow-xs ';
+            if (st === 'APROBADA') {
+                didacticBadge.className += 'bg-success text-white';
+                didacticBadge.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> APROBADA (Agrónomo)';
+            } else if (st === 'EJECUTADA') {
+                didacticBadge.className += 'bg-primary text-white';
+                didacticBadge.innerHTML = '<i class="fa-solid fa-spray-can me-1"></i> EJECUTADA (Estadística)';
+            } else if (st === 'CANCELADA') {
+                didacticBadge.className += 'bg-danger text-white';
+                didacticBadge.innerHTML = '<i class="fa-solid fa-ban me-1"></i> CANCELADA';
+            } else {
+                didacticBadge.className += 'bg-warning text-dark';
+                didacticBadge.innerHTML = '<i class="fa-solid fa-pen-ruler me-1"></i> BORRADOR';
+            }
+        }
+
+        // 2. Flecha y Botón Didáctico de Acción
+        const orderId = {{ order.id }};
+        const targetCat = (cat && cat !== 'ALL') ? cat : 'ALL';
+
+        if (didacticArrow && didacticAction) {
+            if (st === 'APROBADA') {
+                didacticArrow.innerHTML = '<i class="fa-solid fa-arrow-right text-primary fs-6 mx-1" title="Paso siguiente: Marcar como ejecutada"></i>';
+                didacticAction.innerHTML = `
+                    <form action="/fumigacion/ordenes/${orderId}/cambiar-estado" method="POST" class="d-inline">
+                        <input type="hidden" name="status" value="EJECUTADA">
+                        <input type="hidden" name="program_cat" value="${targetCat}">
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold shadow-xs py-1 px-2 text-nowrap" title="Estadística confirma que el programa ${label} ya fue aplicado por fumigadores en campo">
+                            <i class="fa-solid fa-spray-can me-1"></i> Marcar como EJECUTADA (Estadística)
+                        </button>
+                    </form>
+                `;
+            } else if (st === 'EJECUTADA') {
+                didacticArrow.innerHTML = '<i class="fa-solid fa-check text-success fs-6 mx-1"></i>';
+                didacticAction.innerHTML = `
+                    <span class="badge bg-success-subtle text-success border border-success fw-bold py-1 px-2" style="font-size: 0.72rem;">
+                        <i class="fa-solid fa-flag-checkered me-1"></i> Ejecutado en Campo
+                    </span>
+                    <form action="/fumigacion/ordenes/${orderId}/cambiar-estado" method="POST" class="d-inline ms-1">
+                        <input type="hidden" name="status" value="APROBADA">
+                        <input type="hidden" name="program_cat" value="${targetCat}">
+                        <button type="submit" class="btn btn-link text-muted p-0 small" style="font-size: 0.68rem;" title="Volver a estado APROBADA si fue un error">
+                            (Deshacer a Aprobada)
+                        </button>
+                    </form>
+                `;
+            } else {
+                // Borrador / Generada -> Botón para Aprobar
+                didacticArrow.innerHTML = '<i class="fa-solid fa-arrow-right text-success fs-6 mx-1" title="Paso siguiente: Aprobar programa"></i>';
+                didacticAction.innerHTML = `
+                    <form action="/fumigacion/ordenes/${orderId}/cambiar-estado" method="POST" class="d-inline">
+                        <input type="hidden" name="status" value="APROBADA">
+                        <input type="hidden" name="program_cat" value="${targetCat}">
+                        <button type="submit" class="btn btn-success btn-sm fw-bold shadow-xs py-1 px-2 text-nowrap" title="Agrónomo aprueba oficialmente el programa ${label} para enviar a campo">
+                            <i class="fa-solid fa-circle-check me-1"></i> Marcar como APROBADA (Agrónomo)
+                        </button>
+                    </form>
+                `;
+            }
+        }
+
+        // 3. Document header badge
         if (printStatusBadge) {
             printStatusBadge.textContent = st;
             printStatusBadge.className = 'badge text-uppercase badge-order-status ' + (st === 'APROBADA' ? 'bg-success' : (st === 'EJECUTADA' ? 'bg-primary' : 'bg-secondary'));
