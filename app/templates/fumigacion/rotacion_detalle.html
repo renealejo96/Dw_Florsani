@@ -418,41 +418,70 @@
         
         <!-- 1. Resumen Superior de Cultivos Asignados con Rotación Programada -->
         <div id="crop-summary-wrapper">
-            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <!-- Barra de navegación y acción de Paso 2 -->
+            <div class="d-flex justify-content-between align-items-center mb-3 p-2.5 bg-white rounded border shadow-xs flex-wrap gap-2">
                 <div>
-                    <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-seedling text-success me-2"></i>Cultivos Asignados en esta Rotación (Semana {{ rotation.week }})</h6>
-                    <div class="text-muted small">Haga clic en un cultivo para abrir su mesa de trabajo y calibrar sus camas por bloque.</div>
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <span class="badge bg-primary text-white font-monospace">Paso 2</span>
+                        <i class="fa-solid fa-sliders text-success"></i>
+                        <span>Mesas de Calibración &bull; Cultivos en Rotación (Semana {{ rotation.week }})</span>
+                    </h6>
+                    <div class="text-muted small mt-0.5">
+                        Calibra producto a producto y asígnalos a su vuelta correspondiente. Cuando termines de asignar tus vueltas, puedes pasar al Paso 3.
+                    </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-light text-muted border font-monospace">{{ rotation_crops|length }} cultivo(s) con químicos</span>
+                    <span class="badge bg-light text-muted border font-monospace">{{ rotation_crops|length }} cultivo(s)</span>
+                    <button type="button" class="btn btn-primary btn-sm fw-bold shadow-xs px-3" onclick="window.irAlPaso3();" title="Ir al Paso 3 para revisar programas oficiales y exportar">
+                        <i class="fa-solid fa-boxes-packing me-1"></i> Ir al Paso 3: Almacén / Estadística &rarr;
+                    </button>
                 </div>
             </div>
 
             <div class="row g-2 mb-3" id="crop-summary-deck">
                 {% for c_name in rotation_crops %}
+                {% set st = crop_status_map[c_name] if crop_status_map and c_name in crop_status_map else None %}
+                {% set is_edited = st and (st.has_draft or st.is_draft_modified or st.modified_blocks_count > 0) %}
                 <div class="col-md-4 col-sm-6">
                     <div class="card h-100 shadow-xs border crop-summary-card" data-crop="{{ c_name }}" style="cursor: pointer; transition: all 0.2s;">
                         <div class="card-body p-2 d-flex flex-column justify-content-between">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1.5">
+                                <div class="d-flex align-items-center gap-1.5">
                                     <span class="badge bg-dark fs-6 font-monospace"><i class="fa-solid fa-leaf text-success me-1"></i>{{ c_name }}</span>
+                                    <span class="badge bg-warning text-dark border border-warning-subtle crop-card-pencil {% if not is_edited %}d-none{% endif %}" title="Mezcla o camas editadas / Guardado como borrador" style="font-size: 0.72rem; padding: 3px 6px;">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </span>
                                 </div>
-                                <span class="badge bg-light text-muted border pill-crop-status" data-crop="{{ c_name }}">Censo</span>
+                                <span class="badge {% if st and st.assigned_rounds %}bg-success text-white{% elif is_edited %}bg-warning-subtle text-dark border border-warning{% else %}bg-light text-muted border{% endif %} pill-crop-status" data-crop="{{ c_name }}">
+                                    {% if st and st.assigned_rounds %}
+                                        <i class="fa-solid fa-circle-check me-1"></i>Asignado ({{ st.assigned_rounds|length }})
+                                    {% elif is_edited %}
+                                        <i class="fa-solid fa-pen-to-square me-1"></i>Borrador Editado
+                                    {% else %}
+                                        Censo
+                                    {% endif %}
+                                </span>
                             </div>
-                            <div class="d-flex flex-wrap gap-1 mb-1 crop-assigned-vueltas-badges" data-crop="{{ c_name }}">
-                                {% set st = crop_status_map[c_name] if crop_status_map and c_name in crop_status_map else None %}
+
+                            <div class="mb-1.5 crop-assigned-vueltas-badges" data-crop="{{ c_name }}">
                                 {% if st and st.assigned_rounds %}
-                                    {% for r_info in st.assigned_rounds %}
-                                    <span class="badge bg-success-subtle text-success border border-success fw-semibold font-monospace" style="font-size: 0.68rem;" title="Orden Oficial: {{ r_info.order_number }}">
-                                        <i class="fa-solid fa-circle-check me-1"></i>{{ r_info.round_name }} ({{ r_info.day }})
-                                    </span>
-                                    {% endfor %}
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% for r_info in st.assigned_rounds %}
+                                        <span class="badge bg-success-subtle text-success border border-success fw-semibold font-monospace d-inline-flex align-items-center" style="font-size: 0.70rem;" title="Orden Oficial: {{ r_info.order_number }}">
+                                            <i class="fa-solid fa-circle-check me-1"></i>{{ r_info.round_name }} ({{ r_info.day }})
+                                            <a href="javascript:void(0)" class="text-danger ms-1.5 text-decoration-none btn-unassign-crop" title="Quitar {{ c_name }} de esta vuelta" onclick="event.stopPropagation(); window.desasignarCultivoDeVuelta('{{ c_name }}', {{ r_info.round_id }}, '{{ r_info.round_name }}');">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </a>
+                                        </span>
+                                        {% endfor %}
+                                    </div>
                                 {% else %}
-                                    <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.65rem;">
-                                        <i class="fa-regular fa-clock me-1"></i>Pendiente asignar vuelta
-                                    </span>
+                                    <div class="p-1 px-2 rounded bg-light border text-secondary small font-monospace d-inline-flex align-items-center" style="font-size: 0.68rem;">
+                                        <i class="fa-regular fa-clock me-1 text-warning"></i>Pendiente asignar vuelta
+                                    </div>
                                 {% endif %}
                             </div>
+
                             <div class="row g-1 text-center font-monospace small my-1">
                                 <div class="col-4 bg-white rounded p-1 border">
                                     <div class="text-muted" style="font-size: 0.65rem;">BLOQUES</div>
@@ -548,6 +577,9 @@
                             </button>
                             <button type="button" class="btn btn-success btn-sm fw-bold px-3 shadow-sm" id="btn-open-assign-modal" title="Validar y asignar a vuelta">
                                 <i class="fa-solid fa-calendar-check me-1"></i> Asignar a Vuelta
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm fw-bold shadow-xs px-2.5" onclick="window.irAlPaso3();" title="Ir al Paso 3 para revisar programas oficiales generados">
+                                <i class="fa-solid fa-boxes-packing me-1"></i> Paso 3 &rarr;
                             </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="btn-close-crop-workspace" title="Cerrar mesa y volver al resumen">
                                 <i class="fa-solid fa-xmark"></i>
@@ -904,7 +936,40 @@
                     </select>
                 </div>
 
-
+                <!-- Scope Selector (Control Producto a Producto o en Bloque) -->
+                <div class="mb-3 p-2.5 bg-light rounded border">
+                    <label class="form-label small fw-bold text-dark mb-2 d-flex align-items-center justify-content-between">
+                        <span><i class="fa-solid fa-sliders text-primary me-1"></i> Alcance de la Asignación:</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size: 0.68rem;">Producto a Producto</span>
+                    </label>
+                    <div class="form-check mb-1.5">
+                        <input class="form-check-input" type="radio" name="modal_assign_scope" id="scope-crop-accumulate" value="crop" checked>
+                        <label class="form-check-label small fw-semibold text-dark" for="scope-crop-accumulate">
+                            <i class="fa-solid fa-layer-group text-success me-1"></i> Asignar solo <strong class="text-primary modal-scope-crop-label">CULTIVO</strong> <span class="text-muted fw-normal">(Acumular en la vuelta)</span>
+                        </label>
+                        <div class="text-muted ms-4" style="font-size: 0.72rem;">
+                            Asigna este cultivo a la vuelta y mantiene los demás cultivos que ya hubieras asignado previamente a esta misma vuelta.
+                        </div>
+                    </div>
+                    <div class="form-check mb-1.5">
+                        <input class="form-check-input" type="radio" name="modal_assign_scope" id="scope-crop-replace" value="crop_replace">
+                        <label class="form-check-label small fw-semibold text-dark" for="scope-crop-replace">
+                            <i class="fa-solid fa-arrows-rotate text-warning me-1"></i> Asignar exclusivamente <strong class="text-primary modal-scope-crop-label">CULTIVO</strong> <span class="text-muted fw-normal">(Limpiar otros de esta vuelta)</span>
+                        </label>
+                        <div class="text-muted ms-4" style="font-size: 0.72rem;">
+                            Deja únicamente este cultivo en la vuelta seleccionada (ideal si se asignaron todos por error).
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="modal_assign_scope" id="scope-all" value="all">
+                        <label class="form-check-label small fw-semibold text-dark" for="scope-all">
+                            <i class="fa-solid fa-border-all text-secondary me-1"></i> Asignar TODOS los cultivos de la rotación en bloque
+                        </label>
+                        <div class="text-muted ms-4" style="font-size: 0.72rem;">
+                            Asigna todos los cultivos juntos a esta vuelta en un solo paso.
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Products Display Box for this Round & Crop -->
                 <div class="card mb-3 border bg-light shadow-none">
@@ -928,7 +993,7 @@
                 </div>
 
                 <div class="alert alert-info py-2 px-3 small mb-0">
-                    <i class="fa-solid fa-circle-info me-1"></i> Al hacer clic en <strong>Confirmar y Asignar</strong>, se guardará la calibración y <strong>se generará inmediatamente la Orden de Fumigación Oficial</strong> para esta vuelta, lista para imprimir en el <strong>Paso 3</strong>.
+                    <i class="fa-solid fa-circle-info me-1"></i> Al confirmar, se guardará la calibración de este cultivo y <strong>permanecerás en la mesa de calibración</strong> para continuar con los demás cultivos. Podrás pasar al <strong>Paso 3</strong> cuando hayas terminado.
                 </div>
             </div>
             <div class="modal-footer py-2 bg-light">
@@ -1744,6 +1809,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const cStatus = (typeof CROP_STATUS_MAP !== 'undefined' && CROP_STATUS_MAP[crop]) ? CROP_STATUS_MAP[crop] : null;
             const hasAssigned = cStatus && cStatus.assigned_rounds && cStatus.assigned_rounds.length > 0;
+            const isCropEdited = data.isModified || (cStatus && (cStatus.has_draft || cStatus.is_draft_modified || cStatus.modified_blocks_count > 0));
+
+            // Indicador de Lápiz pequeño en la tarjeta
+            const pencilEl = card.querySelector('.crop-card-pencil');
+            if (pencilEl) {
+                if (isCropEdited) {
+                    pencilEl.classList.remove('d-none');
+                    pencilEl.classList.add('d-inline-flex');
+                } else {
+                    pencilEl.classList.add('d-none');
+                    pencilEl.classList.remove('d-inline-flex');
+                }
+            }
 
             const statusEl = card.querySelector('.pill-crop-status');
             if (statusEl) {
@@ -1752,7 +1830,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusEl.className = 'badge bg-success text-white border pill-crop-status';
                     statusEl.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>Asignado (${cStatus.assigned_rounds.length})`;
                     statusEl.title = `Asignado a: ${rNames}`;
-                } else if (data.isModified || (cStatus && cStatus.is_draft_modified)) {
+                } else if (isCropEdited) {
                     statusEl.className = 'badge bg-warning-subtle text-dark border border-warning pill-crop-status';
                     statusEl.innerHTML = '<i class="fa-solid fa-pen-to-square me-1"></i>Borrador Editado';
                     statusEl.title = 'Tiene ajustes de camas guardados en borrador';
@@ -2509,6 +2587,13 @@ document.addEventListener('DOMContentLoaded', function() {
         pushState();
         currentEditingSeg.products = JSON.parse(JSON.stringify(currentBlockProducts));
         currentEditingSeg.is_custom_mix = true;
+        currentEditingSeg.is_modified = true;
+        const cName = currentEditingSeg.crop_name;
+        if (cName && typeof CROP_STATUS_MAP !== 'undefined') {
+            if (!CROP_STATUS_MAP[cName]) CROP_STATUS_MAP[cName] = {};
+            CROP_STATUS_MAP[cName].has_draft = true;
+            CROP_STATUS_MAP[cName].is_draft_modified = true;
+        }
         bootstrap.Modal.getInstance(document.getElementById('modalEditBlockProducts')).hide();
         renderCuadrePanels();
         highlightAndFocusBlock(currentEditingSeg.block_name);
@@ -2669,6 +2754,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Save Draft
     document.getElementById('btn-save-draft-review')?.addEventListener('click', function() {
+        const activeCrop = (cropSelect && cropSelect.value !== 'ALL') ? cropSelect.value : (currentEditingSeg ? currentEditingSeg.crop_name : '');
+        const normActive = typeof normalizeCropName === 'function' ? normalizeCropName(activeCrop) : (activeCrop ? activeCrop.toUpperCase() : '');
+
+        // Mark segments of active crop as modified
+        masterSegments.forEach(s => {
+            if (!normActive || normalizeCropName(s.crop_name) === normActive) {
+                s.is_modified = true;
+            }
+        });
+
         const payload = prepareSegmentsPayload();
         if (payload.length === 0) {
             alert('No hay segmentos para guardar.');
@@ -2684,7 +2779,8 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 segments: payload,
-                target_round_id: null
+                target_round_id: null,
+                crop_name: activeCrop
             })
         })
         .then(res => res.json())
@@ -2692,6 +2788,13 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.disabled = false;
             if (data.success) {
                 btn.innerHTML = '<i class="fa-solid fa-circle-check me-1 text-success"></i> Borrador Guardado';
+                // Update crop status map and UI cards immediately so the pencil icon appears
+                if (activeCrop && typeof CROP_STATUS_MAP !== 'undefined') {
+                    if (!CROP_STATUS_MAP[activeCrop]) CROP_STATUS_MAP[activeCrop] = {};
+                    CROP_STATUS_MAP[activeCrop].has_draft = true;
+                    CROP_STATUS_MAP[activeCrop].is_draft_modified = true;
+                }
+                updateCropCardsAndPillsStatus();
                 setTimeout(() => {
                     btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Borrador';
                 }, 2500);
@@ -2753,8 +2856,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const cropBadge = document.getElementById('modal-assign-crop-badge');
         if (cropBadge) cropBadge.textContent = activeCrop.toUpperCase();
 
-        const scopeCropText = document.getElementById('modal-scope-crop-text');
-        if (scopeCropText) scopeCropText.textContent = activeCrop;
+        document.querySelectorAll('.modal-scope-crop-label').forEach(el => {
+            el.textContent = activeCrop.toUpperCase();
+        });
 
         // Render products from ROUND_CROP_PRODUCTS_MAP
         const prodsContainer = document.getElementById('modal-assign-products-list');
@@ -2893,8 +2997,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (data.success) {
-                alert(data.message || 'Configuración asignada exitosamente a la vuelta seleccionada.');
-                sessionStorage.setItem('active_workflow_tab', 'tab-paso3');
+                alert(data.message || `Cultivo ${activeCrop} asignado exitosamente a la vuelta seleccionada.`);
+                sessionStorage.setItem('active_workflow_tab', 'tab-paso2');
+                sessionStorage.setItem('fumigacion_filter_crop', activeCrop);
                 window.location.reload();
             } else {
                 alert('Error al asignar: ' + (data.error || 'Error desconocido'));
@@ -2906,6 +3011,46 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Error de red al asignar a vuelta: ' + err);
         });
     });
+
+    // Desasignar cultivo de una vuelta
+    window.desasignarCultivoDeVuelta = function(cropName, roundId, roundName) {
+        if (!confirm(`¿Está seguro de que desea desasignar el cultivo "${cropName}" de la "${roundName}"?\n\nEsto removerá sus camas y agroquímicos de la orden de esa vuelta y lo dejará pendiente.`)) {
+            return;
+        }
+
+        fetch('{{ url_for("fumigacion.rotacion_desasignar_cultivo", rotation_id=rotation.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                round_id: roundId,
+                crop_name: cropName
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || `Cultivo ${cropName} desasignado correctamente.`);
+                sessionStorage.setItem('active_workflow_tab', 'tab-paso2');
+                sessionStorage.setItem('fumigacion_filter_crop', cropName);
+                window.location.reload();
+            } else {
+                alert('Error al desasignar: ' + (data.error || 'Desconocido'));
+            }
+        })
+        .catch(err => {
+            alert('Error de red al desasignar: ' + err);
+        });
+    };
+
+    // Navegación hacia Paso 3 (Almacén / Estadística)
+    window.irAlPaso3 = function() {
+        const triggerEl = document.getElementById('tab-paso3');
+        if (triggerEl) {
+            const tab = new bootstrap.Tab(triggerEl);
+            tab.show();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
 
     // Fullscreen / Collapse Sidebar Handler in Paso 2
     const btnFullscreen = document.getElementById('btn-toggle-fullscreen');

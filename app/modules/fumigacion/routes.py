@@ -496,6 +496,7 @@ def rotacion_detalle(rotation_id):
         crop_status_map[c_name] = {
             'assigned_rounds': [],
             'has_draft': False,
+            'is_draft_modified': False,
             'modified_blocks_count': 0
         }
         for ord in orders:
@@ -516,9 +517,23 @@ def rotacion_detalle(rotation_id):
         check_segments = review_segments if review_segments else (draft_segments or [])
         for s in check_segments:
             if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm:
-                if s.get('is_modified'):
+                if s.get('is_modified') or s.get('is_custom_mix'):
                     crop_status_map[c_name]['has_draft'] = True
+                    crop_status_map[c_name]['is_draft_modified'] = True
                     crop_status_map[c_name]['modified_blocks_count'] += 1
+
+        if rotation.review_data_by_round_json:
+            try:
+                r_by_r = json.loads(rotation.review_data_by_round_json)
+                for r_segs in r_by_r.values():
+                    if isinstance(r_segs, list):
+                        for s in r_segs:
+                            if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm:
+                                if s.get('is_modified') or s.get('is_custom_mix'):
+                                    crop_status_map[c_name]['has_draft'] = True
+                                    crop_status_map[c_name]['is_draft_modified'] = True
+            except Exception:
+                pass
 
     return render_template(
         'fumigacion/rotacion_detalle.html',
@@ -609,16 +624,20 @@ def rotacion_guardar_revision(rotation_id):
                 except Exception:
                     review_by_round = {}
 
-            # Scope handling: If assigning per crop, merge target crop with existing segments of other crops
-            if assign_scope == 'crop' and target_crop:
-                existing_segs = review_by_round.get(str(target_round_id_int), [])
-                c_norm = CalculationEngine.normalize_crop_name(target_crop)
-                if not existing_segs:
-                    existing_segs = clean_segments
+            # Scope handling:
+            c_norm = CalculationEngine.normalize_crop_name(target_crop) if target_crop else ''
+            existing_segs = review_by_round.get(str(target_round_id_int), [])
+
+            if assign_scope == 'crop_replace' and target_crop:
+                # Exclusively this crop in this round (clears accidental assignments of other crops)
+                final_round_segs = [s for s in clean_segments if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm]
+            elif assign_scope == 'crop' and target_crop:
+                # Merge target crop with existing segments of other crops that were ALREADY in this round
                 kept_segs = [s for s in existing_segs if CalculationEngine.normalize_crop_name(s.get('crop_name')) != c_norm]
                 new_crop_segs = [s for s in clean_segments if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm]
                 final_round_segs = kept_segs + new_crop_segs
             else:
+                # 'all' scope: assign all crops in clean_segments
                 final_round_segs = clean_segments
 
             review_by_round[str(target_round_id_int)] = final_round_segs
@@ -631,18 +650,83 @@ def rotacion_guardar_revision(rotation_id):
             # Sync with requisition to update Paso 3 consumption
             RequisitionService.sync_with_final_orders(rotation.id)
             
-            msg = f"Camas y mezcla asignadas exitosamente a {r_name}. Orden de Fumigación Oficial y Requisición actualizadas."
+            crop_label = f"del cultivo {target_crop}" if (target_crop and assign_scope in ('crop', 'crop_replace')) else "de todos los cultivos"
+            msg = f"Camas y mezcla {crop_label} asignadas exitosamente a {r_name}. Orden de Fumigación Oficial y Requisición actualizadas."
             record_audit('FUMIGACION', 'ASSIGN_REVIEW_TO_ROUND', 'Rotation', rotation.id, 
                          details={'target_round_id': target_round_id_int, 'round_name': r_name, 'segments_count': len(final_round_segs), 'scope': assign_scope, 'crop': target_crop})
         else:
             # Target round is None: purely save working draft without assigning or freezing any round
+            if target_crop:
+                c_norm = CalculationEngine.normalize_crop_name(target_crop)
+                for s in clean_segments:
+                    if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm:
+                        s['is_modified'] = True
+                rotation.review_data_json = json.dumps(clean_segments, ensure_ascii=False)
             db.session.commit()
             record_audit('FUMIGACION', 'SAVE_REVIEW_DRAFT', 'Rotation', rotation.id, 
-                         details={'segments_count': len(clean_segments)})
+                         details={'segments_count': len(clean_segments), 'crop': target_crop})
 
         return jsonify({'success': True, 'message': msg})
     except Exception as e:
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Error al procesar asignación de vuelta: {str(e)}'}), 500
+
+
+@fumigacion_bp.route('/rotaciones/<int:rotation_id>/desasignar-cultivo', methods=['POST'])
+@login_required
+@permission_required('fumigacion')
+def rotacion_desasignar_cultivo(rotation_id):
+    """
+    Removes a specific crop from an assigned round.
+    If other crops remain in the round, regenerates the order with those remaining crops.
+    If no crops remain, removes the FumigationOrder for that round.
+    """
+    try:
+        rotation = Rotation.query.get_or_404(rotation_id)
+        data = request.get_json() or {}
+        target_round_id = safe_int(data.get('round_id'))
+        target_crop = (data.get('crop_name') or '').strip()
+
+        if not target_round_id or not target_crop:
+            return jsonify({'success': False, 'error': 'Faltan parámetros de vuelta o cultivo.'}), 400
+
+        review_by_round = {}
+        if rotation.review_data_by_round_json:
+            try:
+                review_by_round = json.loads(rotation.review_data_by_round_json)
+            except Exception:
+                review_by_round = {}
+
+        existing_segs = review_by_round.get(str(target_round_id), [])
+        c_norm = CalculationEngine.normalize_crop_name(target_crop)
+        remaining_segs = [s for s in existing_segs if CalculationEngine.normalize_crop_name(s.get('crop_name')) != c_norm]
+
+        if remaining_segs:
+            review_by_round[str(target_round_id)] = remaining_segs
+            rotation.review_data_by_round_json = json.dumps(review_by_round, ensure_ascii=False)
+            db.session.commit()
+            OrderService.create_order_from_round(target_round_id, agronomist=rotation.created_by, custom_segments=remaining_segs)
+        else:
+            if str(target_round_id) in review_by_round:
+                del review_by_round[str(target_round_id)]
+            rotation.review_data_by_round_json = json.dumps(review_by_round, ensure_ascii=False) if review_by_round else None
+            # Delete order for this round
+            existing_orders = FumigationOrder.query.filter_by(rotation_id=rotation.id, round_id=target_round_id).all()
+            for eo in existing_orders:
+                FumigationOrderDetail.query.filter_by(order_id=eo.id).delete()
+                FumigationOrderProductSummary.query.filter_by(order_id=eo.id).delete()
+                db.session.delete(eo)
+            db.session.commit()
+
+        RequisitionService.sync_with_final_orders(rotation.id)
+        record_audit('FUMIGACION', 'UNASSIGN_CROP_FROM_ROUND', 'Rotation', rotation.id, details={'round_id': target_round_id, 'crop': target_crop})
+
+        return jsonify({'success': True, 'message': f'Cultivo {target_crop} desasignado exitosamente de la vuelta.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Error al desasignar cultivo: {str(e)}'}), 500
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Error al procesar asignación de vuelta: {str(e)}'}), 500
