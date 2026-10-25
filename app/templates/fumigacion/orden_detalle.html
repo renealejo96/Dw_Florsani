@@ -234,6 +234,8 @@ tr {
             {% set cn = (d.crop_name or '')|trim|upper %}
             {% if 'GYPSO' in cn or 'XLENCE' in cn or 'BILLION' in cn or 'MIRABELLA' in cn %}
                 {% set has_gypso.val = true %}
+            {% elif 'EUCAL' in cn or 'LISI' in cn or 'LYSI' in cn or 'ASTER' in cn or 'RUSCUS' in cn or 'RUMEX' in cn %}
+                {% set has_piv.val = true %}
             {% elif 'VERONICA' in cn or 'SOLIDAGO' in cn or 'HYPERICUM' in cn or 'SUNFLOWER' in cn or 'GIRASOL' in cn %}
                 {% set has_variedades.val = true %}
             {% elif cn %}
@@ -334,25 +336,50 @@ tr {
             <i class="fa-solid fa-file-excel me-1"></i> Excel Bodega
         </a>
 
-        <!-- Status Change Dropdown -->
+        <!-- Status Change Dropdown (Soporte individual por programa y global) -->
         <div class="dropdown d-inline-block">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle shadow-sm" type="button" data-bs-toggle="dropdown" id="btn-status-dropdown">
                 Estado: <strong id="top-status-text">{{ order.status }}</strong>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width: 250px;">
+                <li class="dropdown-header small fw-bold text-uppercase" id="dropdown-header-status-program">
+                    <i class="fa-solid fa-layer-group text-primary me-1"></i> Programa Activo
+                </li>
                 <li>
                     <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="status" value="APROBADA">
+                        <input type="hidden" name="program_cat" id="input-status-cat-aprobada" value="ALL">
                         <button type="submit" class="dropdown-item small text-success fw-bold">
-                            <i class="fa-solid fa-check me-2"></i> Marcar como APROBADA
+                            <i class="fa-solid fa-circle-check me-2"></i> Marcar como APROBADA (Agrónomo)
                         </button>
                     </form>
                 </li>
                 <li>
                     <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="status" value="EJECUTADA">
+                        <input type="hidden" name="program_cat" id="input-status-cat-ejecutada" value="ALL">
+                        <button type="submit" class="dropdown-item small text-primary fw-bold">
+                            <i class="fa-solid fa-spray-can me-2"></i> Marcar como EJECUTADA (Estadística)
+                        </button>
+                    </form>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-header small text-muted text-uppercase" style="font-size: 0.68rem;">Toda la Orden (Todos los cultivos)</li>
+                <li>
+                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="APROBADA">
+                        <input type="hidden" name="program_cat" value="ALL">
+                        <button type="submit" class="dropdown-item small text-success">
+                            <i class="fa-solid fa-check-double me-2"></i> Aprobar TODO el programa oficial
+                        </button>
+                    </form>
+                </li>
+                <li>
+                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="EJECUTADA">
+                        <input type="hidden" name="program_cat" value="ALL">
                         <button type="submit" class="dropdown-item small text-primary">
-                            <i class="fa-solid fa-spray-can me-2"></i> Marcar como EJECUTADA
+                            <i class="fa-solid fa-spray-can me-2"></i> Ejecutar TODO el programa oficial
                         </button>
                     </form>
                 </li>
@@ -392,7 +419,7 @@ tr {
                 <div class="border border-dark p-1 rounded text-center bg-light d-inline-block px-3">
                     <div class="small fw-bold text-muted" style="font-size: 0.7rem;">PROGRAMA DE FUMIGACIÓN</div>
                     <div class="fs-6 fw-bold font-monospace text-dark">{{ order.order_number }}</div>
-                    <span class="badge {% if order.status == 'APROBADA' %}bg-success{% elif order.status == 'EJECUTADA' %}bg-primary{% else %}bg-secondary{% endif %} text-uppercase badge-order-status" style="font-size: 0.65rem;">
+                    <span class="badge {% if order.status == 'APROBADA' %}bg-success{% elif order.status == 'EJECUTADA' %}bg-primary{% else %}bg-secondary{% endif %} text-uppercase badge-order-status" style="font-size: 0.65rem;" id="printable-status-badge">
                         {{ order.status }}
                     </span>
                 </div>
@@ -697,12 +724,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const DB_CROP_CATEGORIES = {{ (crop_categories_json or {})|tojson }};
+    const ORDER_PROGRAM_STATUSES = {{ (order.program_statuses or {})|tojson }};
+    const ORDER_GLOBAL_STATUS = "{{ order.status }}";
 
     function getCropMasterCategory(cropName) {
-        if (!cropName) return 'VARIEDADES';
+        if (!cropName) return 'PIV';
         const cn = cropName.trim().toUpperCase();
         if (cn.includes('GYPSO') || cn.includes('XLENCE') || cn.includes('BILLION') || cn.includes('MIRABELLA')) {
             return 'GYPSO';
+        }
+        if (cn.includes('EUCAL') || cn.includes('LISI') || cn.includes('LYSI') || cn.includes('ASTER') || cn.includes('RUSCUS') || cn.includes('RUMEX')) {
+            return 'PIV';
         }
         if (DB_CROP_CATEGORIES[cn]) {
             const dbCat = DB_CROP_CATEGORIES[cn];
@@ -715,6 +747,35 @@ document.addEventListener('DOMContentLoaded', function() {
             return 'VARIEDADES';
         } else {
             return 'PIV';
+        }
+    }
+
+    function updateStatusUIForCategory(cat) {
+        const topStatusText = document.getElementById('top-status-text');
+        const printStatusBadge = document.getElementById('printable-status-badge');
+        const headerStatusProg = document.getElementById('dropdown-header-status-program');
+        const inputCatAprobada = document.getElementById('input-status-cat-aprobada');
+        const inputCatEjecutada = document.getElementById('input-status-cat-ejecutada');
+
+        let st = ORDER_GLOBAL_STATUS;
+        let label = 'Orden General';
+
+        if (cat === 'GYPSO' || cat === 'VARIEDADES' || cat === 'PIV') {
+            st = ORDER_PROGRAM_STATUSES[cat] || ORDER_GLOBAL_STATUS;
+            label = `Programa ${cat}`;
+            if (inputCatAprobada) inputCatAprobada.value = cat;
+            if (inputCatEjecutada) inputCatEjecutada.value = cat;
+        } else {
+            if (inputCatAprobada) inputCatAprobada.value = 'ALL';
+            if (inputCatEjecutada) inputCatEjecutada.value = 'ALL';
+        }
+
+        if (headerStatusProg) headerStatusProg.innerHTML = `<i class="fa-solid fa-layer-group text-primary me-1"></i> ${label}`;
+        if (topStatusText) topStatusText.textContent = `${label}: ${st}`;
+
+        if (printStatusBadge) {
+            printStatusBadge.textContent = st;
+            printStatusBadge.className = 'badge text-uppercase badge-order-status ' + (st === 'APROBADA' ? 'bg-success' : (st === 'EJECUTADA' ? 'bg-primary' : 'bg-secondary'));
         }
     }
 
@@ -968,6 +1029,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+
+        // Update individual program status badge & dropdown selector
+        updateStatusUIForCategory(selectedCat);
     }
 
     function updateCategoryButtonsUI(activeCat) {
@@ -1010,7 +1074,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Default fast-loading program selection (Gypso first to keep page super light):
+    // Default fast-loading program selection (Gypso first to keep page super light, or URL param):
+    const urlParams = new URLSearchParams(window.location.search);
+    const catFromUrl = (urlParams.get('cat') || '').trim().toUpperCase();
+
     let defaultCategory = 'GYPSO';
     let gypsoRows = 0, varRows = 0, pivRows = 0;
     document.querySelectorAll('.order-detail-row').forEach(r => {
@@ -1021,7 +1088,9 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (mCat === 'PIV') pivRows++;
     });
 
-    if (gypsoRows > 0) {
+    if (catFromUrl && ['GYPSO', 'VARIEDADES', 'PIV', 'ALL'].includes(catFromUrl)) {
+        defaultCategory = catFromUrl;
+    } else if (gypsoRows > 0) {
         defaultCategory = 'GYPSO';
     } else if (varRows > 0) {
         defaultCategory = 'VARIEDADES';

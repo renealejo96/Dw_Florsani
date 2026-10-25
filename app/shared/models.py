@@ -395,6 +395,7 @@ class FumigationOrder(db.Model):
     agronomist = db.Column(db.String(100), default='Agrónomo Responsable', nullable=False)
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(30), default='GENERADA', nullable=False)  # GENERADA, APROBADA, EJECUTADA, CANCELADA
+    program_statuses_json = db.Column(db.Text, default='{}', nullable=True)  # JSON map of per-program statuses: {"GYPSO": "APROBADA", "VARIEDADES": "APROBADA", "PIV": "APROBADA"}
     total_liters = db.Column(db.Float, default=0.0, nullable=False)
     total_standard_beds = db.Column(db.Float, default=0.0, nullable=False)
     total_segments = db.Column(db.Integer, default=0, nullable=False)
@@ -409,6 +410,75 @@ class FumigationOrder(db.Model):
 
     details = db.relationship('FumigationOrderDetail', backref='order', cascade='all, delete-orphan')
     products_summary = db.relationship('FumigationOrderProductSummary', backref='order', cascade='all, delete-orphan')
+
+    @property
+    def program_statuses(self):
+        try:
+            return json.loads(self.program_statuses_json or '{}')
+        except Exception:
+            return {}
+
+    def get_program_status(self, program_key: str):
+        if not program_key:
+            return self.status or 'APROBADA'
+        key = program_key.strip().upper()
+        statuses = self.program_statuses
+        return statuses.get(key, self.status or 'APROBADA')
+
+    def set_program_status(self, program_key: str, status_val: str):
+        if not program_key:
+            self.status = status_val
+            return
+        key = program_key.strip().upper()
+        statuses = self.program_statuses
+        statuses[key] = status_val
+        self.program_statuses_json = json.dumps(statuses, ensure_ascii=False)
+        # Dynamic overall status rollup:
+        # If all assigned programs in order are EJECUTADA -> overall is EJECUTADA
+        # If any is APROBADA -> overall is APROBADA
+        all_vals = list(statuses.values())
+        if all_vals and all(v == 'EJECUTADA' for v in all_vals):
+            self.status = 'EJECUTADA'
+        elif any(v == 'APROBADA' for v in all_vals):
+            self.status = 'APROBADA'
+        elif status_val in ['APROBADA', 'EJECUTADA', 'CANCELADA', 'GENERADA']:
+            self.status = status_val
+
+    @property
+    def contained_programs(self):
+        """
+        Returns a dict of master programs present in this order:
+        GYPSO, VARIEDADES, PIV
+        """
+        progs = {}
+        for d in self.details:
+            cn = (d.crop_name or '').strip().upper()
+            if any(k in cn for k in ['GYPSO', 'XLENCE', 'BILLION', 'MIRABELLA']):
+                mcat = 'GYPSO'
+                label = '🌸 Gypso'
+            elif any(k in cn for k in ['EUCAL', 'LISI', 'LYSI', 'ASTER', 'RUSCUS', 'RUMEX']):
+                mcat = 'PIV'
+                label = '🌿 PIV'
+            elif any(k in cn for k in ['VERONICA', 'SOLIDAGO', 'HYPERICUM', 'SUNFLOWER', 'GIRASOL']):
+                mcat = 'VARIEDADES'
+                label = '🌺 Variedades'
+            else:
+                mcat = 'PIV'
+                label = '🌿 PIV'
+            
+            if mcat not in progs:
+                progs[mcat] = {
+                    'cat': mcat,
+                    'label': label,
+                    'status': self.get_program_status(mcat),
+                    'beds': 0.0,
+                    'liters': 0.0,
+                    'crops': set()
+                }
+            progs[mcat]['crops'].add(d.crop_name)
+            progs[mcat]['beds'] += (d.standard_beds or 0.0)
+            progs[mcat]['liters'] += (d.total_liters or 0.0)
+        return progs
 
     @property
     def display_title(self):

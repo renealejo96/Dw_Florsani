@@ -195,19 +195,19 @@
             </div>
         </div>
 
-        <!-- KPI 5: Inversión en Campo & Liquidación $/ha -->
+        <!-- KPI 5: Costo por Hectárea ($/ha) & Inversión Agronómica -->
         <div class="col-12 col-sm-6 col-lg">
-            <div class="kpi-tile-bento kpi-accent-purple">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> <span id="kpiTopCostosLabel">Inversión Insumos</span></span>
+            <div class="kpi-tile-bento kpi-accent-purple shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> <span id="kpiTopCostosLabel">Costo por Hectárea</span></span>
                     <span class="kpi-icon-badge kpi-icon-purple">
                         <i class="fa-solid fa-file-invoice-dollar"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums" id="kpiTopCostosVal">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                <div class="kpi-value text-dark tabular-nums fw-bolder" id="kpiTopCostosVal" style="font-size: 1.75rem; letter-spacing: -0.02em;">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-bold text-muted">/ ha</span></div>
                 <div class="kpi-subtext" id="kpiTopCostosSub">
-                    <span class="badge badge-soft-purple px-2 py-0">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }}/ha</span>
-                    <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha tratadas</span>
+                    <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: ${{ "%.2f"|format(cost_summary.total_cost) }}</span>
+                    <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha</span>
                 </div>
             </div>
         </div>
@@ -322,10 +322,12 @@
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="p-3 rounded-3 border bg-light">
-                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Costo Promedio / Ha</div>
-                    <div class="h4 fw-bold text-success font-monospace mb-0" id="kpiCostoPromHaVal">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-normal text-muted">/ ha</span></div>
-                    <div class="small text-muted" id="kpiCostoPromHaSub" style="font-size: 0.75rem;">Rendimiento económico</div>
+                <div class="p-3 rounded-3 border bg-light shadow-xs border-success border-opacity-25">
+                    <div class="text-success small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                        <i class="fa-solid fa-chart-line me-1"></i> Costo Promedio / Ha
+                    </div>
+                    <div class="h3 fw-bolder text-success font-monospace mb-0" id="kpiCostoPromHaVal" style="font-size: 1.85rem; letter-spacing: -0.02em;">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-normal text-muted">/ ha</span></div>
+                    <div class="small text-muted" id="kpiCostoPromHaSub" style="font-size: 0.75rem;">Rendimiento económico clave</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
@@ -1335,16 +1337,16 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
 
-        // KPI 5: Inversión Insumos (Top Bento)
+        // KPI 5: Costo por Hectárea (Top Bento)
         const cropCostData = (costSummaryGlobal.by_crop || []).find(c => isCropMatch(c.crop, activeSegmentedCrop)) || findCropData(kpiCostosByCrop, activeSegmentedCrop) || { total_cost: 0, cost_per_ha: 0, ha: 0 };
         const kpiCostosVal = document.getElementById('kpiTopCostosVal');
         const kpiCostosSub = document.getElementById('kpiTopCostosSub');
         const kpiCostosLbl = document.getElementById('kpiTopCostosLabel');
-        if (kpiCostosLbl) kpiCostosLbl.textContent = `Inversión ${activeSegmentedCrop}`;
-        if (kpiCostosVal) kpiCostosVal.textContent = '$' + Number(cropCostData.total_cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (kpiCostosLbl) kpiCostosLbl.textContent = `Costo/Ha ${activeSegmentedCrop}`;
+        if (kpiCostosVal) kpiCostosVal.innerHTML = '$' + Number(cropCostData.cost_per_ha || 0).toFixed(2) + ' <span class="fs-6 fw-bold text-muted">/ ha</span>';
         if (kpiCostosSub) {
             kpiCostosSub.innerHTML = `
-                <span class="badge badge-soft-purple px-2 py-0">$${Number(cropCostData.cost_per_ha || 0).toFixed(2)}/ha</span>
+                <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: $${Number(cropCostData.total_cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 <span class="text-muted small ms-1">${Number(cropCostData.ha || 0).toFixed(2)} ha tratadas</span>
             `;
         }
@@ -1460,15 +1462,15 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
 
-        // KPI 5: Inversión Insumos (Top Bento)
+        // KPI 5: Costo por Hectárea (Top Bento)
         const kpiCostosVal = document.getElementById('kpiTopCostosVal');
         const kpiCostosSub = document.getElementById('kpiTopCostosSub');
         const kpiCostosLbl = document.getElementById('kpiTopCostosLabel');
-        if (kpiCostosLbl) kpiCostosLbl.textContent = `Inversión Insumos`;
-        if (kpiCostosVal) kpiCostosVal.textContent = '$' + Number(kpiGlobal.costoTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (kpiCostosLbl) kpiCostosLbl.textContent = `Costo por Hectárea`;
+        if (kpiCostosVal) kpiCostosVal.innerHTML = '$' + Number(kpiGlobal.costoPromHa || 0).toFixed(2) + ' <span class="fs-6 fw-bold text-muted">/ ha</span>';
         if (kpiCostosSub) {
             kpiCostosSub.innerHTML = `
-                <span class="badge badge-soft-purple px-2 py-0">$${Number(kpiGlobal.costoPromHa || 0).toFixed(2)}/ha</span>
+                <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: $${Number(kpiGlobal.costoTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 <span class="text-muted small ms-1">${Number(kpiGlobal.costoHa || 0).toFixed(2)} ha tratadas</span>
             `;
         }

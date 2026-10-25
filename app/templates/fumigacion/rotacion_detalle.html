@@ -804,6 +804,53 @@
                                         <span class="me-3"><strong>Camas Estándar:</strong> {{ ord.total_standard_beds|format_number(2) }}</span>
                                         <span><strong>Bloques Asignados:</strong> {{ ord.details|length }}</span>
                                     </div>
+
+                                    <!-- Programas Maestros Individuales con Estado Independiente (GYPSO, VARIEDADES, PIV) -->
+                                    <div class="mt-2 pt-2 border-top d-flex align-items-center gap-2 flex-wrap">
+                                        <span class="small fw-bold text-muted me-1" style="font-size: 0.76rem;">
+                                            <i class="fa-solid fa-layer-group text-secondary me-1"></i> Estados por Programa:
+                                        </span>
+                                        {% for pcat, pinfo in ord.contained_programs.items() %}
+                                        <div class="btn-group btn-group-sm shadow-xs" role="group">
+                                            <a href="{{ url_for('fumigacion.orden_detalle', order_id=ord.id) }}?cat={{ pcat }}" 
+                                               class="btn btn-sm {% if pinfo.status == 'APROBADA' %}btn-success{% elif pinfo.status == 'EJECUTADA' %}btn-primary{% else %}btn-outline-secondary{% endif %} fw-bold py-1 px-2 text-nowrap"
+                                               title="Ver e Imprimir {{ pinfo.label }}">
+                                                {{ pinfo.label }}: 
+                                                {% if pinfo.status == 'APROBADA' %}
+                                                    <span class="badge bg-white text-success ms-1"><i class="fa-solid fa-circle-check me-1"></i>APROBADA</span>
+                                                {% elif pinfo.status == 'EJECUTADA' %}
+                                                    <span class="badge bg-white text-primary ms-1"><i class="fa-solid fa-spray-can me-1"></i>EJECUTADA</span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark ms-1">{{ pinfo.status }}</span>
+                                                {% endif %}
+                                            </a>
+                                            <button type="button" class="btn btn-sm {% if pinfo.status == 'APROBADA' %}btn-success{% elif pinfo.status == 'EJECUTADA' %}btn-primary{% else %}btn-outline-secondary{% endif %} dropdown-toggle dropdown-toggle-split py-1" data-bs-toggle="dropdown" aria-expanded="false" title="Cambiar estado del programa {{ pcat }}">
+                                                <span class="visually-hidden">Toggle</span>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li class="dropdown-header small fw-bold text-uppercase">{{ pinfo.label }}</li>
+                                                <li>
+                                                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=ord.id) }}" method="POST">
+                                                        <input type="hidden" name="status" value="APROBADA">
+                                                        <input type="hidden" name="program_cat" value="{{ pcat }}">
+                                                        <button type="submit" class="dropdown-item small text-success fw-bold">
+                                                            <i class="fa-solid fa-circle-check me-2"></i> Marcar como APROBADA (Agrónomo)
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form action="{{ url_for('fumigacion.orden_cambiar_estado', order_id=ord.id) }}" method="POST">
+                                                        <input type="hidden" name="status" value="EJECUTADA">
+                                                        <input type="hidden" name="program_cat" value="{{ pcat }}">
+                                                        <button type="submit" class="dropdown-item small text-primary fw-bold">
+                                                            <i class="fa-solid fa-spray-can me-2"></i> Marcar como EJECUTADA (Estadística)
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
                                 </div>
                             </div>
 

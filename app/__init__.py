@@ -101,6 +101,15 @@ def create_app(config_class=Config):
             ensure_column('rotations', 'is_salidas_dispatched', 'BOOLEAN', 'FALSE')
             ensure_column('rotations', 'salidas_dispatched_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
             ensure_column('rotations', 'salidas_dispatched_by', 'VARCHAR(100)', 'NULL')
+            ensure_column('fumigation_orders', 'program_statuses_json', 'TEXT', "'{}'")
+
+            # Sincronizar categorias maestras en tabla crops (GYPSOPHILA, VARIEDADES, PIV)
+            try:
+                db.session.execute(text("UPDATE crops SET category = 'GYPSOPHILA' WHERE UPPER(name) LIKE '%GYPSO%';"))
+                db.session.execute(text("UPDATE crops SET category = 'PIV' WHERE UPPER(name) LIKE '%EUCAL%' OR UPPER(name) LIKE '%LISI%' OR UPPER(name) LIKE '%LYSI%' OR UPPER(name) LIKE '%ASTER%' OR UPPER(name) LIKE '%RUSCUS%' OR UPPER(name) LIKE '%RUMEX%' OR UPPER(name) LIKE '%PROD.NUEVOS%' OR UPPER(name) LIKE '%VICIA%' OR UPPER(name) LIKE '%MOSTAZA%';"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
             if not is_sqlite:
                 pg_migrations = [

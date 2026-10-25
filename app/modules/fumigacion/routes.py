@@ -1067,15 +1067,24 @@ def orden_detalle(order_id):
     # Map crop categories for dynamic print/operator filtering
     crops_cat_map = {}
     for c in Crop.query.all():
+        c_name_up = (c.name or '').strip().upper()
         cat = c.category
-        if not cat or 'GYPSO' in (c.name or '').upper():
-            cat = 'GYPSOPHILA' if ('GYPSO' in (c.name or '').upper()) else (c.category or 'PRODUCTOS_NUEVOS')
+        if 'GYPSO' in c_name_up:
+            cat = 'GYPSOPHILA'
+        elif any(k in c_name_up for k in ['EUCAL', 'LISI', 'LYSI', 'ASTER', 'RUSCUS', 'RUMEX', 'PROD.NUEVOS', 'VICIA', 'MOSTAZA']):
+            cat = 'PIV'
+        elif not cat:
+            cat = 'PRODUCTOS_NUEVOS'
         if c.name:
             crops_cat_map[c.name.strip().upper()] = cat
         if c.aliases:
             for a in c.aliases:
                 if a:
                     crops_cat_map[str(a).strip().upper()] = cat
+
+    # Explicit aliases for common spellings to ensure PIV matching
+    for piv_alias in ['EUCALIPTO', 'EUCALIPTOS', 'LISIMACHIA', 'LISIMACHIAS', 'LYSIMACHIA', 'LYSIMACHIAS', 'ASTER', 'RUSCUS', 'RUMEX']:
+        crops_cat_map[piv_alias] = 'PIV'
 
     return render_template(
         'fumigacion/orden_detalle.html',
@@ -1539,12 +1548,47 @@ def exportar_salidas_excel(rotation_id):
 @permission_required('ordenes_ver')
 def orden_cambiar_estado(order_id):
     order = FumigationOrder.query.get_or_404(order_id)
-    new_status = request.form.get('status')
+    if request.is_json:
+        data = request.get_json() or {}
+        new_status = data.get('status')
+        program_cat = data.get('program_cat')
+    else:
+        new_status = request.form.get('status')
+        program_cat = request.form.get('program_cat')
+
     if new_status in ['GENERADA', 'APROBADA', 'EJECUTADA', 'CANCELADA']:
-        order.status = new_status
+        if program_cat and program_cat.upper() in ['GYPSO', 'VARIEDADES', 'PIV']:
+            order.set_program_status(program_cat.upper(), new_status)
+            audit_cat = program_cat.upper()
+        else:
+            order.status = new_status
+            for pcat in ['GYPSO', 'VARIEDADES', 'PIV']:
+                order.set_program_status(pcat, new_status)
+            audit_cat = 'GENERAL'
+
         db.session.commit()
-        record_audit('FUMIGACION', 'UPDATE_ORDER_STATUS', 'FumigationOrder', order.id, details={'order_number': order.order_number, 'status': new_status})
-        flash(f"Estado de la orden {order.order_number} cambiado a {new_status}.", "success")
+        record_audit('FUMIGACION', 'UPDATE_ORDER_STATUS', 'FumigationOrder', order.id, 
+                     details={'order_number': order.order_number, 'status': new_status, 'program': audit_cat})
+        
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': True,
+                'status': order.status,
+                'program_cat': program_cat,
+                'program_status': order.get_program_status(program_cat) if program_cat else order.status,
+                'program_statuses': order.program_statuses
+            })
+
+        cat_label = f"del programa {program_cat}" if program_cat else ""
+        flash(f"Estado {cat_label} de la orden {order.order_number} cambiado a {new_status}.", "success")
+
+    ref = request.referrer
+    if ref and ('rotaciones/' in ref or 'ordenes/' in ref):
+        return redirect(ref)
+
+    redir_cat = program_cat if (program_cat and program_cat != 'ALL') else None
+    if redir_cat:
+        return redirect(url_for('fumigacion.orden_detalle', order_id=order.id, cat=redir_cat))
     return redirect(url_for('fumigacion.orden_detalle', order_id=order.id))
 
 
