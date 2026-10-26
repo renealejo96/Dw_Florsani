@@ -584,33 +584,57 @@ def create_app(config_class=Config):
             feno_total_actividades = 0
             feno_cumplidas = 0
 
-        # 2. Área Total de Finca y Camas de Cultivo (Último Estado de Cultivo y dim_camas)
+        # 2. Área Total de Finca y Camas de Cultivo (Reflejado fielmente desde plano_cultivo y dim_camas)
         try:
-            area_finca_ha = db.session.execute(text("""
-                SELECT ROUND(COALESCE(SUM(ha), 0)::numeric, 2)
-                FROM dim_camas
-                WHERE activa IS TRUE OR activa IS NULL
-            """)).scalar() or 32.09
+            plano_count = db.session.execute(text("SELECT COUNT(*) FROM plano_cultivo")).scalar() or 0
+            if plano_count > 0:
+                plano_stats = db.session.execute(text("""
+                    SELECT 
+                        COALESCE(SUM(cama_final - cama_inicial + 1), 0) as total_camas,
+                        COUNT(DISTINCT bloque) as total_bloques
+                    FROM plano_cultivo
+                """)).fetchone()
 
-            latest_batch = db.session.execute(text("SELECT MAX(batch_id) FROM crop_state_records")).scalar()
-            if latest_batch:
-                camas_finca_count = db.session.execute(text("""
-                    SELECT COUNT(DISTINCT (block_full || '-' || bed_num))
-                    FROM crop_state_records
-                    WHERE batch_id = :b
-                """), {'b': latest_batch}).scalar() or 7565
-                bloques_finca_count = db.session.execute(text("""
-                    SELECT COUNT(DISTINCT block_full)
-                    FROM crop_state_records
-                    WHERE batch_id = :b
-                """), {'b': latest_batch}).scalar() or 231
+                plano_area_res = db.session.execute(text("""
+                    SELECT 
+                        ROUND(COALESCE(SUM(dc.ha), 0)::numeric, 2) as ha_sum,
+                        COUNT(DISTINCT dc.id_cama) as camas_dim
+                    FROM plano_cultivo pc
+                    JOIN dim_camas dc ON (
+                        (TRIM(UPPER(dc.blq)) = TRIM(UPPER(pc.bloque)) OR TRIM(UPPER(dc.codigo_bloque)) = TRIM(UPPER(pc.bloque)))
+                        AND CAST(dc.num_cama AS INTEGER) BETWEEN pc.cama_inicial AND pc.cama_final
+                    )
+                """)).fetchone()
+
+                area_finca_ha = float(plano_area_res.ha_sum) if (plano_area_res and plano_area_res.ha_sum and plano_area_res.ha_sum > 0) else 26.03
+                camas_finca_count = int(plano_stats.total_camas) if plano_stats else 5648
+                bloques_finca_count = int(plano_stats.total_bloques) if plano_stats else 193
             else:
-                camas_finca_count = 7565
-                bloques_finca_count = 231
+                area_finca_ha = db.session.execute(text("""
+                    SELECT ROUND(COALESCE(SUM(ha), 0)::numeric, 2)
+                    FROM dim_camas
+                    WHERE activa IS TRUE OR activa IS NULL
+                """)).scalar() or 32.09
+
+                latest_batch = db.session.execute(text("SELECT MAX(batch_id) FROM crop_state_records")).scalar()
+                if latest_batch:
+                    camas_finca_count = db.session.execute(text("""
+                        SELECT COUNT(DISTINCT (block_full || '-' || bed_num))
+                        FROM crop_state_records
+                        WHERE batch_id = :b
+                    """), {'b': latest_batch}).scalar() or 7565
+                    bloques_finca_count = db.session.execute(text("""
+                        SELECT COUNT(DISTINCT block_full)
+                        FROM crop_state_records
+                        WHERE batch_id = :b
+                    """), {'b': latest_batch}).scalar() or 231
+                else:
+                    camas_finca_count = 7565
+                    bloques_finca_count = 231
         except Exception:
-            area_finca_ha = 32.09
-            camas_finca_count = 7565
-            bloques_finca_count = 231
+            area_finca_ha = 26.03
+            camas_finca_count = 5648
+            bloques_finca_count = 193
 
         # 3. Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
         historico_semanas_raw = db.session.query(
@@ -756,17 +780,26 @@ def create_app(config_class=Config):
         # 6. Costos Agronómicos y Liquidación por Hectárea (Fumigación, Desinfecciones & Bodegas de Insumos)
         try:
             from app.modules.fumigacion.services.cost_service import CostService
-            cost_week = request.args.get('cost_week', 'ALL')
+            selected_week_str = f"{selected_year}-{selected_week_num:02d}"
+            # KPI 5 Cost Summary exclusivamente para la semana seleccionada en el corte
+            kpi_cost_summary = CostService.get_dashboard_cost_summary(week=selected_week_str)
+
+            # Selector de semana de la sección inferior de costos (si no se especifica, por defecto semana de corte)
+            cost_week = request.args.get('cost_week')
+            if not cost_week:
+                cost_week = selected_week_str
+
             cost_summary = CostService.get_dashboard_cost_summary(week=cost_week if cost_week != 'ALL' else None)
             distinct_order_weeks_raw = db.session.query(FumigationOrder.week).distinct().all()
             available_cost_weeks = sorted(list(set([w[0] for w in distinct_order_weeks_raw if w[0]])), reverse=True)
         except Exception:
-            cost_week = 'ALL'
-            cost_summary = {
+            kpi_cost_summary = {
                 'total_cost': 0.0, 'total_ha': 0.0, 'avg_cost_per_ha': 0.0,
                 'orders_count': 0, 'blocks_count': 0, 'by_bodega': [], 'top_blocks': [],
                 'all_blocks': [], 'by_crop': [], 'weekly_history': []
             }
+            cost_summary = kpi_cost_summary
+            cost_week = 'ALL'
             available_cost_weeks = []
 
         # 7. Pre-agregados por Producto Maestro para Filtrado Dinámico de las 5 Tarjetas Bento KPI
@@ -816,17 +849,21 @@ def create_app(config_class=Config):
 
         kpi_area_camas_by_crop = {}
         try:
-            mrt_crop_rows = db.session.execute(text("""
+            plano_crop_rows = db.session.execute(text("""
                 SELECT 
-                    UPPER(TRIM(producto_actual)) as crop,
-                    COUNT(DISTINCT id_cama) as camas,
-                    COUNT(DISTINCT codigo_bloque) as bloques,
-                    ROUND(COALESCE(SUM(ha), 0)::numeric, 2) as ha
-                FROM mrt_estado_cultivo_actual
-                WHERE producto_actual IS NOT NULL AND TRIM(producto_actual) != ''
-                GROUP BY UPPER(TRIM(producto_actual))
+                    UPPER(TRIM(COALESCE(pc.producto_maestro, 'VARIOS'))) as crop,
+                    SUM(pc.cama_final - pc.cama_inicial + 1) as camas,
+                    COUNT(DISTINCT pc.bloque) as bloques,
+                    ROUND(COALESCE(SUM(dc.ha), 0)::numeric, 2) as ha
+                FROM plano_cultivo pc
+                LEFT JOIN dim_camas dc ON (
+                    (TRIM(UPPER(dc.blq)) = TRIM(UPPER(pc.bloque)) OR TRIM(UPPER(dc.codigo_bloque)) = TRIM(UPPER(pc.bloque)))
+                    AND CAST(dc.num_cama AS INTEGER) BETWEEN pc.cama_inicial AND pc.cama_final
+                )
+                WHERE pc.producto_maestro IS NOT NULL AND TRIM(pc.producto_maestro) != ''
+                GROUP BY UPPER(TRIM(COALESCE(pc.producto_maestro, 'VARIOS')))
             """)).fetchall()
-            for r in mrt_crop_rows:
+            for r in plano_crop_rows:
                 c_nom = str(r.crop).upper().strip()
                 item = {
                     'ha': float(r.ha or 0.0),
@@ -842,6 +879,35 @@ def create_app(config_class=Config):
                 kpi_area_camas_by_crop.setdefault(first_tok, item)
         except Exception:
             pass
+
+        if not kpi_area_camas_by_crop:
+            try:
+                mrt_crop_rows = db.session.execute(text("""
+                    SELECT 
+                        UPPER(TRIM(producto_actual)) as crop,
+                        COUNT(DISTINCT id_cama) as camas,
+                        COUNT(DISTINCT codigo_bloque) as bloques,
+                        ROUND(COALESCE(SUM(ha), 0)::numeric, 2) as ha
+                    FROM mrt_estado_cultivo_actual
+                    WHERE producto_actual IS NOT NULL AND TRIM(producto_actual) != ''
+                    GROUP BY UPPER(TRIM(producto_actual))
+                """)).fetchall()
+                for r in mrt_crop_rows:
+                    c_nom = str(r.crop).upper().strip()
+                    item = {
+                        'ha': float(r.ha or 0.0),
+                        'camas': int(r.camas or 0),
+                        'bloques': int(r.bloques or 0)
+                    }
+                    kpi_area_camas_by_crop[c_nom] = item
+                    if c_nom.endswith('S'):
+                        kpi_area_camas_by_crop.setdefault(c_nom[:-1], item)
+                    else:
+                        kpi_area_camas_by_crop.setdefault(c_nom + 'S', item)
+                    first_tok = c_nom.split()[0].replace('-', ' ')
+                    kpi_area_camas_by_crop.setdefault(first_tok, item)
+            except Exception:
+                pass
 
         if not kpi_area_camas_by_crop and latest_batch:
             try:
@@ -870,7 +936,7 @@ def create_app(config_class=Config):
                 pass
 
         kpi_costos_by_crop = {}
-        for c in cost_summary.get('by_crop', []):
+        for c in kpi_cost_summary.get('by_crop', []):
             c_nom = str(c.get('crop') or '').upper().strip()
             if c_nom:
                 item = {
@@ -926,6 +992,7 @@ def create_app(config_class=Config):
             historico_por_cultivo=historico_por_cultivo,
             historico_feno_data=historico_feno_data,
             cosechas_registros_count=cosechas_registros_count,
+            kpi_cost_summary=kpi_cost_summary,
             cost_summary=cost_summary,
             cost_week=cost_week,
             available_cost_weeks=available_cost_weeks,

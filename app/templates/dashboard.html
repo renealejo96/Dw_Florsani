@@ -172,8 +172,8 @@
                 </div>
                 <div class="kpi-value text-dark tabular-nums" id="kpiTopAreaVal">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
                 <div class="kpi-subtext" id="kpiTopAreaSub">
-                    <span class="badge badge-soft-info px-2 py-0">Censo Real</span>
-                    <span class="text-muted small ms-1">área total estado de cultivo</span>
+                    <span class="badge badge-soft-info px-2 py-0">Plano Cultivo</span>
+                    <span class="text-muted small ms-1">área activa en plano de cultivo</span>
                 </div>
             </div>
         </div>
@@ -199,15 +199,15 @@
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-purple shadow-sm">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> <span id="kpiTopCostosLabel">Costo por Hectárea</span></span>
+                    <span class="kpi-label"><i class="fa-solid fa-sack-dollar text-purple me-1" style="color: var(--brand-accent-purple);"></i> <span id="kpiTopCostosLabel">Costo por Hectárea (Sem {{ semana_actual }} · {{ selected_year }})</span></span>
                     <span class="kpi-icon-badge kpi-icon-purple">
                         <i class="fa-solid fa-file-invoice-dollar"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums fw-bolder" id="kpiTopCostosVal" style="font-size: 1.75rem; letter-spacing: -0.02em;">${{ "%.2f"|format(cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-bold text-muted">/ ha</span></div>
+                <div class="kpi-value text-dark tabular-nums fw-bolder" id="kpiTopCostosVal" style="font-size: 1.75rem; letter-spacing: -0.02em;">${{ "%.2f"|format(kpi_cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-bold text-muted">/ ha</span></div>
                 <div class="kpi-subtext" id="kpiTopCostosSub">
-                    <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: ${{ "%.2f"|format(cost_summary.total_cost) }}</span>
-                    <span class="text-muted small ms-1">{{ cost_summary.total_ha }} ha</span>
+                    <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: ${{ "%.2f"|format(kpi_cost_summary.total_cost) }}</span>
+                    <span class="text-muted small ms-1">{{ kpi_cost_summary.total_ha }} ha</span>
                 </div>
             </div>
         </div>
@@ -298,6 +298,8 @@
             <div class="d-flex align-items-center gap-2">
                 <!-- Selector de Semana de Costo -->
                 <form method="GET" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="year" value="{{ selected_year }}">
+                    <input type="hidden" name="week" value="{{ selected_week_num }}">
                     <label class="small text-secondary fw-bold text-nowrap"><i class="fa-solid fa-calendar-day me-1"></i>Semana:</label>
                     <select name="cost_week" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width: 160px;">
                         <option value="ALL" {% if cost_week == 'ALL' %}selected{% endif %}>Todas las semanas</option>
@@ -514,9 +516,9 @@ document.addEventListener('DOMContentLoaded', function() {
         areaHa: {{ area_finca_ha|default(0.0) }},
         camas: {{ camas_finca_count|default(0) }},
         bloques: {{ bloques_finca_count|default(0) }},
-        costoTotal: {{ cost_summary.total_cost|default(0.0) }},
-        costoPromHa: {{ cost_summary.avg_cost_per_ha|default(0.0) }},
-        costoHa: {{ cost_summary.total_ha|default(0.0) }},
+        costoTotal: {{ kpi_cost_summary.total_cost|default(0.0) }},
+        costoPromHa: {{ kpi_cost_summary.avg_cost_per_ha|default(0.0) }},
+        costoHa: {{ kpi_cost_summary.total_ha|default(0.0) }},
         semanaActual: {{ semana_actual }},
         anioActual: {{ selected_year }}
     };
@@ -1444,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(kpiGlobal.areaHa || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
         if (kpiAreaSub) {
             kpiAreaSub.innerHTML = `
-                <span class="badge badge-soft-info px-2 py-0">Censo Real</span>
+                <span class="badge badge-soft-info px-2 py-0">Plano Cultivo</span>
                 <span class="text-muted small ms-1">área total estado de cultivo</span>
             `;
         }
@@ -1466,7 +1468,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const kpiCostosVal = document.getElementById('kpiTopCostosVal');
         const kpiCostosSub = document.getElementById('kpiTopCostosSub');
         const kpiCostosLbl = document.getElementById('kpiTopCostosLabel');
-        if (kpiCostosLbl) kpiCostosLbl.textContent = `Costo por Hectárea`;
+        if (kpiCostosLbl) kpiCostosLbl.textContent = `Costo por Hectárea (Sem ${kpiGlobal.semanaActual} · ${kpiGlobal.anioActual})`;
         if (kpiCostosVal) kpiCostosVal.innerHTML = '$' + Number(kpiGlobal.costoPromHa || 0).toFixed(2) + ' <span class="fs-6 fw-bold text-muted">/ ha</span>';
         if (kpiCostosSub) {
             kpiCostosSub.innerHTML = `

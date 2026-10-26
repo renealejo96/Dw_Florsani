@@ -59,9 +59,20 @@ with app.app_context():
         db.session.rollback()
         print(f"[COSECHAS-VPS] Aviso alineando semanas de cosecha: {e_cos}")
 
+    # 0.2 Limpiar semanas anteriores a la 44 en calificaciones y semanas_evaluacion de pruebas
+    try:
+        del_cal = db.session.execute(text("DELETE FROM calificaciones WHERE semana_anio < 44 AND cumplido IS NULL;"))
+        del_sem = db.session.execute(text("DELETE FROM semanas_evaluacion WHERE semana_anio < 44;"))
+        db.session.commit()
+        if del_cal.rowcount or del_sem.rowcount:
+            print(f"[FENOGRAMAS-VPS] [OK] Limpieza de pruebas previas a semana 44: {del_cal.rowcount} calificaciones y {del_sem.rowcount} semanas eliminadas.")
+    except Exception as e_clean:
+        db.session.rollback()
+        print(f"[FENOGRAMAS-VPS] Aviso en limpieza de semanas anteriores: {e_clean}")
+
     # 1. Determinar semana activa
     sem_row = db.session.execute(text("SELECT MAX(semana_anio) FROM semanas_evaluacion;")).scalar()
-    semana_activa = int(sem_row or 43)
+    semana_activa = int(sem_row or 44)
     print(f"[FENOGRAMAS-VPS] Semana activa detectada: {semana_activa}")
 
     # 2. Corregir palabras cortadas (letra 'f' / ligaduras: sulfato, edáficos, fórmula, inflorescencia, filos, etc.)

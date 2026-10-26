@@ -211,8 +211,34 @@ class CostService:
 
         # Consultar órdenes que estén impresas o finalizadas/aprobadas
         query = FumigationOrder.query
-        if week and week != 'ALL':
-            query = query.filter(FumigationOrder.week.ilike(f"%{week}%"))
+        if week and str(week).strip().upper() != 'ALL':
+            w_str = str(week).strip()
+            if '-' in w_str:
+                parts = w_str.split('-')
+                try:
+                    y_val = int(parts[0])
+                    w_val = int(parts[1])
+                    query = query.filter(
+                        db.or_(
+                            FumigationOrder.week == w_str,
+                            FumigationOrder.week == f"{y_val}-{w_val:02d}",
+                            FumigationOrder.week == f"{y_val}-{w_val}",
+                            FumigationOrder.week == str(w_val)
+                        )
+                    )
+                except Exception:
+                    query = query.filter(FumigationOrder.week == w_str)
+            elif w_str.isdigit():
+                w_val = int(w_str)
+                query = query.filter(
+                    db.or_(
+                        FumigationOrder.week == str(w_val),
+                        FumigationOrder.week.ilike(f"%-{w_val:02d}"),
+                        FumigationOrder.week.ilike(f"%-{w_val}")
+                    )
+                )
+            else:
+                query = query.filter(FumigationOrder.week.ilike(f"%{w_str}%"))
         
         # Priorizar órdenes impresas o en estado APROBADA / EJECUTADA
         orders = query.order_by(FumigationOrder.created_at.desc()).all()

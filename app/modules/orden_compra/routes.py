@@ -4,7 +4,7 @@ import json
 import pandas as pd
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 from app.extensions import db
-from app.shared.models import Crop, Product, Litraje, CropStateRecord, Rotation, Requisition, RequisitionItem, FumigationOrder
+from app.shared.models import Crop, Product, Litraje, CropStateRecord, Rotation, Requisition, RequisitionItem, FumigationOrder, AdditionalApplication
 from app.modules.fumigacion.services.calculation_engine import CalculationEngine
 from app.modules.fumigacion.services.requisition_service import RequisitionService
 from app.shared.utils import get_local_now, format_product_amount, format_age, get_week_difference
@@ -264,7 +264,24 @@ def index():
 
     # Convert to dicts for JSON serialization
     active_crops = [{'id': c.id, 'name': c.name} for c in Crop.query.filter_by(is_active=True).order_by(Crop.name.asc()).all()]
-    active_products = [{'id': p.id, 'code': p.code, 'name': p.commercial_name} for p in Product.query.filter_by(is_active=True).order_by(Product.code.asc()).all()]
+    active_products = [
+        {
+            'id': p.id,
+            'code': p.code,
+            'name': p.commercial_name or p.code,
+            'unit': p.unit or 'CC',
+            'dose_fumigation': p.dose_fumigation or 0.0,
+            'dose_drench': p.dose_drench or 0.0,
+            'pest': p.pest or ''
+        }
+        for p in Product.query.filter_by(is_active=True).order_by(Product.commercial_name.asc()).all()
+    ]
+
+    # Compras de Productos Adicionales cargados para la semana seleccionada
+    additional_products = AdditionalApplication.query.filter_by(week=selected_week).order_by(AdditionalApplication.created_at.desc(), AdditionalApplication.id.desc()).all()
+    add_prod_beds_sum = sum(float(a.standard_beds or 0.0) for a in additional_products)
+    add_prod_liters_sum = sum(float(a.total_liters or 0.0) for a in additional_products)
+    add_prod_items_count = len(additional_products)
 
     # Block map - using matched or latest week (supporting both YYWW e.g. 2640 and YYYY-WW e.g. 2026-40)
     def _normalizar_sem(w_val):
@@ -342,7 +359,11 @@ def index():
         real_liters_sum=real_liters_sum,
         real_segments_count=real_segments_count,
         saved_budget_adjustments=budget_adjs,
-        bed_configuration=bed_configuration
+        bed_configuration=bed_configuration,
+        additional_products=additional_products,
+        add_prod_beds_sum=add_prod_beds_sum,
+        add_prod_liters_sum=add_prod_liters_sum,
+        add_prod_items_count=add_prod_items_count
     )
 
 
@@ -491,6 +512,221 @@ def eliminar_orden():
 
         return jsonify({'success': True, 'message': f'Orden de compra de la Semana {req_week} eliminada correctamente. Ya puedes recalcular nuevamente.'})
 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@orden_compra_bp.route('/add-additional-product', methods=['POST'])
+@login_required
+@permission_required('orden_compra')
+def add_additional_product():
+    """Registra una compra de producto adicional con camas, litraje de aplicación y producto."""
+    try:
+        from app.shared.utils import round_product_amount
+
+        data = request.get_json() if request.is_json else request.form
+        week = (data.get('week') or '').strip()
+        product_id = data.get('product_id')
+        product_code = (data.get('product_code') or '').strip()
+
+        if not week:
+            return jsonify({'success': False, 'error': 'Debe especificar la semana de compra.'}), 400
+
+        prod = None
+        if product_id:
+            try:
+                prod = Product.query.get(int(product_id))
+            except Exception:
+                prod = None
+        if not prod and product_code:
+            prod = Product.query.filter(db.or_(Product.code == product_code, Product.commercial_name == product_code)).first()
+
+        if not prod and not product_code:
+            return jsonify({'success': False, 'error': 'Debe seleccionar un producto válido.'}), 400
+
+        final_pcode = prod.code if prod else product_code
+        final_pname = prod.commercial_name if prod else final_pcode
+        unit = (data.get('dose_unit') or (prod.unit if prod else 'CC') or 'CC').strip().upper()
+
+        try:
+            beds = float(data.get('beds', 0) or 0)
+        except (ValueError, TypeError):
+            beds = 0.0
+
+        try:
+            liters = float(data.get('liters', 0) or 0)
+        except (ValueError, TypeError):
+            liters = 0.0
+
+        try:
+            liters_per_bed = float(data.get('liters_per_bed', 0) or 0)
+        except (ValueError, TypeError):
+            liters_per_bed = 0.0
+
+        if liters <= 0 and beds > 0:
+            l_bed = liters_per_bed if liters_per_bed > 0 else 5.0
+            liters = round(beds * l_bed, 1)
+        elif beds <= 0 and liters > 0:
+            l_bed = liters_per_bed if liters_per_bed > 0 else 5.0
+            beds = round(liters / l_bed, 1)
+
+        try:
+            dose = float(data.get('dose', 0) or 0)
+        except (ValueError, TypeError):
+            dose = float(prod.dose_fumigation or prod.dose_drench or 0.0) if prod else 0.0
+
+        try:
+            total_product = float(data.get('total_product', 0) or 0)
+        except (ValueError, TypeError):
+            total_product = 0.0
+
+        if total_product <= 0:
+            total_product = round_product_amount(liters * dose, unit)
+        else:
+            total_product = round_product_amount(total_product, unit)
+
+        crop_name = (data.get('crop_name') or 'General').strip()
+        reason = (data.get('reason') or 'Compra de Producto Adicional').strip()
+        notes = (data.get('notes') or '').strip()
+
+        # 1. Guardar como AdditionalApplication para que impacte en la requisición y el pivot
+        add_app = AdditionalApplication(
+            week=week,
+            application_type='COMPRA_ADICIONAL',
+            scheduled_day='Lunes',
+            zone='COMPRAS',
+            block_name='ADICIONAL',
+            suffix='',
+            crop_name=crop_name,
+            bed_start=1,
+            bed_end=int(beds) if beds >= 1 else 1,
+            standard_beds=beds,
+            liters_per_bed=liters_per_bed if liters_per_bed > 0 else (round(liters / beds, 2) if beds > 0 else 0.0),
+            total_liters=liters,
+            spray_lance='Estándar',
+            product_id=prod.id if prod else None,
+            product_code=final_pcode,
+            dose_applied=dose,
+            dose_unit=unit,
+            total_product=total_product,
+            operator=session.get('username') or 'Compras',
+            reason=reason,
+            notes=notes
+        )
+        db.session.add(add_app)
+        db.session.flush()
+
+        # 2. Sincronizar o sumar a Requisition / RequisitionItem
+        rot = Rotation.query.filter(
+            Rotation.week == week,
+            Rotation.status != 'ELIMINADA'
+        ).order_by(
+            db.case((Rotation.status == 'APROBADA', 1), else_=2),
+            Rotation.version.desc()
+        ).first()
+
+        req = None
+        if rot:
+            req = Requisition.query.filter_by(rotation_id=rot.id).first()
+            if not req:
+                req = RequisitionService.generate_or_update_forecast(rot.id)
+        if not req:
+            req = Requisition.query.filter_by(week=week).first()
+            if not req:
+                req = Requisition(
+                    week=week,
+                    title=f"Requisición de Agroquímicos Semana {week}",
+                    status="PENDIENTE",
+                    total_liters=liters
+                )
+                db.session.add(req)
+                db.session.flush()
+
+        if req:
+            req_item = RequisitionItem.query.filter_by(requisition_id=req.id, product_code=final_pcode).first()
+            if req_item:
+                req_item.quantity_forecast = round_product_amount(float(req_item.quantity_forecast or 0.0) + total_product, unit)
+                req_item.quantity_final = round_product_amount(float(req_item.quantity_final or 0.0) + total_product, unit)
+            else:
+                req_item = RequisitionItem(
+                    requisition_id=req.id,
+                    product_id=prod.id if prod else None,
+                    product_code=final_pcode,
+                    commercial_name=final_pname,
+                    average_dose=dose,
+                    unit=unit,
+                    quantity_forecast=total_product,
+                    quantity_final=total_product,
+                    difference=0.0,
+                    pest=prod.pest if prod else '',
+                    notes=f"Adicional: {reason}"
+                )
+                db.session.add(req_item)
+            req.total_liters = round(float(req.total_liters or 0.0) + liters, 1)
+
+        db.session.commit()
+        record_audit('ORDEN_COMPRA', 'ADD_ADDITIONAL_PRODUCT', 'AdditionalApplication', add_app.id,
+                     details={'week': week, 'product': final_pcode, 'total_product': total_product, 'beds': beds, 'liters': liters})
+
+        return jsonify({
+            'success': True,
+            'message': f'Producto adicional {final_pname} ({total_product} {unit}) registrado correctamente.',
+            'item': {
+                'id': add_app.id,
+                'product_code': final_pcode,
+                'commercial_name': final_pname,
+                'beds': beds,
+                'liters': liters,
+                'dose': dose,
+                'unit': unit,
+                'total_product': total_product,
+                'crop_name': crop_name,
+                'reason': reason
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@orden_compra_bp.route('/delete-additional-product/<int:app_id>', methods=['POST'])
+@login_required
+@permission_required('orden_compra')
+def delete_additional_product(app_id):
+    """Elimina una compra de producto adicional y ajusta la requisición."""
+    try:
+        from app.shared.utils import round_product_amount
+
+        add_app = AdditionalApplication.query.get_or_404(app_id)
+        week = add_app.week
+        pcode = add_app.product_code
+        total_prod = float(add_app.total_product or 0.0)
+        tot_liters = float(add_app.total_liters or 0.0)
+        unit = add_app.dose_unit or 'CC'
+
+        req = Requisition.query.filter_by(week=week).first()
+        if req:
+            req_item = RequisitionItem.query.filter_by(requisition_id=req.id, product_code=pcode).first()
+            if req_item:
+                curr_qty = float(req_item.quantity_forecast or 0.0)
+                if curr_qty <= total_prod:
+                    if req_item.notes and 'Adicional' in req_item.notes:
+                        db.session.delete(req_item)
+                    else:
+                        req_item.quantity_forecast = max(0.0, round_product_amount(curr_qty - total_prod, unit))
+                        req_item.quantity_final = req_item.quantity_forecast
+                else:
+                    req_item.quantity_forecast = round_product_amount(curr_qty - total_prod, unit)
+                    req_item.quantity_final = req_item.quantity_forecast
+            req.total_liters = max(0.0, round(float(req.total_liters or 0.0) - tot_liters, 1))
+
+        db.session.delete(add_app)
+        db.session.commit()
+        record_audit('ORDEN_COMPRA', 'DELETE_ADDITIONAL_PRODUCT', 'AdditionalApplication', app_id,
+                     details={'week': week, 'product': pcode, 'amount': total_prod})
+
+        return jsonify({'success': True, 'message': f'Producto adicional {pcode} eliminado de la orden de compra.'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

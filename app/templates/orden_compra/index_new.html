@@ -565,6 +565,246 @@
 </div>
 {% endif %}
 
+<!-- ============================================================== -->
+<!-- SECCIÓN: COMPRAS DE PRODUCTOS ADICIONALES (EXTRAS / MANCHAS)   -->
+<!-- ============================================================== -->
+<div class="card shadow-xs mb-3 border-top border-3 border-primary">
+    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-cart-plus text-primary"></i>
+            <span class="fw-bold text-dark">Compras de Productos Adicionales</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace small">Semana {{ selected_week }}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if additional_products %}
+            <span class="badge bg-success-subtle text-success border border-success fw-bold" style="font-size: 0.75rem;">
+                <i class="fa-solid fa-circle-check me-1"></i>{{ add_prod_items_count }} productos adicionales (+{{ add_prod_beds_sum|format_number(1) }} camas · +{{ add_prod_liters_sum|format_number(1) }} L)
+            </span>
+            {% else %}
+            <span class="badge bg-light text-muted border small" style="font-size: 0.72rem;">Sin productos adicionales registrados</span>
+            {% endif %}
+            <button type="button" class="btn btn-primary btn-sm fw-bold shadow-xs py-1 px-3" data-bs-toggle="modal" data-bs-target="#modalAddProductoAdicional">
+                <i class="fa-solid fa-plus me-1"></i> Cargar Producto Adicional
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="text-muted small mb-3" style="font-size: 0.8rem;">
+            <i class="fa-solid fa-circle-info text-primary me-1"></i>
+            Carga de compras específicas para focos, manchas, ensayos o refuerzos fitosanitarios. Selecciona el <strong>producto</strong>, las <strong>camas</strong> y los <strong>litros de aplicación</strong> para sumarlo automáticamente al pedido de compra y tabla comparativa de 15 días.
+        </div>
+
+        {% if additional_products %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover table-bordered align-middle mb-0" style="font-size: 0.82rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;" class="text-center">#</th>
+                        <th>Producto / Insumo</th>
+                        <th style="width: 140px;">Cultivo</th>
+                        <th style="width: 100px;" class="text-end">Camas</th>
+                        <th style="width: 150px;" class="text-end">Litraje Aplicación</th>
+                        <th style="width: 130px;" class="text-end">Dosis / Litro</th>
+                        <th style="width: 150px;" class="text-end">Total a Comprar</th>
+                        <th>Motivo / Destino</th>
+                        <th style="width: 60px;" class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in additional_products %}
+                    <tr>
+                        <td class="text-center text-muted">{{ loop.index }}</td>
+                        <td>
+                            <div class="fw-bold text-dark font-monospace">{{ app.product_code }}</div>
+                            <div class="small text-muted">{{ app.product.commercial_name if app.product else app.product_code }}</div>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ app.crop_name or 'General' }}</span></td>
+                        <td class="text-end fw-bold text-primary font-monospace">{{ app.standard_beds|format_number(1) }}</td>
+                        <td class="text-end font-monospace">
+                            <span class="fw-bold text-dark">{{ app.total_liters|format_number(1) }} L</span>
+                            <div class="text-muted small" style="font-size: 0.72rem;">({{ app.liters_per_bed|format_number(1) }} L/c)</div>
+                        </td>
+                        <td class="text-end font-monospace text-secondary">
+                            {{ app.dose_applied }} {{ app.dose_unit }}/L
+                        </td>
+                        <td class="text-end font-monospace fw-bolder text-success fs-6">
+                            {{ app.total_product|format_number(2) }} <span class="fs-6 fw-normal text-muted">{{ app.dose_unit }}</span>
+                        </td>
+                        <td class="small text-muted">{{ app.reason or 'Compra Adicional' }}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1.5" onclick="eliminarProductoAdicional({{ app.id }}, '{{ app.product_code }}')" title="Eliminar este producto adicional">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td colspan="3" class="text-uppercase small text-secondary">Totales Adicionales:</td>
+                        <td class="text-end text-primary font-monospace">+{{ add_prod_beds_sum|format_number(1) }}</td>
+                        <td class="text-end text-dark font-monospace">+{{ add_prod_liters_sum|format_number(1) }} L</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-3 bg-light rounded-3 text-center border border-dashed">
+            <i class="fa-solid fa-cart-arrow-down text-secondary fs-4 mb-2 d-block opacity-75"></i>
+            <span class="fw-bold text-dark d-block">No se han registrado compras de productos adicionales para la Semana {{ selected_week }}</span>
+            <span class="small text-muted">Usa el botón superior <strong>"Cargar Producto Adicional"</strong> para ingresar productos fuera de rotación con sus camas y litraje de mezcla.</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- MODAL: CARGAR COMPRA DE PRODUCTO ADICIONAL                     -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalAddProductoAdicional" tabindex="-1" aria-labelledby="modalAddProductoAdicionalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header bg-primary text-white py-3 px-4 rounded-top-4">
+                <h5 class="modal-title fw-bold fs-6 mb-0" id="modalAddProductoAdicionalLabel">
+                    <i class="fa-solid fa-cart-plus me-2"></i> Cargar Compra de Producto Adicional &bull; Sem {{ selected_week }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formAddProductoAdicional" onsubmit="guardarProductoAdicional(event)">
+                <input type="hidden" name="week" value="{{ selected_week }}">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <!-- Producto Selector -->
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-flask text-primary me-1"></i> Seleccionar Producto: <span class="text-danger">*</span>
+                            </label>
+                            <select id="add_prod_select" name="product_id" class="form-select form-select-sm fw-semibold" required onchange="onSelectProductoAdicional(this)">
+                                <option value="">-- Buscar y seleccionar producto del catálogo --</option>
+                                {% for p in active_products %}
+                                <option value="{{ p.id }}" 
+                                        data-code="{{ p.code }}" 
+                                        data-name="{{ p.name }}"
+                                        data-unit="{{ p.unit }}" 
+                                        data-dose-fumi="{{ p.dose_fumigation }}" 
+                                        data-dose-drench="{{ p.dose_drench }}" 
+                                        data-pest="{{ p.pest }}">
+                                    {{ p.name }} ({{ p.code }}) &bull; [{{ p.unit }}]
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Camas -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-layer-group text-primary me-1"></i> Camas a Tratar: <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="add_prod_camas" name="beds" class="form-control font-monospace fw-bold" placeholder="ej. 50" min="0.1" step="0.5" value="10" required oninput="recalcularLitrosYProducto()">
+                                <span class="input-group-text bg-light text-muted">camas</span>
+                            </div>
+                        </div>
+
+                        <!-- Litros por Cama -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-gauge-high text-info me-1"></i> Litros por Cama:
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="add_prod_liters_bed" name="liters_per_bed" class="form-control font-monospace" placeholder="5.0" step="0.1" value="5.0" oninput="onCambioLitrajePorCama()">
+                                <span class="input-group-text bg-light text-muted">L / cama</span>
+                            </div>
+                        </div>
+
+                        <!-- Litros Totales de Aplicación -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-droplet text-primary me-1"></i> Litros Totales Aplicación: <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="add_prod_total_liters" name="liters" class="form-control font-monospace fw-bold text-primary bg-light" placeholder="ej. 250" step="1" value="50" required oninput="onCambioLitrosTotales()">
+                                <span class="input-group-text bg-light fw-bold text-primary">Litros</span>
+                            </div>
+                        </div>
+
+                        <!-- Dosis del Producto -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-calculator text-warning me-1"></i> Dosis de Aplicación: <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="add_prod_dose" name="dose" class="form-control font-monospace fw-bold" placeholder="ej. 1.5" step="0.0001" value="1.0" required oninput="recalcularLitrosYProducto()">
+                                <span class="input-group-text bg-light fw-bold text-secondary" id="span_dose_unit">CC / L</span>
+                            </div>
+                            <div class="form-text small" style="font-size: 0.72rem;">Dosis aplicada por cada 1 Litro de caldo de mezcla.</div>
+                        </div>
+
+                        <!-- Total Producto Calculado -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-box-open text-success me-1"></i> Cantidad Total a Comprar: <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="add_prod_total_product" name="total_product" class="form-control font-monospace fw-bold text-success bg-success-subtle" placeholder="ej. 50" step="0.01" value="50.00" required>
+                                <span class="input-group-text bg-light fw-bold text-success" id="span_product_unit">CC</span>
+                            </div>
+                            <div class="form-text small" style="font-size: 0.72rem;">Calculado automáticamente: <code>Litros de aplicación &times; Dosis</code>.</div>
+                        </div>
+
+                        <!-- Cultivo -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-seedling text-success me-1"></i> Cultivo / Variedad:
+                            </label>
+                            <select id="add_prod_crop" name="crop_name" class="form-select form-select-sm">
+                                <option value="General">General / Finca</option>
+                                {% for c in active_crops %}
+                                <option value="{{ c.name }}">{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Motivo -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-secondary mb-1">
+                                <i class="fa-solid fa-comment-dots text-secondary me-1"></i> Motivo / Justificación:
+                            </label>
+                            <input type="text" id="add_prod_reason" name="reason" class="form-control form-control-sm" placeholder="ej. Mancha en bloque, foco, refuerzo preventivo" value="Mancha / Foco Adicional">
+                        </div>
+                    </div>
+
+                    <!-- Live Calculation Visual Box -->
+                    <div class="alert alert-primary py-2 px-3 mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2 border-primary-subtle shadow-xs">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="text-center">
+                                <span class="small text-muted d-block" style="font-size: 0.7rem;">CAMAS:</span>
+                                <span class="fw-bold font-monospace text-dark" id="live_prev_camas">10 camas</span>
+                            </div>
+                            <div class="vr"></div>
+                            <div class="text-center">
+                                <span class="small text-muted d-block" style="font-size: 0.7rem;">CALDO / MEZCLA:</span>
+                                <span class="fw-bold font-monospace text-primary" id="live_prev_liters">50.0 Litros</span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span class="small text-muted d-block" style="font-size: 0.7rem;">PEDIDO DE COMPRA ADICIONAL:</span>
+                            <span class="fs-6 fw-bold font-monospace text-success" id="live_prev_product">50.00 CC</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2 px-4 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success btn-sm fw-bold px-4 shadow-sm" id="btn-save-additional-product">
+                        <i class="fa-solid fa-cart-arrow-down me-1"></i> Guardar y Sumar a Orden de Compra
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -936,5 +1176,139 @@ function setBedsSummaryMode(mode) {
         }
     }
 }
+
+
+// ==============================================================
+// FUNCIONES PARA COMPRA DE PRODUCTOS ADICIONALES
+// ==============================================================
+function onSelectProductoAdicional(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const unit = opt.getAttribute('data-unit') || 'CC';
+    const doseFumi = parseFloat(opt.getAttribute('data-dose-fumi')) || 0;
+    const doseDrench = parseFloat(opt.getAttribute('data-dose-drench')) || 0;
+    const defaultDose = doseFumi > 0 ? doseFumi : (doseDrench > 0 ? doseDrench : 1.0);
+
+    const spanDose = document.getElementById('span_dose_unit');
+    const spanProd = document.getElementById('span_product_unit');
+    if (spanDose) spanDose.textContent = `${unit} / L`;
+    if (spanProd) spanProd.textContent = unit;
+
+    const inpDose = document.getElementById('add_prod_dose');
+    if (inpDose) inpDose.value = defaultDose;
+
+    recalcularLitrosYProducto();
+}
+
+function onCambioLitrajePorCama() {
+    const beds = parseFloat(document.getElementById('add_prod_camas')?.value) || 0;
+    const lBed = parseFloat(document.getElementById('add_prod_liters_bed')?.value) || 0;
+    const totalLitersInp = document.getElementById('add_prod_total_liters');
+    if (totalLitersInp) {
+        totalLitersInp.value = (beds * lBed).toFixed(1);
+    }
+    recalcularLitrosYProducto();
+}
+
+function onCambioLitrosTotales() {
+    const beds = parseFloat(document.getElementById('add_prod_camas')?.value) || 0;
+    const totalLiters = parseFloat(document.getElementById('add_prod_total_liters')?.value) || 0;
+    const lBedInp = document.getElementById('add_prod_liters_bed');
+    if (lBedInp && beds > 0) {
+        lBedInp.value = (totalLiters / beds).toFixed(2);
+    }
+    recalcularLitrosYProducto();
+}
+
+function recalcularLitrosYProducto() {
+    const beds = parseFloat(document.getElementById('add_prod_camas')?.value) || 0;
+    const totalLiters = parseFloat(document.getElementById('add_prod_total_liters')?.value) || 0;
+    const dose = parseFloat(document.getElementById('add_prod_dose')?.value) || 0;
+    const sel = document.getElementById('add_prod_select');
+    const opt = sel ? sel.options[sel.selectedIndex] : null;
+    const unit = opt ? (opt.getAttribute('data-unit') || 'CC') : 'CC';
+
+    const totalProduct = (totalLiters * dose);
+    const totalProdInp = document.getElementById('add_prod_total_product');
+    if (totalProdInp) {
+        totalProdInp.value = totalProduct.toFixed(2);
+    }
+
+    const prevCamas = document.getElementById('live_prev_camas');
+    const prevLiters = document.getElementById('live_prev_liters');
+    const prevProd = document.getElementById('live_prev_product');
+    if (prevCamas) prevCamas.textContent = `${beds} camas`;
+    if (prevLiters) prevLiters.textContent = `${totalLiters.toFixed(1)} Litros`;
+    if (prevProd) prevProd.textContent = `${totalProduct.toFixed(2)} ${unit}`;
+}
+
+async function guardarProductoAdicional(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-save-additional-product');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Guardando...';
+    }
+
+    const form = document.getElementById('formAddProductoAdicional');
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+
+    try {
+        const resp = await fetch("{{ url_for('orden_compra.add_additional_product') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await resp.json();
+        if (data.success) {
+            const modalEl = document.getElementById('modalAddProductoAdicional');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo guardar el producto adicional'));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-cart-arrow-down me-1"></i> Guardar y Sumar a Orden de Compra';
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error de conexión al guardar producto adicional: ' + err.message);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-cart-arrow-down me-1"></i> Guardar y Sumar a Orden de Compra';
+        }
+    }
+}
+
+async function eliminarProductoAdicional(appId, pCode) {
+    if (!confirm(`¿Estás seguro de eliminar el producto adicional ${pCode} de esta orden de compra?`)) {
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/orden-compra/delete-additional-product/${appId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await resp.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo eliminar el producto adicional'));
+        }
+    } catch (err) {
+        alert('Error de conexión: ' + err.message);
+    }
+}
+
 </script>
 {% endblock %}
