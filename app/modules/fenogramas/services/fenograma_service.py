@@ -11,6 +11,13 @@ from app.modules.fenogramas.models import (
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config_mapeos.json")
 
+def semanas_en_anio(anio: int) -> int:
+    """Retorna 52 o 53 según la norma ISO 8601 (semanas del año)."""
+    try:
+        return datetime(int(anio), 12, 28).isocalendar()[1]
+    except Exception:
+        return 52
+
 def load_mapeos_config():
     default_config = {
         "supervisor_aliases": {
@@ -754,7 +761,8 @@ def arrastrar_pendientes_semana_anterior(
         if semana_destino >= orig:
             antiguedad = semana_destino - orig
         else:
-            antiguedad = (52 - orig) + semana_destino
+            semanas_prev_yr = semanas_en_anio(anio - 1)
+            antiguedad = (semanas_prev_yr - orig) + semana_destino
 
         # Candado 2: Límite máximo de semanas de arrastre (TTL)
         if antiguedad > max_semanas_arrastre:
@@ -1253,31 +1261,51 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
 def cerrar_semana_evaluacion(semana_actual, anio=2026):
     """
     Cierra la semana de calificación actual y arrastra las labores incumplidas (0 o pendientes)
-    a la siguiente semana (semana_actual + 1), aplicando los candados de horizonte máximo (TTL)
-    y evitando bucles infinitos.
+    a la siguiente semana, aplicando los candados de horizonte máximo (TTL),
+    soportando años de 53 semanas (como 2026) y transición de año nuevo.
     """
     semana_actual = int(semana_actual)
-    semana_siguiente = semana_actual + 1
+    anio = int(anio)
+    max_semanas = semanas_en_anio(anio)
+
+    if semana_actual >= max_semanas:
+        semana_siguiente = 1
+        anio_siguiente = anio + 1
+    else:
+        semana_siguiente = semana_actual + 1
+        anio_siguiente = anio
 
     # 1. Cerrar semana actual
     db.session.execute(text("""
         UPDATE semanas_evaluacion
         SET estado = 'CERRADA', fecha_cierre = CURRENT_TIMESTAMP
-        WHERE semana_anio = :semana_actual;
-    """), {'semana_actual': semana_actual})
+        WHERE semana_anio = :semana_actual AND anio = :anio;
+    """), {'semana_actual': semana_actual, 'anio': anio})
 
-    # 2. Abrir semana siguiente
-    db.session.execute(text("""
-        INSERT INTO semanas_evaluacion (semana_anio, anio, estado)
-        VALUES (:semana_siguiente, :anio, 'ABIERTA')
-        ON CONFLICT (semana_anio) DO NOTHING;
-    """), {'semana_siguiente': semana_siguiente, 'anio': anio})
+    # 2. Abrir semana siguiente de forma segura sin depender de restricciones en BD
+    row_sig = db.session.execute(text("""
+        SELECT estado FROM semanas_evaluacion
+        WHERE semana_anio = :semana_siguiente AND anio = :anio_siguiente;
+    """), {'semana_siguiente': semana_siguiente, 'anio_siguiente': anio_siguiente}).fetchone()
+
+    if not row_sig:
+        db.session.execute(text("""
+            INSERT INTO semanas_evaluacion (semana_anio, anio, estado)
+            VALUES (:semana_siguiente, :anio_siguiente, 'ABIERTA');
+        """), {'semana_siguiente': semana_siguiente, 'anio_siguiente': anio_siguiente})
+    elif row_sig.estado != 'ABIERTA':
+        db.session.execute(text("""
+            UPDATE semanas_evaluacion
+            SET estado = 'ABIERTA'
+            WHERE semana_anio = :semana_siguiente AND anio = :anio_siguiente;
+        """), {'semana_siguiente': semana_siguiente, 'anio_siguiente': anio_siguiente})
+
     db.session.commit()
 
     # 3. Arrastrar pendientes con límite de antigüedad (TTL)
     carried_count, _ = arrastrar_pendientes_semana_anterior(
         semana_destino=semana_siguiente,
-        anio=anio,
+        anio=anio_siguiente,
         exigir_consecutiva=True,
         validar_censo_activo=False
     )

@@ -42,6 +42,53 @@ def formato_semana(fecha):
     semana = fecha.isocalendar()[1]
     return f"{year:02d}{semana:02d}"
 
+def semanas_en_anio(anio: int) -> int:
+    """Retorna 52 o 53 según la norma ISO 8601 (semanas del año)."""
+    try:
+        return datetime(int(anio), 12, 28).isocalendar()[1]
+    except Exception:
+        return 52
+
+def parse_semana_to_range(semana_code, default_year=None):
+    """
+    Dada una semana (ej. '2643', '43', '2653', '2026-43'),
+    retorna (anio, semana_num, fecha_lunes, fecha_domingo).
+    Soporta semanas 1 a 53 para años como 2026.
+    """
+    if default_year is None:
+        try:
+            default_year = datetime.now(ZONA_HORARIA).year
+        except Exception:
+            default_year = 2026
+
+    s = str(semana_code or '').strip()
+    year = default_year
+    week_num = 1
+
+    if '-' in s:
+        parts = s.split('-')
+        year = int(parts[0]) if len(parts[0]) == 4 else (2000 + int(parts[0]))
+        week_num = int(parts[1])
+    elif len(s) == 4 and s.isdigit():
+        year = 2000 + int(s[:2])
+        week_num = int(s[2:])
+    elif len(s) == 6 and s.isdigit():
+        year = int(s[:4])
+        week_num = int(s[4:])
+    elif s.isdigit():
+        week_num = int(s)
+        year = default_year
+
+    max_sem = semanas_en_anio(year)
+    if week_num < 1:
+        week_num = 1
+    elif week_num > max_sem:
+        week_num = max_sem
+
+    lunes = datetime.fromisocalendar(year, week_num, 1).date()
+    domingo = datetime.fromisocalendar(year, week_num, 7).date()
+    return year, week_num, lunes, domingo
+
 def _get_tombstones_set():
     """Retorna el conjunto de variedades registradas en cat_variedades_eliminadas"""
     tombstones = set()

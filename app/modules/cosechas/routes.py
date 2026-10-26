@@ -5,6 +5,7 @@ from collections import defaultdict
 import pandas as pd
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, jsonify, session
 
+from sqlalchemy import text
 from app.extensions import db
 from app.shared.models import RegistroCosecha, Estimado, User
 from app.shared.audit import record_audit
@@ -14,7 +15,8 @@ from .utils import (
     cargar_responsables, obtener_monitores_sistema, cargar_modulos, cargar_maestro_productos,
     cargar_relaciones_maestro, guardar_relaciones_maestro,
     cargar_productos_maestros, guardar_productos_maestros,
-    construir_productos_con_variedades, sincronizar_variedad_a_bd, sincronizar_producto_maestro_a_bd
+    construir_productos_con_variedades, sincronizar_variedad_a_bd, sincronizar_producto_maestro_a_bd,
+    semanas_en_anio, parse_semana_to_range
 )
 
 cosechas_bp = Blueprint('cosechas', __name__)
@@ -194,8 +196,14 @@ def nuevo_registro():
             fecha_str = request.form.get('fecha', '').strip()
             fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
             viaje = request.form.get('viaje', '').strip()
-            semana_raw = int(request.form.get('semana', 0))
-            semana = semana_raw % 100 if semana_raw >= 100 else semana_raw
+            
+            # Blindaje estricto: la semana siempre deriva de la fecha real (ISO week 1..53)
+            iso_year, iso_week, _ = fecha.isocalendar()
+            semana = iso_week
+            
+            semana_raw = int(request.form.get('semana', 0)) if request.form.get('semana') else 0
+            if semana_raw and (semana_raw % 100) != iso_week:
+                flash(f'Aviso: La fecha seleccionada ({fecha.strftime("%d/%m/%Y")}) corresponde a la Semana {iso_week}. Se guardó en la semana correspondiente para evitar incongruencias.', 'info')
             tallos = int(request.form.get('tallos', 0))
             mallas = int(request.form.get('mallas', 0))
             modulo = limpiar_nombre_modulo(request.form.get('modulo', ''))
@@ -305,10 +313,9 @@ def editar_registro(id):
         try:
             registro.fecha = datetime.strptime(request.form['fecha'], '%Y-%m-%d').date()
             registro.viaje = request.form['viaje'].strip()
-            semana_val = int(request.form['semana'])
-            if semana_val > 0 and semana_val < 100:
-                semana_val = (registro.fecha.year % 100) * 100 + semana_val
-            registro.semana = semana_val
+            # Blindaje: semana en formato 1..53 homologada con la fecha real
+            iso_year, iso_week, _ = registro.fecha.isocalendar()
+            registro.semana = iso_week
             registro.tallos = int(request.form['tallos'])
             registro.mallas = int(request.form['mallas'])
             registro.modulo = limpiar_nombre_modulo(request.form['modulo'].strip())
@@ -777,9 +784,10 @@ def resumen():
     semana_filtro = request.args.get('semana', '').strip()
     maestro_productos = cargar_maestro_productos()
     
-    todos_registros = RegistroCosecha.query.all()
-    semanas_disponibles = {formato_semana(r.fecha) for r in todos_registros}
-    semanas_ordenadas = sorted(list(semanas_disponibles), reverse=True)
+    # Obtener semanas disponibles desde fechas únicas en BD de manera optimizada
+    fechas_db = db.session.execute(text("SELECT DISTINCT fecha FROM registro_cosecha WHERE fecha IS NOT NULL ORDER BY fecha DESC")).scalars().all()
+    semanas_disponibles = sorted(list({formato_semana(f) for f in fechas_db if f}), reverse=True)
+    semanas_ordenadas = semanas_disponibles
     
     if not semana_filtro:
         if semanas_ordenadas:
@@ -787,32 +795,33 @@ def resumen():
         else:
             semana_filtro = formato_semana(datetime.now().date())
     
-    s_filtro_clean = str(semana_filtro).strip()
-    s_filtro_2d = str(int(s_filtro_clean) % 100) if s_filtro_clean.isdigit() else s_filtro_clean
-    registros = [
-        r for r in todos_registros
-        if (
-            formato_semana(r.fecha) == s_filtro_clean
-            or _homologar_sem(r) == s_filtro_2d
-            or str(getattr(r, 'semana', '')) == s_filtro_clean
-            or str(getattr(r, 'semana', '')) == s_filtro_2d
-        )
-    ]
+    year, week_num, lunes, domingo = parse_semana_to_range(semana_filtro)
+    s_filtro_clean = f"{year % 100:02d}{week_num:02d}"
+    s_filtro_2d = str(week_num)
+    
+    # Blindaje contra mezcla de tarjetas: filtrar estrictamente por el rango exacto Lunes-Domingo de la semana
+    registros = RegistroCosecha.query.filter(
+        RegistroCosecha.fecha >= lunes,
+        RegistroCosecha.fecha <= domingo
+    ).order_by(RegistroCosecha.fecha.asc(), RegistroCosecha.hora.asc()).all()
     
     datos_por_semana = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
     desglose_modulos = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int)))))
     totales_diarios = defaultdict(lambda: defaultdict(int))
 
+    # Clave fija de la semana seleccionada para que Jinja NUNCA genere más de una tarjeta en la vista semanal
+    semana_key = semana_filtro
     for registro in registros:
-        semana = _homologar_sem(registro)
         prod_maestro = maestro_productos.get(registro.variedad, 'SIN CLASIFICAR')
         variedad = registro.variedad
-        dia_semana = registro.fecha.weekday()  # 0=Lunes, 6=Domingo
+        dia_semana = registro.fecha.weekday()  # 0=Lunes, 6=Domingo (el domingo cae estrictamente en día 6 de esta semana)
         modulo = registro.modulo
         
-        datos_por_semana[semana][prod_maestro][variedad][dia_semana] += registro.total_tallos
-        desglose_modulos[semana][prod_maestro][variedad][dia_semana][modulo] += registro.total_tallos
-        totales_diarios[semana][dia_semana] += registro.total_tallos
+        datos_por_semana[semana_key][prod_maestro][variedad][dia_semana] += registro.total_tallos
+        desglose_modulos[semana_key][prod_maestro][variedad][dia_semana][modulo] += registro.total_tallos
+        totales_diarios[semana_key][dia_semana] += registro.total_tallos
+
+
     
     # Conversión a dicts estándar para Jinja2
     datos_finales = {
@@ -1191,8 +1200,9 @@ def api_sincronizar_offline():
                 fecha = datetime.now(ZONA_HORARIA).date()
 
             viaje = str(it.get('viaje', '')).strip()
-            semana_raw = int(it.get('semana', 0))
-            semana = semana_raw % 100 if semana_raw >= 100 else semana_raw
+            # Blindaje: semana siempre sincronizada con la fecha real (1..53)
+            iso_year, iso_week, _ = fecha.isocalendar()
+            semana = iso_week
 
             tallos = int(it.get('tallos', 0))
             mallas = int(it.get('mallas', 0))
@@ -1327,22 +1337,18 @@ def api_resumen():
     maestro_productos = cargar_maestro_productos()
     
     if semana_filtro:
-        todos = RegistroCosecha.query.all()
-        s_filtro_clean = str(semana_filtro).strip()
-        s_filtro_2d = str(int(s_filtro_clean) % 100) if s_filtro_clean.isdigit() else s_filtro_clean
-        registros = [
-            r for r in todos
-            if (
-                formato_semana(r.fecha) == s_filtro_clean
-                or _homologar_sem(r) == s_filtro_2d
-                or str(getattr(r, 'semana', '')) == s_filtro_clean
-                or str(getattr(r, 'semana', '')) == s_filtro_2d
-            )
-        ]
+        year, week_num, lunes, domingo = parse_semana_to_range(semana_filtro)
+        registros = RegistroCosecha.query.filter(
+            RegistroCosecha.fecha >= lunes,
+            RegistroCosecha.fecha <= domingo
+        ).order_by(RegistroCosecha.fecha.asc(), RegistroCosecha.hora.asc()).all()
     else:
         fecha_hoy = datetime.now().date()
-        fecha_lunes = fecha_hoy - timedelta(days=fecha_hoy.weekday())
-        registros = RegistroCosecha.query.filter(RegistroCosecha.fecha >= fecha_lunes).all()
+        year, week_num, lunes, domingo = parse_semana_to_range(formato_semana(fecha_hoy))
+        registros = RegistroCosecha.query.filter(
+            RegistroCosecha.fecha >= lunes,
+            RegistroCosecha.fecha <= domingo
+        ).order_by(RegistroCosecha.fecha.asc(), RegistroCosecha.hora.asc()).all()
         semana_filtro = formato_semana(fecha_hoy)
     
     dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -1406,22 +1412,18 @@ def api_resumen_excel():
     maestro_productos = cargar_maestro_productos()
     
     if semana_filtro:
-        todos = RegistroCosecha.query.all()
-        s_filtro_clean = str(semana_filtro).strip()
-        s_filtro_2d = str(int(s_filtro_clean) % 100) if s_filtro_clean.isdigit() else s_filtro_clean
-        registros = [
-            r for r in todos
-            if (
-                formato_semana(r.fecha) == s_filtro_clean
-                or _homologar_sem(r) == s_filtro_2d
-                or str(getattr(r, 'semana', '')) == s_filtro_clean
-                or str(getattr(r, 'semana', '')) == s_filtro_2d
-            )
-        ]
+        year, week_num, lunes, domingo = parse_semana_to_range(semana_filtro)
+        registros = RegistroCosecha.query.filter(
+            RegistroCosecha.fecha >= lunes,
+            RegistroCosecha.fecha <= domingo
+        ).order_by(RegistroCosecha.fecha.asc(), RegistroCosecha.hora.asc()).all()
     else:
         fecha_hoy = datetime.now().date()
-        fecha_lunes = fecha_hoy - timedelta(days=fecha_hoy.weekday())
-        registros = RegistroCosecha.query.filter(RegistroCosecha.fecha >= fecha_lunes).all()
+        year, week_num, lunes, domingo = parse_semana_to_range(formato_semana(fecha_hoy))
+        registros = RegistroCosecha.query.filter(
+            RegistroCosecha.fecha >= lunes,
+            RegistroCosecha.fecha <= domingo
+        ).order_by(RegistroCosecha.fecha.asc(), RegistroCosecha.hora.asc()).all()
         semana_filtro = formato_semana(fecha_hoy)
     
     dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -1472,10 +1474,9 @@ def api_resumen_bloques_excel():
     
     query = RegistroCosecha.query
     if semana_filtro:
-        todos = query.all()
-        registros = [r for r in todos if formato_semana(r.fecha) == semana_filtro]
-    else:
-        registros = query.all()
+        year, week_num, lunes, domingo = parse_semana_to_range(semana_filtro)
+        query = query.filter(RegistroCosecha.fecha >= lunes, RegistroCosecha.fecha <= domingo)
+    registros = query.order_by(RegistroCosecha.fecha.asc(), RegistroCosecha.hora.asc()).all()
 
     if producto_filtro:
         registros = [r for r in registros if maestro_productos.get(r.variedad, 'SIN CLASIFICAR').upper() == producto_filtro.upper()]

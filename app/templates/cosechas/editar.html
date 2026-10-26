@@ -36,17 +36,33 @@
                 <div class="card-body p-4">
                     <form method="POST">
                         <div class="row g-3 mb-4">
-                            <div class="col-12 col-md-4">
-                                <label for="fecha" class="form-label small fw-semibold text-secondary">Fecha *</label>
-                                <input type="date" class="form-control" id="fecha" name="fecha" value="{{ registro.fecha.strftime('%Y-%m-%d') }}" required>
+                            <div class="col-12 col-md-5">
+                                <label for="fecha" class="form-label small fw-semibold text-secondary d-flex justify-content-between align-items-center">
+                                    <span><i class="fa-regular fa-calendar me-1 text-primary"></i> Fecha *</span>
+                                    <span id="badgeDiaSemana" class="badge bg-secondary-subtle text-secondary fw-bold" style="font-size: 0.73rem;">--</span>
+                                </label>
+                                <input type="date" class="form-control fw-semibold" id="fecha" name="fecha" value="{{ registro.fecha.strftime('%Y-%m-%d') }}" required>
+                                <div id="rangoSemanaHelp" class="form-text small mt-1" style="font-size: 0.74rem;">
+                                    <i class="fa-solid fa-lock text-success me-1"></i> Rango permitido: <span id="rangoTexto" class="fw-bold text-dark">--</span>
+                                </div>
                             </div>
                             <div class="col-6 col-md-4">
-                                <label for="semana" class="form-label small fw-semibold text-secondary">Semana *</label>
-                                <input type="number" class="form-control" id="semana" name="semana" value="{{ registro.semana }}" required>
+                                <label for="semana" class="form-label small fw-semibold text-secondary d-flex justify-content-between align-items-center">
+                                    <span><i class="fa-solid fa-calendar-week me-1 text-success"></i> Semana *</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-0" style="font-size: 0.68rem;">1-53</span>
+                                </label>
+                                <div class="input-group">
+                                    <button type="button" class="btn btn-outline-secondary px-2" id="btnSemanaAnt" title="Semana anterior"><i class="fa-solid fa-chevron-left"></i></button>
+                                    <input type="number" class="form-control bg-light fw-bold text-success font-monospace text-center" id="semana" name="semana" min="1" max="53" value="{{ registro.semana % 100 if registro.semana >= 100 else registro.semana }}" required>
+                                    <button type="button" class="btn btn-outline-secondary px-2" id="btnSemanaSig" title="Semana siguiente"><i class="fa-solid fa-chevron-right"></i></button>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.71rem;">
+                                    Solo permite fechas de esta semana.
+                                </small>
                             </div>
-                            <div class="col-6 col-md-4">
+                            <div class="col-6 col-md-3">
                                 <label for="viaje" class="form-label small fw-semibold text-secondary">Viaje *</label>
-                                <input type="text" class="form-control" id="viaje" name="viaje" value="{{ registro.viaje }}" required>
+                                <input type="text" class="form-control fw-semibold" id="viaje" name="viaje" value="{{ registro.viaje }}" required>
                             </div>
 
                             <div class="col-12 col-md-6">
@@ -142,6 +158,105 @@ document.addEventListener('DOMContentLoaded', function() {
     const mallas = document.getElementById('mallas');
     const tallos = document.getElementById('tallos');
     const display = document.getElementById('totalDisplay');
+    const fechaInput = document.getElementById('fecha');
+    const semanaInput = document.getElementById('semana');
+    const badgeDiaSemana = document.getElementById('badgeDiaSemana');
+    const rangoTexto = document.getElementById('rangoTexto');
+    const btnSemanaAnt = document.getElementById('btnSemanaAnt');
+    const btnSemanaSig = document.getElementById('btnSemanaSig');
+    const form = document.querySelector('form');
+
+    const DIAS_SEMANA_NOMBRES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+    function getIsoWeekRange(year, week) {
+        const simple = new Date(Date.UTC(year, 0, 4));
+        const dayOfWeek = (simple.getUTCDay() + 6) % 7;
+        const monW1 = new Date(simple.valueOf() - (dayOfWeek * 86400000));
+        const mon = new Date(monW1.valueOf() + (week - 1) * 7 * 86400000);
+        const sun = new Date(mon.valueOf() + 6 * 86400000);
+        const fmt = d => d.toISOString().split('T')[0];
+        return { mon: fmt(mon), sun: fmt(sun) };
+    }
+
+    function formatFechaES(isoStr) {
+        if (!isoStr) return '';
+        const parts = isoStr.split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    function actualizarBadgeDia() {
+        if (!fechaInput.value) {
+            if (badgeDiaSemana) badgeDiaSemana.textContent = '--';
+            return;
+        }
+        const parts = fechaInput.value.split('-').map(Number);
+        const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        const idx = (d.getUTCDay() + 6) % 7;
+        const nombre = DIAS_SEMANA_NOMBRES[idx];
+        if (badgeDiaSemana) {
+            badgeDiaSemana.textContent = nombre;
+            if (idx === 6) {
+                badgeDiaSemana.className = 'badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-bold';
+            } else {
+                badgeDiaSemana.className = 'badge bg-success-subtle text-success border border-success-subtle fw-bold';
+            }
+        }
+    }
+
+    function aplicarRangoPorSemana(semanaNum, mantenerFecha=true) {
+        const year = fechaInput.value ? parseInt(fechaInput.value.split('-')[0]) : (new Date()).getFullYear();
+        let sem = parseInt(semanaNum) || 1;
+        if (sem < 1) sem = 1;
+        if (sem > 53) sem = 53;
+        
+        semanaInput.value = sem;
+        const range = getIsoWeekRange(year, sem);
+        
+        fechaInput.min = range.mon;
+        fechaInput.max = range.sun;
+        
+        if (rangoTexto) {
+            rangoTexto.textContent = `${formatFechaES(range.mon)} al ${formatFechaES(range.sun)}`;
+        }
+
+        if (!fechaInput.value || fechaInput.value < range.mon || fechaInput.value > range.sun || !mantenerFecha) {
+            fechaInput.value = range.mon;
+        }
+        actualizarBadgeDia();
+    }
+
+    // Inicializar con la semana del registro existente
+    aplicarRangoPorSemana(semanaInput.value, true);
+
+    semanaInput.addEventListener('change', () => aplicarRangoPorSemana(semanaInput.value, false));
+    btnSemanaAnt?.addEventListener('click', () => aplicarRangoPorSemana(parseInt(semanaInput.value || 1) - 1, false));
+    btnSemanaSig?.addEventListener('click', () => aplicarRangoPorSemana(parseInt(semanaInput.value || 1) + 1, false));
+
+    fechaInput.addEventListener('change', () => {
+        if (!fechaInput.value) return;
+        const sem = parseInt(semanaInput.value);
+        const year = parseInt(fechaInput.value.split('-')[0]);
+        const range = getIsoWeekRange(year, sem);
+        
+        if (fechaInput.value < range.mon || fechaInput.value > range.sun) {
+            alert(`⚠️ Fecha bloqueada: La fecha seleccionada (${formatFechaES(fechaInput.value)}) no pertenece a la Semana ${sem} (${formatFechaES(range.mon)} al ${formatFechaES(range.sun)}).
+
+Para modificar a otra semana, cambie el número de semana.`);
+            fechaInput.value = range.mon;
+        }
+        actualizarBadgeDia();
+    });
+
+    form?.addEventListener('submit', function(e) {
+        const sem = parseInt(semanaInput.value);
+        const year = parseInt(fechaInput.value.split('-')[0]);
+        const range = getIsoWeekRange(year, sem);
+        if (fechaInput.value < range.mon || fechaInput.value > range.sun) {
+            e.preventDefault();
+            alert(`Error de validación: La fecha seleccionada está fuera del rango permitido de la Semana ${sem} (${formatFechaES(range.mon)} al ${formatFechaES(range.sun)}).`);
+            fechaInput.focus();
+        }
+    });
 
     function calc() {
         const m = parseInt(mallas.value) || 0;

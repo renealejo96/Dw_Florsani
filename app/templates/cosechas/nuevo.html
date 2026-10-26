@@ -42,25 +42,38 @@
                         <input type="hidden" id="currentUserName" value="{{ current_user.username if current_user else '' }}">
 
                         <div class="row g-3 mb-4">
-                            <!-- Fecha y Semana -->
-                            <div class="col-12 col-md-4">
-                                <label for="fecha" class="form-label fw-semibold small text-secondary">
-                                    <i class="fa-regular fa-calendar me-1 text-primary"></i> Fecha de Cosecha *
+                            <!-- Fecha y Semana con Blindaje de Rango Semanal -->
+                            <div class="col-12 col-md-5">
+                                <label for="fecha" class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
+                                    <span><i class="fa-regular fa-calendar me-1 text-primary"></i> Fecha de Cosecha *</span>
+                                    <span id="badgeDiaSemana" class="badge bg-secondary-subtle text-secondary fw-bold" style="font-size: 0.73rem;">--</span>
                                 </label>
-                                <input type="date" class="form-control" id="fecha" name="fecha" required>
+                                <input type="date" class="form-control fw-semibold" id="fecha" name="fecha" required>
+                                <div id="rangoSemanaHelp" class="form-text small mt-1" style="font-size: 0.74rem;">
+                                    <i class="fa-solid fa-lock text-success me-1"></i> Rango permitido: <span id="rangoTexto" class="fw-bold text-dark">--</span>
+                                </div>
                             </div>
                             <div class="col-6 col-md-4">
-                                <label for="semana" class="form-label fw-semibold small text-secondary">
-                                    <i class="fa-solid fa-calendar-week me-1 text-success"></i> Semana Agrícola (Semana 1-52)
+                                <label for="semana" class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
+                                    <span><i class="fa-solid fa-calendar-week me-1 text-success"></i> Semana Agrícola</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-0" style="font-size: 0.68rem;">1-53 (Año 2026)</span>
                                 </label>
-                                <input type="number" class="form-control bg-light fw-bold text-success font-monospace" id="semana" name="semana" min="1" max="53" readonly required>
+                                <div class="input-group">
+                                    <button type="button" class="btn btn-outline-secondary px-2" id="btnSemanaAnt" title="Semana anterior"><i class="fa-solid fa-chevron-left"></i></button>
+                                    <input type="number" class="form-control bg-light fw-bold text-success font-monospace text-center" id="semana" name="semana" min="1" max="53" required>
+                                    <button type="button" class="btn btn-outline-secondary px-2" id="btnSemanaSig" title="Semana siguiente"><i class="fa-solid fa-chevron-right"></i></button>
+                                    <button type="button" class="btn btn-outline-success px-2" id="btnSemanaHoy" title="Semana actual"><i class="fa-solid fa-calendar-day"></i></button>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.71rem;">
+                                    Semana bloqueada. Solo permite días de esta semana.
+                                </small>
                             </div>
-                            <div class="col-6 col-md-4">
+                            <div class="col-6 col-md-3">
                                 <label for="viaje" class="form-label fw-semibold small text-secondary">
                                     <i class="fa-solid fa-truck-ramp-box me-1 text-warning"></i> N° de Viaje *
                                 </label>
                                 <select class="form-select fw-semibold" id="viaje" name="viaje" required>
-                                    <option value="">Seleccione el viaje</option>
+                                    <option value="">Seleccione</option>
                                     {% for i in range(1, 21) %}
                                     <option value="{{ i }}">Viaje {{ i }}</option>
                                     {% endfor %}
@@ -285,34 +298,123 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch(e){}
     }
 
-    // Default to today
-    if (!fechaInput.value) {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        fechaInput.value = `${yyyy}-${mm}-${dd}`;
-        actualizarSemana();
-    }
+    const DIAS_SEMANA_NOMBRES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const badgeDiaSemana = document.getElementById('badgeDiaSemana');
+    const rangoTexto = document.getElementById('rangoTexto');
+    const btnSemanaAnt = document.getElementById('btnSemanaAnt');
+    const btnSemanaSig = document.getElementById('btnSemanaSig');
+    const btnSemanaHoy = document.getElementById('btnSemanaHoy');
 
-    fechaInput.addEventListener('change', actualizarSemana);
-
-    function actualizarSemana() {
-        if (!fechaInput.value) return;
-        const d = new Date(fechaInput.value + 'T00:00:00');
-        const target = new Date(d.valueOf());
-        const dayNr = (d.getDay() + 6) % 7;
-        target.setDate(target.getDate() - dayNr + 3);
+    function getIsoWeekAndYear(d) {
+        const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        const dayNr = (target.getUTCDay() + 6) % 7;
+        target.setUTCDate(target.getUTCDate() - dayNr + 3);
         const firstThursday = target.valueOf();
-        target.setMonth(0, 1);
-        if (target.getDay() !== 4) {
-            target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        target.setUTCMonth(0, 1);
+        if (target.getUTCDay() !== 4) {
+            target.setUTCMonth(0, 1 + ((4 - target.getUTCDay()) + 7) % 7);
         }
         const week = 1 + Math.ceil((firstThursday - target) / 604800000);
-        const isoYear = target.getFullYear();
-        const weekNum = week;
-        semanaInput.value = weekNum;
+        const isoYear = new Date(firstThursday).getUTCFullYear();
+        return { week, year: isoYear };
     }
+
+    function getIsoWeekRange(year, week) {
+        const simple = new Date(Date.UTC(year, 0, 4));
+        const dayOfWeek = (simple.getUTCDay() + 6) % 7;
+        const monW1 = new Date(simple.valueOf() - (dayOfWeek * 86400000));
+        const mon = new Date(monW1.valueOf() + (week - 1) * 7 * 86400000);
+        const sun = new Date(mon.valueOf() + 6 * 86400000);
+        const fmt = d => d.toISOString().split('T')[0];
+        return { mon: fmt(mon), sun: fmt(sun) };
+    }
+
+    function formatFechaES(isoStr) {
+        if (!isoStr) return '';
+        const parts = isoStr.split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    function actualizarBadgeDia() {
+        if (!fechaInput.value) {
+            if (badgeDiaSemana) badgeDiaSemana.textContent = '--';
+            return;
+        }
+        const parts = fechaInput.value.split('-').map(Number);
+        const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        const idx = (d.getUTCDay() + 6) % 7;
+        const nombre = DIAS_SEMANA_NOMBRES[idx];
+        if (badgeDiaSemana) {
+            badgeDiaSemana.textContent = nombre;
+            if (idx === 6) { // Domingo
+                badgeDiaSemana.className = 'badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-bold';
+            } else {
+                badgeDiaSemana.className = 'badge bg-success-subtle text-success border border-success-subtle fw-bold';
+            }
+        }
+    }
+
+    function aplicarRangoPorSemana(semanaNum, mantenerFecha=true) {
+        const currentYear = new Date().getFullYear();
+        const maxWeeks = (getIsoWeekAndYear(new Date(currentYear, 11, 28))).week; // 53 en 2026
+        let sem = parseInt(semanaNum) || 1;
+        if (sem < 1) sem = 1;
+        if (sem > maxWeeks) sem = maxWeeks;
+        
+        semanaInput.value = sem;
+        const range = getIsoWeekRange(currentYear, sem);
+        
+        fechaInput.min = range.mon;
+        fechaInput.max = range.sun;
+        
+        if (rangoTexto) {
+            rangoTexto.textContent = `${formatFechaES(range.mon)} al ${formatFechaES(range.sun)}`;
+        }
+
+        // Si la fecha actual está fuera de rango o vacía, acomodar
+        if (!fechaInput.value || fechaInput.value < range.mon || fechaInput.value > range.sun || !mantenerFecha) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${yyyy}-${mm}-${dd}`;
+            if (todayStr >= range.mon && todayStr <= range.sun) {
+                fechaInput.value = todayStr;
+            } else {
+                fechaInput.value = range.mon;
+            }
+        }
+        actualizarBadgeDia();
+    }
+
+    // Inicialización al cargar la página con la semana activa real
+    const hoyInfo = getIsoWeekAndYear(new Date());
+    aplicarRangoPorSemana(hoyInfo.week);
+
+    // Eventos de controles de semana
+    semanaInput.addEventListener('change', () => aplicarRangoPorSemana(semanaInput.value, false));
+    btnSemanaAnt?.addEventListener('click', () => aplicarRangoPorSemana(parseInt(semanaInput.value || 1) - 1, false));
+    btnSemanaSig?.addEventListener('click', () => aplicarRangoPorSemana(parseInt(semanaInput.value || 1) + 1, false));
+    btnSemanaHoy?.addEventListener('click', () => {
+        const cur = getIsoWeekAndYear(new Date());
+        aplicarRangoPorSemana(cur.week, false);
+    });
+
+    // Validación estricta en cambio de fecha: NUNCA permitir fechas fuera de la semana seleccionada
+    fechaInput.addEventListener('change', () => {
+        if (!fechaInput.value) return;
+        const sem = parseInt(semanaInput.value);
+        const currentYear = new Date().getFullYear();
+        const range = getIsoWeekRange(currentYear, sem);
+        
+        if (fechaInput.value < range.mon || fechaInput.value > range.sun) {
+            alert(`⚠️ Fecha no permitida: La fecha seleccionada (${formatFechaES(fechaInput.value)}) no pertenece a la Semana ${sem} (${formatFechaES(range.mon)} al ${formatFechaES(range.sun)}).
+
+Para ingresar cosechas de otra semana, cambie el número de semana arriba.`);
+            fechaInput.value = range.mon;
+        }
+        actualizarBadgeDia();
+    });
 
     // Live Ecuador Clock
     function tickClock() {
@@ -529,6 +631,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!varSelect.value) {
             alert('Por favor seleccione una Variedad.');
             varSelect.focus();
+            return;
+        }
+
+        // Blindaje estricto de fecha vs semana antes de enviar
+        const currentYear = new Date().getFullYear();
+        const semCheck = parseInt(semanaInput.value);
+        const rangeCheck = getIsoWeekRange(currentYear, semCheck);
+        if (fechaInput.value < rangeCheck.mon || fechaInput.value > rangeCheck.sun) {
+            alert(`⚠️ Incongruencia detectada: La fecha seleccionada (${formatFechaES(fechaInput.value)}) está fuera del rango de la Semana ${semCheck} (${formatFechaES(rangeCheck.mon)} al ${formatFechaES(rangeCheck.sun)}).
+
+Por favor seleccione una fecha dentro de la semana.`);
+            fechaInput.focus();
             return;
         }
 

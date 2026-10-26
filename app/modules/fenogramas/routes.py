@@ -1620,9 +1620,10 @@ def api_guardar_mapeos():
 def api_cerrar_semana():
     data = request.get_json() or {}
     semana_actual = data.get('semana_actual', 30)
+    anio = data.get('anio') or datetime.now().year
 
     try:
-        sem_sig, carried = cerrar_semana_evaluacion(semana_actual=int(semana_actual), anio=2026)
+        sem_sig, carried = cerrar_semana_evaluacion(semana_actual=int(semana_actual), anio=int(anio))
         return jsonify({
             'success': True,
             'semana_cerrada': semana_actual,

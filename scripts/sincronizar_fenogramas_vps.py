@@ -21,6 +21,44 @@ app = create_app()
 with app.app_context():
     print("[FENOGRAMAS-VPS] Iniciando sincronización segura de Fenogramas...")
 
+    # 0. Asegurar Primary Key en semanas_evaluacion y blindaje de restricciones
+    try:
+        has_pk = db.session.execute(text("""
+            SELECT conname FROM pg_constraint 
+            WHERE conrelid = 'semanas_evaluacion'::regclass AND contype = 'p';
+        """)).fetchone()
+        if not has_pk:
+            db.session.execute(text("""
+                ALTER TABLE semanas_evaluacion 
+                ADD CONSTRAINT pk_semanas_evaluacion PRIMARY KEY (semana_anio, anio);
+            """))
+            db.session.commit()
+            print("[FENOGRAMAS-VPS] [OK] PRIMARY KEY (semana_anio, anio) agregada a semanas_evaluacion.")
+    except Exception as e_pk:
+        db.session.rollback()
+        print(f"[FENOGRAMAS-VPS] Aviso asegurando PK en semanas_evaluacion: {e_pk}")
+
+    # 0.1 Homologar y corregir posibles incongruencias en registro_cosecha (semana vs fecha)
+    try:
+        # Corregir semanas mayores o iguales a 100 (ej: 2643 -> 43)
+        upd_100 = db.session.execute(text("""
+            UPDATE registro_cosecha
+            SET semana = semana % 100
+            WHERE semana >= 100;
+        """))
+        # Alinear semanas según fecha real (ISO week)
+        upd_iso = db.session.execute(text("""
+            UPDATE registro_cosecha
+            SET semana = EXTRACT(WEEK FROM fecha)::INTEGER
+            WHERE fecha IS NOT NULL AND semana != EXTRACT(WEEK FROM fecha)::INTEGER;
+        """))
+        db.session.commit()
+        if upd_100.rowcount or upd_iso.rowcount:
+            print(f"[COSECHAS-VPS] [OK] Registros de cosecha alineados: {upd_100.rowcount} formato 2 dígitos, {upd_iso.rowcount} corregidos con fecha ISO.")
+    except Exception as e_cos:
+        db.session.rollback()
+        print(f"[COSECHAS-VPS] Aviso alineando semanas de cosecha: {e_cos}")
+
     # 1. Determinar semana activa
     sem_row = db.session.execute(text("SELECT MAX(semana_anio) FROM semanas_evaluacion;")).scalar()
     semana_activa = int(sem_row or 43)
