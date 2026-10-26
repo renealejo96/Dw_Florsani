@@ -582,20 +582,10 @@
                         <!-- Columna Sticky: Auxiliar + Supervisor -->
                         <td class="sticky-col-left pbi-cell-clickable"
                             onclick="openPbiDrilldown({{ aux_idx }}, null, this)"
-                            title="Clic para inspeccionar labores de {{ row.auxiliar }}">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-bold text-dark">{{ row.auxiliar }}</div>
-                                    <div class="text-muted" style="font-size: 0.69rem;">
-                                        <i class="fa-solid fa-user-tie me-1"></i>{{ row.supervisor }}
-                                    </div>
-                                </div>
-                                <a href="{{ url_for('fenogramas.exportar_auxiliar_excel') }}?semana={{ semana }}&auxiliar={{ row.auxiliar|urlencode }}"
-                                   class="btn btn-sm btn-outline-success border-0 py-0 px-1 ms-1 text-success"
-                                   title="Exportar todas las labores de {{ row.auxiliar }} a Excel (.xlsx)"
-                                   onclick="event.stopPropagation()">
-                                    <i class="fa-solid fa-file-excel fs-6"></i>
-                                </a>
+                            title="Clic para ver todas las tareas de {{ row.auxiliar }}">
+                            <div class="fw-bold text-dark">{{ row.auxiliar }}</div>
+                            <div class="text-muted" style="font-size: 0.69rem;">
+                                <i class="fa-solid fa-user-tie me-1"></i>{{ row.supervisor }}
                             </div>
                         </td>
 
@@ -900,6 +890,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
+const SEMANA = {{ semana }};
 const SEMANA_DASH = {{ semana }};
 const FENO_INDEX_URL = "{{ url_for('fenogramas.index') }}";
 
@@ -1547,22 +1538,32 @@ function exportarExcelModalAuxiliar() {
     }
     const auxName = encodeURIComponent(auxRow.auxiliar || '');
     const cultName = currentModalCultivo ? encodeURIComponent(currentModalCultivo) : '';
-    const exportUrl = `/fenogramas/exportar-auxiliar-excel?semana=${SEMANA}&auxiliar=${auxName}&cultivo=${cultName}`;
+    const exportUrl = "{{ url_for('fenogramas.exportar_auxiliar_excel') }}?semana=" + SEMANA + "&auxiliar=" + auxName + "&cultivo=" + cultName;
 
     const btn = document.getElementById('btn-modal-export-excel');
     const txt = document.getElementById('txt-modal-export-excel');
     if (btn && txt) {
         const oldHtml = txt.innerHTML;
-        txt.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Generando Excel...';
+        txt.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Descargando Excel...';
         btn.classList.add('opacity-75');
         setTimeout(() => {
             txt.innerHTML = oldHtml;
             btn.classList.remove('opacity-75');
-        }, 2200);
+        }, 2500);
     }
 
-    // Descarga directa del archivo oficial XLSX
-    window.location.href = exportUrl;
+    // Descarga segura del archivo oficial XLSX sin recargar la pantalla
+    const downloadLink = document.createElement('a');
+    downloadLink.href = exportUrl;
+    downloadLink.setAttribute('download', '');
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    setTimeout(() => {
+        if (downloadLink.parentNode) {
+            downloadLink.parentNode.removeChild(downloadLink);
+        }
+    }, 1500);
 }
 
 function renderModalTasksTable() {

@@ -1382,8 +1382,6 @@ def exportar_auxiliar_excel():
             cama_str = str(r.cama_inicial)
         else:
             cama_str = f"{r.cama_inicial} a {r.cama_final}"
-        if r.sufijo:
-            cama_str = f"{cama_str} {r.sufijo}".strip()
 
         bloque_str = clean_block_code(r.bloque) or str(r.bloque or '')
         row_bg = 'FFFFFF' if (row_num % 2 != 0) else 'F8FAFC'
