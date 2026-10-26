@@ -582,10 +582,20 @@
                         <!-- Columna Sticky: Auxiliar + Supervisor -->
                         <td class="sticky-col-left pbi-cell-clickable"
                             onclick="openPbiDrilldown({{ aux_idx }}, null, this)"
-                            title="Clic para ver todas las tareas que se quedaron de {{ row.auxiliar }}">
-                            <div class="fw-bold text-dark">{{ row.auxiliar }}</div>
-                            <div class="text-muted" style="font-size: 0.69rem;">
-                                <i class="fa-solid fa-user-tie me-1"></i>{{ row.supervisor }}
+                            title="Clic para inspeccionar labores de {{ row.auxiliar }}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-dark">{{ row.auxiliar }}</div>
+                                    <div class="text-muted" style="font-size: 0.69rem;">
+                                        <i class="fa-solid fa-user-tie me-1"></i>{{ row.supervisor }}
+                                    </div>
+                                </div>
+                                <a href="{{ url_for('fenogramas.exportar_auxiliar_excel') }}?semana={{ semana }}&auxiliar={{ row.auxiliar|urlencode }}"
+                                   class="btn btn-sm btn-outline-success border-0 py-0 px-1 ms-1 text-success"
+                                   title="Exportar todas las labores de {{ row.auxiliar }} a Excel (.xlsx)"
+                                   onclick="event.stopPropagation()">
+                                    <i class="fa-solid fa-file-excel fs-6"></i>
+                                </a>
                             </div>
                         </td>
 
@@ -736,9 +746,9 @@
                 <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
                     <span class="small text-muted" id="pbi-modal-footer-count">0 labores listadas</span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-success btn-sm fw-bold shadow-xs d-inline-flex align-items-center gap-1.5" onclick="exportarExcelModalAuxiliar()" title="Descargar reporte en formato Excel de las labores no realizadas">
+                        <button type="button" id="btn-modal-export-excel" class="btn btn-success btn-sm fw-bold shadow-xs d-inline-flex align-items-center gap-1.5" onclick="exportarExcelModalAuxiliar()" title="Descargar reporte oficial en formato Excel (.xlsx) con columnas oficiales">
                             <i class="fa-solid fa-file-excel"></i>
-                            <span>Exportar a Excel</span>
+                            <span id="txt-modal-export-excel">Exportar a Excel (.xlsx)</span>
                         </button>
                         <button type="button" class="btn btn-secondary btn-sm fw-bold" data-bs-dismiss="modal">Cerrar</button>
                     </div>
@@ -1517,6 +1527,15 @@ function refreshModalAuxiliarData() {
         `;
     }
 
+    const txtBtn = document.getElementById('txt-modal-export-excel');
+    if (txtBtn) {
+        if (currentModalCultivo) {
+            txtBtn.textContent = `Exportar ${currentModalCultivo} a Excel (.xlsx)`;
+        } else {
+            txtBtn.textContent = 'Exportar Todo a Excel (.xlsx)';
+        }
+    }
+
     renderModalTasksTable();
 }
 
@@ -1526,46 +1545,24 @@ function exportarExcelModalAuxiliar() {
         alert('No se pudo identificar al operario/auxiliar seleccionado.');
         return;
     }
-    const tasksToExport = currentModalTasks || [];
-    if (tasksToExport.length === 0) {
-        alert('No hay labores pendientes para exportar en este filtro.');
-        return;
+    const auxName = encodeURIComponent(auxRow.auxiliar || '');
+    const cultName = currentModalCultivo ? encodeURIComponent(currentModalCultivo) : '';
+    const exportUrl = `/fenogramas/exportar-auxiliar-excel?semana=${SEMANA}&auxiliar=${auxName}&cultivo=${cultName}`;
+
+    const btn = document.getElementById('btn-modal-export-excel');
+    const txt = document.getElementById('txt-modal-export-excel');
+    if (btn && txt) {
+        const oldHtml = txt.innerHTML;
+        txt.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Generando Excel...';
+        btn.classList.add('opacity-75');
+        setTimeout(() => {
+            txt.innerHTML = oldHtml;
+            btn.classList.remove('opacity-75');
+        }, 2200);
     }
 
-    const headers = ['SUPERVISOR', 'AUXILIAR', 'CULTIVO', 'ZONA', 'BLOQUE', 'CAMAS', 'ACTIVIDAD', 'EDAD_SEMANAS', 'LABOR_NO_REALIZADA', 'ESTADO', 'OBSERVACIONES'];
-    const rows = [headers.join(';')];
-
-    tasksToExport.forEach(t => {
-        const est = t.es_incumplida ? 'INCUMPLIDA (0)' : 'PENDIENTE (Sin calificar)';
-        const obs = (t.observacion || '').replace(/;/g, ',').replace(/[\r\n]+/g, ' ');
-        const row = [
-            `"${auxRow.supervisor || ''}"`,
-            `"${auxRow.auxiliar || ''}"`,
-            `"${t.cultivo || ''}"`,
-            `"${t.zona || ''}"`,
-            `"${t.bloque || ''}"`,
-            `"${t.camas || ''}"`,
-            `"${t.actividad_tipo || ''}"`,
-            t.edad_real || '',
-            `"${t.labor || ''}"`,
-            `"${est}"`,
-            `"${obs}"`
-        ];
-        rows.push(row.join(';'));
-    });
-
-    const csvContent = '\uFEFF' + rows.join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const cultSuffix = currentModalCultivo ? `_${currentModalCultivo}` : '_Todos_Cultivos';
-    const cleanAux = (auxRow.auxiliar || 'Auxiliar').replace(/[^a-zA-Z0-9_-]/g, '_');
-    a.href = url;
-    a.download = `Labores_No_Realizadas_${cleanAux}${cultSuffix}_Semana_${SEMANA}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Descarga directa del archivo oficial XLSX
+    window.location.href = exportUrl;
 }
 
 function renderModalTasksTable() {

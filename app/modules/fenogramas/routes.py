@@ -4,7 +4,9 @@ import csv
 import re
 from datetime import datetime
 from collections import defaultdict
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, Response, flash, session
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, Response, flash, session, send_file
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
 from app.extensions import db
@@ -1276,6 +1278,167 @@ def exportar_sin_match():
         csv_data,
         mimetype="text/csv",
         headers={"Content-disposition": f"attachment; filename=camas_sin_match_semana_{semana}.csv"}
+    )
+
+
+@fenogramas_bp.route('/exportar-auxiliar-excel')
+@login_required
+@permission_required('fenogramas')
+def exportar_auxiliar_excel():
+    semana = request.args.get('semana', type=int)
+    auxiliar_param = (request.args.get('auxiliar') or '').strip()
+    cultivo_param = (request.args.get('cultivo') or '').strip()
+
+    if not semana:
+        sem_row = db.session.execute(text("SELECT MAX(semana_anio) FROM calificaciones;")).scalar()
+        semana = int(sem_row) if sem_row else 43
+
+    query = """
+        SELECT 
+            COALESCE(NULLIF(producto_maestro, ''), 'SIN PRODUCTO') as producto,
+            edad_real as edad,
+            labor,
+            bloque,
+            cama_inicial,
+            cama_final,
+            sufijo,
+            COALESCE(observacion, '') as observacion,
+            COALESCE(NULLIF(auxiliar, ''), 'Sin Auxiliar') as auxiliar,
+            COALESCE(NULLIF(supervisor, ''), 'Sin Supervisor') as supervisor
+        FROM calificaciones
+        WHERE semana_anio = :semana AND tiene_evaluacion = TRUE
+    """
+    params = {'semana': semana}
+
+    if auxiliar_param and auxiliar_param.upper() not in ('ALL', 'TODOS'):
+        if auxiliar_param.lower() in ('sin auxiliar', 'sin_auxiliar', 'none', ''):
+            query += " AND (auxiliar IS NULL OR TRIM(auxiliar) = '' OR TRIM(auxiliar) = 'Sin Auxiliar')"
+        else:
+            query += " AND UPPER(TRIM(COALESCE(auxiliar, ''))) = UPPER(TRIM(:auxiliar))"
+            params['auxiliar'] = auxiliar_param
+
+    if cultivo_param and cultivo_param.upper() not in ('ALL', 'TODOS', 'TODOS LOS CULTIVOS', ''):
+        query += " AND (UPPER(TRIM(producto_maestro)) = UPPER(TRIM(:cultivo)) OR UPPER(TRIM(producto_maestro)) LIKE UPPER(TRIM(:cultivo)) || '%')"
+        params['cultivo'] = cultivo_param
+
+    query += " ORDER BY producto_maestro ASC, bloque ASC, cama_inicial ASC, id ASC;"
+    rows = db.session.execute(text(query), params).fetchall()
+
+    aux_display = auxiliar_param if (auxiliar_param and auxiliar_param.upper() not in ('ALL', 'TODOS')) else 'Todos los Auxiliares'
+    cult_display = cultivo_param if (cultivo_param and cultivo_param.upper() not in ('ALL', 'TODOS')) else 'Todos los Cultivos'
+    sup_set = set()
+    for r in rows:
+        if r.supervisor and r.supervisor != 'Sin Supervisor':
+            sup_set.add(r.supervisor)
+    sup_display = ", ".join(sorted(sup_set)) if sup_set else 'No asignado'
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Sem_{semana}_Auxiliar"
+    ws.views.sheetView[0].showGridLines = True
+
+    # 1. Encabezado institucional de Finca Florícola Florsani
+    ws.merge_cells('A1:F1')
+    title_cell = ws['A1']
+    title_cell.value = "FINCA FLORÍCOLA FLORSANI • EVALUACIÓN DE LABORES POR AUXILIAR"
+    title_cell.font = Font(name='Segoe UI', size=13, bold=True, color='FFFFFF')
+    title_cell.fill = PatternFill(start_color='166534', end_color='166534', fill_type='solid')
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 28
+
+    # 2. Metadatos del Auxiliar, Supervisor y Cultivo
+    ws.merge_cells('A2:F2')
+    sub_cell = ws['A2']
+    sub_cell.value = f"Semana: {semana}   |   Auxiliar: {aux_display}   |   Supervisor: {sup_display}   |   Cultivo: {cult_display}   |   Total Labores: {len(rows)}"
+    sub_cell.font = Font(name='Segoe UI', size=9.5, italic=True, color='1E293B')
+    sub_cell.fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+    sub_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[2].height = 20
+
+    ws.row_dimensions[3].height = 8
+
+    # 3. Columnas oficiales requeridas por Calidad
+    headers = ['PRODUCTO', 'EDAD', 'LABOR', 'BLOQUE', 'CAMA', 'OBSERVACIÓN']
+    ws.append([])
+    ws.append(headers)
+    ws.row_dimensions[4].height = 24
+
+    thin_border_side = Side(border_style='thin', color='CBD5E1')
+    table_border = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+
+    for col_idx in range(1, 7):
+        c = ws.cell(row=4, column=col_idx)
+        c.font = Font(name='Segoe UI', size=10, bold=True, color='FFFFFF')
+        c.fill = PatternFill(start_color='1E293B', end_color='1E293B', fill_type='solid')
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        c.border = table_border
+
+    # 4. Filas de detalle con formato solicitado (ej. Cama '1 a 10')
+    row_num = 5
+    for r in rows:
+        ws.row_dimensions[row_num].height = 20
+
+        if r.cama_inicial == r.cama_final:
+            cama_str = str(r.cama_inicial)
+        else:
+            cama_str = f"{r.cama_inicial} a {r.cama_final}"
+        if r.sufijo:
+            cama_str = f"{cama_str} {r.sufijo}".strip()
+
+        bloque_str = clean_block_code(r.bloque) or str(r.bloque or '')
+        row_bg = 'FFFFFF' if (row_num % 2 != 0) else 'F8FAFC'
+        row_fill = PatternFill(start_color=row_bg, end_color=row_bg, fill_type='solid')
+
+        row_data = [
+            (str(r.producto or '').strip(), 'center'),
+            (int(r.edad) if r.edad is not None else '', 'center'),
+            (str(r.labor or '').strip(), 'left'),
+            (bloque_str, 'center'),
+            (cama_str, 'center'),
+            (str(r.observacion or '').strip(), 'left')
+        ]
+
+        for col_idx, (val, h_align) in enumerate(row_data, start=1):
+            cell = ws.cell(row=row_num, column=col_idx, value=val)
+            cell.font = Font(name='Segoe UI', size=9.5, color='0F172A')
+            cell.fill = row_fill
+            cell.alignment = Alignment(horizontal=h_align, vertical='center', wrap_text=(col_idx in (3, 6)))
+            cell.border = table_border
+
+        row_num += 1
+
+    if not rows:
+        ws.merge_cells('A5:F5')
+        empty_cell = ws['A5']
+        empty_cell.value = "No se encontraron labores asignadas para este filtro en la semana seleccionada."
+        empty_cell.font = Font(name='Segoe UI', size=10, italic=True, color='64748B')
+        empty_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[5].height = 28
+
+    column_widths = {
+        'A': 18,
+        'B': 10,
+        'C': 38,
+        'D': 12,
+        'E': 16,
+        'F': 36
+    }
+    for col_letter, width in column_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    clean_aux_fn = re.sub(r'[^a-zA-Z0-9_-]', '_', aux_display)[:30]
+    clean_cult_fn = re.sub(r'[^a-zA-Z0-9_-]', '_', cult_display)[:20]
+    filename = f"Evaluacion_Labores_{clean_aux_fn}_{clean_cult_fn}_Sem_{semana}.xlsx"
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
     )
 
 

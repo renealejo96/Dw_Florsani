@@ -561,15 +561,15 @@ def create_app(config_class=Config):
         estimados_total_tallos = db.session.query(db.func.sum(Estimado.cantidad_estimada)).filter(Estimado.semana.in_(semanas_estimado_match)).scalar() or 0
         cumplimiento_cosecha = round((float(cosechas_total_tallos) / float(estimados_total_tallos) * 100), 1) if estimados_total_tallos > 0 else 0
 
-        # 1. Cumplimiento Fenograma de la Semana y Año Seleccionados
+        # 1. Cumplimiento Fenograma de la Semana y Año Seleccionados (Homologado con módulo Fenogramas: tiene_evaluacion = TRUE)
         try:
             feno_res = db.session.execute(text("""
                 SELECT 
                     COUNT(*) as total,
-                    SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
-                    ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                    COUNT(CASE WHEN cumplido = 1 THEN 1 END) as cumplidas,
+                    ROUND(100.0 * COUNT(CASE WHEN cumplido = 1 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct
                 FROM calificaciones
-                WHERE semana_anio = :w AND (anio = :y OR anio IS NULL)
+                WHERE semana_anio = :w AND (anio = :y OR anio IS NULL) AND tiene_evaluacion = TRUE
             """), {'w': selected_week_num, 'y': selected_year}).fetchone()
             if feno_res and feno_res.total and feno_res.total > 0:
                 cumplimiento_fenograma = float(feno_res.pct or 0.0)
@@ -672,14 +672,15 @@ def create_app(config_class=Config):
         participacion_productos_lista.sort(key=lambda x: x['tallos'], reverse=True)
         tallos_por_producto = {item['producto']: item['tallos'] for item in participacion_productos_lista}
 
-        # 4.1 Histórico de Cumplimiento de Fenogramas para Segmentador Multimodal de Líneas
+        # 4.1 Histórico de Cumplimiento de Fenogramas para Segmentador Multimodal de Líneas (tiene_evaluacion = TRUE)
         feno_trend_raw = db.session.execute(text("""
             SELECT 
                 semana_anio,
                 COUNT(*) as total,
-                SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
-                ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                COUNT(CASE WHEN cumplido = 1 THEN 1 END) as cumplidas,
+                ROUND(100.0 * COUNT(CASE WHEN cumplido = 1 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct
             FROM calificaciones
+            WHERE tiene_evaluacion = TRUE
             GROUP BY semana_anio
             ORDER BY semana_anio ASC
         """)).fetchall()
@@ -693,9 +694,10 @@ def create_app(config_class=Config):
                 semana_anio,
                 UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS'))) as crop,
                 COUNT(*) as total,
-                SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) as cumplidas,
-                ROUND(100.0 * SUM(CASE WHEN cumplido = 1.0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                COUNT(CASE WHEN cumplido = 1 THEN 1 END) as cumplidas,
+                ROUND(100.0 * COUNT(CASE WHEN cumplido = 1 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct
             FROM calificaciones
+            WHERE tiene_evaluacion = TRUE
             GROUP BY semana_anio, UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS')))
             ORDER BY semana_anio ASC, crop ASC
         """)).fetchall()
@@ -789,10 +791,10 @@ def create_app(config_class=Config):
                 SELECT 
                     UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS'))) as crop,
                     COUNT(*) as total,
-                    SUM(CASE WHEN cumplido = 1 THEN 1 ELSE 0 END) as cumplidas,
-                    ROUND(100.0 * SUM(CASE WHEN cumplido = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as pct
+                    COUNT(CASE WHEN cumplido = 1 THEN 1 END) as cumplidas,
+                    ROUND(100.0 * COUNT(CASE WHEN cumplido = 1 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct
                 FROM calificaciones
-                WHERE semana_anio = :w AND (anio = :y OR anio IS NULL)
+                WHERE semana_anio = :w AND (anio = :y OR anio IS NULL) AND tiene_evaluacion = TRUE
                 GROUP BY UPPER(TRIM(COALESCE(producto_maestro, 'VARIOS')))
             """), {'w': selected_week_num, 'y': selected_year}).fetchall()
             for r in feno_kpi_rows:
