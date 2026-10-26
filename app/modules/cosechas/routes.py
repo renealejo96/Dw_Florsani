@@ -1262,12 +1262,40 @@ def api_variedades_por_producto(producto_maestro):
 
 @cosechas_bp.route('/api/reportes/tablero', methods=['GET'])
 def api_reportes_tablero():
-    """Datos para tablero analítico semanal con filtros dinámicos"""
+    """Datos para tablero analítico semanal con filtros dinámicos, segmentación por año y comparativa anual"""
     registros = RegistroCosecha.query.order_by(RegistroCosecha.fecha.asc()).all()
     productos_con_variedades = construir_productos_con_variedades()
     maestro_productos = cargar_maestro_productos()
 
-    semanas_disponibles = sorted(list({_homologar_sem(r) for r in registros}), key=lambda x: int(x) if x.isdigit() else 0)
+    parsed_records = []
+    anios_set = set()
+    semanas_set_total = set()
+
+    for r in registros:
+        y = r.fecha.isocalendar()[0] if r.fecha else (2000 + int(str(r.semana)[:2]) if r.semana and int(r.semana) >= 100 else 2026)
+        w = int(r.semana) % 100 if r.semana else (r.fecha.isocalendar()[1] if r.fecha else 1)
+        w_str = str(w)
+        anios_set.add(int(y))
+        semanas_set_total.add(w_str)
+        parsed_records.append((r, int(y), w_str))
+
+    anios_disponibles = sorted(list(anios_set), reverse=True)
+    if not anios_disponibles:
+        anios_disponibles = [2026, 2025]
+
+    req_anio = request.args.get('anio')
+    try:
+        anio_filtro = int(req_anio) if req_anio else anios_disponibles[0]
+    except Exception:
+        anio_filtro = anios_disponibles[0]
+
+    anio_anterior = anio_filtro - 1
+
+    semanas_disponibles = sorted(
+        list(semanas_set_total),
+        key=lambda x: int(x) if x.isdigit() else 0
+    )
+
     productos_disponibles = sorted(
         set(productos_con_variedades.keys()) |
         {maestro_productos.get(r.variedad, 'SIN CLASIFICAR') for r in registros},
@@ -1277,28 +1305,33 @@ def api_reportes_tablero():
 
     if not semanas_disponibles:
         return jsonify({
+            'anios_disponibles': anios_disponibles,
+            'anio_activo': anio_filtro,
+            'anio_comparativo': anio_anterior,
             'semanas_disponibles': [],
             'productos_disponibles': productos_disponibles,
             'variedades_disponibles': variedades_disponibles,
             'productos_con_variedades': productos_con_variedades,
-            'filtros_activos': {'productos': [], 'variedades': [], 'semanas': []},
-            'curva_semanal': []
+            'filtros_activos': {'anio': anio_filtro, 'productos': [], 'variedades': [], 'semanas': []},
+            'curva_semanal': [],
+            'kpis': {'total_tallos': 0, 'total_semanas': 0, 'promedio_semanal': 0, 'pico_semanal': 0}
         })
 
     productos_filtro = [p.strip() for p in request.args.getlist('producto_maestro') if p.strip()]
     variedades_filtro = [v.strip() for v in request.args.getlist('variedad') if v.strip()]
     semanas_filtro_param = [s.strip() for s in request.args.getlist('semana') if s.strip()]
-    
+
     if semanas_filtro_param:
         semanas_filtro = [s for s in semanas_disponibles if s in set(semanas_filtro_param)]
     else:
-        semanas_filtro = list(semanas_disponibles)
+        max_sem = max([int(s) for s in semanas_disponibles if s.isdigit()] or [52])
+        semanas_filtro = [str(w) for w in range(1, max(52, max_sem) + 1)]
 
     semanas_set = set(semanas_filtro)
-    acumulado = defaultdict(int)
+    acumulado_actual = defaultdict(int)
+    acumulado_anterior = defaultdict(int)
 
-    for registro in registros:
-        semana = _homologar_sem(registro)
+    for registro, y, semana in parsed_records:
         if semana not in semanas_set:
             continue
         producto = maestro_productos.get(registro.variedad, 'SIN CLASIFICAR')
@@ -1308,24 +1341,50 @@ def api_reportes_tablero():
         if variedades_filtro and registro.variedad not in variedades_filtro:
             continue
 
-        acumulado[semana] += registro.total_tallos
+        if y == anio_filtro:
+            acumulado_actual[semana] += (registro.total_tallos or 0)
+        elif y == anio_anterior:
+            acumulado_anterior[semana] += (registro.total_tallos or 0)
 
-    curva_semanal = [
-        {'semana': sem, 'total_tallos': acumulado.get(sem, 0)}
-        for sem in semanas_filtro
-    ]
+    curva_semanal = []
+    for sem in semanas_filtro:
+        val_act = acumulado_actual.get(sem, 0)
+        val_ant = acumulado_anterior.get(sem, 0)
+        curva_semanal.append({
+            'semana': sem,
+            'semana_num': int(sem) if sem.isdigit() else 0,
+            'total_tallos': val_act,
+            'tallos_anterior': val_ant
+        })
+
+    total_tallos_actual = sum(acumulado_actual[s] for s in semanas_filtro)
+    semanas_con_cosecha = len([s for s in semanas_filtro if acumulado_actual.get(s, 0) > 0])
+    promedio_semanal = round(total_tallos_actual / semanas_con_cosecha, 1) if semanas_con_cosecha > 0 else 0
+    pico_semanal = max([acumulado_actual.get(s, 0) for s in semanas_filtro] or [0])
+    total_tallos_anterior = sum(acumulado_anterior[s] for s in semanas_filtro)
 
     return jsonify({
-        'semanas_disponibles': semanas_disponibles,
+        'anios_disponibles': anios_disponibles,
+        'anio_activo': anio_filtro,
+        'anio_comparativo': anio_anterior,
+        'semanas_disponibles': [str(w) for w in range(1, 53)],
         'productos_disponibles': productos_disponibles,
         'variedades_disponibles': variedades_disponibles,
         'productos_con_variedades': productos_con_variedades,
         'filtros_activos': {
+            'anio': anio_filtro,
             'productos': productos_filtro,
             'variedades': variedades_filtro,
-            'semanas': semanas_filtro
+            'semanas': semanas_filtro_param
         },
-        'curva_semanal': curva_semanal
+        'curva_semanal': curva_semanal,
+        'kpis': {
+            'total_tallos': total_tallos_actual,
+            'total_semanas': semanas_con_cosecha or len(semanas_filtro_param) or len(curva_semanal),
+            'promedio_semanal': promedio_semanal,
+            'pico_semanal': pico_semanal,
+            'total_tallos_anterior': total_tallos_anterior
+        }
     })
 
 

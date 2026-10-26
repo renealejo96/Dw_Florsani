@@ -124,7 +124,17 @@
         <div class="card-body p-4">
             <!-- Slicers Row -->
             <div class="row g-3 align-items-end mb-4">
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-2">
+                    <label class="form-label small fw-semibold text-secondary mb-1">
+                        <i class="fa-solid fa-calendar me-1 text-info"></i> Año
+                    </label>
+                    <select id="slicer_anio" class="form-select form-select-sm fw-bold border-primary shadow-sm" style="background-color: #f0fdf4; border-color: #86efac;">
+                        <option value="2026">2026 (Año Actual)</option>
+                        <option value="2025">2025 (Año Anterior)</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label class="form-label small fw-semibold text-secondary mb-1">
                         <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Producto Maestro
                     </label>
@@ -142,7 +152,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label class="form-label small fw-semibold text-secondary mb-1">
                         <i class="fa-solid fa-seedling me-1 text-success"></i> Variedad
                     </label>
@@ -160,13 +170,13 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-sm-6 col-lg-2">
                     <label class="form-label small fw-semibold text-secondary mb-1">
-                        <i class="fa-solid fa-calendar-week me-1 text-warning"></i> Semanas Agrícolas
+                        <i class="fa-solid fa-calendar-week me-1 text-warning"></i> Semanas
                     </label>
                     <div class="dropdown w-100">
                         <button class="btn btn-outline-primary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="btnSlicerSemana" data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                            <span>Seleccionar semanas...</span>
+                            <span>Semanas...</span>
                         </button>
                         <div class="dropdown-menu slicer-menu shadow-sm" aria-labelledby="btnSlicerSemana">
                             <div class="slicer-actions d-flex gap-2">
@@ -178,7 +188,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-md-2 d-flex gap-2">
+                <div class="col-12 col-sm-6 col-lg-2 d-flex gap-2">
                     <button type="button" class="btn btn-primary btn-sm flex-grow-1" id="aplicar_filtros_tablero">
                         <i class="fa-solid fa-filter me-1"></i> Aplicar
                     </button>
@@ -197,7 +207,7 @@
                             <span class="kpi-icon-badge kpi-icon-green" style="width:30px; height:30px; font-size: 0.85rem;"><i class="fa-solid fa-chart-simple"></i></span>
                         </div>
                         <div class="kpi-value text-success tabular-nums" id="kpi_total_tallos">0</div>
-                        <div class="kpi-subtext">Tallos filtrados en selección</div>
+                        <div class="kpi-subtext">Tallos filtrados (<span id="kpi_sub_anio" class="fw-bold text-success">2026</span>)</div>
                     </div>
                 </div>
                 <div class="col-6 col-lg-3">
@@ -328,7 +338,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const variedadList = document.getElementById('variedad_list');
     const semanaGrid = document.getElementById('semana_grid');
 
+    const slicerAnio = document.getElementById('slicer_anio');
+
     let state = {
+        aniosDisponibles: [2026, 2025],
+        selectedAnio: 2026,
+        anioComparativo: 2025,
         productosDisponibles: [],
         variedadesDisponibles: [],
         semanasDisponibles: [],
@@ -435,65 +450,93 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function actualizarKpis(curvaSemanal) {
-        const totals = curvaSemanal.map((item) => item.total_tallos || 0);
-        const total = totals.reduce((acc, value) => acc + value, 0);
-        const semanas = curvaSemanal.length;
-        const promedio = semanas > 0 ? total / semanas : 0;
-        const pico = semanas > 0 ? Math.max(...totals) : 0;
+    function actualizarKpis(kpis, anio) {
+        const k = kpis || {};
+        const total = k.total_tallos || 0;
+        const semanas = k.total_semanas || 0;
+        const promedio = k.promedio_semanal || 0;
+        const pico = k.pico_semanal || 0;
 
         document.getElementById('kpi_total_tallos').textContent = total.toLocaleString('es-EC');
         document.getElementById('kpi_total_semanas').textContent = semanas.toLocaleString('es-EC');
         document.getElementById('kpi_promedio_semanal').textContent = promedio.toLocaleString('es-EC', { maximumFractionDigits: 1 });
         document.getElementById('kpi_pico_semanal').textContent = pico.toLocaleString('es-EC');
+        
+        const subAnio = document.getElementById('kpi_sub_anio');
+        if (subAnio) subAnio.textContent = anio || state.selectedAnio;
     }
 
-    function renderGrafico(curvaSemanal) {
-        const x = curvaSemanal.map((_, index) => index);
-        const xLabels = curvaSemanal.map((item) => String(item.semana));
-        const y = curvaSemanal.map((item) => item.total_tallos || 0);
+    function renderGrafico(curvaSemanal, anioActivo, anioComparativo) {
+        const xLabels = curvaSemanal.map((item) => `Sem ${String(item.semana).padStart(2, '0')}`);
+        const yActual = curvaSemanal.map((item) => item.total_tallos || 0);
+        const yAnterior = curvaSemanal.map((item) => item.tallos_anterior !== undefined ? item.tallos_anterior : null);
 
-        const trace = {
-            x,
-            y,
+        // Línea 1: Año Seleccionado (ej. 2026 - Año Actual)
+        const traceActual = {
+            name: `Cosecha ${anioActivo} (${anioActivo === 2026 ? 'Año Actual' : anioActivo})`,
+            x: xLabels,
+            y: yActual,
             type: 'scatter',
             mode: 'lines+markers',
             line: {
-                color: '#059669',
-                width: 3.5,
+                color: '#10b981',
+                width: 3.2,
                 shape: 'spline',
-                smoothing: 0.6
+                smoothing: 0.35
             },
             marker: {
                 color: '#10b981',
-                size: 9,
-                line: { color: '#064e3b', width: 2 }
+                size: 6,
+                line: { color: '#ffffff', width: 1.5 }
             },
             fill: 'tozeroy',
-            fillcolor: 'rgba(16, 185, 129, 0.12)',
-            hovertemplate: '<b>Semana %{text}</b><br>Tallos cortados: <b>%{y:,}</b><extra></extra>',
-            text: xLabels
+            fillcolor: 'rgba(16, 185, 129, 0.08)',
+            hovertemplate: `<b>%{x} · ${anioActivo}</b><br>Tallos: <b>%{y:,}</b><extra></extra>`
+        };
+
+        // Línea 2: Año Comparativo por Defecto (ej. 2025 - Año Anterior)
+        const traceAnterior = {
+            name: `Cosecha ${anioComparativo} (Año Anterior)`,
+            x: xLabels,
+            y: yAnterior,
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: {
+                color: '#6366f1',
+                width: 2.2,
+                dash: 'dash',
+                shape: 'spline',
+                smoothing: 0.35
+            },
+            marker: {
+                color: '#6366f1',
+                size: 5,
+                line: { color: '#ffffff', width: 1 }
+            },
+            hovertemplate: `<b>%{x} · ${anioComparativo}</b><br>Tallos: <b>%{y:,}</b><extra></extra>`
         };
 
         const layout = {
-            margin: { l: 65, r: 25, t: 25, b: 50 },
+            margin: { l: 65, r: 25, t: 40, b: 50 },
             paper_bgcolor: '#ffffff',
             plot_bgcolor: '#ffffff',
             font: { family: 'Plus Jakarta Sans, Inter, sans-serif', color: '#334155' },
+            legend: {
+                orientation: 'h',
+                x: 0,
+                y: 1.12,
+                font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }
+            },
             hoverlabel: {
                 bgcolor: '#0f172a',
                 font: { family: 'Fira Code', color: '#ffffff', size: 12 },
                 bordercolor: '#334155'
             },
             xaxis: {
-                title: { text: 'Semana Agrícola (AASS)', font: { family: 'Plus Jakarta Sans', size: 12, weight: '600', color: '#475569' } },
-                type: 'linear',
-                tickmode: 'array',
-                tickvals: x,
-                ticktext: xLabels,
-                tickfont: { family: 'Fira Code', size: 11, color: '#64748b' },
+                title: { text: 'Semana Agrícola (1 a 52)', font: { family: 'Plus Jakarta Sans', size: 12, weight: '600', color: '#475569' } },
+                tickfont: { family: 'Fira Code', size: 10, color: '#64748b' },
                 showgrid: true,
-                gridcolor: '#f1f5f9'
+                gridcolor: '#f8fafc'
             },
             yaxis: {
                 title: { text: 'Tallos Cosechados', font: { family: 'Plus Jakarta Sans', size: 12, weight: '600', color: '#475569' } },
@@ -504,11 +547,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
 
-        Plotly.newPlot('grafico_curva_semanal', [trace], layout, { responsive: true, displaylogo: false });
+        Plotly.newPlot('grafico_curva_semanal', [traceActual, traceAnterior], layout, { responsive: true, displaylogo: false });
+    }
+
+    function renderAnioSlicer() {
+        if (!slicerAnio) return;
+        slicerAnio.innerHTML = '';
+        state.aniosDisponibles.forEach((y) => {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = `${y} ${y === 2026 ? '(Año Actual)' : (y === 2025 ? '(Año Anterior)' : '')}`;
+            if (parseInt(y) === parseInt(state.selectedAnio)) opt.selected = true;
+            slicerAnio.appendChild(opt);
+        });
     }
 
     async function cargarTablero(usarFiltrosActuales = false) {
         const params = new URLSearchParams();
+
+        if (slicerAnio) {
+            state.selectedAnio = parseInt(slicerAnio.value) || 2026;
+        }
+        params.append('anio', state.selectedAnio);
 
         if (usarFiltrosActuales) {
             Array.from(state.selectedProductos).forEach((p) => params.append('producto_maestro', p));
@@ -520,6 +580,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(`{{ url_for('cosechas.api_reportes_tablero') }}?${params.toString()}`);
             const data = await response.json();
 
+            state.aniosDisponibles = data.anios_disponibles || [2026, 2025];
+            state.selectedAnio = data.anio_activo || state.selectedAnio;
+            state.anioComparativo = data.anio_comparativo || (state.selectedAnio - 1);
             state.productosDisponibles = data.productos_disponibles || [];
             state.variedadesDisponibles = data.variedades_disponibles || [];
             state.semanasDisponibles = data.semanas_disponibles || [];
@@ -528,13 +591,14 @@ document.addEventListener('DOMContentLoaded', function() {
             state.selectedVariedades = new Set(data.filtros_activos?.variedades || []);
             state.selectedSemanas = new Set(data.filtros_activos?.semanas || []);
 
+            renderAnioSlicer();
             renderProductoSlicer();
             renderVariedadSlicer();
             renderSemanaSlicer();
             updateSlicerTitles();
 
-            renderGrafico(data.curva_semanal || []);
-            actualizarKpis(data.curva_semanal || []);
+            renderGrafico(data.curva_semanal || [], state.selectedAnio, state.anioComparativo);
+            actualizarKpis(data.kpis, state.selectedAnio);
         } catch (e) {
             console.error("Error cargando tablero:", e);
         }
@@ -578,6 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSlicerTitles();
     });
 
+    slicerAnio?.addEventListener('change', () => cargarTablero(true));
     btnAplicar?.addEventListener('click', () => cargarTablero(true));
     btnLimpiar?.addEventListener('click', () => cargarTablero(false));
 

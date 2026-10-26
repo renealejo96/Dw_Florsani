@@ -497,6 +497,7 @@ def create_app(config_class=Config):
         # Determinar todas las semanas disponibles en el sistema (Cosechas, Fenogramas, Fumigación)
         harvest_weeks_raw = [r[0] for r in db.session.query(RegistroCosecha.semana).distinct().all() if r[0] is not None]
         feno_weeks_raw = [r[0] for r in db.session.execute(text("SELECT DISTINCT semana_anio FROM calificaciones")).fetchall() if r[0] is not None]
+        feno_eval_weeks_raw = [r[0] for r in db.session.execute(text("SELECT DISTINCT semana_anio FROM semanas_evaluacion")).fetchall() if r[0] is not None]
         fum_weeks_raw = [r[0] for r in db.session.query(FumigationOrder.week).distinct().all() if r[0] is not None]
 
         available_weeks_set = {iso_week}
@@ -508,7 +509,7 @@ def create_app(config_class=Config):
                     available_weeks_set.add(w_norm)
             except Exception:
                 pass
-        for fw in feno_weeks_raw:
+        for fw in feno_weeks_raw + feno_eval_weeks_raw:
             try:
                 fw_int = int(fw)
                 if 1 <= fw_int <= 53:
