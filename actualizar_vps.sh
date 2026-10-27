@@ -35,8 +35,8 @@ docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_cat
 echo "🌱 Migrando fincas oficiales (Pyganflor, Malchingui, Urcuquí) y roles de usuario..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_fincas_y_roles.py
 
-echo "🌸 Sincronizando labores y asignaciones de Fenogramas (preservando calificaciones)..."
-docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/sincronizar_fenogramas_vps.py
+# echo "🌸 Sincronizando labores y asignaciones de Fenogramas (BLINDADO - No tocar calificaciones)..."
+# docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/sincronizar_fenogramas_vps.py
 
 echo "🌾 Sincronizando universalmente particiones de cultivo y conteo de plantas en toda la finca..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_ajustes_cultivo.py
