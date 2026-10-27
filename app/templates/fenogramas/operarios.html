@@ -1502,6 +1502,9 @@
                         </button>
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-semibold px-2" onclick="bootstrap.Modal.getInstance(document.getElementById('modalInspeccionOffline'))?.hide(); descartarCambiosLocales();" title="Limpiar cola huérfana o descartar cambios">
+                            <i class="fa-solid fa-trash-can me-1"></i> Descartar Cola
+                        </button>
                         <button type="button" class="btn btn-success btn-sm fw-bold px-3" onclick="bootstrap.Modal.getInstance(document.getElementById('modalInspeccionOffline'))?.hide(); forzarSincronizacionOffline();">
                             <i class="fa-solid fa-cloud-arrow-up me-1"></i> Forzar Sincronización
                         </button>
@@ -3180,14 +3183,26 @@ async function restoreOfflineChanges() {
 
         if (!Array.isArray(items) || items.length === 0) return;
 
-        // Protección contra la fuga residual de 253 calificaciones en Semana 44
-        if (SEMANA_ACTUAL === 44 && items.length === 253) {
-            console.warn('[FENOGRAMAS] Detectada cola huérfana de 253 calificaciones filtradas de Semana 43 en Semana 44. Purgando...');
+        // Auto-detección y purga de colas huérfanas de versiones anteriores de la semana
+        const domExistingCount = items.filter(it => {
+            if (!it || it.id === undefined) return false;
+            if (it.is_extra || String(it.id).startsWith('temp_') || String(it.id).startsWith('client_extra_')) return true;
+            return !!document.getElementById(`btn-check-${it.id}`);
+        }).length;
+
+        if (items.length > 0 && domExistingCount === 0) {
+            console.warn(`[FENOGRAMAS] Detectada cola huérfana de ${items.length} calificaciones obsoletas (IDs no existen en la vista actual). Purgando automáticamente...`);
             try {
-                localStorage.removeItem('feno_offline_sync_44');
-                localStorage.removeItem('feno_backup_hist_44');
+                localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+                localStorage.removeItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (k && (k.startsWith('feno_offline_sync_') || k.startsWith('feno_backup_hist_'))) {
+                        localStorage.removeItem(k);
+                    }
+                }
                 if (window.FenoIndexedDB && typeof FenoIndexedDB.clear === 'function') {
-                    FenoIndexedDB.clear(44);
+                    FenoIndexedDB.clear(SEMANA_ACTUAL);
                 }
             } catch(e) {}
             return;
@@ -3197,16 +3212,23 @@ async function restoreOfflineChanges() {
         const affectedBlocks = new Set();
         items.forEach(it => {
             if (!it || it.id === undefined) return;
+            const isExtra = it.is_extra || String(it.id).startsWith('temp_') || String(it.id).startsWith('client_extra_');
+            const btn = document.getElementById(`btn-check-${it.id}`);
+
+            // Solo añadir a la cola local activa si la fila existe en pantalla o es labor extra válida
+            if (!btn && !isExtra) {
+                return;
+            }
+
             offlineQueueCache.set(it.id, it);
             modifiedItems.add(it.id);
 
-            if (it.is_extra || String(it.id).startsWith('temp_')) {
+            if (isExtra) {
                 if (!document.getElementById(`row-${it.id}`) && it.parent_id) {
                     crearFilaLaborOffline(it.parent_id, it.nueva_labor || 'Labor Adicional', it.id);
                 }
             }
 
-            const btn = document.getElementById(`btn-check-${it.id}`);
             const obsInput = document.getElementById(`obs-${it.id}`);
             if (btn) {
                 setCheckCircleState(btn, it.val);
@@ -3275,8 +3297,17 @@ function descartarCambiosLocales() {
     offlineQueueCache.clear();
     try {
         localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+        localStorage.removeItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('feno_offline_sync_') || k.startsWith('feno_backup_hist_'))) {
+                localStorage.removeItem(k);
+            }
+        }
     } catch (e) {}
-    FenoIndexedDB.clear(SEMANA_ACTUAL);
+    if (window.FenoIndexedDB && typeof FenoIndexedDB.clear === 'function') {
+        FenoIndexedDB.clear(SEMANA_ACTUAL);
+    }
 
     affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
     recalculateZoneKPIs();
@@ -3441,13 +3472,17 @@ async function saveAllChanges(isForced = false) {
             offlineExtraItems = {};
             try {
                 localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
-                // Limpiar también cualquier clave alternativa de feno_offline_sync_*
+                localStorage.removeItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
                 for (let i = localStorage.length - 1; i >= 0; i--) {
                     const k = localStorage.key(i);
-                    if (k && k.startsWith('feno_offline_sync_')) localStorage.removeItem(k);
+                    if (k && (k.startsWith('feno_offline_sync_') || k.startsWith('feno_backup_hist_'))) {
+                        localStorage.removeItem(k);
+                    }
                 }
             } catch (e) {}
-            FenoIndexedDB.clear(SEMANA_ACTUAL);
+            if (window.FenoIndexedDB && typeof FenoIndexedDB.clear === 'function') {
+                FenoIndexedDB.clear(SEMANA_ACTUAL);
+            }
 
             updateSaveButtonsUI(false);
             showFenoToast(`✓ ¡Sincronizado! Se guardaron ${data.updated} calificación(es) en el servidor.`);

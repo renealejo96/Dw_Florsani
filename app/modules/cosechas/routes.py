@@ -1840,32 +1840,56 @@ def api_areas_resumen():
     try:
         formato = request.args.get('formato', 'json').strip().lower()
         sep_param = request.args.get('sep', ';')
-        query = """
-            SELECT 
-                CASE 
-                    WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
-                    THEN SUBSTRING(semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
-                    ELSE 44 
-                END as semana,
-                CASE 
-                    WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
-                    THEN (2000 + SUBSTRING(semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
-                    ELSE 2026 
-                END as anio,
-                COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
-                COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
-                COUNT(DISTINCT codigo_bloque) as total_bloques,
-                COUNT(DISTINCT id_cama) as total_camas,
-                ROUND(SUM(ha)::numeric, 4) as total_ha,
-                ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
-            FROM mrt_estado_cultivo_actual
-            WHERE producto_actual IS NOT NULL 
-              AND TRIM(producto_actual) != ''
-              AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
-            GROUP BY semana_agricola_actual, producto_actual, variedad_actual
-            ORDER BY producto_actual ASC, total_ha DESC;
-        """
-        rows = db.session.execute(text(query)).fetchall()
+        semana_req = request.args.get('semana', type=int)
+        anio_req = request.args.get('anio', type=int)
+
+        if semana_req is not None:
+            anio_val = anio_req or 2026
+            query = """
+                SELECT 
+                    :semana_val as semana,
+                    :anio_val as anio,
+                    COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
+                    COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
+                    COUNT(DISTINCT codigo_bloque) as total_bloques,
+                    COUNT(DISTINCT id_cama) as total_camas,
+                    ROUND(SUM(ha)::numeric, 4) as total_ha,
+                    ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
+                FROM mrt_estado_cultivo_actual
+                WHERE producto_actual IS NOT NULL 
+                  AND TRIM(producto_actual) != ''
+                  AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
+                GROUP BY producto_actual, variedad_actual
+                ORDER BY producto_actual ASC, total_ha DESC;
+            """
+            rows = db.session.execute(text(query), {'semana_val': semana_req, 'anio_val': anio_val}).fetchall()
+        else:
+            query = """
+                SELECT 
+                    CASE 
+                        WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
+                        THEN SUBSTRING(semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
+                        ELSE 44 
+                    END as semana,
+                    CASE 
+                        WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
+                        THEN (2000 + SUBSTRING(semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
+                        ELSE 2026 
+                    END as anio,
+                    COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
+                    COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
+                    COUNT(DISTINCT codigo_bloque) as total_bloques,
+                    COUNT(DISTINCT id_cama) as total_camas,
+                    ROUND(SUM(ha)::numeric, 4) as total_ha,
+                    ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
+                FROM mrt_estado_cultivo_actual
+                WHERE producto_actual IS NOT NULL 
+                  AND TRIM(producto_actual) != ''
+                  AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
+                GROUP BY semana_agricola_actual, producto_actual, variedad_actual
+                ORDER BY producto_actual ASC, total_ha DESC;
+            """
+            rows = db.session.execute(text(query)).fetchall()
         data_list = [dict(r._mapping) for r in rows]
 
         for d in data_list:
