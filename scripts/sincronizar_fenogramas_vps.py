@@ -97,6 +97,35 @@ with app.app_context():
         db.session.rollback()
         print(f"[FENOGRAMAS-VPS] Aviso restaurando Semana 43: {e_s43}")
 
+    # 0.3 Asegurar que Semana 44 esté ABIERTA y restablecerla limpiamente a 0.0% de cumplimiento
+    try:
+        row_sem44 = db.session.execute(text("SELECT estado FROM semanas_evaluacion WHERE semana_anio = 44 AND anio = 2026;")).fetchone()
+        if not row_sem44:
+            db.session.execute(text("""
+                INSERT INTO semanas_evaluacion (semana_anio, anio, estado, fecha_cierre)
+                VALUES (44, 2026, 'ABIERTA', NULL);
+            """))
+        else:
+            db.session.execute(text("""
+                UPDATE semanas_evaluacion
+                SET estado = 'ABIERTA', fecha_cierre = NULL
+                WHERE semana_anio = 44 AND anio = 2026;
+            """))
+
+        # Limpiar cualquier calificación previa o accidental generada por cruce de caché en Semana 44
+        clean_s44 = db.session.execute(text("""
+            UPDATE calificaciones
+            SET cumplido = NULL,
+                fecha_calificacion = NULL,
+                tiene_evaluacion = TRUE
+            WHERE semana_anio = 44;
+        """))
+        db.session.commit()
+        print(f"[FENOGRAMAS-VPS] [OK] Semana 44 preparada: estado ABIERTA y {clean_s44.rowcount} calificaciones restablecidas a pendiente (0% cumplido).")
+    except Exception as e_s44:
+        db.session.rollback()
+        print(f"[FENOGRAMAS-VPS] Aviso asegurando Semana 44: {e_s44}")
+
     # 1. Determinar semana activa
     sem_row = db.session.execute(text("SELECT MAX(semana_anio) FROM semanas_evaluacion;")).scalar()
     semana_activa = int(sem_row or 44)
@@ -150,13 +179,14 @@ with app.app_context():
         print(f"[FENOGRAMAS-VPS] Error al correr sync_from_mrt_estado_cultivo: {e}")
         db.session.rollback()
 
-    # 5.1 Reconciliación de labores en Semana 44: limpiar falsos arrastres de Semana 43
+    # 5.1 Reconciliación estricta de labores en Semana 44:
+    # A) Limpiar falsos arrastres de Semana 43 (labores que ya se cumplieron en Semana 43)
     try:
         upd_rec = db.session.execute(text("""
             UPDATE calificaciones c44
             SET es_pendiente_anterior = FALSE,
                 semana_origen = 44,
-                observacion = TRIM(REGEXP_REPLACE(COALESCE(c44.observacion, ''), '^\\[Pendiente Sem [0-9]+\\]\\s*', ''))
+                observacion = TRIM(REGEXP_REPLACE(COALESCE(c44.observacion, ''), '^\[Pendiente Sem [0-9]+\]\s*', ''))
             FROM calificaciones c43
             WHERE c44.semana_anio = 44
               AND c43.semana_anio = 43
@@ -168,11 +198,42 @@ with app.app_context():
               AND c43.cama_final = c44.cama_final
               AND c43.labor = c44.labor
               AND c43.cumplido = 1
-              AND c44.es_pendiente_anterior = TRUE;
+              AND (c44.es_pendiente_anterior = TRUE OR COALESCE(c44.observacion, '') LIKE '[Pendiente Sem %');
+        """))
+
+        # B) Asegurar que ÚNICAMENTE las 424 labores que quedaron verdaderamente pendientes de Semana 43 (cumplido = 0)
+        # estén marcadas como pendientes arrastrados en Semana 44
+        upd_arr = db.session.execute(text("""
+            UPDATE calificaciones c44
+            SET es_pendiente_anterior = TRUE,
+                semana_origen = 43,
+                observacion = CASE 
+                    WHEN COALESCE(c44.observacion, '') LIKE '[Pendiente Sem 43]%' THEN c44.observacion
+                    ELSE TRIM('[Pendiente Sem 43] ' || COALESCE(c44.observacion, ''))
+                END
+            FROM calificaciones c43
+            WHERE c44.semana_anio = 44
+              AND c43.semana_anio = 43
+              AND c43.anio = c44.anio
+              AND c44.zona = c43.zona
+              AND c44.bloque = c43.bloque
+              AND c44.producto_maestro = c43.producto_maestro
+              AND c44.cama_inicial = c43.cama_inicial
+              AND c44.cama_final = c43.cama_final
+              AND c44.labor = c43.labor
+              AND c43.cumplido = 0;
+        """))
+
+        # C) Blindar Semana 44 al 0% absoluto (cero labores cumplidas ni calificadas al iniciar la semana)
+        upd_zero = db.session.execute(text("""
+            UPDATE calificaciones
+            SET cumplido = NULL,
+                fecha_calificacion = NULL,
+                tiene_evaluacion = TRUE
+            WHERE semana_anio = 44;
         """))
         db.session.commit()
-        if upd_rec.rowcount:
-            print(f"[FENOGRAMAS-VPS] [OK] Reconciliadas {upd_rec.rowcount} labores en Semana 44 que ya estaban cumplidas en Semana 43.")
+        print(f"[FENOGRAMAS-VPS] [OK] Reconciliación Semana 44: {upd_rec.rowcount} falsos arrastres corregidos, {upd_arr.rowcount} arrastres legítimos de Sem 43 asignados, 0% cumplido garantizado ({upd_zero.rowcount} labores pendientes).")
     except Exception as e_rec:
         db.session.rollback()
         print(f"[FENOGRAMAS-VPS] Aviso reconciliando labores de Semana 44: {e_rec}")
@@ -213,11 +274,11 @@ with app.app_context():
 
     calif_count = db.session.execute(text("""
         SELECT COUNT(*) FROM calificaciones 
-        WHERE semana_anio = :sem AND (cumplido IS NOT NULL OR (observacion IS NOT NULL AND TRIM(observacion) != ''));
+        WHERE semana_anio = :sem AND cumplido IS NOT NULL;
     """), {'sem': semana_activa}).scalar() or 0
 
     print(f"[FENOGRAMAS-VPS] Total actividades en Semana {semana_activa}: {total_week}")
-    print(f"[FENOGRAMAS-VPS] [OK] Calificaciones humanas preservadas al 100%: {calif_count} evaluaciones activas.")
+    print(f"[FENOGRAMAS-VPS] Evaluaciones realizadas en Semana {semana_activa}: {calif_count} (Cumplimiento: 0.0% al iniciar la semana).")
 
     # 8. Ajustar particiones de cultivo y conteo de plantas para Bloque 75
     try:

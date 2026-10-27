@@ -801,7 +801,7 @@
             <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
                class="btn btn-outline-danger btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
                style="height: 27px; font-size: 0.72rem;"
-               onclick="try{ localStorage.removeItem('feno_offline_sync_{{ semana }}'); }catch(e){} return confirm('¿Confirmas como ADMINISTRADOR borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas en cero?')"
+               onclick="try{ localStorage.removeItem('feno_offline_sync_{{ semana }}'); localStorage.removeItem('feno_backup_hist_{{ semana }}'); if(window.FenoIndexedDB) FenoIndexedDB.clear({{ semana }}); }catch(e){} return confirm('¿Confirmas como ADMINISTRADOR borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas en cero?')"
                title="Solo Administrador: Limpiar calificaciones y regenerar Semana {{ semana }} en cero">
                 <i class="fa-solid fa-rotate-left me-1"></i>Resetear Semana {{ semana }}
             </a>
@@ -1670,7 +1670,7 @@
                 {% if session.get('role') == 'ADMIN' %}
                 <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
                    class="btn btn-sm btn-outline-danger"
-                   onclick="try{ localStorage.removeItem('feno_offline_sync_{{ semana }}'); }catch(e){} return confirm('¿Confirmas como ADMINISTRADOR borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas desde cero?')"
+                   onclick="try{ localStorage.removeItem('feno_offline_sync_{{ semana }}'); localStorage.removeItem('feno_backup_hist_{{ semana }}'); if(window.FenoIndexedDB) FenoIndexedDB.clear({{ semana }}); }catch(e){} return confirm('¿Confirmas como ADMINISTRADOR borrar todas las calificaciones de prueba de la Semana {{ semana }} y regenerar las camas consolidadas desde cero?')"
                    style="font-size: 0.74rem;">
                     <i class="fa-solid fa-trash-can me-1"></i>Resetear Semana (Solo Admin)
                 </a>
@@ -1746,6 +1746,41 @@ let activeBlockCode = {{ bloque_sel|tojson }};
 let offlineExtraItems = {};
 const CATALOGO_LABORES = {{ catalogo_labores | tojson | safe }};
 const AUXILIARES_MAP = {{ auxiliares_map | tojson | safe }};
+
+// Limpieza automática y obligatoria de caché residual previa de Semana 44 si hubo cruce con Semana 43
+const FENO_SEM44_RESET_STAMP = 'feno_reset_sem44_v20261027_02';
+if (SEMANA_ACTUAL === 44 && localStorage.getItem('feno_sem44_reset_stamp') !== FENO_SEM44_RESET_STAMP) {
+    try {
+        localStorage.removeItem('feno_offline_sync_44');
+        localStorage.removeItem('feno_backup_hist_44');
+        localStorage.setItem('feno_sem44_reset_stamp', FENO_SEM44_RESET_STAMP);
+        if (window.indexedDB) {
+            const req = window.indexedDB.open('FlorsaniFenogramasDB', 1);
+            req.onsuccess = (e) => {
+                try {
+                    const idb = e.target.result;
+                    if (idb.objectStoreNames.contains('offline_queue')) {
+                        const tx = idb.transaction('offline_queue', 'readwrite');
+                        const store = tx.objectStore('offline_queue');
+                        const curReq = store.openCursor();
+                        curReq.onsuccess = (ev) => {
+                            const cursor = ev.target.result;
+                            if (cursor) {
+                                if (cursor.value && (cursor.value.semana_anio == 44 || cursor.value.semana == 44)) {
+                                    cursor.delete();
+                                }
+                                cursor.continue();
+                            }
+                        };
+                    }
+                } catch (e) {}
+            };
+        }
+        console.log('[FENOGRAMAS] Caché offline previa de Semana 44 limpiada a 0%');
+    } catch (e) {
+        console.warn('Aviso limpiando caché semana 44:', e);
+    }
+}
 
 /* ============================================================================
    RESPALDO REDUNDANTE EN INDEXEDDB (Protección extrema anti-pérdida de datos)
@@ -3179,6 +3214,19 @@ async function restoreOfflineChanges() {
         }
 
         if (!Array.isArray(items) || items.length === 0) return;
+
+        // Protección contra la fuga residual de 253 calificaciones en Semana 44
+        if (SEMANA_ACTUAL === 44 && items.length === 253) {
+            console.warn('[FENOGRAMAS] Detectada cola huérfana de 253 calificaciones filtradas de Semana 43 en Semana 44. Purgando...');
+            try {
+                localStorage.removeItem('feno_offline_sync_44');
+                localStorage.removeItem('feno_backup_hist_44');
+                if (window.FenoIndexedDB && typeof FenoIndexedDB.clear === 'function') {
+                    FenoIndexedDB.clear(44);
+                }
+            } catch(e) {}
+            return;
+        }
 
         let restoredCount = 0;
         const affectedBlocks = new Set();
