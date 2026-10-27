@@ -344,6 +344,12 @@ def create_app(config_class=Config):
                 'cosechas.api_cosechas_datos_semanales', 'cosechas.api_areas_resumen'
             ]:
                 return None
+
+        if request.path and (
+            request.path.startswith('/cosechas/api/datos-semanales') or
+            request.path.startswith('/cosechas/api/areas-resumen')
+        ):
+            return None
         
         if 'user_id' not in session:
             # Si es una petición API / JSON / AJAX, retornar 401 JSON en lugar de redirección HTML 302
