@@ -1751,12 +1751,12 @@ def api_cosechas_datos_semanales():
         else:
             query = f"""
                 SELECT 
-                    r.id,
                     r.semana,
                     CASE 
                         WHEN r.fecha IS NOT NULL THEN EXTRACT(ISOYEAR FROM r.fecha)::INTEGER 
                         ELSE 2026 
                     END as anio,
+                    r.id,
                     COALESCE(r.fecha::TEXT, '') as fecha,
                     CASE 
                         WHEN r.fecha IS NOT NULL THEN EXTRACT(ISODOW FROM r.fecha)::INTEGER 
@@ -1842,6 +1842,16 @@ def api_areas_resumen():
         sep_param = request.args.get('sep', ';')
         query = """
             SELECT 
+                CASE 
+                    WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
+                    THEN SUBSTRING(semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
+                    ELSE 44 
+                END as semana,
+                CASE 
+                    WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
+                    THEN (2000 + SUBSTRING(semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
+                    ELSE 2026 
+                END as anio,
                 COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
                 COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
                 COUNT(DISTINCT codigo_bloque) as total_bloques,
@@ -1852,7 +1862,7 @@ def api_areas_resumen():
             WHERE producto_actual IS NOT NULL 
               AND TRIM(producto_actual) != ''
               AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
-            GROUP BY producto_actual, variedad_actual
+            GROUP BY semana_agricola_actual, producto_actual, variedad_actual
             ORDER BY producto_actual ASC, total_ha DESC;
         """
         rows = db.session.execute(text(query)).fetchall()
