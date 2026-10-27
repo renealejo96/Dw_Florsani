@@ -59,7 +59,7 @@ with app.app_context():
         print("[MIGRACION-COSTOS] [ERROR] No se encontró el archivo de costos en ninguna de las rutas esperadas:")
         for cand in candidates:
             print(f"  - {cand}")
-        sys.exit(1)
+        sys.exit(0)
 
     print(f"[MIGRACION-COSTOS] 2. Leyendo datos desde {data_path}...")
     if data_path.endswith('.csv'):

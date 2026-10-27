@@ -337,6 +337,28 @@ def create_app(config_class=Config):
     @app.before_request
     def check_authenticated_user():
         from flask import request, redirect, url_for, jsonify
+        # 0. Acceso autorizado por API Key o Token (Excel, Power Query, Postman)
+        api_token = (
+            request.args.get('api_key') or 
+            request.args.get('token') or 
+            request.headers.get('X-API-KEY') or
+            request.headers.get('X-Token')
+        )
+        if api_token in ['florsani2026', 'florsani_excel_2026', 'florsani']:
+            return None
+
+        # 0.1 Acceso por HTTP Basic Auth (Autenticacion Basica de Excel)
+        auth = request.authorization
+        if auth and auth.username and auth.password:
+            try:
+                from app.shared.models import User
+                user = User.query.filter_by(username=auth.username).first()
+                if user and user.check_password(auth.password) and user.active:
+                    session['user_id'] = user.id
+                    return None
+            except Exception:
+                pass
+
         if request.endpoint:
             if request.endpoint.startswith('static') or request.endpoint in [
                 'auth.login', 'auth.logout', 'auth.api_quick_login',
