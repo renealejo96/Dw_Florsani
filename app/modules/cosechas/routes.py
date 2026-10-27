@@ -1,9 +1,11 @@
 from math import ceil
 from datetime import datetime, timedelta
+import io
+import csv
 from io import BytesIO
 from collections import defaultdict
 import pandas as pd
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, jsonify, session, Response
 
 from sqlalchemy import text
 from app.extensions import db
@@ -1671,3 +1673,158 @@ def api_tallos_producto_maestro_por_semana():
         'total_semanas': len(resultado),
         'semanas': resultado
     })
+
+
+
+# ==============================================================================
+# API PARA EXCEL / POWER QUERY: COSECHAS SEMANA A SEMANA
+# ==============================================================================
+@cosechas_bp.route('/api/datos-semanales', methods=['GET'])
+def api_cosechas_datos_semanales():
+    """
+    API optimizada para conectar Microsoft Excel (Power Query / Obtener datos de la web).
+    Devuelve los datos de cosechas semana a semana en formato plano tabular JSON o CSV con BOM UTF-8.
+    Parámetros:
+      - semana: int opcional (ej: 43)
+      - anio: int opcional (ej: 2026)
+      - producto: str opcional (ej: 'GYPSOPHILA')
+      - resumen: 1 para resumen agregado por semana/producto/variedad, 0 para detalle fila a fila (por defecto 0)
+      - formato: 'json' (por defecto) o 'csv'
+    """
+    semana_param = request.args.get('semana', type=int)
+    anio_param = request.args.get('anio', type=int)
+    producto_param = (request.args.get('producto') or '').strip().upper()
+    resumen_param = request.args.get('resumen', '0').strip() in ('1', 'true', 'si')
+    formato_param = request.args.get('formato', 'json').strip().lower()
+
+    dias_semana_map = {1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo'}
+
+    if resumen_param:
+        query = """
+            SELECT 
+                r.semana,
+                EXTRACT(ISOYEAR FROM r.fecha)::INTEGER as anio,
+                COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), 'SIN CLASIFICAR') as producto_maestro,
+                UPPER(TRIM(r.variedad)) as variedad,
+                COUNT(DISTINCT r.modulo) as total_bloques,
+                COUNT(r.id) as total_registros,
+                SUM(r.mallas) as total_mallas,
+                SUM(r.total_tallos) as total_tallos,
+                MIN(r.fecha)::TEXT as fecha_inicio,
+                MAX(r.fecha)::TEXT as fecha_fin
+            FROM registro_cosecha r
+            LEFT JOIN cat_variedades_maestro cvm 
+                   ON UPPER(TRIM(cvm.variedad)) = UPPER(TRIM(r.variedad))
+            WHERE (:semana IS NULL OR r.semana = :semana)
+              AND (:anio IS NULL OR EXTRACT(ISOYEAR FROM r.fecha) = :anio)
+              AND (:producto IS NULL OR UPPER(TRIM(COALESCE(cvm.producto_maestro, ''))) = :producto)
+            GROUP BY r.semana, EXTRACT(ISOYEAR FROM r.fecha), COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), 'SIN CLASIFICAR'), UPPER(TRIM(r.variedad))
+            ORDER BY anio DESC, r.semana DESC, producto_maestro ASC, total_tallos DESC;
+        """
+    else:
+        query = """
+            SELECT 
+                r.id,
+                r.semana,
+                EXTRACT(ISOYEAR FROM r.fecha)::INTEGER as anio,
+                r.fecha::TEXT as fecha,
+                EXTRACT(ISODOW FROM r.fecha)::INTEGER as dia_num,
+                r.viaje,
+                r.modulo as bloque,
+                UPPER(TRIM(r.variedad)) as variedad,
+                COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), 'SIN CLASIFICAR') as producto_maestro,
+                r.mallas,
+                r.tallos as tallos_por_malla,
+                r.total_tallos,
+                TO_CHAR(r.hora, 'HH24:MI') as hora,
+                r.responsable
+            FROM registro_cosecha r
+            LEFT JOIN cat_variedades_maestro cvm 
+                   ON UPPER(TRIM(cvm.variedad)) = UPPER(TRIM(r.variedad))
+            WHERE (:semana IS NULL OR r.semana = :semana)
+              AND (:anio IS NULL OR EXTRACT(ISOYEAR FROM r.fecha) = :anio)
+              AND (:producto IS NULL OR UPPER(TRIM(COALESCE(cvm.producto_maestro, ''))) = :producto)
+            ORDER BY r.fecha DESC, r.semana DESC, r.hora DESC, r.id DESC;
+        """
+
+    params = {
+        'semana': semana_param,
+        'anio': anio_param,
+        'producto': producto_param if producto_param else None
+    }
+    rows = db.session.execute(text(query), params).fetchall()
+
+    data_list = []
+    for r in rows:
+        d = dict(r._mapping)
+        if 'dia_num' in d:
+            d['dia_semana'] = dias_semana_map.get(d.pop('dia_num', 1), 'Desconocido')
+        data_list.append(d)
+
+    if formato_param == 'csv':
+        if not data_list:
+            csv_output = "No se encontraron datos\n"
+        else:
+            headers = list(data_list[0].keys())
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=headers, delimiter=';')
+            writer.writeheader()
+            writer.writerows(data_list)
+            csv_output = output.getvalue()
+
+        return Response(
+            '\ufeff' + csv_output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=cosechas_semanales_{semana_param or 'todas'}.csv"}
+        )
+
+    return jsonify(data_list)
+
+
+# ==============================================================================
+# API PARA EXCEL / POWER QUERY: RESUMEN DE ÁREAS (HECTÁREAS POR PRODUCTO Y VARIEDAD)
+# ==============================================================================
+@cosechas_bp.route('/api/areas-resumen', methods=['GET'])
+def api_areas_resumen():
+    """
+    API para Microsoft Excel que devuelve el resumen oficial de hectáreas y camas
+    por producto maestro y variedad desde mrt_estado_cultivo_actual.
+    """
+    formato = request.args.get('formato', 'json').strip().lower()
+    query = """
+        SELECT 
+            COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
+            COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
+            COUNT(DISTINCT codigo_bloque) as total_bloques,
+            COUNT(DISTINCT id_cama) as total_camas,
+            ROUND(SUM(ha)::numeric, 4) as total_ha,
+            ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
+        FROM mrt_estado_cultivo_actual
+        WHERE producto_actual IS NOT NULL AND TRIM(producto_actual) != ''
+        GROUP BY producto_actual, variedad_actual
+        ORDER BY producto_actual ASC, total_ha DESC;
+    """
+    rows = db.session.execute(text(query)).fetchall()
+    data_list = [dict(r._mapping) for r in rows]
+
+    for d in data_list:
+        d['total_ha'] = float(d['total_ha'] or 0.0)
+        d['total_camas_estandar'] = float(d['total_camas_estandar'] or 0.0)
+
+    if formato == 'csv':
+        if not data_list:
+            csv_output = "No hay datos\n"
+        else:
+            headers = list(data_list[0].keys())
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=headers, delimiter=';')
+            writer.writeheader()
+            writer.writerows(data_list)
+            csv_output = output.getvalue()
+        return Response(
+            '\ufeff' + csv_output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=areas_finca_florsani.csv"}
+        )
+
+    return jsonify(data_list)

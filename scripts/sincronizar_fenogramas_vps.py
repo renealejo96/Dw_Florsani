@@ -150,6 +150,33 @@ with app.app_context():
         print(f"[FENOGRAMAS-VPS] Error al correr sync_from_mrt_estado_cultivo: {e}")
         db.session.rollback()
 
+    # 5.1 Reconciliación de labores en Semana 44: limpiar falsos arrastres de Semana 43
+    try:
+        upd_rec = db.session.execute(text("""
+            UPDATE calificaciones c44
+            SET es_pendiente_anterior = FALSE,
+                semana_origen = 44,
+                observacion = TRIM(REGEXP_REPLACE(COALESCE(c44.observacion, ''), '^\\[Pendiente Sem [0-9]+\\]\\s*', ''))
+            FROM calificaciones c43
+            WHERE c44.semana_anio = 44
+              AND c43.semana_anio = 43
+              AND c43.anio = c44.anio
+              AND c43.zona = c44.zona
+              AND c43.bloque = c44.bloque
+              AND c43.producto_maestro = c44.producto_maestro
+              AND c43.cama_inicial = c44.cama_inicial
+              AND c43.cama_final = c44.cama_final
+              AND c43.labor = c44.labor
+              AND c43.cumplido = 1
+              AND c44.es_pendiente_anterior = TRUE;
+        """))
+        db.session.commit()
+        if upd_rec.rowcount:
+            print(f"[FENOGRAMAS-VPS] [OK] Reconciliadas {upd_rec.rowcount} labores en Semana 44 que ya estaban cumplidas en Semana 43.")
+    except Exception as e_rec:
+        db.session.rollback()
+        print(f"[FENOGRAMAS-VPS] Aviso reconciliando labores de Semana 44: {e_rec}")
+
     # 6. Homologar auxiliares y supervisores en calificaciones sin evaluar usando resolución por alias
     print("[FENOGRAMAS-VPS] Homologando personal asignado en calificaciones sin evaluar...")
     try:

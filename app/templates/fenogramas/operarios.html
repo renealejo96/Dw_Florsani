@@ -3163,25 +3163,7 @@ async function restoreOfflineChanges() {
             }
         }
 
-        // Búsqueda de respaldo inteligente: si no hay en la semana activa, buscar si hay cambios pendientes guardados en otra semana
-        if (!raw) {
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith('feno_offline_sync_')) {
-                    const testVal = localStorage.getItem(k);
-                    if (testVal && testVal.length > 10) {
-                        try {
-                            const parsed = JSON.parse(testVal);
-                            if (Array.isArray(parsed) && parsed.length > 0) {
-                                raw = testVal;
-                                console.log(`Restaurando desde clave alternativa ${k} (${parsed.length} items)`);
-                                break;
-                            }
-                        } catch (e) {}
-                    }
-                }
-            }
-        }
+
 
         let items = [];
         if (raw) {

@@ -340,7 +340,8 @@ def create_app(config_class=Config):
         if request.endpoint:
             if request.endpoint.startswith('static') or request.endpoint in [
                 'auth.login', 'auth.logout', 'auth.api_quick_login',
-                'fenogramas.api_ping', 'service_worker_file'
+                'fenogramas.api_ping', 'service_worker_file',
+                'cosechas.api_cosechas_datos_semanales', 'cosechas.api_areas_resumen'
             ]:
                 return None
         
