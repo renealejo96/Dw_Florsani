@@ -1690,18 +1690,39 @@ def api_cosechas_datos_semanales():
       - producto: str opcional (ej: 'GYPSOPHILA')
       - resumen: 1 para resumen agregado por semana/producto/variedad, 0 para detalle fila a fila (por defecto 0)
       - formato: 'json' (por defecto) o 'csv'
+      - sep: delimitador CSV (';' por defecto, o ',')
     """
+    if request.method == 'HEAD':
+        resp = Response(status=200, mimetype='application/json')
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp
+
     try:
         semana_param = request.args.get('semana', type=int)
         anio_param = request.args.get('anio', type=int)
         producto_param = (request.args.get('producto') or '').strip().upper()
         resumen_param = request.args.get('resumen', '0').strip() in ('1', 'true', 'si')
         formato_param = request.args.get('formato', 'json').strip().lower()
+        sep_param = request.args.get('sep', ';')
 
         dias_semana_map = {1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo'}
 
+        where_clauses = []
+        params = {}
+        if semana_param is not None:
+            where_clauses.append("r.semana = :semana")
+            params['semana'] = semana_param
+        if anio_param is not None:
+            where_clauses.append("(r.fecha IS NOT NULL AND EXTRACT(ISOYEAR FROM r.fecha) = :anio)")
+            params['anio'] = anio_param
+        if producto_param:
+            where_clauses.append("UPPER(TRIM(COALESCE(cvm.producto_maestro, ''))) = :producto")
+            params['producto'] = producto_param
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
         if resumen_param:
-            query = """
+            query = f"""
                 SELECT 
                     r.semana,
                     CASE 
@@ -1717,16 +1738,18 @@ def api_cosechas_datos_semanales():
                     MIN(r.fecha)::TEXT as fecha_inicio,
                     MAX(r.fecha)::TEXT as fecha_fin
                 FROM registro_cosecha r
-                LEFT JOIN cat_variedades_maestro cvm 
-                       ON UPPER(TRIM(cvm.variedad)) = UPPER(TRIM(r.variedad))
-                WHERE (:semana IS NULL OR r.semana = :semana)
-                  AND (:anio IS NULL OR (r.fecha IS NOT NULL AND EXTRACT(ISOYEAR FROM r.fecha) = :anio))
-                  AND (:producto IS NULL OR UPPER(TRIM(COALESCE(cvm.producto_maestro, ''))) = :producto)
+                LEFT JOIN (
+                    SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
+                        UPPER(TRIM(variedad)) as norm_var, 
+                        producto_maestro 
+                    FROM cat_variedades_maestro
+                ) cvm ON cvm.norm_var = UPPER(TRIM(r.variedad))
+                {where_sql}
                 GROUP BY r.semana, (CASE WHEN r.fecha IS NOT NULL THEN EXTRACT(ISOYEAR FROM r.fecha)::INTEGER ELSE 2026 END), COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), 'SIN CLASIFICAR'), UPPER(TRIM(COALESCE(r.variedad, '')))
                 ORDER BY anio DESC, r.semana DESC, producto_maestro ASC, total_tallos DESC;
             """
         else:
-            query = """
+            query = f"""
                 SELECT 
                     r.id,
                     r.semana,
@@ -1749,19 +1772,16 @@ def api_cosechas_datos_semanales():
                     COALESCE(SUBSTRING(r.hora::TEXT FROM 1 FOR 5), '') as hora,
                     COALESCE(r.responsable, '') as responsable
                 FROM registro_cosecha r
-                LEFT JOIN cat_variedades_maestro cvm 
-                       ON UPPER(TRIM(cvm.variedad)) = UPPER(TRIM(r.variedad))
-                WHERE (:semana IS NULL OR r.semana = :semana)
-                  AND (:anio IS NULL OR (r.fecha IS NOT NULL AND EXTRACT(ISOYEAR FROM r.fecha) = :anio))
-                  AND (:producto IS NULL OR UPPER(TRIM(COALESCE(cvm.producto_maestro, ''))) = :producto)
+                LEFT JOIN (
+                    SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
+                        UPPER(TRIM(variedad)) as norm_var, 
+                        producto_maestro 
+                    FROM cat_variedades_maestro
+                ) cvm ON cvm.norm_var = UPPER(TRIM(r.variedad))
+                {where_sql}
                 ORDER BY r.fecha DESC, r.semana DESC, r.id DESC;
             """
 
-        params = {
-            'semana': semana_param,
-            'anio': anio_param,
-            'producto': producto_param if producto_param else None
-        }
         rows = db.session.execute(text(query), params).fetchall()
 
         data_list = []
@@ -1777,19 +1797,24 @@ def api_cosechas_datos_semanales():
             else:
                 headers = list(data_list[0].keys())
                 output = io.StringIO()
-                writer = csv.DictWriter(output, fieldnames=headers, delimiter=';')
+                writer = csv.DictWriter(output, fieldnames=headers, delimiter=sep_param)
                 writer.writeheader()
                 writer.writerows(data_list)
                 csv_output = output.getvalue()
 
-            return Response(
+            resp = Response(
                 '\ufeff' + csv_output,
-                mimetype="text/csv",
+                mimetype="text/csv; charset=utf-8",
                 headers={"Content-Disposition": f"attachment; filename=cosechas_semanales_{semana_param or 'todas'}.csv"}
             )
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
 
-        return jsonify(data_list)
+        resp = jsonify(data_list)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp
     except Exception as e:
+        db.session.rollback()
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -1807,8 +1832,14 @@ def api_areas_resumen():
     API para Microsoft Excel que devuelve el resumen oficial de hectáreas y camas
     por producto maestro y variedad desde mrt_estado_cultivo_actual.
     """
+    if request.method == 'HEAD':
+        resp = Response(status=200, mimetype="application/json")
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp
+
     try:
         formato = request.args.get('formato', 'json').strip().lower()
+        sep_param = request.args.get('sep', ';')
         query = """
             SELECT 
                 COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
@@ -1818,7 +1849,9 @@ def api_areas_resumen():
                 ROUND(SUM(ha)::numeric, 4) as total_ha,
                 ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
             FROM mrt_estado_cultivo_actual
-            WHERE producto_actual IS NOT NULL AND TRIM(producto_actual) != ''
+            WHERE producto_actual IS NOT NULL 
+              AND TRIM(producto_actual) != ''
+              AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
             GROUP BY producto_actual, variedad_actual
             ORDER BY producto_actual ASC, total_ha DESC;
         """
@@ -1835,18 +1868,23 @@ def api_areas_resumen():
             else:
                 headers = list(data_list[0].keys())
                 output = io.StringIO()
-                writer = csv.DictWriter(output, fieldnames=headers, delimiter=';')
+                writer = csv.DictWriter(output, fieldnames=headers, delimiter=sep_param)
                 writer.writeheader()
                 writer.writerows(data_list)
                 csv_output = output.getvalue()
-            return Response(
+            resp = Response(
                 '\ufeff' + csv_output,
-                mimetype="text/csv",
+                mimetype="text/csv; charset=utf-8",
                 headers={"Content-Disposition": "attachment; filename=areas_finca_florsani.csv"}
             )
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
 
-        return jsonify(data_list)
+        resp = jsonify(data_list)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp
     except Exception as e:
+        db.session.rollback()
         import traceback
         traceback.print_exc()
         return jsonify({
