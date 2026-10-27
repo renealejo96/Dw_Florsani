@@ -24,6 +24,7 @@ docker cp "costos productos.xlsx" dw_florsani_app:/app/ 2>/dev/null || true
 echo "🔄 Copiando plantillas y código actualizado..."
 docker cp app/. dw_florsani_app:/app/app/
 docker cp scripts/. dw_florsani_app:/app/scripts/
+docker cp run.py dw_florsani_app:/app/ 2>/dev/null || true
 
 echo "🧹 Limpiando caché compilada de Python en contenedor..."
 docker exec dw_florsani_app find /app/app -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
