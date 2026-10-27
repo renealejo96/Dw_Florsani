@@ -97,7 +97,7 @@ with app.app_context():
         db.session.rollback()
         print(f"[FENOGRAMAS-VPS] Aviso restaurando Semana 43: {e_s43}")
 
-    # 0.3 Asegurar que Semana 44 esté ABIERTA y restablecerla limpiamente a 0.0% de cumplimiento
+    # 0.3 Asegurar que Semana 44 esté en estado ABIERTA (Preservando calificaciones de evaluadores)
     try:
         row_sem44 = db.session.execute(text("SELECT estado FROM semanas_evaluacion WHERE semana_anio = 44 AND anio = 2026;")).fetchone()
         if not row_sem44:
@@ -105,23 +105,15 @@ with app.app_context():
                 INSERT INTO semanas_evaluacion (semana_anio, anio, estado, fecha_cierre)
                 VALUES (44, 2026, 'ABIERTA', NULL);
             """))
-        else:
+            db.session.commit()
+        elif row_sem44.estado != 'ABIERTA':
             db.session.execute(text("""
                 UPDATE semanas_evaluacion
                 SET estado = 'ABIERTA', fecha_cierre = NULL
                 WHERE semana_anio = 44 AND anio = 2026;
             """))
-
-        # Limpiar cualquier calificación previa o accidental generada por cruce de caché en Semana 44
-        clean_s44 = db.session.execute(text("""
-            UPDATE calificaciones
-            SET cumplido = NULL,
-                fecha_calificacion = NULL,
-                tiene_evaluacion = TRUE
-            WHERE semana_anio = 44;
-        """))
-        db.session.commit()
-        print(f"[FENOGRAMAS-VPS] [OK] Semana 44 preparada: estado ABIERTA y {clean_s44.rowcount} calificaciones restablecidas a pendiente (0% cumplido).")
+            db.session.commit()
+        print(f"[FENOGRAMAS-VPS] [OK] Semana 44 verificada: estado ABIERTA (preservando calificaciones de evaluadores).")
     except Exception as e_s44:
         db.session.rollback()
         print(f"[FENOGRAMAS-VPS] Aviso asegurando Semana 44: {e_s44}")
@@ -179,14 +171,14 @@ with app.app_context():
         print(f"[FENOGRAMAS-VPS] Error al correr sync_from_mrt_estado_cultivo: {e}")
         db.session.rollback()
 
-    # 5.1 Reconciliación estricta de labores en Semana 44:
-    # A) Limpiar falsos arrastres de Semana 43 (labores que ya se cumplieron en Semana 43)
+    # 5.1 Reconciliación estricta de labores en Semana 44 (Preservando calificaciones de campo):
     try:
+        # A) Limpiar falsos arrastres de Semana 43 (labores que ya se cumplieron en Semana 43)
         upd_rec = db.session.execute(text("""
             UPDATE calificaciones c44
             SET es_pendiente_anterior = FALSE,
                 semana_origen = 44,
-                observacion = TRIM(REGEXP_REPLACE(COALESCE(c44.observacion, ''), '^\[Pendiente Sem [0-9]+\]\s*', ''))
+                observacion = TRIM(REGEXP_REPLACE(COALESCE(c44.observacion, ''), '^[Pendiente Sem [0-9]+]\\s*', ''))
             FROM calificaciones c43
             WHERE c44.semana_anio = 44
               AND c43.semana_anio = 43
@@ -202,7 +194,7 @@ with app.app_context():
         """))
 
         # B) Asegurar que ÚNICAMENTE las 424 labores que quedaron verdaderamente pendientes de Semana 43 (cumplido = 0)
-        # estén marcadas como pendientes arrastrados en Semana 44
+        # estén marcadas como pendientes arrastrados en Semana 44 sin alterar calificaciones ya ingresadas por evaluadores
         upd_arr = db.session.execute(text("""
             UPDATE calificaciones c44
             SET es_pendiente_anterior = TRUE,
@@ -221,19 +213,11 @@ with app.app_context():
               AND c44.cama_inicial = c43.cama_inicial
               AND c44.cama_final = c43.cama_final
               AND c44.labor = c43.labor
-              AND c43.cumplido = 0;
-        """))
-
-        # C) Blindar Semana 44 al 0% absoluto (cero labores cumplidas ni calificadas al iniciar la semana)
-        upd_zero = db.session.execute(text("""
-            UPDATE calificaciones
-            SET cumplido = NULL,
-                fecha_calificacion = NULL,
-                tiene_evaluacion = TRUE
-            WHERE semana_anio = 44;
+              AND c43.cumplido = 0
+              AND c44.cumplido IS NULL;
         """))
         db.session.commit()
-        print(f"[FENOGRAMAS-VPS] [OK] Reconciliación Semana 44: {upd_rec.rowcount} falsos arrastres corregidos, {upd_arr.rowcount} arrastres legítimos de Sem 43 asignados, 0% cumplido garantizado ({upd_zero.rowcount} labores pendientes).")
+        print(f"[FENOGRAMAS-VPS] [OK] Reconciliación Semana 44: {upd_rec.rowcount} falsos arrastres corregidos, {upd_arr.rowcount} arrastres de Sem 43 confirmados (calificaciones humanas 100% preservadas).")
     except Exception as e_rec:
         db.session.rollback()
         print(f"[FENOGRAMAS-VPS] Aviso reconciliando labores de Semana 44: {e_rec}")

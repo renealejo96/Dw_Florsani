@@ -1747,41 +1747,6 @@ let offlineExtraItems = {};
 const CATALOGO_LABORES = {{ catalogo_labores | tojson | safe }};
 const AUXILIARES_MAP = {{ auxiliares_map | tojson | safe }};
 
-// Limpieza automática y obligatoria de caché residual previa de Semana 44 si hubo cruce con Semana 43
-const FENO_SEM44_RESET_STAMP = 'feno_reset_sem44_v20261027_02';
-if (SEMANA_ACTUAL === 44 && localStorage.getItem('feno_sem44_reset_stamp') !== FENO_SEM44_RESET_STAMP) {
-    try {
-        localStorage.removeItem('feno_offline_sync_44');
-        localStorage.removeItem('feno_backup_hist_44');
-        localStorage.setItem('feno_sem44_reset_stamp', FENO_SEM44_RESET_STAMP);
-        if (window.indexedDB) {
-            const req = window.indexedDB.open('FlorsaniFenogramasDB', 1);
-            req.onsuccess = (e) => {
-                try {
-                    const idb = e.target.result;
-                    if (idb.objectStoreNames.contains('offline_queue')) {
-                        const tx = idb.transaction('offline_queue', 'readwrite');
-                        const store = tx.objectStore('offline_queue');
-                        const curReq = store.openCursor();
-                        curReq.onsuccess = (ev) => {
-                            const cursor = ev.target.result;
-                            if (cursor) {
-                                if (cursor.value && (cursor.value.semana_anio == 44 || cursor.value.semana == 44)) {
-                                    cursor.delete();
-                                }
-                                cursor.continue();
-                            }
-                        };
-                    }
-                } catch (e) {}
-            };
-        }
-        console.log('[FENOGRAMAS] Caché offline previa de Semana 44 limpiada a 0%');
-    } catch (e) {
-        console.warn('Aviso limpiando caché semana 44:', e);
-    }
-}
-
 /* ============================================================================
    RESPALDO REDUNDANTE EN INDEXEDDB (Protección extrema anti-pérdida de datos)
    ============================================================================ */
