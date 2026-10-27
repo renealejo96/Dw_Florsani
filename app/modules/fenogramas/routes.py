@@ -662,7 +662,12 @@ def api_calificar_lote():
         for item in items:
             item_id = item.get('id')
             cumplido = item.get('cumplido')
-            obs = item.get('observacion', '')
+            if cumplido is None and 'val' in item:
+                cumplido = item.get('val')
+            obs = item.get('observacion')
+            if not obs and 'obs' in item:
+                obs = item.get('obs')
+            obs = (obs or '').strip()
             nueva_labor = (item.get('labor') or '').strip()
             nuevo_aux = (item.get('auxiliar') or '').strip()
             nuevo_sup = (item.get('supervisor') or '').strip()
