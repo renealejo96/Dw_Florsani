@@ -1831,6 +1831,7 @@ def api_areas_resumen():
     """
     API para Microsoft Excel que devuelve el resumen oficial de hectáreas y camas
     por producto maestro y variedad desde mrt_estado_cultivo_actual.
+    Incluye normalización con Catálogo Maestro y suma completa de 32.09 ha de la finca.
     """
     if request.method == 'HEAD':
         resp = Response(status=200, mimetype="application/json")
@@ -1842,52 +1843,65 @@ def api_areas_resumen():
         sep_param = request.args.get('sep', ';')
         semana_req = request.args.get('semana', type=int)
         anio_req = request.args.get('anio', type=int)
+        solo_sembradas = request.args.get('solo_sembradas', 'no').strip().lower() in ('si', 'true', '1')
+
+        where_clause = ""
+        if solo_sembradas:
+            where_clause = "WHERE m.producto_actual IS NOT NULL AND TRIM(m.producto_actual) != '' AND UPPER(TRIM(m.producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')"
 
         if semana_req is not None:
             anio_val = anio_req or 2026
-            query = """
+            query = f"""
                 SELECT 
                     :semana_val as semana,
                     :anio_val as anio,
-                    COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
-                    COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
-                    COUNT(DISTINCT codigo_bloque) as total_bloques,
-                    COUNT(DISTINCT id_cama) as total_camas,
-                    ROUND(SUM(ha)::numeric, 4) as total_ha,
-                    ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
-                FROM mrt_estado_cultivo_actual
-                WHERE producto_actual IS NOT NULL 
-                  AND TRIM(producto_actual) != ''
-                  AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
-                GROUP BY producto_actual, variedad_actual
-                ORDER BY producto_actual ASC, total_ha DESC;
+                    COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR') as producto_maestro,
+                    COALESCE(NULLIF(TRIM(m.variedad_actual), ''), 'SIN VARIEDAD') as variedad,
+                    COUNT(DISTINCT m.codigo_bloque) as total_bloques,
+                    COUNT(DISTINCT m.id_cama) as total_camas,
+                    ROUND(SUM(m.ha)::numeric, 4) as total_ha,
+                    ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar
+                FROM mrt_estado_cultivo_actual m
+                LEFT JOIN (
+                    SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
+                        UPPER(TRIM(variedad)) as norm_var, 
+                        producto_maestro 
+                    FROM cat_variedades_maestro
+                ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
+                {where_clause}
+                GROUP BY 1, 2, 3, 4
+                ORDER BY total_ha DESC, producto_maestro ASC;
             """
             rows = db.session.execute(text(query), {'semana_val': semana_req, 'anio_val': anio_val}).fetchall()
         else:
-            query = """
+            query = f"""
                 SELECT 
                     CASE 
-                        WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
-                        THEN SUBSTRING(semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
+                        WHEN m.semana_agricola_actual IS NOT NULL AND LENGTH(m.semana_agricola_actual::TEXT) >= 4 
+                        THEN SUBSTRING(m.semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
                         ELSE 44 
                     END as semana,
                     CASE 
-                        WHEN semana_agricola_actual IS NOT NULL AND LENGTH(semana_agricola_actual::TEXT) >= 4 
-                        THEN (2000 + SUBSTRING(semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
+                        WHEN m.semana_agricola_actual IS NOT NULL AND LENGTH(m.semana_agricola_actual::TEXT) >= 4 
+                        THEN (2000 + SUBSTRING(m.semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
                         ELSE 2026 
                     END as anio,
-                    COALESCE(NULLIF(TRIM(producto_actual), ''), 'SIN PRODUCTO') as producto_maestro,
-                    COALESCE(NULLIF(TRIM(variedad_actual), ''), 'SIN VARIEDAD') as variedad,
-                    COUNT(DISTINCT codigo_bloque) as total_bloques,
-                    COUNT(DISTINCT id_cama) as total_camas,
-                    ROUND(SUM(ha)::numeric, 4) as total_ha,
-                    ROUND(SUM(cama_estandar)::numeric, 2) as total_camas_estandar
-                FROM mrt_estado_cultivo_actual
-                WHERE producto_actual IS NOT NULL 
-                  AND TRIM(producto_actual) != ''
-                  AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')
-                GROUP BY semana_agricola_actual, producto_actual, variedad_actual
-                ORDER BY producto_actual ASC, total_ha DESC;
+                    COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR') as producto_maestro,
+                    COALESCE(NULLIF(TRIM(m.variedad_actual), ''), 'SIN VARIEDAD') as variedad,
+                    COUNT(DISTINCT m.codigo_bloque) as total_bloques,
+                    COUNT(DISTINCT m.id_cama) as total_camas,
+                    ROUND(SUM(m.ha)::numeric, 4) as total_ha,
+                    ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar
+                FROM mrt_estado_cultivo_actual m
+                LEFT JOIN (
+                    SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
+                        UPPER(TRIM(variedad)) as norm_var, 
+                        producto_maestro 
+                    FROM cat_variedades_maestro
+                ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
+                {where_clause}
+                GROUP BY 1, 2, 3, 4
+                ORDER BY total_ha DESC, producto_maestro ASC;
             """
             rows = db.session.execute(text(query)).fetchall()
         data_list = [dict(r._mapping) for r in rows]
@@ -1917,11 +1931,10 @@ def api_areas_resumen():
         resp = jsonify(data_list)
         resp.headers['Access-Control-Allow-Origin'] = '*'
         return resp
+
     except Exception as e:
         db.session.rollback()
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': f"Error al consultar resumen de areas: {str(e)}"
+            'error': f"Error al consultar áreas de finca: {str(e)}"
         }), 500

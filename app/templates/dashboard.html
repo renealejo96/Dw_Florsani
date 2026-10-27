@@ -170,10 +170,10 @@
                         <i class="fa-solid fa-map"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums" id="kpiTopAreaVal">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha</span></div>
+                <div class="kpi-value text-dark tabular-nums" id="kpiTopAreaVal">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha sembradas</span></div>
                 <div class="kpi-subtext" id="kpiTopAreaSub">
-                    <span class="badge badge-soft-info px-2 py-0">Último Plano</span>
-                    <span class="text-muted small ms-1">área según último plano disponible</span>
+                    <span class="badge badge-soft-info px-2 py-0">{{ area_total_finca_ha|default(32.09) }} ha Total</span>
+                    <span class="text-muted small ms-1">capacidad total de la finca</span>
                 </div>
             </div>
         </div>
@@ -189,8 +189,8 @@
                 </div>
                 <div class="kpi-value text-dark tabular-nums" id="kpiTopCamasVal">{{ camas_finca_count|format_number(0) }}</div>
                 <div class="kpi-subtext" id="kpiTopCamasSub">
-                    <span class="badge badge-soft-danger px-2 py-0">{{ bloques_finca_count }} bloques</span>
-                    <span class="text-muted small ms-1">en producción activa</span>
+                    <span class="badge badge-soft-danger px-2 py-0">{{ camas_total_count|default(9302)|format_number(0) }} camas total</span>
+                    <span class="text-muted small ms-1">({{ bloques_finca_count }} bloques en prod)</span>
                 </div>
             </div>
         </div>

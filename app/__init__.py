@@ -627,57 +627,36 @@ def create_app(config_class=Config):
             feno_total_actividades = 0
             feno_cumplidas = 0
 
-        # 2. Área Total de Finca y Camas de Cultivo (Reflejado fielmente desde plano_cultivo y dim_camas)
+        # 2. Área Total de Finca y Camas de Cultivo (Reflejado fielmente desde mrt_estado_cultivo_actual y dim_camas)
         try:
-            plano_count = db.session.execute(text("SELECT COUNT(*) FROM plano_cultivo")).scalar() or 0
-            if plano_count > 0:
-                plano_stats = db.session.execute(text("""
-                    SELECT 
-                        COALESCE(SUM(cama_final - cama_inicial + 1), 0) as total_camas,
-                        COUNT(DISTINCT bloque) as total_bloques
-                    FROM plano_cultivo
-                """)).fetchone()
+            mrt_stats = db.session.execute(text("""
+                SELECT 
+                    ROUND(SUM(ha)::numeric, 2) as ha_total,
+                    ROUND(SUM(CASE WHEN UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN') THEN ha ELSE 0 END)::numeric, 2) as ha_prod,
+                    COUNT(DISTINCT id_cama) as camas_total,
+                    COUNT(DISTINCT CASE WHEN UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN') THEN id_cama END) as camas_prod,
+                    COUNT(DISTINCT codigo_bloque) as bloques_total
+                FROM mrt_estado_cultivo_actual;
+            """)).fetchone()
 
-                plano_area_res = db.session.execute(text("""
-                    SELECT 
-                        ROUND(COALESCE(SUM(dc.ha), 0)::numeric, 2) as ha_sum,
-                        COUNT(DISTINCT dc.id_cama) as camas_dim
-                    FROM plano_cultivo pc
-                    JOIN dim_camas dc ON (
-                        (TRIM(UPPER(dc.blq)) = TRIM(UPPER(pc.bloque)) OR TRIM(UPPER(dc.codigo_bloque)) = TRIM(UPPER(pc.bloque)))
-                        AND CAST(dc.num_cama AS INTEGER) BETWEEN pc.cama_inicial AND pc.cama_final
-                    )
-                """)).fetchone()
-
-                area_finca_ha = float(plano_area_res.ha_sum) if (plano_area_res and plano_area_res.ha_sum and plano_area_res.ha_sum > 0) else 26.03
-                camas_finca_count = int(plano_stats.total_camas) if plano_stats else 5648
-                bloques_finca_count = int(plano_stats.total_bloques) if plano_stats else 193
+            if mrt_stats and mrt_stats.ha_total and float(mrt_stats.ha_total) > 0:
+                area_total_finca_ha = float(mrt_stats.ha_total)
+                area_finca_ha = float(mrt_stats.ha_prod)
+                camas_finca_count = int(mrt_stats.camas_prod)
+                camas_total_count = int(mrt_stats.camas_total)
+                bloques_finca_count = int(mrt_stats.bloques_total)
             else:
-                area_finca_ha = db.session.execute(text("""
-                    SELECT ROUND(COALESCE(SUM(ha), 0)::numeric, 2)
-                    FROM dim_camas
-                    WHERE activa IS TRUE OR activa IS NULL
-                """)).scalar() or 32.09
-
-                latest_batch = db.session.execute(text("SELECT MAX(batch_id) FROM crop_state_records")).scalar()
-                if latest_batch:
-                    camas_finca_count = db.session.execute(text("""
-                        SELECT COUNT(DISTINCT (block_full || '-' || bed_num))
-                        FROM crop_state_records
-                        WHERE batch_id = :b
-                    """), {'b': latest_batch}).scalar() or 7565
-                    bloques_finca_count = db.session.execute(text("""
-                        SELECT COUNT(DISTINCT block_full)
-                        FROM crop_state_records
-                        WHERE batch_id = :b
-                    """), {'b': latest_batch}).scalar() or 231
-                else:
-                    camas_finca_count = 7565
-                    bloques_finca_count = 231
+                area_total_finca_ha = 32.09
+                area_finca_ha = 24.36
+                camas_finca_count = 7371
+                camas_total_count = 9302
+                bloques_finca_count = 231
         except Exception:
-            area_finca_ha = 26.03
-            camas_finca_count = 5648
-            bloques_finca_count = 193
+            area_total_finca_ha = 32.09
+            area_finca_ha = 24.36
+            camas_finca_count = 7371
+            camas_total_count = 9302
+            bloques_finca_count = 231
 
         # 3. Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
         historico_semanas_raw = db.session.query(
@@ -1008,6 +987,8 @@ def create_app(config_class=Config):
             camas_finca_count=camas_finca_count,
             bloques_finca_count=bloques_finca_count,
             area_finca_ha=area_finca_ha,
+            area_total_finca_ha=area_total_finca_ha,
+            camas_total_count=camas_total_count,
             rotations_count=rotations_count,
             orders_count=orders_count,
             weekly_rotations_data=weekly_rotations_data,
