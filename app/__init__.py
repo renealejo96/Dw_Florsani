@@ -341,13 +341,16 @@ def create_app(config_class=Config):
             if request.endpoint.startswith('static') or request.endpoint in [
                 'auth.login', 'auth.logout', 'auth.api_quick_login',
                 'fenogramas.api_ping', 'service_worker_file',
-                'cosechas.api_cosechas_datos_semanales', 'cosechas.api_areas_resumen'
+                'cosechas.api_cosechas_datos_semanales', 'cosechas.api_areas_resumen',
+                'alias_api_datos_semanales', 'alias_api_areas_resumen'
             ]:
                 return None
 
         if request.path and (
             request.path.startswith('/cosechas/api/datos-semanales') or
-            request.path.startswith('/cosechas/api/areas-resumen')
+            request.path.startswith('/cosechas/api/areas-resumen') or
+            request.path.startswith('/api/datos-semanales') or
+            request.path.startswith('/api/areas-resumen')
         ):
             return None
         
@@ -368,6 +371,16 @@ def create_app(config_class=Config):
                 }), 401
             return redirect(url_for('auth.login', next=request.url))
 
+
+    @app.route('/api/datos-semanales', methods=['GET', 'HEAD'])
+    def alias_api_datos_semanales():
+        from app.modules.cosechas.routes import api_cosechas_datos_semanales
+        return api_cosechas_datos_semanales()
+
+    @app.route('/api/areas-resumen', methods=['GET', 'HEAD'])
+    def alias_api_areas_resumen():
+        from app.modules.cosechas.routes import api_areas_resumen
+        return api_areas_resumen()
 
     @app.route('/sw.js')
     def service_worker_file():
