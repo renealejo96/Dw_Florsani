@@ -161,6 +161,20 @@ def salidas():
                 if day in general_summary[product_code]:
                     general_summary[product_code][day] += qty
 
+    consolidated_products = []
+    for product_code, day_quantities in sorted(general_summary.items(), key=lambda x: (product_info.get(x[0], {}).get('commercial_name', x[0]))):
+        tot_q = sum(day_quantities.values())
+        if tot_q > 0:
+            consolidated_products.append({
+                'product_code': product_code,
+                'commercial_name': product_info.get(product_code, {}).get('commercial_name', product_code),
+                'unit': product_info.get(product_code, {}).get('unit', 'CC'),
+                'category': product_info.get(product_code, {}).get('category', ''),
+                'pest': product_info.get(product_code, {}).get('pest', ''),
+                'days': day_quantities,
+                'total_quantity': round(tot_q, 2)
+            })
+
     total_products_count = len(product_info)
     total_volume_liters = sum(ord.total_liters for ord in display_orders)
     total_beds = sum(ord.total_standard_beds for ord in display_orders)
@@ -189,6 +203,7 @@ def salidas():
         data_by_area=data_by_area,
         data_by_category=data_by_category,
         general_summary=general_summary,
+        consolidated_products=consolidated_products,
         product_info=product_info,
         all_rotations=approved_rotations,
         prev_rotation=prev_rotation,

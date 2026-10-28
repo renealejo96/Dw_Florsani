@@ -1127,7 +1127,7 @@ def requisicion_exportar_excel(requisition_id):
 
 @fumigacion_bp.route('/ordenes/<int:order_id>/marcar-ejecutada', methods=['POST'])
 @login_required
-@permission_required('ordenes_ver', 'salidas_ver', 'bodega')
+@permission_required('ordenes_ver', 'ordenes_imprimir', 'salidas_ver', 'salidas_imprimir', 'bodega', 'fumigacion')
 def orden_marcar_ejecutada(order_id):
     order = FumigationOrder.query.get_or_404(order_id)
     order.status = 'EJECUTADA'
@@ -1269,6 +1269,18 @@ def ver_salidas(rotation_id):
                 if day in general_summary[product_code]:
                     general_summary[product_code][day] += qty
 
+    consolidated_products = []
+    for product_code, day_quantities in sorted(general_summary.items(), key=lambda x: (product_info.get(x[0], {}).get('commercial_name', x[0]))):
+        tot_q = sum(day_quantities.values())
+        if tot_q > 0:
+            consolidated_products.append({
+                'product_code': product_code,
+                'commercial_name': product_info.get(product_code, {}).get('commercial_name', product_code),
+                'unit': product_info.get(product_code, {}).get('unit', 'CC'),
+                'days': day_quantities,
+                'total_quantity': round(tot_q, 2)
+            })
+
     total_products_count = len(product_info)
     total_volume_liters = sum(ord.total_liters for ord in display_orders)
     total_beds = sum(ord.total_standard_beds for ord in display_orders)
@@ -1282,6 +1294,7 @@ def ver_salidas(rotation_id):
         scheduled_days=scheduled_days,
         data_by_area=data_by_area,
         general_summary=general_summary,
+        consolidated_products=consolidated_products,
         product_info=product_info,
         all_rotations=all_rotations,
         prev_rotation=prev_rotation,
@@ -1545,7 +1558,7 @@ def exportar_salidas_excel(rotation_id):
 
 @fumigacion_bp.route('/ordenes/<int:order_id>/cambiar-estado', methods=['POST'])
 @login_required
-@permission_required('ordenes_ver')
+@permission_required('ordenes_ver', 'ordenes_imprimir', 'salidas_ver', 'salidas_imprimir', 'bodega', 'fumigacion')
 def orden_cambiar_estado(order_id):
     order = FumigationOrder.query.get_or_404(order_id)
     if request.is_json:

@@ -300,12 +300,21 @@ class CostService:
         """
         Consulta si una semana ya se encuentra congelada y archivada en 'historico_costos_semanales'.
         Si está archivada, sus costos y $/ha son inmutables.
+        IMPORTANTE: La semana actual en curso NUNCA se congela porque las aplicaciones y vueltas
+        se siguen registrando durante la semana.
         """
         try:
             parts = str(week_str).split('-') if '-' in str(week_str) else ['2026', str(week_str)]
             y_val = int(parts[0]) if parts[0].isdigit() else 2026
             w_val = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else int(week_str) if str(week_str).isdigit() else 44
             w_iso = f"{y_val}-{w_val:02d}"
+
+            # La semana actual en curso SIEMPRE se calcula en vivo dinámicamente
+            from datetime import date
+            today_cal = date.today().isocalendar()
+            curr_y, curr_w = today_cal[0], today_cal[1]
+            if (y_val > curr_y) or (y_val == curr_y and w_val >= curr_w):
+                return None
 
             row = db.session.execute(text("""
                 SELECT costo_total, area_ha, costo_por_ha, ha_tratada, costo_por_ha_tratada, ordenes_count, estado
@@ -322,13 +331,20 @@ class CostService:
     def archive_closed_week(cls, week_str: str, summary: Dict[str, Any]) -> None:
         """
         Congela y archiva una semana cerrada con el último hectareaje disponible de esa semana.
-        Una vez guardada, no se vuelve a recalcular dinámicamente.
+        Solo se archivan semanas estrictamente PASADAS que ya hayan concluido.
         """
         try:
             parts = str(week_str).split('-') if '-' in str(week_str) else ['2026', str(week_str)]
             y_val = int(parts[0]) if parts[0].isdigit() else 2026
             w_val = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else int(week_str) if str(week_str).isdigit() else 44
             w_iso = f"{y_val}-{w_val:02d}"
+
+            from datetime import date
+            today_cal = date.today().isocalendar()
+            curr_y, curr_w = today_cal[0], today_cal[1]
+            if (y_val > curr_y) or (y_val == curr_y and w_val >= curr_w):
+                # La semana activa no se congela
+                return
 
             area_finca = cls.get_farm_cultivated_area()
             tot_cost = float(summary.get('total_cost', 0.0))
@@ -430,6 +446,7 @@ class CostService:
         total_cost_all = 0.0
         total_ha_all = 0.0
         bodega_totals = {}
+        bodega_products_map = {}
         block_totals = {}
         crop_totals = {}
         weekly_history = {}
@@ -454,6 +471,26 @@ class CostService:
 
             for bod_nom, b_data in calc['by_bodega'].items():
                 bodega_totals[bod_nom] = bodega_totals.get(bod_nom, 0.0) + b_data['total_cost']
+
+            # Acumular productos por bodega
+            for p_item in calc.get('products', []):
+                b_name = (p_item.get('bodega') or 'FUMIGANTES').strip()
+                if b_name not in bodega_products_map:
+                    bodega_products_map[b_name] = {}
+                p_code = (p_item.get('product_code') or '').strip().upper()
+                p_name = (p_item.get('commercial_name') or p_code).strip()
+                p_key = f"{b_name}|||{p_code or p_name}"
+                if p_key not in bodega_products_map[b_name]:
+                    bodega_products_map[b_name][p_key] = {
+                        'product_code': p_code,
+                        'commercial_name': p_name,
+                        'unit': p_item.get('unit') or 'CC',
+                        'unit_cost': float(p_item.get('unit_cost') or 0.0),
+                        'total_amount': 0.0,
+                        'total_cost': 0.0
+                    }
+                bodega_products_map[b_name][p_key]['total_amount'] += float(p_item.get('total_amount') or 0.0)
+                bodega_products_map[b_name][p_key]['total_cost'] += float(p_item.get('total_cost') or 0.0)
 
             for b_row in calc['blocks']:
                 b_name = b_row['block_name']
@@ -543,8 +580,22 @@ class CostService:
                         rd_cost += line_cost
                         total_cost_all += line_cost
 
-                        bod_name = c_info.get('bodega') or 'SIN BODEGA'
+                        bod_name = c_info.get('bodega') or 'FUMIGANTES'
                         bodega_totals[bod_name] = bodega_totals.get(bod_name, 0.0) + line_cost
+                        p_k = f"{bod_name}|||{p_code or c_nom}"
+                        if bod_name not in bodega_products_map:
+                            bodega_products_map[bod_name] = {}
+                        if p_k not in bodega_products_map[bod_name]:
+                            bodega_products_map[bod_name][p_k] = {
+                                'product_code': p_code,
+                                'commercial_name': c_nom or p_code,
+                                'unit': c_info.get('unidad_medida') or 'CC',
+                                'unit_cost': unit_cost,
+                                'total_amount': 0.0,
+                                'total_cost': 0.0
+                            }
+                        bodega_products_map[bod_name][p_k]['total_amount'] += tot_req
+                        bodega_products_map[bod_name][p_k]['total_cost'] += line_cost
 
                     rd_liters = float(calc_res.get('totals', {}).get('total_liters', 1.0)) or 1.0
                     for seg in rd_segs:
@@ -645,14 +696,24 @@ class CostService:
             })
         top_blocks.sort(key=lambda x: x['total_cost'], reverse=True)
 
-        # Formatear bodegas con porcentajes
+        # Formatear bodegas con porcentajes y lista de insumos ordenados de mayor a menor consumo ($)
         bodega_list = []
         for bod_nom, bod_c in sorted(bodega_totals.items(), key=lambda x: x[1], reverse=True):
             pct = round((bod_c / total_cost_all) * 100, 1) if total_cost_all > 0 else 0.0
+            b_prods_dict = bodega_products_map.get(bod_nom, {})
+            b_prods = list(b_prods_dict.values())
+            b_prods.sort(key=lambda p: p['total_cost'], reverse=True)
+            for p in b_prods:
+                p['pct_bodega'] = round((p['total_cost'] / bod_c) * 100, 1) if bod_c > 0 else 0.0
+                p['total_amount'] = round(p['total_amount'], 2)
+                p['total_cost'] = round(p['total_cost'], 2)
+                p['unit_cost'] = round(p['unit_cost'], 4)
+
             bodega_list.append({
                 'bodega': bod_nom,
                 'cost': round(bod_c, 2),
-                'pct': pct
+                'pct': pct,
+                'products': b_prods
             })
 
         # Formatear by_crop usando el área oficial del cultivo si está disponible
@@ -683,8 +744,17 @@ class CostService:
             'weekly_history': list(weekly_history.values())
         }
 
-        # Si se consultó una semana específica y no estaba archivada, congelarla si es pasada
-        if week and str(week).strip().upper() != 'ALL' and total_cost_all > 0:
-            cls.archive_closed_week(str(week).strip(), summary_data)
+        # Si se consultó una semana específica y ya es estrictamente pasada, congelarla
+        try:
+            from datetime import date
+            today_cal = date.today().isocalendar()
+            curr_y, curr_w = today_cal[0], today_cal[1]
+            parts_w = str(week).split('-') if '-' in str(week) else ['2026', str(week)]
+            y_q = int(parts_w[0]) if parts_w[0].isdigit() else 2026
+            w_q = int(parts_w[1]) if len(parts_w) > 1 and parts_w[1].isdigit() else int(week) if str(week).isdigit() else 0
+            if week and str(week).strip().upper() != 'ALL' and total_cost_all > 0 and (y_q < curr_y or (y_q == curr_y and w_q < curr_w)):
+                cls.archive_closed_week(str(week).strip(), summary_data)
+        except Exception:
+            pass
 
         return summary_data

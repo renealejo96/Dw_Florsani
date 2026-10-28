@@ -89,6 +89,8 @@ def permission_required(*perm_names):
                 return redirect(url_for('auth.login'))
             if user.role == 'ADMIN':
                 return view(**kwargs)
+            if user.role in ['ESTADISTICA', 'ASISTENTE'] and any(p in ['ordenes_ver', 'ordenes_imprimir', 'salidas_ver', 'salidas_imprimir', 'bodega'] for p in perm_names):
+                return view(**kwargs)
             
             has_any = any(user.has_permission(p) for p in perm_names)
             if not has_any:

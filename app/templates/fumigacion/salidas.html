@@ -407,6 +407,64 @@
             </div>
         </div>
         {% endfor %}
+        <!-- Resumen Consolidado de Agroquímicos para Salidas de Bodega -->
+        {% if consolidated_products and consolidated_products|length > 0 %}
+        <div class="card mb-4 border-0 shadow-sm border-start border-4 border-dark print-page-break-inside-avoid">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold">
+                    <i class="fa-solid fa-boxes-stacked me-2 text-warning"></i>
+                    Resumen Consolidado Total de Insumos para Despacho de Bodega
+                    {% if selected_order %}
+                    <span class="badge bg-primary text-white ms-2 font-monospace">Vuelta {{ selected_order.round_number }}: {{ selected_order.round_name }} ({{ selected_order.total_liters|format_number(1) }} L)</span>
+                    {% else %}
+                    <span class="badge bg-secondary text-white ms-2 font-monospace">Consolidado Total Semana {{ rotation.week }} ({{ total_volume_liters|format_number(1) }} L)</span>
+                    {% endif %}
+                </h6>
+                <span class="badge bg-light text-dark font-monospace">{{ consolidated_products|length }} insumos</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover align-middle mb-0 small">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th style="width: 35px;">#</th>
+                                <th style="width: 140px;">Código</th>
+                                <th class="text-start">Nombre Comercial del Insumo</th>
+                                <th style="width: 70px;">U.M</th>
+                                {% for day in scheduled_days %}
+                                <th class="text-end" style="min-width: 90px;">{{ day }}</th>
+                                {% endfor %}
+                                <th class="text-end bg-warning-subtle fw-bold" style="width: 130px;">Total Despacho</th>
+                                <th style="width: 65px;" class="text-center no-print">Pesado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in consolidated_products %}
+                            <tr>
+                                <td class="text-center text-muted fw-bold">{{ loop.index }}</td>
+                                <td class="font-monospace fw-bold text-primary">{{ p.product_code }}</td>
+                                <td class="text-start fw-semibold text-dark">{{ p.commercial_name }}</td>
+                                <td class="text-center"><span class="badge bg-light text-dark border">{{ p.unit }}</span></td>
+                                {% for day in scheduled_days %}
+                                {% set d_qty = p.days.get(day, 0.0) %}
+                                <td class="text-end font-monospace {% if d_qty > 0 %}text-success fw-semibold{% else %}text-muted{% endif %}">
+                                    {{ d_qty|format_product(p.unit) if d_qty > 0 else '-' }}
+                                </td>
+                                {% endfor %}
+                                <td class="text-end font-monospace fw-bold text-dark bg-warning-subtle fs-7">
+                                    {{ p.total_quantity|format_product(p.unit) }}
+                                </td>
+                                <td class="text-center no-print">
+                                    <input type="checkbox" class="form-check-input" style="width: 16px; height: 16px;">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {% else %}
         <div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 my-3">
             <i class="fa-solid fa-boxes-packing fs-1 text-secondary mb-3"></i>

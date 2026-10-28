@@ -643,6 +643,7 @@ def api_calificar_lote():
                 pass
     data = data or {}
     items = []
+    deletions = []
     if isinstance(data, list):
         items = data
     elif isinstance(data, dict):
@@ -653,12 +654,27 @@ def api_calificar_lote():
         elif 'items' in data and isinstance(data['items'], str):
             try: items = json.loads(data['items'])
             except Exception: pass
-    if not items:
-        return jsonify({'success': True, 'updated': 0, 'message': 'No hay cambios para guardar'})
+        if 'deletions' in data and isinstance(data['deletions'], list):
+            deletions = data['deletions']
+
+    if not items and not deletions:
+        return jsonify({'success': True, 'updated': 0, 'deleted': 0, 'message': 'No hay cambios para guardar'})
 
     updated_count = 0
+    deleted_count = 0
     now_utc = datetime.utcnow()
     try:
+        # Procesar eliminaciones offline
+        for del_id in deletions:
+            try:
+                c_id = int(del_id)
+                calif_del = db.session.get(Calificacion, c_id)
+                if calif_del:
+                    db.session.delete(calif_del)
+                    deleted_count += 1
+            except Exception:
+                pass
+
         for item in items:
             item_id = item.get('id')
             cumplido = item.get('cumplido')
