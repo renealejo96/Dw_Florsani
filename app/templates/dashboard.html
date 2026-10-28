@@ -172,8 +172,8 @@
                 </div>
                 <div class="kpi-value text-dark tabular-nums" id="kpiTopAreaVal">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha sembradas</span></div>
                 <div class="kpi-subtext" id="kpiTopAreaSub">
-                    <span class="badge badge-soft-info px-2 py-0">{{ area_total_finca_ha|default(32.09) }} ha Total</span>
-                    <span class="text-muted small ms-1">capacidad total de la finca</span>
+                    <span class="badge badge-soft-info px-2 py-0">{{ porcentaje_ocupacion|default(62.5) }}% de ocupación</span>
+                    <span class="text-muted small ms-1">de {{ area_total_finca_ha|default(32.00) }} ha (lleno de finca)</span>
                 </div>
             </div>
         </div>
@@ -513,7 +513,9 @@ document.addEventListener('DOMContentLoaded', function() {
         fenoPct: {{ cumplimiento_fenograma|default(0.0) }},
         fenoCumplidas: {{ feno_cumplidas|default(0) }},
         fenoTotal: {{ feno_total_actividades|default(0) }},
-        areaHa: {{ area_finca_ha|default(0.0) }},
+        areaHa: {{ area_finca_ha|default(19.99) }},
+        areaTotalHa: {{ area_total_finca_ha|default(32.00) }},
+        pctOcupacion: {{ porcentaje_ocupacion|default(62.5) }},
         camas: {{ camas_finca_count|default(0) }},
         bloques: {{ bloques_finca_count|default(0) }},
         costoTotal: {{ kpi_cost_summary.total_cost|default(0.0) }},
@@ -1319,10 +1321,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (kpiAreaLbl) kpiAreaLbl.textContent = `Área ${activeSegmentedCrop}`;
         if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(areaData.ha || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
         if (kpiAreaSub) {
-            const pctArea = kpiGlobal.areaHa > 0 ? ((areaData.ha / kpiGlobal.areaHa) * 100).toFixed(1) : '0.0';
+            const pctAreaFinca = kpiGlobal.areaTotalHa > 0 ? ((areaData.ha / kpiGlobal.areaTotalHa) * 100).toFixed(1) : '0.0';
+            const pctAreaCultivada = kpiGlobal.areaHa > 0 ? ((areaData.ha / kpiGlobal.areaHa) * 100).toFixed(1) : '0.0';
             kpiAreaSub.innerHTML = `
-                <span class="badge badge-soft-info px-2 py-0">${pctArea}% finca</span>
-                <span class="text-muted small ms-1">área censo activo</span>
+                <span class="badge badge-soft-info px-2 py-0">${pctAreaFinca}% de la finca</span>
+                <span class="text-muted small ms-1">(${pctAreaCultivada}% del área sembrada)</span>
             `;
         }
 
@@ -1443,11 +1446,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const kpiAreaSub = document.getElementById('kpiTopAreaSub');
         const kpiAreaLbl = document.getElementById('kpiTopAreaLabel');
         if (kpiAreaLbl) kpiAreaLbl.textContent = `Área de Finca`;
-        if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(kpiGlobal.areaHa || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha</span>`;
+        if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(kpiGlobal.areaHa || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha sembradas</span>`;
         if (kpiAreaSub) {
             kpiAreaSub.innerHTML = `
-                <span class="badge badge-soft-info px-2 py-0">Plano Cultivo</span>
-                <span class="text-muted small ms-1">área total estado de cultivo</span>
+                <span class="badge badge-soft-info px-2 py-0">${kpiGlobal.pctOcupacion}% de ocupación</span>
+                <span class="text-muted small ms-1">de ${Number(kpiGlobal.areaTotalHa || 32.0).toFixed(2)} ha (lleno de finca)</span>
             `;
         }
 

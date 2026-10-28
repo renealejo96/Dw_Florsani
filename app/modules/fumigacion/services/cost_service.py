@@ -194,7 +194,105 @@ class CostService:
             'by_bodega': {k: {'total_cost': round(v['total_cost'], 2), 'items_count': v['items_count']} for k, v in by_bodega.items()},
             'blocks': block_list,
             'products': list(by_product.values())
-        }
+        }    @classmethod
+    def get_farm_cultivated_area(cls) -> float:
+        """
+        Retorna el área cultivada oficial activa (19.99 ha) para el cálculo de $/ha de cultivo.
+        """
+        try:
+            val = db.session.execute(text("SELECT COALESCE(SUM(ha), 19.99) FROM dim_distribucion_areas WHERE es_cultivo = TRUE")).scalar()
+            return float(val) if val and float(val) > 0 else 19.99
+        except Exception:
+            return 19.99
+
+    @classmethod
+    def get_crop_official_areas(cls) -> Dict[str, float]:
+        """
+        Retorna el mapa oficial de áreas activas por producto comercial / maestro.
+        """
+        try:
+            rows = db.session.execute(text("SELECT UPPER(TRIM(producto_comercial)), ha FROM dim_distribucion_areas WHERE es_cultivo = TRUE")).fetchall()
+            return {r[0]: float(r[1]) for r in rows}
+        except Exception:
+            return {
+                'SOLIDAGO': 4.60,
+                'HYPERICUM': 5.61,
+                'VERONICA': 3.63,
+                'VERONICA SPLASH': 1.50,
+                'BILLION LIGHTS': 4.12,
+                'G49': 0.31,
+                'G5': 0.12,
+                'PIV': 0.04,
+                'BRILLANTINA': 0.04,
+                'LYSIMACHIA': 0.02
+            }
+
+    @classmethod
+    def get_archived_week_cost(cls, week_str: str) -> Optional[Dict[str, Any]]:
+        """
+        Consulta si una semana ya se encuentra congelada y archivada en 'historico_costos_semanales'.
+        Si está archivada, sus costos y $/ha son inmutables.
+        """
+        try:
+            parts = str(week_str).split('-') if '-' in str(week_str) else ['2026', str(week_str)]
+            y_val = int(parts[0]) if parts[0].isdigit() else 2026
+            w_val = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else int(week_str) if str(week_str).isdigit() else 44
+            w_iso = f"{y_val}-{w_val:02d}"
+
+            row = db.session.execute(text("""
+                SELECT costo_total, area_ha, costo_por_ha, ha_tratada, costo_por_ha_tratada, ordenes_count, estado
+                FROM historico_costos_semanales
+                WHERE semana_iso = :w AND cultivo = 'TOTAL' AND estado = 'CERRADA'
+            """), {'w': w_iso}).fetchone()
+            if row:
+                return dict(row._mapping)
+        except Exception:
+            pass
+        return None
+
+    @classmethod
+    def archive_closed_week(cls, week_str: str, summary: Dict[str, Any]) -> None:
+        """
+        Congela y archiva una semana cerrada con el último hectareaje disponible de esa semana.
+        Una vez guardada, no se vuelve a recalcular dinámicamente.
+        """
+        try:
+            parts = str(week_str).split('-') if '-' in str(week_str) else ['2026', str(week_str)]
+            y_val = int(parts[0]) if parts[0].isdigit() else 2026
+            w_val = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else int(week_str) if str(week_str).isdigit() else 44
+            w_iso = f"{y_val}-{w_val:02d}"
+
+            area_finca = cls.get_farm_cultivated_area()
+            tot_cost = float(summary.get('total_cost', 0.0))
+            ha_trat = float(summary.get('total_ha', 0.0))
+            c_ha_finca = round(tot_cost / area_finca, 2) if area_finca > 0 else 0.0
+            c_ha_trat = round(tot_cost / ha_trat, 2) if ha_trat > 0 else 0.0
+
+            db.session.execute(text("""
+                INSERT INTO historico_costos_semanales (
+                    anio, semana, semana_iso, cultivo, costo_total, area_ha, costo_por_ha,
+                    ha_tratada, costo_por_ha_tratada, ordenes_count, estado, updated_at
+                ) VALUES (
+                    :y, :w, :w_iso, 'TOTAL', :tc, :ha, :cha, :ht, :cht, :oc, 'CERRADA', NOW()
+                )
+                ON CONFLICT (semana_iso, cultivo) DO UPDATE SET
+                    costo_total = EXCLUDED.costo_total,
+                    area_ha = EXCLUDED.area_ha,
+                    costo_por_ha = EXCLUDED.costo_por_ha,
+                    ha_tratada = EXCLUDED.ha_tratada,
+                    costo_por_ha_tratada = EXCLUDED.costo_por_ha_tratada,
+                    ordenes_count = EXCLUDED.ordenes_count,
+                    estado = 'CERRADA',
+                    updated_at = NOW();
+            """), {
+                'y': y_val, 'w': w_val, 'w_iso': w_iso, 'tc': tot_cost, 'ha': area_finca,
+                'cha': c_ha_finca, 'ht': ha_trat, 'cht': c_ha_trat, 'oc': int(summary.get('orders_count', 0))
+            })
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
 
     @classmethod
     def get_dashboard_cost_summary(cls, week: Optional[str] = None) -> Dict[str, Any]:
@@ -296,12 +394,28 @@ class CostService:
                 crop_totals[c_nom]['total_cost'] += b_row['cost']
                 crop_totals[c_nom]['ha'] += b_row['ha']
 
+        # Área cultivada de la finca oficial activa (19.99 ha) y áreas por cultivo
+        farm_cultivated_area = cls.get_farm_cultivated_area()
+        crop_official_areas = cls.get_crop_official_areas()
+
         # Calcular hectáreas acumuladas de los bloques tratados
         total_ha_treated = sum(area_map.get(str(b).replace('BL', '').strip().upper(), {}).get('ha', 0.0) for b in blocks_treated_set)
         if total_ha_treated <= 0:
             total_ha_treated = sum(v['ha'] for v in block_totals.values())
 
+        # Costo por hectárea tratada y costo por hectárea cultivada de la finca
+        cost_per_ha_finca = round(total_cost_all / farm_cultivated_area, 2) if farm_cultivated_area > 0 else 0.0
         avg_cost_ha = round(total_cost_all / total_ha_treated, 2) if total_ha_treated > 0 else 0.0
+
+        # Si se consultó una semana específica pasada y ya está archivada, usar sus valores congelados
+        if week and str(week).strip().upper() != 'ALL':
+            archived = cls.get_archived_week_cost(str(week).strip())
+            if archived:
+                total_cost_all = float(archived.get('costo_total', total_cost_all))
+                farm_cultivated_area = float(archived.get('area_ha', farm_cultivated_area))
+                cost_per_ha_finca = float(archived.get('costo_por_ha', cost_per_ha_finca))
+                total_ha_treated = float(archived.get('ha_tratada', total_ha_treated))
+                avg_cost_ha = float(archived.get('costo_por_ha_tratada', avg_cost_ha))
 
         # Formatear lista de top bloques
         top_blocks = []
@@ -329,20 +443,36 @@ class CostService:
                 'pct': pct
             })
 
-        return {
+        # Formatear by_crop usando el área oficial del cultivo si está disponible
+        by_crop_list = []
+        for k, v in sorted(crop_totals.items(), key=lambda x: x[1]['total_cost'], reverse=True):
+            k_clean = str(k).strip().upper()
+            c_ha = crop_official_areas.get(k_clean) or v['ha']
+            c_cost_ha = round(v['total_cost'] / c_ha, 2) if c_ha > 0 else 0.0
+            by_crop_list.append({
+                'crop': k, 
+                'total_cost': round(v['total_cost'], 2), 
+                'ha': round(c_ha, 2), 
+                'cost_per_ha': c_cost_ha
+            })
+
+        summary_data = {
             'total_cost': round(total_cost_all, 2),
             'total_ha': round(total_ha_treated, 2),
+            'farm_cultivated_ha': round(farm_cultivated_area, 2),
             'avg_cost_per_ha': avg_cost_ha,
+            'cost_per_ha_finca': cost_per_ha_finca,
             'orders_count': orders_count,
             'blocks_count': len(blocks_treated_set),
             'by_bodega': bodega_list,
             'top_blocks': top_blocks[:10],
             'all_blocks': top_blocks,
-            'by_crop': [{
-                'crop': k, 
-                'total_cost': round(v['total_cost'], 2), 
-                'ha': round(v['ha'], 2), 
-                'cost_per_ha': round(v['total_cost'] / v['ha'], 2) if v['ha'] > 0 else 0.0
-            } for k, v in sorted(crop_totals.items(), key=lambda x: x[1]['total_cost'], reverse=True)],
+            'by_crop': by_crop_list,
             'weekly_history': list(weekly_history.values())
         }
+
+        # Si se consultó una semana específica y no estaba archivada, congelarla si es pasada
+        if week and str(week).strip().upper() != 'ALL' and total_cost_all > 0:
+            cls.archive_closed_week(str(week).strip(), summary_data)
+
+        return summary_data

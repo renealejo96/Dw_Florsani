@@ -632,9 +632,9 @@ def create_app(config_class=Config):
             mrt_stats = db.session.execute(text("""
                 SELECT 
                     ROUND(SUM(ha)::numeric, 2) as ha_total,
-                    ROUND(SUM(CASE WHEN UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN') THEN ha ELSE 0 END)::numeric, 2) as ha_prod,
+                    ROUND(SUM(CASE WHEN UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'APERTURA', 'EUCALIPTOS', 'VICIA-AVENA', 'MOSTAZA CALIENTE', 'ERRADICADO', 'TOTAL', 'NAN') THEN ha ELSE 0 END)::numeric, 2) as ha_prod,
                     COUNT(DISTINCT id_cama) as camas_total,
-                    COUNT(DISTINCT CASE WHEN UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN') THEN id_cama END) as camas_prod,
+                    COUNT(DISTINCT CASE WHEN UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'APERTURA', 'EUCALIPTOS', 'VICIA-AVENA', 'MOSTAZA CALIENTE', 'ERRADICADO', 'TOTAL', 'NAN') THEN id_cama END) as camas_prod,
                     COUNT(DISTINCT codigo_bloque) as bloques_total
                 FROM mrt_estado_cultivo_actual;
             """)).fetchone()
@@ -646,17 +646,20 @@ def create_app(config_class=Config):
                 camas_total_count = int(mrt_stats.camas_total)
                 bloques_finca_count = int(mrt_stats.bloques_total)
             else:
-                area_total_finca_ha = 32.09
-                area_finca_ha = 24.36
-                camas_finca_count = 7371
+                area_total_finca_ha = 32.00
+                area_finca_ha = 19.99
+                camas_finca_count = 6314
                 camas_total_count = 9302
-                bloques_finca_count = 231
+                bloques_finca_count = 210
+
+            porcentaje_ocupacion = round((area_finca_ha / area_total_finca_ha) * 100.0, 1) if area_total_finca_ha > 0 else 62.5
         except Exception:
-            area_total_finca_ha = 32.09
-            area_finca_ha = 24.36
-            camas_finca_count = 7371
+            area_total_finca_ha = 32.00
+            area_finca_ha = 19.99
+            camas_finca_count = 6314
             camas_total_count = 9302
-            bloques_finca_count = 231
+            bloques_finca_count = 210
+            porcentaje_ocupacion = 62.5
 
         # 3. Histórico semanal de tallos cosechados agrupado año a año (2025 vs 2026)
         historico_semanas_raw = db.session.query(
@@ -871,21 +874,19 @@ def create_app(config_class=Config):
 
         kpi_area_camas_by_crop = {}
         try:
-            plano_crop_rows = db.session.execute(text("""
+            mrt_crop_rows = db.session.execute(text("""
                 SELECT 
-                    UPPER(TRIM(COALESCE(pc.producto_maestro, 'VARIOS'))) as crop,
-                    SUM(pc.cama_final - pc.cama_inicial + 1) as camas,
-                    COUNT(DISTINCT pc.bloque) as bloques,
-                    ROUND(COALESCE(SUM(dc.ha), 0)::numeric, 2) as ha
-                FROM plano_cultivo pc
-                LEFT JOIN dim_camas dc ON (
-                    (TRIM(UPPER(dc.blq)) = TRIM(UPPER(pc.bloque)) OR TRIM(UPPER(dc.codigo_bloque)) = TRIM(UPPER(pc.bloque)))
-                    AND CAST(dc.num_cama AS INTEGER) BETWEEN pc.cama_inicial AND pc.cama_final
-                )
-                WHERE pc.producto_maestro IS NOT NULL AND TRIM(pc.producto_maestro) != ''
-                GROUP BY UPPER(TRIM(COALESCE(pc.producto_maestro, 'VARIOS')))
+                    UPPER(TRIM(producto_actual)) as crop,
+                    COUNT(DISTINCT id_cama) as camas,
+                    COUNT(DISTINCT codigo_bloque) as bloques,
+                    ROUND(COALESCE(SUM(ha), 0)::numeric, 2) as ha
+                FROM mrt_estado_cultivo_actual
+                WHERE producto_actual IS NOT NULL 
+                  AND TRIM(producto_actual) != ''
+                  AND UPPER(TRIM(producto_actual)) NOT IN ('VACIO', 'APERTURA', 'EUCALIPTOS', 'VICIA-AVENA', 'MOSTAZA CALIENTE', 'ERRADICADO', 'TOTAL', 'NAN')
+                GROUP BY UPPER(TRIM(producto_actual))
             """)).fetchall()
-            for r in plano_crop_rows:
+            for r in mrt_crop_rows:
                 c_nom = str(r.crop).upper().strip()
                 item = {
                     'ha': float(r.ha or 0.0),
@@ -899,37 +900,33 @@ def create_app(config_class=Config):
                     kpi_area_camas_by_crop.setdefault(c_nom + 'S', item)
                 first_tok = c_nom.split()[0].replace('-', ' ')
                 kpi_area_camas_by_crop.setdefault(first_tok, item)
+
+            # Consolidado de VERONICAS: VERONICA (3.63) + VERONICA SPLASH (1.50) = 5.13 ha
+            v_norm = kpi_area_camas_by_crop.get('VERONICA', {}).get('ha', 0.0)
+            v_spl = kpi_area_camas_by_crop.get('VERONICA SPLASH', {}).get('ha', 0.0)
+            v_tot = round(v_norm + v_spl, 2)
+            if v_tot > 0:
+                v_camas = kpi_area_camas_by_crop.get('VERONICA', {}).get('camas', 0) + kpi_area_camas_by_crop.get('VERONICA SPLASH', {}).get('camas', 0)
+                v_blqs = kpi_area_camas_by_crop.get('VERONICA', {}).get('bloques', 0) + kpi_area_camas_by_crop.get('VERONICA SPLASH', {}).get('bloques', 0)
+                kpi_area_camas_by_crop['VERONICAS'] = {'ha': v_tot, 'camas': v_camas, 'bloques': v_blqs}
+                kpi_area_camas_by_crop['VERONICA'] = {'ha': v_tot, 'camas': v_camas, 'bloques': v_blqs}
+
+            # Consolidado de GYPSOPHILA: BILLION LIGHTS (4.12) + G49 (0.31) + G5 (0.12) = 4.55 ha
+            bl_ha = kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('ha', 0.0)
+            g49_ha = kpi_area_camas_by_crop.get('G49', {}).get('ha', 0.0)
+            g5_ha = kpi_area_camas_by_crop.get('G5', {}).get('ha', 0.0)
+            gyp_tot = round(bl_ha + g49_ha + g5_ha, 2)
+            if gyp_tot > 0:
+                gyp_camas = (kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('camas', 0) +
+                             kpi_area_camas_by_crop.get('G49', {}).get('camas', 0) +
+                             kpi_area_camas_by_crop.get('G5', {}).get('camas', 0))
+                gyp_blqs = (kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('bloques', 0) +
+                            kpi_area_camas_by_crop.get('G49', {}).get('bloques', 0) +
+                            kpi_area_camas_by_crop.get('G5', {}).get('bloques', 0))
+                kpi_area_camas_by_crop['GYPSOPHILA'] = {'ha': gyp_tot, 'camas': gyp_camas, 'bloques': gyp_blqs}
+                kpi_area_camas_by_crop['GYPSOPHILAS'] = {'ha': gyp_tot, 'camas': gyp_camas, 'bloques': gyp_blqs}
         except Exception:
             pass
-
-        if not kpi_area_camas_by_crop:
-            try:
-                mrt_crop_rows = db.session.execute(text("""
-                    SELECT 
-                        UPPER(TRIM(producto_actual)) as crop,
-                        COUNT(DISTINCT id_cama) as camas,
-                        COUNT(DISTINCT codigo_bloque) as bloques,
-                        ROUND(COALESCE(SUM(ha), 0)::numeric, 2) as ha
-                    FROM mrt_estado_cultivo_actual
-                    WHERE producto_actual IS NOT NULL AND TRIM(producto_actual) != ''
-                    GROUP BY UPPER(TRIM(producto_actual))
-                """)).fetchall()
-                for r in mrt_crop_rows:
-                    c_nom = str(r.crop).upper().strip()
-                    item = {
-                        'ha': float(r.ha or 0.0),
-                        'camas': int(r.camas or 0),
-                        'bloques': int(r.bloques or 0)
-                    }
-                    kpi_area_camas_by_crop[c_nom] = item
-                    if c_nom.endswith('S'):
-                        kpi_area_camas_by_crop.setdefault(c_nom[:-1], item)
-                    else:
-                        kpi_area_camas_by_crop.setdefault(c_nom + 'S', item)
-                    first_tok = c_nom.split()[0].replace('-', ' ')
-                    kpi_area_camas_by_crop.setdefault(first_tok, item)
-            except Exception:
-                pass
 
         if not kpi_area_camas_by_crop and latest_batch:
             try:
@@ -1023,7 +1020,8 @@ def create_app(config_class=Config):
             kpi_cosecha_by_crop_json=kpi_cosecha_by_crop_json,
             kpi_feno_by_crop_json=kpi_feno_by_crop_json,
             kpi_area_camas_by_crop_json=kpi_area_camas_by_crop_json,
-            kpi_costos_by_crop_json=kpi_costos_by_crop_json
+            kpi_costos_by_crop_json=kpi_costos_by_crop_json,
+            porcentaje_ocupacion=porcentaje_ocupacion
         )
 
     return app
