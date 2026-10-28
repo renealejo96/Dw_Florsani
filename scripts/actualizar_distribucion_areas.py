@@ -285,7 +285,10 @@ def run_update():
             c_1.semana_abs AS semana_abs_hoy,
             c_1.semana_campo AS semana_campo_hoy
         FROM dim_calendario_agricola c_1
-        WHERE c_1.semana_campo = 2643
+        WHERE c_1.semana_campo = GREATEST(
+            (SELECT COALESCE(MAX(e.semana_campo), 2643) FROM stg_eventos e),
+            2643
+        )
         ORDER BY c_1.fecha DESC
         LIMIT 1
     ), semana_hoy AS (
