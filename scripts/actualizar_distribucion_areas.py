@@ -80,12 +80,12 @@ def run_update(engine=None):
             );
         """))
 
-        # Limpiar semanas futuras no proyectadas (más allá de la semana 44)
-        conn.execute(text("DELETE FROM dim_distribucion_areas WHERE anio = 2026 AND semana > 44;"))
+        # Limpiar semanas futuras no cerradas (más allá del último estado de cultivo subido, semana 43)
+        conn.execute(text("DELETE FROM dim_distribucion_areas WHERE anio = 2026 AND semana > 43;"))
 
-        # Poblar histórico completo: todo el año 2025 (sem 1-52) y año 2026 (sem 1-44 cerrado y activo)
+        # Poblar histórico real cerrado: año 2025 (sem 1-52) y año 2026 (sem 1-43 cerrado)
         semanas_2025 = [(2025, w, f"2025-{w:02d}") for w in range(1, 53)]
-        semanas_2026 = [(2026, w, f"2026-{w:02d}") for w in range(1, 45)]
+        semanas_2026 = [(2026, w, f"2026-{w:02d}") for w in range(1, 44)]
         semanas_a_poblar = semanas_2025 + semanas_2026
         for y_num, w_num, s_iso in semanas_a_poblar:
             for row in DISTRIBUCION_OFICIAL:
