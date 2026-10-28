@@ -1701,7 +1701,13 @@ def api_cosechas_datos_semanales():
 
     try:
         semana_param = request.args.get('semana', type=int)
-        anio_param = request.args.get('anio', type=int)
+        anio_raw = request.args.get('anio')
+        anio_param = None
+        if anio_raw is not None and str(anio_raw).strip().lower() not in ('todos', 'all', 'todas', 'historico', '*', '', 'none'):
+            try:
+                anio_param = int(anio_raw)
+            except ValueError:
+                anio_param = None
         producto_param = (request.args.get('producto') or '').strip().upper()
         resumen_param = request.args.get('resumen', '0').strip() in ('1', 'true', 'si')
         formato_param = request.args.get('formato', 'json').strip().lower()
@@ -1852,9 +1858,14 @@ def api_areas_resumen():
                          or request.args.get('todas_semanas', '0').strip().lower() in ('1', 'true', 'si')
                          or request.path.endswith('/areas-historico'))
 
-        now_dt = datetime.now()
-        default_semana = int(now_dt.isocalendar()[1])
-        default_anio = int(now_dt.isocalendar()[0])
+        # Obtener ultima semana cerrada disponible con datos reales en el sistema
+        ultima_sem_row = db.session.execute(text("SELECT anio, semana FROM dim_distribucion_areas ORDER BY anio DESC, semana DESC LIMIT 1;")).fetchone()
+        if ultima_sem_row:
+            default_anio = int(ultima_sem_row[0])
+            default_semana = int(ultima_sem_row[1])
+        else:
+            default_anio = 2026
+            default_semana = 41
 
         semana_val = semana_req if semana_req is not None else default_semana
         anio_val = anio_req or default_anio

@@ -161,19 +161,24 @@
             </div>
         </div>
 
-        <!-- KPI 3: Área de Finca (ha) -->
+        <!-- KPI 3: Área de Finca (ha) con Indicador de Batería de Ocupación -->
         <div class="col-12 col-sm-6 col-lg">
             <div class="kpi-tile-bento kpi-accent-blue">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="kpi-label"><i class="fa-solid fa-chart-area text-primary me-1"></i> <span id="kpiTopAreaLabel">Área de Finca</span></span>
-                    <span class="kpi-icon-badge kpi-icon-blue">
-                        <i class="fa-solid fa-map"></i>
+                    <span class="kpi-icon-badge kpi-icon-blue" title="Ocupación de la finca: {{ porcentaje_ocupacion|default(62.5) }}%">
+                        <i id="kpiTopAreaBatteryIcon" class="fa-solid fa-battery-three-quarters text-primary fs-5"></i>
                     </span>
                 </div>
                 <div class="kpi-value text-dark tabular-nums" id="kpiTopAreaVal">{{ area_finca_ha }} <span class="fs-6 fw-normal text-muted">ha sembradas</span></div>
                 <div class="kpi-subtext" id="kpiTopAreaSub">
-                    <span class="badge badge-soft-info px-2 py-0">{{ porcentaje_ocupacion|default(62.5) }}% de ocupación</span>
-                    <span class="text-muted small ms-1">de {{ area_total_finca_ha|default(32.00) }} ha (lleno de finca)</span>
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="badge badge-soft-info px-2 py-0"><i id="kpiTopAreaBadgeBatteryIcon" class="fa-solid fa-battery-three-quarters me-1"></i><span id="kpiTopAreaPctVal">{{ porcentaje_ocupacion|default(62.5) }}%</span> de ocupación</span>
+                        <span class="text-muted small ms-1">de {{ area_total_finca_ha|default(32.00) }} ha</span>
+                    </div>
+                    <div class="progress" style="height: 6px; border-radius: 4px; background-color: #e2e8f0;" title="{{ porcentaje_ocupacion|default(62.5) }}% lleno de finca">
+                        <div id="kpiTopAreaBatteryBar" class="progress-bar bg-primary" role="progressbar" style="width: {{ porcentaje_ocupacion|default(62.5) }}%; border-radius: 4px;" aria-valuenow="{{ porcentaje_ocupacion|default(62.5) }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -524,6 +529,16 @@ document.addEventListener('DOMContentLoaded', function() {
         semanaActual: {{ semana_actual }},
         anioActual: {{ selected_year }}
     };
+
+    // Helper para determinar el ícono de batería visual según el porcentaje de lleno de finca
+    function getBatteryIconClass(pct) {
+        const val = parseFloat(pct) || 0;
+        if (val >= 85) return 'fa-battery-full text-success';
+        if (val >= 60) return 'fa-battery-three-quarters text-primary';
+        if (val >= 35) return 'fa-battery-half text-info';
+        if (val >= 15) return 'fa-battery-quarter text-warning';
+        return 'fa-battery-empty text-danger';
+    }
 
     // Paleta de colores UI/UX Pro Max Florícola
     const colorArray = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b', '#84cc16'];
@@ -1323,9 +1338,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (kpiAreaSub) {
             const pctAreaFinca = kpiGlobal.areaTotalHa > 0 ? ((areaData.ha / kpiGlobal.areaTotalHa) * 100).toFixed(1) : '0.0';
             const pctAreaCultivada = kpiGlobal.areaHa > 0 ? ((areaData.ha / kpiGlobal.areaHa) * 100).toFixed(1) : '0.0';
+            const batClass = getBatteryIconClass(pctAreaFinca);
+            const topBat = document.getElementById('kpiTopAreaBatteryIcon');
+            if (topBat) topBat.className = `fa-solid ${batClass} fs-5`;
             kpiAreaSub.innerHTML = `
-                <span class="badge badge-soft-info px-2 py-0">${pctAreaFinca}% de la finca</span>
-                <span class="text-muted small ms-1">(${pctAreaCultivada}% del área sembrada)</span>
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="badge badge-soft-info px-2 py-0"><i class="fa-solid ${batClass} me-1"></i>${pctAreaFinca}% de la finca</span>
+                    <span class="text-muted small ms-1">(${pctAreaCultivada}% sembrada)</span>
+                </div>
+                <div class="progress" style="height: 6px; border-radius: 4px; background-color: #e2e8f0;" title="${pctAreaFinca}% de la finca">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: ${pctAreaFinca}%; border-radius: 4px;"></div>
+                </div>
             `;
         }
 
@@ -1448,9 +1471,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (kpiAreaLbl) kpiAreaLbl.textContent = `Área de Finca`;
         if (kpiAreaVal) kpiAreaVal.innerHTML = `${Number(kpiGlobal.areaHa || 0.0).toFixed(2)} <span class="fs-6 fw-normal text-muted">ha sembradas</span>`;
         if (kpiAreaSub) {
+            const batClass = getBatteryIconClass(kpiGlobal.pctOcupacion);
+            const topBat = document.getElementById('kpiTopAreaBatteryIcon');
+            if (topBat) topBat.className = `fa-solid ${batClass} fs-5`;
             kpiAreaSub.innerHTML = `
-                <span class="badge badge-soft-info px-2 py-0">${kpiGlobal.pctOcupacion}% de ocupación</span>
-                <span class="text-muted small ms-1">de ${Number(kpiGlobal.areaTotalHa || 32.0).toFixed(2)} ha (lleno de finca)</span>
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="badge badge-soft-info px-2 py-0"><i class="fa-solid ${batClass} me-1"></i>${kpiGlobal.pctOcupacion}% de ocupación</span>
+                    <span class="text-muted small ms-1">de ${Number(kpiGlobal.areaTotalHa || 32.0).toFixed(2)} ha</span>
+                </div>
+                <div class="progress" style="height: 6px; border-radius: 4px; background-color: #e2e8f0;" title="${kpiGlobal.pctOcupacion}% lleno de finca">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: ${kpiGlobal.pctOcupacion}%; border-radius: 4px;"></div>
+                </div>
             `;
         }
 

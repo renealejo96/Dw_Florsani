@@ -75,14 +75,13 @@ def run_update():
             );
         """))
 
-        # Poblar semanas históricas y activas (2026-40 a 2026-44)
-        semanas_a_poblar = [
-            (2026, 40, '2026-40'),
-            (2026, 41, '2026-41'),
-            (2026, 42, '2026-42'),
-            (2026, 43, '2026-43'),
-            (2026, 44, '2026-44')
-        ]
+        # Limpiar semanas futuras no cerradas (semana 42 en adelante en 2026)
+        conn.execute(text("DELETE FROM dim_distribucion_areas WHERE anio = 2026 AND semana > 41;"))
+
+        # Poblar histórico completo: todo el año 2025 (sem 1-52) y año 2026 (sem 1-41 cerrado)
+        semanas_2025 = [(2025, w, f"2025-{w:02d}") for w in range(1, 53)]
+        semanas_2026 = [(2026, w, f"2026-{w:02d}") for w in range(1, 42)]
+        semanas_a_poblar = semanas_2025 + semanas_2026
         for y_num, w_num, s_iso in semanas_a_poblar:
             for row in DISTRIBUCION_OFICIAL:
                 pct = round((row["ha"] / 32.00) * 100.0, 2)
@@ -282,14 +281,19 @@ def run_update():
             row_number() OVER (PARTITION BY e.id_cama ORDER BY e.fecha_evento DESC, e.id_evento DESC) AS fila_num
         FROM stg_eventos e
     ), semana_corte_calc AS (
-        SELECT c_1.semana_abs AS semana_abs_hoy,
+        SELECT 
+            c_1.semana_abs AS semana_abs_hoy,
             c_1.semana_campo AS semana_campo_hoy
         FROM dim_calendario_agricola c_1
-        WHERE c_1.fecha = CURRENT_DATE
+        WHERE c_1.semana_campo = (
+            SELECT COALESCE(MAX(e.semana_campo), 2641)
+            FROM stg_eventos e
+        )
+        ORDER BY c_1.fecha DESC
         LIMIT 1
     ), semana_hoy AS (
-        SELECT COALESCE((SELECT semana_abs_hoy FROM semana_corte_calc), 1044) AS semana_abs_hoy,
-            COALESCE((SELECT semana_campo_hoy FROM semana_corte_calc), 2644) AS semana_campo_hoy
+        SELECT COALESCE((SELECT semana_abs_hoy FROM semana_corte_calc), 1352) AS semana_abs_hoy,
+            COALESCE((SELECT semana_campo_hoy FROM semana_corte_calc), 2641) AS semana_campo_hoy
     )
     SELECT f.id_finca,
         f.nombre_finca,
