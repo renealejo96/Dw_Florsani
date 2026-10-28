@@ -816,10 +816,13 @@ def create_app(config_class=Config):
 
             cost_summary = CostService.get_dashboard_cost_summary(week=cost_week if cost_week != 'ALL' else None)
             distinct_order_weeks_raw = db.session.query(FumigationOrder.week).distinct().all()
-            available_cost_weeks = sorted(list(set([w[0] for w in distinct_order_weeks_raw if w[0]])), reverse=True)
+            from app.shared.models import Rotation
+            distinct_rot_weeks_raw = db.session.query(Rotation.week).distinct().all()
+            all_weeks_raw = [w[0] for w in distinct_order_weeks_raw if w[0]] + [w[0] for w in distinct_rot_weeks_raw if w[0]]
+            available_cost_weeks = sorted(list(set(all_weeks_raw)), reverse=True)
         except Exception:
             kpi_cost_summary = {
-                'total_cost': 0.0, 'total_ha': 0.0, 'avg_cost_per_ha': 0.0,
+                'total_cost': 0.0, 'total_ha': 0.0, 'farm_cultivated_ha': 19.99, 'avg_cost_per_ha': 0.0, 'cost_per_ha_finca': 0.0,
                 'orders_count': 0, 'blocks_count': 0, 'by_bodega': [], 'top_blocks': [],
                 'all_blocks': [], 'by_crop': [], 'weekly_history': []
             }

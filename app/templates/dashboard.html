@@ -209,10 +209,10 @@
                         <i class="fa-solid fa-file-invoice-dollar"></i>
                     </span>
                 </div>
-                <div class="kpi-value text-dark tabular-nums fw-bolder" id="kpiTopCostosVal" style="font-size: 1.75rem; letter-spacing: -0.02em;">${{ "%.2f"|format(kpi_cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-bold text-muted">/ ha</span></div>
+                <div class="kpi-value text-dark tabular-nums fw-bolder" id="kpiTopCostosVal" style="font-size: 1.75rem; letter-spacing: -0.02em;">${{ "%.2f"|format(kpi_cost_summary.cost_per_ha_finca if kpi_cost_summary.cost_per_ha_finca > 0 else kpi_cost_summary.avg_cost_per_ha) }} <span class="fs-6 fw-bold text-muted">/ ha</span></div>
                 <div class="kpi-subtext" id="kpiTopCostosSub">
                     <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: ${{ "%.2f"|format(kpi_cost_summary.total_cost) }}</span>
-                    <span class="text-muted small ms-1">{{ kpi_cost_summary.total_ha }} ha</span>
+                    <span class="text-muted small ms-1">{{ kpi_cost_summary.farm_cultivated_ha|default(19.99) }} ha finca</span>
                 </div>
             </div>
         </div>
@@ -524,8 +524,8 @@ document.addEventListener('DOMContentLoaded', function() {
         camas: {{ camas_finca_count|default(0) }},
         bloques: {{ bloques_finca_count|default(0) }},
         costoTotal: {{ kpi_cost_summary.total_cost|default(0.0) }},
-        costoPromHa: {{ kpi_cost_summary.avg_cost_per_ha|default(0.0) }},
-        costoHa: {{ kpi_cost_summary.total_ha|default(0.0) }},
+        costoPromHa: {{ kpi_cost_summary.cost_per_ha_finca if kpi_cost_summary.cost_per_ha_finca > 0 else (kpi_cost_summary.avg_cost_per_ha|default(0.0)) }},
+        costoHa: {{ kpi_cost_summary.farm_cultivated_ha|default(19.99) }},
         semanaActual: {{ semana_actual }},
         anioActual: {{ selected_year }}
     };
@@ -1507,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (kpiCostosSub) {
             kpiCostosSub.innerHTML = `
                 <span class="badge badge-soft-purple px-2 py-0 fw-bold">Inversión: $${Number(kpiGlobal.costoTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                <span class="text-muted small ms-1">${Number(kpiGlobal.costoHa || 0).toFixed(2)} ha tratadas</span>
+                <span class="text-muted small ms-1">${Number(kpiGlobal.costoHa || 19.99).toFixed(2)} ha finca</span>
             `;
         }
 

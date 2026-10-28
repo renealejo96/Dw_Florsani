@@ -194,24 +194,60 @@ class CostService:
             'by_bodega': {k: {'total_cost': round(v['total_cost'], 2), 'items_count': v['items_count']} for k, v in by_bodega.items()},
             'blocks': block_list,
             'products': list(by_product.values())
-        }    @classmethod
-    def get_farm_cultivated_area(cls) -> float:
+        }
+
+    @classmethod
+    def get_farm_cultivated_area(cls, week: Optional[str] = None) -> float:
         """
-        Retorna el área cultivada oficial activa (19.99 ha) para el cálculo de $/ha de cultivo.
+        Retorna el área cultivada oficial de la finca (19.99 ha) para el cálculo de $/ha de cultivo.
+        Filtra por la semana específica o toma el último estado de cultivo disponible.
         """
         try:
-            val = db.session.execute(text("SELECT COALESCE(SUM(ha), 19.99) FROM dim_distribucion_areas WHERE es_cultivo = TRUE")).scalar()
+            if week and str(week).strip().upper() != 'ALL':
+                w_str = str(week).strip()
+                val = db.session.execute(text("""
+                    SELECT ROUND(COALESCE(SUM(ha), 19.99)::numeric, 2)
+                    FROM dim_distribucion_areas 
+                    WHERE es_cultivo = TRUE AND (semana_iso = :w OR semana_iso ILIKE :w_like)
+                """), {'w': w_str, 'w_like': f"%{w_str}%"}).scalar()
+                if val and float(val) > 0:
+                    return float(val)
+
+            # Fallback: última semana registrada en dim_distribucion_areas
+            val = db.session.execute(text("""
+                SELECT ROUND(COALESCE(SUM(ha), 19.99)::numeric, 2)
+                FROM dim_distribucion_areas
+                WHERE es_cultivo = TRUE AND semana_iso = (
+                    SELECT semana_iso FROM dim_distribucion_areas ORDER BY anio DESC, semana DESC LIMIT 1
+                )
+            """)).scalar()
             return float(val) if val and float(val) > 0 else 19.99
         except Exception:
             return 19.99
 
     @classmethod
-    def get_crop_official_areas(cls) -> Dict[str, float]:
+    def get_crop_official_areas(cls, week: Optional[str] = None) -> Dict[str, float]:
         """
-        Retorna el mapa oficial de áreas activas por producto comercial / maestro.
+        Retorna el mapa oficial de áreas activas por producto comercial / maestro para una semana.
         """
         try:
-            rows = db.session.execute(text("SELECT UPPER(TRIM(producto_comercial)), ha FROM dim_distribucion_areas WHERE es_cultivo = TRUE")).fetchall()
+            target_week = None
+            if week and str(week).strip().upper() != 'ALL':
+                w_str = str(week).strip()
+                chk = db.session.execute(text("SELECT semana_iso FROM dim_distribucion_areas WHERE semana_iso = :w LIMIT 1"), {'w': w_str}).scalar()
+                if chk:
+                    target_week = chk
+
+            if not target_week:
+                target_week = db.session.execute(text("""
+                    SELECT semana_iso FROM dim_distribucion_areas ORDER BY anio DESC, semana DESC LIMIT 1
+                """)).scalar()
+
+            rows = db.session.execute(text("""
+                SELECT UPPER(TRIM(producto_comercial)), ha 
+                FROM dim_distribucion_areas 
+                WHERE es_cultivo = TRUE AND semana_iso = :w
+            """), {'w': target_week}).fetchall()
             return {r[0]: float(r[1]) for r in rows}
         except Exception:
             return {
@@ -352,7 +388,6 @@ class CostService:
         blocks_treated_set = set()
 
         for o in orders:
-            # Consideramos órdenes que tengan detalles y estén impresas o aprobadas
             if not o.details:
                 continue
             
@@ -367,11 +402,9 @@ class CostService:
             weekly_history[w_key]['ha'] += calc['total_ha']
             weekly_history[w_key]['orders_count'] += 1
 
-            # Bodega
             for bod_nom, b_data in calc['by_bodega'].items():
                 bodega_totals[bod_nom] = bodega_totals.get(bod_nom, 0.0) + b_data['total_cost']
 
-            # Bloques
             for b_row in calc['blocks']:
                 b_name = b_row['block_name']
                 blocks_treated_set.add(b_name)
@@ -387,16 +420,132 @@ class CostService:
                 block_totals[b_name]['total_cost'] += b_row['cost']
                 block_totals[b_name]['applications_count'] += 1
 
-                # Cultivo
                 c_nom = b_row['crop'] or 'VARIOS'
                 if c_nom not in crop_totals:
                     crop_totals[c_nom] = {'crop': c_nom, 'total_cost': 0.0, 'ha': 0.0}
                 crop_totals[c_nom]['total_cost'] += b_row['cost']
                 crop_totals[c_nom]['ha'] += b_row['ha']
 
-        # Área cultivada de la finca oficial activa (19.99 ha) y áreas por cultivo
-        farm_cultivated_area = cls.get_farm_cultivated_area()
-        crop_official_areas = cls.get_crop_official_areas()
+        # Si no hay órdenes impresas o el costo es 0, consultar rotaciones activas/aprobadas para la semana
+        if total_cost_all <= 0.0:
+            rot_query = Rotation.query
+            if week and str(week).strip().upper() != 'ALL':
+                w_str = str(week).strip()
+                if '-' in w_str:
+                    parts = w_str.split('-')
+                    try:
+                        y_val = int(parts[0])
+                        w_val = int(parts[1])
+                        rot_query = rot_query.filter(
+                            db.or_(
+                                Rotation.week == w_str,
+                                Rotation.week == f"{y_val}-{w_val:02d}",
+                                Rotation.week == f"{y_val}-{w_val}",
+                                Rotation.week == str(w_val)
+                            )
+                        )
+                    except Exception:
+                        rot_query = rot_query.filter(Rotation.week == w_str)
+                elif w_str.isdigit():
+                    w_val = int(w_str)
+                    rot_query = rot_query.filter(
+                        db.or_(
+                            Rotation.week == str(w_val),
+                            Rotation.week.ilike(f"%-{w_val:02d}"),
+                            Rotation.week.ilike(f"%-{w_val}")
+                        )
+                    )
+                else:
+                    rot_query = rot_query.filter(Rotation.week.ilike(f"%{w_str}%"))
+
+            active_rot = rot_query.filter(Rotation.status.in_(['APROBADA', 'BORRADOR', 'PROGRAMADA'])).order_by(Rotation.id.desc()).first()
+            if not active_rot and (not week or str(week).strip().upper() == 'ALL'):
+                active_rot = Rotation.query.filter(Rotation.status == 'APROBADA').order_by(Rotation.id.desc()).first()
+
+            if active_rot and active_rot.rounds:
+                from app.modules.fumigacion.services.calculation_engine import CalculationEngine
+                w_key = active_rot.week or (str(week) if week else 'S/S')
+                for rd in active_rot.rounds:
+                    calc_res = CalculationEngine.calculate_round(rd)
+                    rd_prods = calc_res.get('product_summaries', [])
+                    rd_segs = calc_res.get('segments', [])
+
+                    rd_cost = 0.0
+                    for ps in rd_prods:
+                        p_code = str(ps.get('product_code', '')).strip().upper()
+                        c_info = prod_map.get(p_code, {})
+                        unit_cost = float(c_info.get('costo_unitario') or 0.0)
+                        tot_req = float(ps.get('total_required_quantity') or 0.0)
+                        line_cost = round(tot_req * unit_cost, 4)
+                        rd_cost += line_cost
+                        total_cost_all += line_cost
+
+                        bod_name = c_info.get('bodega') or 'SIN BODEGA'
+                        bodega_totals[bod_name] = bodega_totals.get(bod_name, 0.0) + line_cost
+
+                    rd_liters = float(calc_res.get('totals', {}).get('total_liters', 1.0)) or 1.0
+                    for seg in rd_segs:
+                        raw_blk = str(seg.get('block_name', '')).replace('BL', '').strip().upper()
+                        if not raw_blk:
+                            continue
+                        blocks_treated_set.add(raw_blk)
+                        b_info = area_map.get(raw_blk, {'ha': 0.0, 'zona': seg.get('zone', '')})
+                        b_ha = b_info['ha']
+                        c_nom = str(seg.get('crop_name', 'VARIOS')).strip().upper()
+
+                        seg_liters = float(seg.get('total_liters', 0.0))
+                        seg_cost = round((seg_liters / rd_liters) * rd_cost, 2)
+
+                        if raw_blk not in block_totals:
+                            block_totals[raw_blk] = {
+                                'block_name': raw_blk,
+                                'crop': c_nom,
+                                'zone': seg.get('zone', b_info.get('zona', '')),
+                                'total_cost': 0.0,
+                                'ha': b_ha,
+                                'applications_count': 0
+                            }
+                        block_totals[raw_blk]['total_cost'] += seg_cost
+                        block_totals[raw_blk]['applications_count'] += 1
+
+                        if c_nom not in crop_totals:
+                            crop_totals[c_nom] = {'crop': c_nom, 'total_cost': 0.0, 'ha': 0.0}
+                        crop_totals[c_nom]['total_cost'] += seg_cost
+                        crop_totals[c_nom]['ha'] += b_ha
+
+                    orders_count += 1
+
+                if w_key not in weekly_history:
+                    weekly_history[w_key] = {'week': w_key, 'total_cost': round(total_cost_all, 2), 'ha': round(sum(b['ha'] for b in block_totals.values()), 2), 'orders_count': orders_count}
+
+        # Asegurar que el histórico semanal incluya todas las rotaciones aprobadas
+        try:
+            from app.modules.fumigacion.services.calculation_engine import CalculationEngine
+            all_approved_rots = Rotation.query.filter(Rotation.status == 'APROBADA').all()
+            for a_rot in all_approved_rots:
+                a_wk = a_rot.week or 'S/S'
+                if a_wk not in weekly_history:
+                    rot_cost_hist = 0.0
+                    rot_ha_hist = 0.0
+                    for a_rd in a_rot.rounds:
+                        c_res = CalculationEngine.calculate_round(a_rd)
+                        for a_ps in c_res.get('product_summaries', []):
+                            p_c = str(a_ps.get('product_code', '')).strip().upper()
+                            u_c = float(prod_map.get(p_c, {}).get('costo_unitario') or 0.0)
+                            rot_cost_hist += float(a_ps.get('total_required_quantity') or 0.0) * u_c
+                        rot_ha_hist += sum(area_map.get(str(s.get('block_name', '')).replace('BL', '').strip().upper(), {}).get('ha', 0.0) for s in c_res.get('segments', []))
+                    weekly_history[a_wk] = {
+                        'week': a_wk,
+                        'total_cost': round(rot_cost_hist, 2),
+                        'ha': round(rot_ha_hist, 2),
+                        'orders_count': len(a_rot.rounds)
+                    }
+        except Exception:
+            pass
+
+        # Área cultivada de la finca oficial de la semana (19.99 ha) y áreas por cultivo
+        farm_cultivated_area = cls.get_farm_cultivated_area(week)
+        crop_official_areas = cls.get_crop_official_areas(week)
 
         # Calcular hectáreas acumuladas de los bloques tratados
         total_ha_treated = sum(area_map.get(str(b).replace('BL', '').strip().upper(), {}).get('ha', 0.0) for b in blocks_treated_set)
