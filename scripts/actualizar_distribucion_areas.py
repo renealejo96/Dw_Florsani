@@ -2,7 +2,7 @@
 PROYECTO: DATA WAREHOUSE & ERP FLORSANI
 ARCHIVO: scripts/actualizar_distribucion_areas.py
 DESCRIPCIÓN:
-1. Crea la tabla 'dim_distribucion_areas' con el hectareaje comercial oficial de 32.00 ha de la finca.
+1. Crea la tabla 'dim_distribucion_areas' con el hectareaje comercial oficial de 32.00 ha de la finca (histórico y activo).
 2. Crea la tabla 'historico_costos_semanales' para congelar y archivar los costos y costo/ha semana a semana.
 3. Actualiza 'dim_camas' y la vista 'mrt_estado_cultivo_actual' con la distribución exacta reportada por gerencia:
    - VERONICA: 3.63 ha
@@ -25,6 +25,7 @@ DESCRIPCIÓN:
 """
 import os
 import sys
+import json
 import pandas as pd
 from sqlalchemy import create_engine, text
 
@@ -74,28 +75,39 @@ def run_update():
             );
         """))
 
-        # Poblar semana 2026-44 y semanas activas
-        for row in DISTRIBUCION_OFICIAL:
-            pct = round((row["ha"] / 32.00) * 100.0, 2)
-            conn.execute(text("""
-                INSERT INTO dim_distribucion_areas (
-                    semana_iso, anio, semana, producto_comercial, producto_grupo, ha, es_cultivo, porcentaje_finca, updated_at
-                ) VALUES (
-                    '2026-44', 2026, 44, :p, :g, :ha, :ec, :pct, NOW()
-                )
-                ON CONFLICT (semana_iso, producto_comercial) DO UPDATE SET
-                    producto_grupo = EXCLUDED.producto_grupo,
-                    ha = EXCLUDED.ha,
-                    es_cultivo = EXCLUDED.es_cultivo,
-                    porcentaje_finca = EXCLUDED.porcentaje_finca,
-                    updated_at = NOW();
-            """), {
-                'p': row["producto"],
-                'g': row["grupo"],
-                'ha': row["ha"],
-                'ec': row["es_cultivo"],
-                'pct': pct
-            })
+        # Poblar semanas históricas y activas (2026-40 a 2026-44)
+        semanas_a_poblar = [
+            (2026, 40, '2026-40'),
+            (2026, 41, '2026-41'),
+            (2026, 42, '2026-42'),
+            (2026, 43, '2026-43'),
+            (2026, 44, '2026-44')
+        ]
+        for y_num, w_num, s_iso in semanas_a_poblar:
+            for row in DISTRIBUCION_OFICIAL:
+                pct = round((row["ha"] / 32.00) * 100.0, 2)
+                conn.execute(text("""
+                    INSERT INTO dim_distribucion_areas (
+                        semana_iso, anio, semana, producto_comercial, producto_grupo, ha, es_cultivo, porcentaje_finca, updated_at
+                    ) VALUES (
+                        :s_iso, :y, :w, :p, :g, :ha, :ec, :pct, NOW()
+                    )
+                    ON CONFLICT (semana_iso, producto_comercial) DO UPDATE SET
+                        producto_grupo = EXCLUDED.producto_grupo,
+                        ha = EXCLUDED.ha,
+                        es_cultivo = EXCLUDED.es_cultivo,
+                        porcentaje_finca = EXCLUDED.porcentaje_finca,
+                        updated_at = NOW();
+                """), {
+                    's_iso': s_iso,
+                    'y': y_num,
+                    'w': w_num,
+                    'p': row["producto"],
+                    'g': row["grupo"],
+                    'ha': row["ha"],
+                    'ec': row["es_cultivo"],
+                    'pct': pct
+                })
 
         # 2. Crear tabla de congelamiento y archivo de costos semanales
         print("  2. Creando / actualizando tabla 'historico_costos_semanales'...")
@@ -119,60 +131,81 @@ def run_update():
             );
         """))
 
-        # 3. Asegurar columna 'area_producto_comercial' en dim_camas
-        print("  3. Asegurando columna 'area_producto_comercial' en 'dim_camas'...")
+        # 3. Asegurar columnas en dim_camas
+        print("  3. Asegurando columnas 'area_producto_comercial' y 'variedad_comercial' en 'dim_camas'...")
         conn.execute(text("""
             ALTER TABLE dim_camas ADD COLUMN IF NOT EXISTS area_producto_comercial VARCHAR(60);
             ALTER TABLE dim_camas ADD COLUMN IF NOT EXISTS variedad_comercial VARCHAR(60);
         """))
 
-    # 4. Actualizar asignación de camas desde el Excel de Estado de Cultivo más reciente
-    excel_candidates = [
-        "uploads/Estado_Cultivo_PYGAN_2026-41.xlsx",
-        "uploads/Estado_Cultivo_PYGAN_2026-40.xlsx",
-        "estados de cultivo/Estado Cultivo PYGAN 2026-39.xlsx"
+    # 4. Cargar mapeo de camas (Prioridad 1: mapeo_camas_32ha.json precompilado; Prioridad 2: Excel)
+    json_candidates = [
+        "scripts/mapeo_camas_32ha.json",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "mapeo_camas_32ha.json"),
+        "/app/scripts/mapeo_camas_32ha.json"
     ]
-    excel_path = next((f for f in excel_candidates if os.path.exists(f)), None)
+    json_path = next((f for f in json_candidates if os.path.exists(f)), None)
 
-    if excel_path:
-        print(f"  4. Sincronizando camas físicas con '{excel_path}'...")
-        df_raw = pd.read_excel(excel_path, sheet_name="DATOS", header=4)
-        
-        # Mapear columnas relevantes por índice o nombre
-        # Columna 1: BLQ, 2: # Cama, 3: SUFIJO, 18: VARIEDADES ELITE, 39: HA, 50: AREA PRODUCTO COMERCIAL
-        df_camas_excel = []
-        for _, r in df_raw.iterrows():
-            if pd.isna(r.iloc[1]) or pd.isna(r.iloc[2]):
-                continue
-            blq = str(r.iloc[1]).strip()
-            num_cama_raw = str(r.iloc[2]).strip()
-            if not num_cama_raw.isdigit():
-                continue
-            num_cama = int(num_cama_raw)
-            suf = str(r.iloc[3]).strip().upper() if pd.notna(r.iloc[3]) else ''
-            cb = (blq + suf) if suf else blq
-            id_cama_base = f"{cb}-{suf}-C{num_cama}"
-            
-            apc = str(r.iloc[50]).strip().upper() if len(r) > 50 and pd.notna(r.iloc[50]) else 'VACIO'
-            var_elite = str(r.iloc[18]).strip().upper() if len(r) > 18 and pd.notna(r.iloc[18]) else ''
-            ha_cama = float(r.iloc[39]) if len(r) > 39 and pd.notna(r.iloc[39]) and isinstance(r.iloc[39], (int, float)) else 0.0035
-            
+    df_camas_excel = []
+    if json_path:
+        print(f"  4. Sincronizando camas físicas desde catálogo maestro pre-compilado '{json_path}'...")
+        with open(json_path, 'r', encoding='utf-8') as jf:
+            items = json.load(jf)
+        for it in items:
             df_camas_excel.append({
-                'id_cama': id_cama_base,
-                'area_producto_comercial': apc,
-                'variedad_comercial': var_elite,
-                'ha': ha_cama
+                'id_cama': it['id'],
+                'area_producto_comercial': it.get('apc') or 'VACIO',
+                'variedad_comercial': it.get('var') or '',
+                'ha': float(it.get('ha') or 0.0035)
             })
-            
-        print(f"    Filas válidas encontradas en Excel: {len(df_camas_excel):,}")
+        print(f"    -> {len(df_camas_excel):,} camas cargadas exitosamente desde catálogo JSON.")
+    else:
+        excel_candidates = [
+            "uploads/Estado_Cultivo_PYGAN_2026-41.xlsx",
+            "uploads/Estado_Cultivo_PYGAN_2026-40.xlsx",
+            "estados de cultivo/Estado Cultivo PYGAN 2026-39.xlsx",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads", "Estado_Cultivo_PYGAN_2026-41.xlsx")
+        ]
+        excel_path = next((f for f in excel_candidates if os.path.exists(f)), None)
+        if excel_path:
+            print(f"  4. Sincronizando camas físicas desde Excel '{excel_path}'...")
+            df_raw = pd.read_excel(excel_path, sheet_name="DATOS", header=4)
+            for _, r in df_raw.iterrows():
+                if pd.isna(r.iloc[1]) or pd.isna(r.iloc[2]):
+                    continue
+                blq = str(r.iloc[1]).strip()
+                num_cama_raw = str(r.iloc[2]).strip()
+                if not num_cama_raw.isdigit():
+                    continue
+                num_cama = int(num_cama_raw)
+                suf = str(r.iloc[3]).strip().upper() if pd.notna(r.iloc[3]) else ''
+                cb = (blq + suf) if suf else blq
+                id_cama_base = f"{cb}-{suf}-C{num_cama}"
+                
+                apc = str(r.iloc[50]).strip().upper() if len(r) > 50 and pd.notna(r.iloc[50]) else 'VACIO'
+                var_elite = str(r.iloc[18]).strip().upper() if len(r) > 18 and pd.notna(r.iloc[18]) else ''
+                ha_cama = float(r.iloc[39]) if len(r) > 39 and pd.notna(r.iloc[39]) and isinstance(r.iloc[39], (int, float)) else 0.0035
+                
+                df_camas_excel.append({
+                    'id_cama': id_cama_base,
+                    'area_producto_comercial': apc,
+                    'variedad_comercial': var_elite,
+                    'ha': ha_cama
+                })
+            print(f"    -> {len(df_camas_excel):,} camas cargadas desde Excel.")
+        else:
+            print("  ⚠️  AVISO: No se encontró archivo Excel ni JSON de camas. Se usarán datos existentes en dim_camas.")
 
-        # Guardar en una tabla temporal para actualización masiva en Postgres
+    if df_camas_excel:
         df_temp = pd.DataFrame(df_camas_excel)
         with engine.begin() as conn:
             conn.execute(text("CREATE TEMP TABLE tmp_camas_excel (id_cama VARCHAR(80), area_producto_comercial VARCHAR(60), variedad_comercial VARCHAR(60), ha NUMERIC(10, 6));"))
             df_temp.to_sql(name="tmp_camas_excel", con=conn, if_exists="append", index=False)
             
-            # Actualizar dim_camas con las camas que coinciden
+            # Resetear para evitar estados residuales antiguos
+            conn.execute(text("UPDATE dim_camas SET area_producto_comercial = NULL;"))
+
+            # Actualizar dim_camas con las camas coincidentes
             conn.execute(text("""
                 UPDATE dim_camas dc
                 SET area_producto_comercial = t.area_producto_comercial,
@@ -182,14 +215,15 @@ def run_update():
                 WHERE dc.id_cama = t.id_cama;
             """))
 
-            # Camas no presentes en el Excel -> marcar como VACIO
+            # Camas no presentes en el mapeo -> marcar como VACIO
             conn.execute(text("""
                 UPDATE dim_camas
-                SET area_producto_comercial = 'VACIO'
+                SET area_producto_comercial = 'VACIO',
+                    ha = 0.0
                 WHERE area_producto_comercial IS NULL;
             """))
 
-            # Asegurar asignación de BRILLANTINA (0.04 ha) si aún no tiene camas asignadas
+            # Asegurar asignación de BRILLANTINA (0.04 ha)
             brill_count = conn.execute(text("SELECT COUNT(*) FROM dim_camas WHERE UPPER(TRIM(area_producto_comercial)) = 'BRILLANTINA';")).scalar()
             if brill_count == 0:
                 conn.execute(text("""

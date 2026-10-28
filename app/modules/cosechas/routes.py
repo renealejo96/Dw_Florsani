@@ -1680,6 +1680,8 @@ def api_tallos_producto_maestro_por_semana():
 # API PARA EXCEL / POWER QUERY: COSECHAS SEMANA A SEMANA
 # ==============================================================================
 @cosechas_bp.route('/api/datos-semanales', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/cosechas-resumen', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/cosechas-historico', methods=['GET', 'HEAD'])
 def api_cosechas_datos_semanales():
     """
     API optimizada para conectar Microsoft Excel (Power Query / Obtener datos de la web).
@@ -1827,6 +1829,7 @@ def api_cosechas_datos_semanales():
 # API PARA EXCEL / POWER QUERY: RESUMEN DE ÁREAS (HECTÁREAS POR PRODUCTO Y VARIEDAD)
 # ==============================================================================
 @cosechas_bp.route('/api/areas-resumen', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/areas-historico', methods=['GET', 'HEAD'])
 def api_areas_resumen():
     """
     API para Microsoft Excel que devuelve el resumen oficial de hectáreas y camas
@@ -1845,134 +1848,110 @@ def api_areas_resumen():
         anio_req = request.args.get('anio', type=int)
         nivel_req = request.args.get('nivel', 'variedad').strip().lower()
         solo_sembradas = request.args.get('solo_sembradas', 'no').strip().lower() in ('si', 'true', '1')
+        historico_req = (request.args.get('historico', '0').strip().lower() in ('1', 'true', 'si') 
+                         or request.args.get('todas_semanas', '0').strip().lower() in ('1', 'true', 'si')
+                         or request.path.endswith('/areas-historico'))
 
-        where_clause = ""
-        if solo_sembradas:
-            where_clause = "WHERE m.producto_actual IS NOT NULL AND TRIM(m.producto_actual) != '' AND UPPER(TRIM(m.producto_actual)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN')"
+        now_dt = datetime.now()
+        default_semana = int(now_dt.isocalendar()[1])
+        default_anio = int(now_dt.isocalendar()[0])
 
-        if nivel_req == 'comercial':
-            if semana_req is not None:
-                anio_val = anio_req or 2026
-                query = f"""
-                    SELECT 
-                        :semana_val as semana,
-                        :anio_val as anio,
-                        COALESCE(NULLIF(TRIM(m.producto_actual), ''), 'VACIO') as producto_comercial,
-                        MAX(COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR')) as producto_maestro,
-                        COUNT(DISTINCT m.codigo_bloque) as total_bloques,
-                        COUNT(DISTINCT m.id_cama) as total_camas,
-                        ROUND(SUM(m.ha)::numeric, 4) as total_ha,
-                        ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar,
-                        ROUND((100.0 * SUM(m.ha) / 32.0)::numeric, 2) as porcentaje_finca
-                    FROM mrt_estado_cultivo_actual m
-                    LEFT JOIN (
-                        SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
-                            UPPER(TRIM(variedad)) as norm_var, 
-                            producto_maestro 
-                        FROM cat_variedades_maestro
-                    ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
-                    {where_clause}
-                    GROUP BY 1, 2, 3
-                    ORDER BY total_ha DESC, producto_comercial ASC;
-                """
-                rows = db.session.execute(text(query), {'semana_val': semana_req, 'anio_val': anio_val}).fetchall()
-            else:
-                query = f"""
-                    SELECT 
-                        CASE 
-                            WHEN m.semana_agricola_actual IS NOT NULL AND LENGTH(m.semana_agricola_actual::TEXT) >= 4 
-                            THEN SUBSTRING(m.semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
-                            ELSE 44 
-                        END as semana,
-                        CASE 
-                            WHEN m.semana_agricola_actual IS NOT NULL AND LENGTH(m.semana_agricola_actual::TEXT) >= 4 
-                            THEN (2000 + SUBSTRING(m.semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
-                            ELSE 2026 
-                        END as anio,
-                        COALESCE(NULLIF(TRIM(m.producto_actual), ''), 'VACIO') as producto_comercial,
-                        MAX(COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR')) as producto_maestro,
-                        COUNT(DISTINCT m.codigo_bloque) as total_bloques,
-                        COUNT(DISTINCT m.id_cama) as total_camas,
-                        ROUND(SUM(m.ha)::numeric, 4) as total_ha,
-                        ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar,
-                        ROUND((100.0 * SUM(m.ha) / 32.0)::numeric, 2) as porcentaje_finca
-                    FROM mrt_estado_cultivo_actual m
-                    LEFT JOIN (
-                        SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
-                            UPPER(TRIM(variedad)) as norm_var, 
-                            producto_maestro 
-                        FROM cat_variedades_maestro
-                    ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
-                    {where_clause}
-                    GROUP BY 1, 2, 3
-                    ORDER BY total_ha DESC, producto_comercial ASC;
-                """
-                rows = db.session.execute(text(query)).fetchall()
+        semana_val = semana_req if semana_req is not None else default_semana
+        anio_val = anio_req or default_anio
+
+        # Modo 1: Histórico completo semana a semana desde dim_distribucion_areas
+        if historico_req:
+            where_hist = ""
+            params_hist = {}
+            if anio_req:
+                where_hist = "WHERE anio = :anio"
+                params_hist['anio'] = anio_req
+            if solo_sembradas:
+                where_hist = ("WHERE " if not where_hist else where_hist + " AND ") + "es_cultivo = TRUE"
+
+            query = f"""
+                SELECT 
+                    semana,
+                    anio,
+                    semana_iso,
+                    producto_comercial,
+                    producto_grupo as producto_maestro,
+                    ha as total_ha,
+                    es_cultivo,
+                    porcentaje_finca
+                FROM dim_distribucion_areas
+                {where_hist}
+                ORDER BY anio DESC, semana DESC, total_ha DESC;
+            """
+            rows = db.session.execute(text(query), params_hist).fetchall()
+        elif nivel_req == 'comercial':
+            # Modo 2: Resumen oficial comercial de 32 ha para la semana seleccionada
+            where_clause = ""
+            if solo_sembradas:
+                where_clause = "WHERE m.producto_actual IS NOT NULL AND TRIM(m.producto_actual) != '' AND UPPER(TRIM(m.producto_actual)) NOT IN ('VACIO', 'APERTURA', 'EUCALIPTOS', 'VICIA-AVENA', 'MOSTAZA CALIENTE', 'ERRADICADO', 'TOTAL', 'NAN')"
+
+            query = f"""
+                SELECT 
+                    :semana_val as semana,
+                    :anio_val as anio,
+                    COALESCE(NULLIF(TRIM(m.producto_actual), ''), 'VACIO') as producto_comercial,
+                    MAX(COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR')) as producto_maestro,
+                    COUNT(DISTINCT m.codigo_bloque) as total_bloques,
+                    COUNT(DISTINCT m.id_cama) as total_camas,
+                    ROUND(SUM(m.ha)::numeric, 4) as total_ha,
+                    ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar,
+                    ROUND((100.0 * SUM(m.ha) / 32.0)::numeric, 2) as porcentaje_finca
+                FROM mrt_estado_cultivo_actual m
+                LEFT JOIN (
+                    SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
+                        UPPER(TRIM(variedad)) as norm_var, 
+                        producto_maestro 
+                    FROM cat_variedades_maestro
+                ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
+                {where_clause}
+                GROUP BY 1, 2, 3
+                ORDER BY total_ha DESC, producto_comercial ASC;
+            """
+            rows = db.session.execute(text(query), {'semana_val': semana_val, 'anio_val': anio_val}).fetchall()
         else:
-            if semana_req is not None:
-                anio_val = anio_req or 2026
-                query = f"""
-                    SELECT 
-                        :semana_val as semana,
-                        :anio_val as anio,
-                        COALESCE(NULLIF(TRIM(m.producto_actual), ''), 'VACIO') as producto_comercial,
-                        COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR') as producto_maestro,
-                        COALESCE(NULLIF(TRIM(m.variedad_actual), ''), 'SIN VARIEDAD') as variedad,
-                        COUNT(DISTINCT m.codigo_bloque) as total_bloques,
-                        COUNT(DISTINCT m.id_cama) as total_camas,
-                        ROUND(SUM(m.ha)::numeric, 4) as total_ha,
-                        ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar,
-                        ROUND((100.0 * SUM(m.ha) / 32.0)::numeric, 2) as porcentaje_finca
-                    FROM mrt_estado_cultivo_actual m
-                    LEFT JOIN (
-                        SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
-                            UPPER(TRIM(variedad)) as norm_var, 
-                            producto_maestro 
-                        FROM cat_variedades_maestro
-                    ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
-                    {where_clause}
-                    GROUP BY 1, 2, 3, 4, 5
-                    ORDER BY total_ha DESC, producto_comercial ASC;
-                """
-                rows = db.session.execute(text(query), {'semana_val': semana_req, 'anio_val': anio_val}).fetchall()
-            else:
-                query = f"""
-                    SELECT 
-                        CASE 
-                            WHEN m.semana_agricola_actual IS NOT NULL AND LENGTH(m.semana_agricola_actual::TEXT) >= 4 
-                            THEN SUBSTRING(m.semana_agricola_actual::TEXT FROM 3 FOR 2)::INTEGER 
-                            ELSE 44 
-                        END as semana,
-                        CASE 
-                            WHEN m.semana_agricola_actual IS NOT NULL AND LENGTH(m.semana_agricola_actual::TEXT) >= 4 
-                            THEN (2000 + SUBSTRING(m.semana_agricola_actual::TEXT FROM 1 FOR 2)::INTEGER) 
-                            ELSE 2026 
-                        END as anio,
-                        COALESCE(NULLIF(TRIM(m.producto_actual), ''), 'VACIO') as producto_comercial,
-                        COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR') as producto_maestro,
-                        COALESCE(NULLIF(TRIM(m.variedad_actual), ''), 'SIN VARIEDAD') as variedad,
-                        COUNT(DISTINCT m.codigo_bloque) as total_bloques,
-                        COUNT(DISTINCT m.id_cama) as total_camas,
-                        ROUND(SUM(m.ha)::numeric, 4) as total_ha,
-                        ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar,
-                        ROUND((100.0 * SUM(m.ha) / 32.0)::numeric, 2) as porcentaje_finca
-                    FROM mrt_estado_cultivo_actual m
-                    LEFT JOIN (
-                        SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
-                            UPPER(TRIM(variedad)) as norm_var, 
-                            producto_maestro 
-                        FROM cat_variedades_maestro
-                    ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
-                    {where_clause}
-                    GROUP BY 1, 2, 3, 4, 5
-                    ORDER BY total_ha DESC, producto_comercial ASC;
-                """
-                rows = db.session.execute(text(query)).fetchall()
+            # Modo 3: Resumen por variedad para la semana seleccionada
+            where_clause = ""
+            if solo_sembradas:
+                where_clause = "WHERE m.producto_actual IS NOT NULL AND TRIM(m.producto_actual) != '' AND UPPER(TRIM(m.producto_actual)) NOT IN ('VACIO', 'APERTURA', 'EUCALIPTOS', 'VICIA-AVENA', 'MOSTAZA CALIENTE', 'ERRADICADO', 'TOTAL', 'NAN')"
+
+            query = f"""
+                SELECT 
+                    :semana_val as semana,
+                    :anio_val as anio,
+                    COALESCE(NULLIF(TRIM(m.producto_actual), ''), 'VACIO') as producto_comercial,
+                    COALESCE(NULLIF(TRIM(cvm.producto_maestro), ''), NULLIF(TRIM(m.producto_actual), ''), 'SIN CLASIFICAR') as producto_maestro,
+                    COALESCE(NULLIF(TRIM(m.variedad_actual), ''), 'SIN VARIEDAD') as variedad,
+                    COUNT(DISTINCT m.codigo_bloque) as total_bloques,
+                    COUNT(DISTINCT m.id_cama) as total_camas,
+                    ROUND(SUM(m.ha)::numeric, 4) as total_ha,
+                    ROUND(SUM(m.cama_estandar)::numeric, 2) as total_camas_estandar,
+                    ROUND((100.0 * SUM(m.ha) / 32.0)::numeric, 2) as porcentaje_finca
+                FROM mrt_estado_cultivo_actual m
+                LEFT JOIN (
+                    SELECT DISTINCT ON (UPPER(TRIM(variedad))) 
+                        UPPER(TRIM(variedad)) as norm_var, 
+                        producto_maestro 
+                    FROM cat_variedades_maestro
+                ) cvm ON cvm.norm_var = UPPER(TRIM(m.variedad_actual))
+                {where_clause}
+                GROUP BY 1, 2, 3, 4, 5
+                ORDER BY total_ha DESC, producto_comercial ASC;
+            """
+            rows = db.session.execute(text(query), {'semana_val': semana_val, 'anio_val': anio_val}).fetchall()
         data_list = [dict(r._mapping) for r in rows]
 
         for d in data_list:
-            d['total_ha'] = float(d['total_ha'] or 0.0)
-            d['total_camas_estandar'] = float(d['total_camas_estandar'] or 0.0)
+            if 'total_ha' in d:
+                d['total_ha'] = float(d['total_ha'] or 0.0)
+            if 'total_camas_estandar' in d:
+                d['total_camas_estandar'] = float(d['total_camas_estandar'] or 0.0)
+            if 'porcentaje_finca' in d:
+                d['porcentaje_finca'] = float(d['porcentaje_finca'] or 0.0)
 
         if formato == 'csv':
             if not data_list:
