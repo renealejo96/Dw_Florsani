@@ -371,8 +371,12 @@ def create_app(config_class=Config):
         if request.path and (
             request.path.startswith('/cosechas/api/datos-semanales') or
             request.path.startswith('/cosechas/api/areas-resumen') or
+            request.path.startswith('/cosechas/api/cosechas') or
+            request.path.startswith('/cosechas/api/areas') or
             request.path.startswith('/api/datos-semanales') or
-            request.path.startswith('/api/areas-resumen')
+            request.path.startswith('/api/areas-resumen') or
+            request.path.startswith('/api/cosechas') or
+            request.path.startswith('/api/areas')
         ):
             return None
         
@@ -395,11 +399,15 @@ def create_app(config_class=Config):
 
 
     @app.route('/api/datos-semanales', methods=['GET', 'HEAD'])
+    @app.route('/api/datos-semanales.csv', methods=['GET', 'HEAD'])
+    @app.route('/api/cosechas.csv', methods=['GET', 'HEAD'])
     def alias_api_datos_semanales():
         from app.modules.cosechas.routes import api_cosechas_datos_semanales
         return api_cosechas_datos_semanales()
 
     @app.route('/api/areas-resumen', methods=['GET', 'HEAD'])
+    @app.route('/api/areas-resumen.csv', methods=['GET', 'HEAD'])
+    @app.route('/api/areas.csv', methods=['GET', 'HEAD'])
     def alias_api_areas_resumen():
         from app.modules.cosechas.routes import api_areas_resumen
         return api_areas_resumen()

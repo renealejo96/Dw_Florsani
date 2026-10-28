@@ -1680,6 +1680,8 @@ def api_tallos_producto_maestro_por_semana():
 # API PARA EXCEL / POWER QUERY: COSECHAS SEMANA A SEMANA
 # ==============================================================================
 @cosechas_bp.route('/api/datos-semanales', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/datos-semanales.csv', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/cosechas.csv', methods=['GET', 'HEAD'])
 @cosechas_bp.route('/api/cosechas-resumen', methods=['GET', 'HEAD'])
 @cosechas_bp.route('/api/cosechas-historico', methods=['GET', 'HEAD'])
 def api_cosechas_datos_semanales():
@@ -1710,7 +1712,14 @@ def api_cosechas_datos_semanales():
                 anio_param = None
         producto_param = (request.args.get('producto') or '').strip().upper()
         resumen_param = request.args.get('resumen', '0').strip() in ('1', 'true', 'si')
-        formato_param = request.args.get('formato', 'json').strip().lower()
+        if request.path.endswith('.csv'):
+            formato_param = 'csv'
+        elif request.path.endswith('.html'):
+            formato_param = 'html'
+        elif request.path.endswith('.json'):
+            formato_param = 'json'
+        else:
+            formato_param = request.args.get('formato', 'json').strip().lower()
         sep_param = request.args.get('sep', ';')
 
         dias_semana_map = {1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo'}
@@ -1799,6 +1808,22 @@ def api_cosechas_datos_semanales():
                 d['dia_semana'] = dias_semana_map.get(d.pop('dia_num', 1), 'Desconocido')
             data_list.append(d)
 
+        if formato_param == 'html':
+            if not data_list:
+                html_table = "<p>No se encontraron datos</p>"
+            else:
+                headers = list(data_list[0].keys())
+                th_html = "".join(f"<th>{h}</th>" for h in headers)
+                rows_html = []
+                for row in data_list:
+                    td_html = "".join(f"<td>{row.get(h, '')}</td>" for h in headers)
+                    rows_html.append(f"<tr>{td_html}</tr>")
+                tbody_html = "".join(rows_html)
+                html_table = f"""<!DOCTYPE html><html><head><meta charset='utf-8'><title>Cosechas Florsani</title></head><body><table border='1' cellpadding='4' cellspacing='0'><thead><tr>{th_html}</tr></thead><tbody>{tbody_html}</tbody></table></body></html>"""
+            resp = Response(html_table, mimetype="text/html; charset=utf-8")
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
+
         if formato_param == 'csv':
             if not data_list:
                 csv_output = "No se encontraron datos\n"
@@ -1812,8 +1837,11 @@ def api_cosechas_datos_semanales():
 
             resp = Response(
                 '\ufeff' + csv_output,
-                mimetype="text/csv; charset=utf-8",
-                headers={"Content-Disposition": f"attachment; filename=cosechas_semanales_{semana_param or 'todas'}.csv"}
+                mimetype="text/csv",
+                headers={
+                    "Content-Disposition": f"inline; filename=cosechas_semanales_{semana_param or 'todas'}.csv",
+                    "Content-Type": "text/csv; charset=utf-8"
+                }
             )
             resp.headers['Access-Control-Allow-Origin'] = '*'
             return resp
@@ -1835,6 +1863,8 @@ def api_cosechas_datos_semanales():
 # API PARA EXCEL / POWER QUERY: RESUMEN DE ÁREAS (HECTÁREAS POR PRODUCTO Y VARIEDAD)
 # ==============================================================================
 @cosechas_bp.route('/api/areas-resumen', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/areas-resumen.csv', methods=['GET', 'HEAD'])
+@cosechas_bp.route('/api/areas.csv', methods=['GET', 'HEAD'])
 @cosechas_bp.route('/api/areas-historico', methods=['GET', 'HEAD'])
 def api_areas_resumen():
     """
@@ -1848,7 +1878,14 @@ def api_areas_resumen():
         return resp
 
     try:
-        formato = request.args.get('formato', 'json').strip().lower()
+        if request.path.endswith('.csv'):
+            formato = 'csv'
+        elif request.path.endswith('.html'):
+            formato = 'html'
+        elif request.path.endswith('.json'):
+            formato = 'json'
+        else:
+            formato = request.args.get('formato', 'json').strip().lower()
         sep_param = request.args.get('sep', ';')
         semana_req = request.args.get('semana', type=int)
         anio_req = request.args.get('anio', type=int)
@@ -1964,6 +2001,22 @@ def api_areas_resumen():
             if 'porcentaje_finca' in d:
                 d['porcentaje_finca'] = float(d['porcentaje_finca'] or 0.0)
 
+        if formato == 'html':
+            if not data_list:
+                html_table = "<p>No hay datos</p>"
+            else:
+                headers = list(data_list[0].keys())
+                th_html = "".join(f"<th>{h}</th>" for h in headers)
+                rows_html = []
+                for row in data_list:
+                    td_html = "".join(f"<td>{row.get(h, '')}</td>" for h in headers)
+                    rows_html.append(f"<tr>{td_html}</tr>")
+                tbody_html = "".join(rows_html)
+                html_table = f"""<!DOCTYPE html><html><head><meta charset='utf-8'><title>Areas Finca Florsani</title></head><body><table border='1' cellpadding='4' cellspacing='0'><thead><tr>{th_html}</tr></thead><tbody>{tbody_html}</tbody></table></body></html>"""
+            resp = Response(html_table, mimetype="text/html; charset=utf-8")
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
+
         if formato == 'csv':
             if not data_list:
                 csv_output = "No hay datos\n"
@@ -1976,8 +2029,11 @@ def api_areas_resumen():
                 csv_output = output.getvalue()
             resp = Response(
                 '\ufeff' + csv_output,
-                mimetype="text/csv; charset=utf-8",
-                headers={"Content-Disposition": "attachment; filename=areas_finca_florsani.csv"}
+                mimetype="text/csv",
+                headers={
+                    "Content-Disposition": "inline; filename=areas_finca_florsani.csv",
+                    "Content-Type": "text/csv; charset=utf-8"
+                }
             )
             resp.headers['Access-Control-Allow-Origin'] = '*'
             return resp

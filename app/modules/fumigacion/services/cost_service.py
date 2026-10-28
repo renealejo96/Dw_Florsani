@@ -99,7 +99,8 @@ class CostService:
 
         for d in order.details:
             p_code = (d.product_code or '').strip().upper()
-            cost_info = prod_map.get(p_code) or {}
+            c_nom = (d.commercial_name or '').strip().upper()
+            cost_info = prod_map.get(p_code) or prod_map.get(c_nom) or {}
             unit_cost = float(cost_info.get('costo_unitario') or 0.0)
             bodega_name = cost_info.get('bodega') or 'SIN BODEGA'
             
@@ -158,6 +159,37 @@ class CostService:
                 }
             by_product[prod_key]['total_amount'] += p_amt
             by_product[prod_key]['total_cost'] += line_cost
+
+        # Fallback a FumigationOrderProductSummary si order.details no tiene costos calculados
+        if total_cost <= 0.0 and getattr(order, 'product_summaries', None):
+            for ps in order.product_summaries:
+                p_code = (ps.product_code or '').strip().upper()
+                c_nom = (ps.commercial_name or '').strip().upper()
+                cost_info = prod_map.get(p_code) or prod_map.get(c_nom) or {}
+                unit_cost = float(cost_info.get('costo_unitario') or 0.0)
+                bodega_name = cost_info.get('bodega') or 'SIN BODEGA'
+                p_amt = float(ps.total_required_quantity or 0.0)
+                line_cost = round(p_amt * unit_cost, 4)
+                total_cost += line_cost
+
+                if bodega_name not in by_bodega:
+                    by_bodega[bodega_name] = {'total_cost': 0.0, 'items_count': 0}
+                by_bodega[bodega_name]['total_cost'] += line_cost
+                by_bodega[bodega_name]['items_count'] += 1
+
+                p_key = c_nom or p_code
+                if p_key not in by_product:
+                    by_product[p_key] = {
+                        'product_code': p_code,
+                        'commercial_name': p_key,
+                        'bodega': bodega_name,
+                        'unit': ps.dose_unit or 'CC',
+                        'unit_cost': unit_cost,
+                        'total_amount': 0.0,
+                        'total_cost': 0.0
+                    }
+                by_product[p_key]['total_amount'] += p_amt
+                by_product[p_key]['total_cost'] += line_cost
 
         # Calcular costo por ha por bloque
         block_list = []
@@ -343,38 +375,56 @@ class CostService:
         prod_map = cls.get_product_cost_map()
         area_map = cls.get_block_area_map()
 
+        def _build_week_filter(model_col, w_input):
+            w_clean = str(w_input).strip()
+            filters = [model_col == w_clean]
+            digits = ''.join(c for c in w_clean if c.isdigit())
+            if '-' in w_clean:
+                parts = w_clean.split('-')
+                try:
+                    y = int(parts[0])
+                    w = int(parts[1])
+                    filters.extend([
+                        model_col == f"{y}-{w:02d}",
+                        model_col == f"{y}-{w}",
+                        model_col == str(w),
+                        model_col == f"{y%100:02d}{w:02d}",
+                        model_col.ilike(f"%-{w:02d}"),
+                        model_col.ilike(f"%-{w}"),
+                        model_col.ilike(f"%{w:02d}"),
+                        model_col.ilike(f"%{w}")
+                    ])
+                except Exception:
+                    pass
+            elif len(digits) == 4:
+                y = 2000 + int(digits[:2])
+                w = int(digits[2:])
+                filters.extend([
+                    model_col == f"{y}-{w:02d}",
+                    model_col == f"{y}-{w}",
+                    model_col == str(w),
+                    model_col == digits,
+                    model_col.ilike(f"%-{w:02d}"),
+                    model_col.ilike(f"%{w:02d}"),
+                    model_col.ilike(f"%{w}")
+                ])
+            elif digits:
+                w = int(digits)
+                filters.extend([
+                    model_col == str(w),
+                    model_col.ilike(f"%-{w:02d}"),
+                    model_col.ilike(f"%-{w}"),
+                    model_col.ilike(f"%{w:02d}"),
+                    model_col.ilike(f"%{w}")
+                ])
+            return db.or_(*filters)
+
         # Consultar órdenes que estén impresas o finalizadas/aprobadas
         query = FumigationOrder.query
         if week and str(week).strip().upper() != 'ALL':
-            w_str = str(week).strip()
-            if '-' in w_str:
-                parts = w_str.split('-')
-                try:
-                    y_val = int(parts[0])
-                    w_val = int(parts[1])
-                    query = query.filter(
-                        db.or_(
-                            FumigationOrder.week == w_str,
-                            FumigationOrder.week == f"{y_val}-{w_val:02d}",
-                            FumigationOrder.week == f"{y_val}-{w_val}",
-                            FumigationOrder.week == str(w_val)
-                        )
-                    )
-                except Exception:
-                    query = query.filter(FumigationOrder.week == w_str)
-            elif w_str.isdigit():
-                w_val = int(w_str)
-                query = query.filter(
-                    db.or_(
-                        FumigationOrder.week == str(w_val),
-                        FumigationOrder.week.ilike(f"%-{w_val:02d}"),
-                        FumigationOrder.week.ilike(f"%-{w_val}")
-                    )
-                )
-            else:
-                query = query.filter(FumigationOrder.week.ilike(f"%{w_str}%"))
+            query = query.filter(_build_week_filter(FumigationOrder.week, week))
         
-        # Priorizar órdenes impresas o en estado APROBADA / EJECUTADA
+        # Priorizar órdenes registradas
         orders = query.order_by(FumigationOrder.created_at.desc()).all()
 
         total_cost_all = 0.0
@@ -426,54 +476,67 @@ class CostService:
                 crop_totals[c_nom]['total_cost'] += b_row['cost']
                 crop_totals[c_nom]['ha'] += b_row['ha']
 
-        # Si no hay órdenes impresas o el costo es 0, consultar rotaciones activas/aprobadas para la semana
+        # Si no hay órdenes con costo mayor a 0, consultar rotaciones de la semana
         if total_cost_all <= 0.0:
             rot_query = Rotation.query
             if week and str(week).strip().upper() != 'ALL':
-                w_str = str(week).strip()
-                if '-' in w_str:
-                    parts = w_str.split('-')
+                rot_query = rot_query.filter(_build_week_filter(Rotation.week, week))
+
+            active_rots = rot_query.filter(
+                ~Rotation.status.in_(['NO_EJECUTADA', 'ELIMINADA', 'CANCELADA'])
+            ).order_by(Rotation.id.desc()).all()
+
+            if not active_rots and (not week or str(week).strip().upper() == 'ALL'):
+                active_rots = Rotation.query.filter(
+                    ~Rotation.status.in_(['NO_EJECUTADA', 'ELIMINADA', 'CANCELADA'])
+                ).order_by(Rotation.id.desc()).limit(1).all()
+
+            for active_rot in active_rots:
+                if not active_rot.rounds:
+                    continue
+                import json
+                rev_by_round = {}
+                if active_rot.review_data_by_round_json:
                     try:
-                        y_val = int(parts[0])
-                        w_val = int(parts[1])
-                        rot_query = rot_query.filter(
-                            db.or_(
-                                Rotation.week == w_str,
-                                Rotation.week == f"{y_val}-{w_val:02d}",
-                                Rotation.week == f"{y_val}-{w_val}",
-                                Rotation.week == str(w_val)
-                            )
-                        )
+                        rev_by_round = json.loads(active_rot.review_data_by_round_json)
                     except Exception:
-                        rot_query = rot_query.filter(Rotation.week == w_str)
-                elif w_str.isdigit():
-                    w_val = int(w_str)
-                    rot_query = rot_query.filter(
-                        db.or_(
-                            Rotation.week == str(w_val),
-                            Rotation.week.ilike(f"%-{w_val:02d}"),
-                            Rotation.week.ilike(f"%-{w_val}")
-                        )
-                    )
-                else:
-                    rot_query = rot_query.filter(Rotation.week.ilike(f"%{w_str}%"))
+                        pass
 
-            active_rot = rot_query.filter(Rotation.status.in_(['APROBADA', 'BORRADOR', 'PROGRAMADA'])).order_by(Rotation.id.desc()).first()
-            if not active_rot and (not week or str(week).strip().upper() == 'ALL'):
-                active_rot = Rotation.query.filter(Rotation.status == 'APROBADA').order_by(Rotation.id.desc()).first()
-
-            if active_rot and active_rot.rounds:
                 from app.modules.fumigacion.services.calculation_engine import CalculationEngine
                 w_key = active_rot.week or (str(week) if week else 'S/S')
+
                 for rd in active_rot.rounds:
-                    calc_res = CalculationEngine.calculate_round(rd)
+                    custom_segs = rev_by_round.get(str(rd.id))
+                    if not custom_segs and active_rot.review_data_json:
+                        try:
+                            custom_segs = json.loads(active_rot.review_data_json)
+                        except Exception:
+                            pass
+
+                    calc_res = CalculationEngine.calculate_round(rd, custom_review_segments=custom_segs)
                     rd_prods = calc_res.get('product_summaries', [])
                     rd_segs = calc_res.get('segments', [])
+
+                    # Fallback si rd_prods no devolvió insumos pero la vuelta tiene items configurados
+                    if not rd_prods and getattr(rd, 'items', None):
+                        for item in rd.items:
+                            from app.shared.models import Product
+                            prod_obj = Product.query.get(item.product_id)
+                            if prod_obj:
+                                p_c = (prod_obj.code or '').strip().upper()
+                                c_n = (prod_obj.commercial_name or p_c).strip().upper()
+                                est_qty = float(item.dose_applied or 0.0) * 10.0
+                                rd_prods.append({
+                                    'product_code': p_c,
+                                    'commercial_name': c_n,
+                                    'total_required_quantity': est_qty
+                                })
 
                     rd_cost = 0.0
                     for ps in rd_prods:
                         p_code = str(ps.get('product_code', '')).strip().upper()
-                        c_info = prod_map.get(p_code, {})
+                        c_nom = str(ps.get('commercial_name', '')).strip().upper()
+                        c_info = prod_map.get(p_code) or prod_map.get(c_nom) or {}
                         unit_cost = float(c_info.get('costo_unitario') or 0.0)
                         tot_req = float(ps.get('total_required_quantity') or 0.0)
                         line_cost = round(tot_req * unit_cost, 4)
