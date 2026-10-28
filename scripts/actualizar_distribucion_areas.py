@@ -75,12 +75,12 @@ def run_update():
             );
         """))
 
-        # Limpiar semanas futuras no cerradas (semana 42 en adelante en 2026)
-        conn.execute(text("DELETE FROM dim_distribucion_areas WHERE anio = 2026 AND semana > 41;"))
+        # Limpiar semanas futuras no cerradas (semana 44 en adelante en 2026)
+        conn.execute(text("DELETE FROM dim_distribucion_areas WHERE anio = 2026 AND semana > 43;"))
 
-        # Poblar histórico completo: todo el año 2025 (sem 1-52) y año 2026 (sem 1-41 cerrado)
+        # Poblar histórico completo: todo el año 2025 (sem 1-52) y año 2026 (sem 1-43 cerrado)
         semanas_2025 = [(2025, w, f"2025-{w:02d}") for w in range(1, 53)]
-        semanas_2026 = [(2026, w, f"2026-{w:02d}") for w in range(1, 42)]
+        semanas_2026 = [(2026, w, f"2026-{w:02d}") for w in range(1, 44)]
         semanas_a_poblar = semanas_2025 + semanas_2026
         for y_num, w_num, s_iso in semanas_a_poblar:
             for row in DISTRIBUCION_OFICIAL:
@@ -285,15 +285,12 @@ def run_update():
             c_1.semana_abs AS semana_abs_hoy,
             c_1.semana_campo AS semana_campo_hoy
         FROM dim_calendario_agricola c_1
-        WHERE c_1.semana_campo = (
-            SELECT COALESCE(MAX(e.semana_campo), 2641)
-            FROM stg_eventos e
-        )
+        WHERE c_1.semana_campo = 2643
         ORDER BY c_1.fecha DESC
         LIMIT 1
     ), semana_hoy AS (
-        SELECT COALESCE((SELECT semana_abs_hoy FROM semana_corte_calc), 1352) AS semana_abs_hoy,
-            COALESCE((SELECT semana_campo_hoy FROM semana_corte_calc), 2641) AS semana_campo_hoy
+        SELECT COALESCE((SELECT semana_abs_hoy FROM semana_corte_calc), 1354) AS semana_abs_hoy,
+            COALESCE((SELECT semana_campo_hoy FROM semana_corte_calc), 2643) AS semana_campo_hoy
     )
     SELECT f.id_finca,
         f.nombre_finca,

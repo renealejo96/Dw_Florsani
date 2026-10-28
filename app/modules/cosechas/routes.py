@@ -1865,7 +1865,7 @@ def api_areas_resumen():
             default_semana = int(ultima_sem_row[1])
         else:
             default_anio = 2026
-            default_semana = 41
+            default_semana = 43
 
         semana_val = semana_req if semana_req is not None else default_semana
         anio_val = anio_req or default_anio
