@@ -567,7 +567,15 @@
                         <th class="text-center" style="min-width: 120px;">Tareas Cumplidas</th>
                         <th class="text-center" style="min-width: 110px;">% Global</th>
                         {% for cult in cultivos_columnas %}
-                        <th class="text-center">{{ cult }}</th>
+                        <th class="text-center pbi-cell-clickable"
+                            data-aux-idx="ALL"
+                            data-cultivo="{{ cult }}"
+                            onclick="handlePbiCellClick(this)"
+                            title="Clic para ver todas las labores de {{ cult }} en toda la finca"
+                            style="cursor: pointer;">
+                            <span class="text-warning text-decoration-underline">{{ cult }}</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.62rem;"></i>
+                        </th>
                         {% endfor %}
                     </tr>
                 </thead>
@@ -624,7 +632,7 @@
                         {% set c_info = row.cultivos.get(cult) %}
                         {% if c_info %}
                         <td class="text-center pbi-cell-clickable"
-                            onclick="openPbiDrilldown({{ aux_idx }}, {{ cult|tojson }}, this)"
+                            data-aux-idx="{{ aux_idx }}" data-cultivo="{{ cult }}" onclick="handlePbiCellClick(this)"
                             title="{{ row.auxiliar }} · {{ cult }}: {{ c_info.cumplidas }}/{{ c_info.total }} cumplidas ({{ c_info.quedaron }} quedaron). Clic para ver detalle.">
                             <div class="d-flex justify-content-between align-items-baseline px-1">
                                 <span class="fw-bold {% if c_info.pct >= 85 %}text-success{% elif c_info.pct >= 70 %}text-warning{% else %}text-danger{% endif %}">
@@ -1441,6 +1449,14 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+function handlePbiCellClick(cellEl) {
+    if (!cellEl) return;
+    const rawAux = cellEl.getAttribute('data-aux-idx');
+    const cult = cellEl.getAttribute('data-cultivo') || null;
+    const auxIdx = (rawAux === 'ALL' || rawAux === null || rawAux === '') ? null : parseInt(rawAux, 10);
+    openPbiDrilldown(auxIdx, cult, cellEl);
+}
+
 function openPbiDrilldown(auxIdx, cultivoName, cellEl) {
     document.querySelectorAll('.pbi-cell-clickable.pbi-cell-active').forEach(el => {
         el.classList.remove('pbi-cell-active');
@@ -1485,76 +1501,112 @@ function updateModalStatusButtonsUI() {
 }
 
 function refreshModalAuxiliarData() {
-    const auxRow = MATRIZ_AUX[currentModalAuxIdx];
-    if (!auxRow) return;
-
     const titleEl = document.getElementById('pbi-drill-title');
     const badgesEl = document.getElementById('pbi-drill-summary-badges');
     const tabsEl = document.getElementById('pbi-modal-crop-tabs');
-
-    // Construir pestañas dinámicas de cultivos del auxiliar dentro de la ventana
-    const cropKeys = Object.keys(auxRow.cultivos || {}).sort();
-    if (tabsEl) {
-        let tabsHtml = `
-            <button type="button"
-                    class="btn btn-sm py-0 px-2 fw-bold ${currentModalCultivo === null ? 'btn-dark' : 'btn-outline-secondary'}"
-                    style="font-size: 0.73rem; height: 26px;"
-                    onclick="switchModalCultivoTab(null)">
-                Todos (${auxRow.quedaron} no cumpl.)
-            </button>
-        `;
-        cropKeys.forEach(cKey => {
-            const cObj = auxRow.cultivos[cKey];
-            const isAct = (currentModalCultivo === cKey);
-            const escapedKey = escapeHtml(cKey).replace(/'/g, "\\'");
-            tabsHtml += `
-                <button type="button"
-                        class="btn btn-sm py-0 px-2 fw-semibold ${isAct ? 'btn-primary' : 'btn-outline-secondary'}"
-                        style="font-size: 0.73rem; height: 26px;"
-                        onclick="switchModalCultivoTab('${escapedKey}')">
-                    ${escapeHtml(cKey)} (${cObj.pct}% &bull; ${cObj.quedaron} qued.)
-                </button>
-            `;
-        });
-        tabsEl.innerHTML = tabsHtml;
-    }
 
     let cumplidasCount = 0;
     let totalCount = 0;
     currentModalTasks = [];
 
-    if (currentModalCultivo) {
-        const cInfo = auxRow.cultivos[currentModalCultivo];
-        if (cInfo) {
-            cumplidasCount = cInfo.cumplidas;
-            totalCount = cInfo.total;
-            const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
-            currentModalTasks = taskSource.map(t => ({ ...t, cultivo: currentModalCultivo }));
-        }
-        if (titleEl) {
-            titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">${escapeHtml(currentModalCultivo)}</span>`;
-        }
-    } else {
-        cumplidasCount = auxRow.cumplidas;
-        totalCount = auxRow.total;
-        cropKeys.forEach(cKey => {
-            const cInfo = auxRow.cultivos[cKey];
-            const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
-            taskSource.forEach(t => {
-                currentModalTasks.push({ ...t, cultivo: cKey });
+    if (currentModalAuxIdx === null) {
+        // ==============================================================
+        // MODO CULTIVO GENERAL (Toda la finca para este cultivo)
+        // ==============================================================
+        const targetCrop = currentModalCultivo;
+        MATRIZ_AUX.forEach(auxRow => {
+            const cropKeys = targetCrop ? [targetCrop] : Object.keys(auxRow.cultivos || {});
+            cropKeys.forEach(cKey => {
+                const cInfo = (auxRow.cultivos || {})[cKey];
+                if (cInfo) {
+                    cumplidasCount += (cInfo.cumplidas || 0);
+                    totalCount += (cInfo.total || 0);
+                    const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
+                    taskSource.forEach(t => {
+                        currentModalTasks.push({
+                            ...t,
+                            auxiliar: auxRow.auxiliar,
+                            supervisor: auxRow.supervisor,
+                            cultivo: cKey
+                        });
+                    });
+                }
             });
         });
+
         if (titleEl) {
-            titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">Todos los Cultivos</span>`;
+            titleEl.innerHTML = `<i class="fa-solid fa-seedling text-warning me-1"></i>Cultivo: <span class="text-warning">${escapeHtml(targetCrop || 'Todos los Cultivos')}</span> &bull; <span class="text-white-50 fw-normal">Toda la Finca</span>`;
+        }
+        if (tabsEl) {
+            tabsEl.innerHTML = `<span class="badge bg-secondary text-white px-2.5 py-1" style="font-size: 0.75rem;"><i class="fa-solid fa-users me-1"></i>Listado Consolidado de Toda la Finca</span>`;
+        }
+    } else {
+        // ==============================================================
+        // MODO AUXILIAR ESPECÍFICO
+        // ==============================================================
+        const auxRow = MATRIZ_AUX[currentModalAuxIdx];
+        if (!auxRow) return;
+
+        const cropKeys = Object.keys(auxRow.cultivos || {}).sort();
+        if (tabsEl) {
+            let tabsHtml = `
+                <button type="button"
+                        class="btn btn-sm py-0 px-2 fw-bold ${currentModalCultivo === null ? 'btn-dark' : 'btn-outline-secondary'}"
+                        style="font-size: 0.73rem; height: 26px;"
+                        onclick="switchModalCultivoTab(null)">
+                    Todos (${auxRow.total} labores)
+                </button>
+            `;
+            cropKeys.forEach(cKey => {
+                const cObj = auxRow.cultivos[cKey];
+                const isAct = (currentModalCultivo === cKey);
+                const escapedKey = escapeHtml(cKey).replace(/'/g, "\\'");
+                tabsHtml += `
+                    <button type="button"
+                            class="btn btn-sm py-0 px-2 fw-semibold ${isAct ? 'btn-primary' : 'btn-outline-secondary'}"
+                            style="font-size: 0.73rem; height: 26px;"
+                            onclick="switchModalCultivoTab('${escapedKey}')">
+                        ${escapeHtml(cKey)} (${cObj.cumplidas}/${cObj.total})
+                    </button>
+                `;
+            });
+            tabsEl.innerHTML = tabsHtml;
+        }
+
+        if (currentModalCultivo) {
+            const cInfo = auxRow.cultivos[currentModalCultivo];
+            if (cInfo) {
+                cumplidasCount = cInfo.cumplidas;
+                totalCount = cInfo.total;
+                const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
+                currentModalTasks = taskSource.map(t => ({ ...t, auxiliar: auxRow.auxiliar, supervisor: auxRow.supervisor, cultivo: currentModalCultivo }));
+            }
+            if (titleEl) {
+                titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">${escapeHtml(currentModalCultivo)}</span>`;
+            }
+        } else {
+            cumplidasCount = auxRow.cumplidas;
+            totalCount = auxRow.total;
+            cropKeys.forEach(cKey => {
+                const cInfo = auxRow.cultivos[cKey];
+                const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
+                taskSource.forEach(t => {
+                    currentModalTasks.push({ ...t, auxiliar: auxRow.auxiliar, supervisor: auxRow.supervisor, cultivo: cKey });
+                });
+            });
+            if (titleEl) {
+                titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">Todos los Cultivos</span>`;
+            }
         }
     }
 
     const incumpCount = currentModalTasks.filter(t => t.es_incumplida).length;
-    const pendCount = currentModalTasks.length - incumpCount;
+    const cumplCount = currentModalTasks.filter(t => t.es_cumplida).length;
+    const pendCount = currentModalTasks.length - incumpCount - cumplCount;
 
     if (badgesEl) {
         badgesEl.innerHTML = `
-            <span class="badge bg-success-subtle text-success border border-success-subtle">Cumplidas: ${cumplidasCount}/${totalCount}</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">Cumplidas: ${cumplCount}/${totalCount}</span>
             <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Incumplidas (0): ${incumpCount}</span>
             <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Pendientes: ${pendCount}</span>
         `;

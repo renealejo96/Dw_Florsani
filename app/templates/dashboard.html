@@ -410,11 +410,20 @@
                     <!-- Bodega Progress Bars List -->
                     <div class="d-flex flex-column gap-2" id="contenedorBarrasBodega">
                         {% for b in cost_summary.by_bodega %}
-                        <div class="p-1 rounded cursor-pointer" onclick="abrirDetalleBodega('{{ b.bodega }}')" style="cursor: pointer;" title="Haga clic para ver el desglose de productos de {{ b.bodega }}">
+                        <div class="p-2 rounded border bg-light cursor-pointer shadow-xs bodega-card-item" 
+                             data-bodega="{{ b.bodega }}" 
+                             onclick="abrirDetalleBodega(this.getAttribute('data-bodega'))" 
+                             style="cursor: pointer; transition: all 0.15s ease;" 
+                             title="Haga clic para ver el desglose de insumos de {{ b.bodega }}">
                             <div class="d-flex justify-content-between align-items-center small mb-1">
-                                <span class="fw-semibold text-dark">
+                                <span class="fw-bold text-dark">
                                     <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i>{{ b.bodega }}
-                                    <i class="fa-solid fa-arrow-up-right-from-square text-muted ms-1" style="font-size: 0.7rem;"></i>
+                                    {% if 'FUMIG' in b.bodega.upper() %}
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1" style="font-size: 0.65rem;">Meta: $240/ha</span>
+                                    {% elif 'FERTIL' in b.bodega.upper() %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size: 0.65rem;">Meta: $340/ha</span>
+                                    {% endif %}
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-muted ms-1" style="font-size: 0.68rem;"></i>
                                 </span>
                                 <span class="font-monospace text-secondary">${{ "%.2f"|format(b.cost) }} <strong class="text-dark">({{ b.pct }}%)</strong></span>
                             </div>
@@ -496,16 +505,22 @@
             </div>
             <div class="modal-body p-4 bg-light">
                 <div class="row g-2 mb-3">
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
-                            <span class="text-muted small fw-semibold text-uppercase">Inversión en Bodega:</span>
+                            <span class="text-muted small fw-semibold text-uppercase">Inversión:</span>
                             <span class="fw-bolder fs-5 text-success font-monospace" id="modalBodegaTotal">$0.00</span>
                         </div>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
                             <span class="text-muted small fw-semibold text-uppercase">Participación:</span>
                             <span class="badge bg-primary fs-7" id="modalBodegaPct">0%</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
+                            <span class="text-muted small fw-semibold text-uppercase">Meta Agronómica:</span>
+                            <span class="small font-monospace" id="modalBodegaMeta">Meta: $240/ha</span>
                         </div>
                     </div>
                 </div>
@@ -547,6 +562,14 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+function abrirDetalleBodega(bodegaName) {
+    if (typeof window.abrirDetalleBodega === 'function') {
+        window.abrirDetalleBodega(bodegaName);
+    }
+}
+</script>
+
 <!-- Chart.js Engine -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -1621,12 +1644,18 @@ document.addEventListener('DOMContentLoaded', function() {
     window.abrirDetalleBodega = function(bodegaName) {
         if (!bodegaName) return;
         const bNameClean = String(bodegaName).trim().toUpperCase();
-        const bodegaData = (costSummaryGlobal && costSummaryGlobal.by_bodega) ? costSummaryGlobal.by_bodega : [];
+        const bodegaData = (costSummaryGlobal && Array.isArray(costSummaryGlobal.by_bodega)) ? costSummaryGlobal.by_bodega : [];
+        
         let b = bodegaData.find(item => (item.bodega || '').trim().toUpperCase() === bNameClean);
         if (!b) {
-            b = bodegaData.find(item => (item.bodega || '').toUpperCase().includes(bNameClean) || bNameClean.includes((item.bodega || '').toUpperCase()));
+            b = bodegaData.find(item => {
+                const itName = (item.bodega || '').trim().toUpperCase();
+                return itName.includes(bNameClean) || bNameClean.includes(itName) ||
+                       (bNameClean.includes('FUMIG') && itName.includes('FUMIG')) ||
+                       (bNameClean.includes('FERTIL') && itName.includes('FERTIL'));
+            });
         }
-        if (!b && bodegaData.length === 1) {
+        if (!b && bodegaData.length > 0) {
             b = bodegaData[0];
         }
         if (!b) {
@@ -1638,13 +1667,26 @@ document.addEventListener('DOMContentLoaded', function() {
         const semanaEl = document.getElementById('modalBodegaSemana');
         const totalEl = document.getElementById('modalBodegaTotal');
         const pctEl = document.getElementById('modalBodegaPct');
+        const metaEl = document.getElementById('modalBodegaMeta');
         const tbodyEl = document.getElementById('modalBodegaTbody');
         const badgeCountEl = document.getElementById('modalBodegaItemCount');
 
         if (tituloEl) tituloEl.textContent = b.bodega;
-        if (semanaEl) semanaEl.textContent = costWeekGlobal === 'ALL' ? 'Todas las Semanas' : `Semana ${costWeekGlobal}`;
+        const weekSelectorVal = document.querySelector('select[name="cost_week"]')?.value || '{{ cost_week or selected_week or "Actual" }}';
+        if (semanaEl) semanaEl.textContent = (weekSelectorVal === 'ALL') ? 'Todas las Semanas' : `Semana ${weekSelectorVal}`;
         if (totalEl) totalEl.textContent = '$' + Number(b.cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
         if (pctEl) pctEl.textContent = `${b.pct}% del costo total`;
+
+        if (metaEl) {
+            const bUpper = (b.bodega || '').toUpperCase();
+            if (bUpper.includes('FUMIG')) {
+                metaEl.innerHTML = 'Meta: <strong class="text-primary font-monospace">$240.00 / ha</strong>';
+            } else if (bUpper.includes('FERTIL')) {
+                metaEl.innerHTML = 'Meta: <strong class="text-primary font-monospace">$340.00 / ha</strong>';
+            } else {
+                metaEl.innerHTML = 'Meta: <span class="text-muted">-</span>';
+            }
+        }
 
         const prods = b.products || [];
         if (badgeCountEl) badgeCountEl.textContent = `${prods.length} insumos`;
