@@ -478,6 +478,72 @@
         </div>
     </div>
 </div>
+<!-- Modal Detalle Consumo por Bodega -->
+<div class="modal fade" id="modalDetalleConsumoBodega" tabindex="-1" aria-labelledby="modalBodegaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <div>
+                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2 mb-0" id="modalBodegaHeaderTitle">
+                        <i class="fa-solid fa-warehouse text-warning"></i>
+                        <span>Desglose de Consumo &bull; Bodega: <span id="modalBodegaTitulo" class="text-warning">FUMIGANTES</span></span>
+                    </h5>
+                    <div class="small text-white-50 mt-1">
+                        Filtro Activo: <strong id="modalBodegaSemana" class="text-white">Semana Actual</strong> &bull; Ordenado de mayor a menor consumo económico ($)
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="row g-2 mb-3">
+                    <div class="col-sm-6">
+                        <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
+                            <span class="text-muted small fw-semibold text-uppercase">Inversión en Bodega:</span>
+                            <span class="fw-bolder fs-5 text-success font-monospace" id="modalBodegaTotal">$0.00</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
+                            <span class="text-muted small fw-semibold text-uppercase">Participación:</span>
+                            <span class="badge bg-primary fs-7" id="modalBodegaPct">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border shadow-xs rounded-3 overflow-hidden">
+                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
+                        <span class="fw-bold small text-dark"><i class="fa-solid fa-list-check me-1 text-primary"></i> Insumos Aplicados en Campo</span>
+                        <span class="badge bg-light text-muted border font-monospace" id="modalBodegaItemCount">0 insumos</span>
+                    </div>
+                    <div class="table-responsive" style="max-height: 380px;">
+                        <table class="table table-hover table-striped table-sm align-middle mb-0 small">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th style="width: 35px;" class="text-center">#</th>
+                                    <th>Insumo / Producto Comercial</th>
+                                    <th style="width: 60px;" class="text-center">U.M</th>
+                                    <th style="width: 100px;" class="text-end">Cantidad</th>
+                                    <th style="width: 90px;" class="text-end">Costo Unit.</th>
+                                    <th style="width: 110px;" class="text-end bg-secondary">Total Invertido</th>
+                                    <th style="width: 65px;" class="text-end">% Bodega</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalBodegaTbody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">Cargando insumos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white py-2 px-4 border-top">
+                <button type="button" class="btn btn-secondary btn-sm fw-semibold" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1554,9 +1620,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==============================================================
     window.abrirDetalleBodega = function(bodegaName) {
         if (!bodegaName) return;
-        const bodegaData = costSummaryGlobal.by_bodega || [];
-        const b = bodegaData.find(item => item.bodega.toUpperCase() === bodegaName.toUpperCase());
-        if (!b) return;
+        const bNameClean = String(bodegaName).trim().toUpperCase();
+        const bodegaData = (costSummaryGlobal && costSummaryGlobal.by_bodega) ? costSummaryGlobal.by_bodega : [];
+        let b = bodegaData.find(item => (item.bodega || '').trim().toUpperCase() === bNameClean);
+        if (!b) {
+            b = bodegaData.find(item => (item.bodega || '').toUpperCase().includes(bNameClean) || bNameClean.includes((item.bodega || '').toUpperCase()));
+        }
+        if (!b && bodegaData.length === 1) {
+            b = bodegaData[0];
+        }
+        if (!b) {
+            console.warn('[BODEGA-MODAL] No se encontró la bodega:', bodegaName, bodegaData);
+            return;
+        }
 
         const tituloEl = document.getElementById('modalBodegaTitulo');
         const semanaEl = document.getElementById('modalBodegaSemana');
@@ -1603,71 +1679,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 </script>
-{
-<!-- Modal Detalle Consumo por Bodega -->
-<div class="modal fade" id="modalDetalleConsumoBodega" tabindex="-1" aria-labelledby="modalBodegaTitulo" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content shadow-lg border-0 rounded-4">
-            <div class="modal-header bg-dark text-white py-3 px-4">
-                <div>
-                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2 mb-0" id="modalBodegaHeaderTitle">
-                        <i class="fa-solid fa-warehouse text-warning"></i>
-                        <span>Desglose de Consumo &bull; Bodega: <span id="modalBodegaTitulo" class="text-warning">FUMIGANTES</span></span>
-                    </h5>
-                    <div class="small text-white-50 mt-1">
-                        Filtro Activo: <strong id="modalBodegaSemana" class="text-white">Semana Actual</strong> &bull; Ordenado de mayor a menor consumo económico ($)
-                    </div>
-                </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4 bg-light">
-                <div class="row g-2 mb-3">
-                    <div class="col-sm-6">
-                        <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
-                            <span class="text-muted small fw-semibold text-uppercase">Inversión en Bodega:</span>
-                            <span class="fw-bolder fs-5 text-success font-monospace" id="modalBodegaTotal">$0.00</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="p-2 bg-white border rounded shadow-xs d-flex justify-content-between align-items-center">
-                            <span class="text-muted small fw-semibold text-uppercase">Participación:</span>
-                            <span class="badge bg-primary fs-7" id="modalBodegaPct">0%</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card border shadow-xs rounded-3 overflow-hidden">
-                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
-                        <span class="fw-bold small text-dark"><i class="fa-solid fa-list-check me-1 text-primary"></i> Insumos Aplicados en Campo</span>
-                        <span class="badge bg-light text-muted border font-monospace" id="modalBodegaItemCount">0 insumos</span>
-                    </div>
-                    <div class="table-responsive" style="max-height: 380px;">
-                        <table class="table table-hover table-striped table-sm align-middle mb-0 small">
-                            <thead class="table-dark sticky-top">
-                                <tr>
-                                    <th style="width: 35px;" class="text-center">#</th>
-                                    <th>Insumo / Producto Comercial</th>
-                                    <th style="width: 60px;" class="text-center">U.M</th>
-                                    <th style="width: 100px;" class="text-end">Cantidad</th>
-                                    <th style="width: 90px;" class="text-end">Costo Unit.</th>
-                                    <th style="width: 110px;" class="text-end bg-secondary">Total Invertido</th>
-                                    <th style="width: 65px;" class="text-end">% Bodega</th>
-                                </tr>
-                            </thead>
-                            <tbody id="modalBodegaTbody">
-                                <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">Cargando insumos...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer bg-white py-2 px-4 border-top">
-                <button type="button" class="btn btn-secondary btn-sm fw-semibold" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% endblock %}

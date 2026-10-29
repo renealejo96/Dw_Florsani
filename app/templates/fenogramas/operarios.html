@@ -875,16 +875,16 @@
         </div>
 
         {% if semana_estado != 'CERRADA' %}
-        <!-- Botón 1: Guardar Avance en Tablet (Local) -->
-        <button id="btn-save-local" type="button" class="btn btn-outline-success btn-sm py-0 px-2 fw-bold shadow-xs d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.74rem;" onclick="guardarAvanceLocal()" title="Guarda inmediatamente las evaluaciones en la memoria de la tablet (100% seguro sin internet)">
+        <!-- Botón 1: Guardar (Guarda en la nube si hay internet, o en local si no hay) -->
+        <button id="btn-save-local" type="button" class="btn btn-outline-success btn-sm py-0 px-2.5 fw-bold shadow-xs d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.74rem;" onclick="guardarCambiosSmart()" title="Guardar evaluaciones">
             <i class="fa-solid fa-floppy-disk text-success"></i>
-            <span>Guardar en Tablet</span>
+            <span>Guardar</span>
         </button>
 
         <!-- Botón 2: Sincronizar Todo a la Nube (Servidor) -->
-        <button id="btn-save-batch" type="button" class="btn btn-success btn-sm py-0 px-2.5 fw-bold shadow-sm d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.74rem; background-color: #10b981; border-color: #059669; color: #ffffff;" onclick="saveAllChanges()" disabled title="Sube y sincroniza todas las evaluaciones de todas las zonas a la nube">
+        <button id="btn-save-batch" type="button" class="btn btn-success btn-sm py-0 px-2.5 fw-bold shadow-sm d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.74rem; background-color: #10b981; border-color: #059669; color: #ffffff;" onclick="saveAllChanges()" disabled title="Sube y sincroniza todas las evaluaciones pendientes con el servidor">
             <i class="fa-solid fa-cloud-arrow-up"></i>
-            <span>Sincronizar a la Nube</span>
+            <span>Sincronizar</span>
             <span id="dirty-count-badge" class="badge bg-white text-dark ms-1" style="display: none;">0</span>
         </button>
         <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="height: 27px; font-size: 0.72rem;" onclick="abrirModalInspeccionOffline()" title="Inspeccionar cola de calificaciones y probar conectividad con el servidor">
@@ -1375,13 +1375,12 @@
         </span>
     </div>
     <div class="d-flex align-items-center gap-1.5">
-        <button type="button" class="btn btn-light btn-sm fw-bold px-2 py-1 shadow-xs text-dark" style="border-radius: 20px; font-size: 0.72rem;" onclick="guardarAvanceLocal()" title="Guardar evaluaciones en la memoria de la tablet">
-            <i class="fa-solid fa-floppy-disk text-success me-1"></i> Guardar Tablet
+        <button type="button" class="btn btn-light btn-sm fw-bold px-2.5 py-1 shadow-xs text-dark" style="border-radius: 20px; font-size: 0.75rem;" onclick="guardarCambiosSmart()" title="Guardar evaluaciones">
+            <i class="fa-solid fa-floppy-disk text-success me-1"></i> Guardar
         </button>
-        <button type="button" class="btn btn-success btn-sm fw-bold px-2.5 py-1 shadow-sm d-inline-flex align-items-center gap-1.5" style="border-radius: 20px; font-size: 0.75rem; background-color: #059669; border-color: #047857;" onclick="saveAllChanges()" id="btn-floating-sync" title="Subir todo a la nube">
+        <button type="button" class="btn btn-success btn-sm fw-bold px-2.5 py-1 shadow-sm d-inline-flex align-items-center gap-1.5" style="border-radius: 20px; font-size: 0.75rem; background-color: #059669; border-color: #047857;" onclick="saveAllChanges()" id="btn-floating-sync" title="Sincronizar con el servidor">
             <i class="fa-solid fa-cloud-arrow-up"></i>
-            <span class="d-none d-sm-inline">Sincronizar Nube</span>
-            <span class="d-inline d-sm-none">Sincronizar</span>
+            <span>Sincronizar</span>
         </button>
         <button type="button" class="btn btn-outline-light btn-sm py-1 px-2 text-white feno-sync-expandable" style="border-radius: 20px; font-size: 0.7rem;" onclick="abrirModalInspeccionOffline()" title="Inspeccionar cola de cambios y conectividad">
             <i class="fa-solid fa-list-check me-1"></i>Cola (<span id="floating-dirty-count-sub">0</span>)
@@ -1823,18 +1822,17 @@ const FenoIndexedDB = {
     async clear(semana) {
         const d = await this.open();
         if (!d) return;
-        try {
-            const tx = d.transaction('offline_queue', 'readwrite');
-            const store = tx.objectStore('offline_queue');
-            const req = store.getAll();
-            req.onsuccess = () => {
-                (req.result || []).forEach(it => {
-                    if (!semana || it.semana == semana) {
-                        store.delete(it.id);
-                    }
-                });
-            };
-        } catch (e) {}
+        return new Promise((resolve) => {
+            try {
+                const tx = d.transaction('offline_queue', 'readwrite');
+                const store = tx.objectStore('offline_queue');
+                const req = store.clear();
+                req.onsuccess = () => resolve(true);
+                req.onerror = () => resolve(false);
+            } catch (e) {
+                resolve(false);
+            }
+        });
     }
 };
 
@@ -3011,11 +3009,19 @@ let syncWatchdogTimer = null;
 /* ============================================================================
    GESTIÓN OFFLINE ROBUSTA: GUARDADO LOCAL & COLA DE ELIMINACIONES
    ============================================================================ */
+function guardarCambiosSmart() {
+    if (navigator.onLine) {
+        saveAllChanges();
+    } else {
+        persistOfflineChanges();
+        const count = modifiedItems.size;
+        showFenoToast(`💾 Guardado en memoria local (${count} evaluaciones). Pulsa 'Sincronizar' cuando tengas conexión.`);
+        updateSaveButtonsUI(false);
+    }
+}
+
 function guardarAvanceLocal() {
-    persistOfflineChanges();
-    const count = modifiedItems.size;
-    showFenoToast(`💾 Guardado exitoso en tablet (${count} evaluaciones pendientes). Puedes presionar 'Sincronizar a la Nube' cuando tengas internet.`);
-    updateSaveButtonsUI(false);
+    guardarCambiosSmart();
 }
 
 function getOfflineDeletions() {
@@ -3218,14 +3224,35 @@ async function restoreOfflineChanges() {
 
         let restoredCount = 0;
         const affectedBlocks = new Set();
+        const validUnsyncedItems = [];
+
         items.forEach(it => {
             if (!it || it.id === undefined) return;
             const isExtra = it.is_extra || String(it.id).startsWith('temp_') || String(it.id).startsWith('client_extra_');
             const btn = document.getElementById(`btn-check-${it.id}`);
+            const obsInput = document.getElementById(`obs-${it.id}`);
+            const selLabor = document.getElementById(`sel-labor-${it.id}`);
 
-            // Registrar siempre en la cola activa y cache offline (incluso si está en otra zona o bloque oculto)
+            if (btn) {
+                const origVal = btn.getAttribute('data-original-val') || 'null';
+                const origObs = obsInput ? (obsInput.getAttribute('data-original-obs') || '') : '';
+                const origLabor = selLabor ? (selLabor.getAttribute('data-original-labor') || '') : '';
+
+                const itemVal = (it.val === undefined || it.val === null) ? 'null' : String(it.val);
+                const itemObs = (it.obs || '').trim();
+                const itemLabor = (it.nueva_labor || it.labor || '').trim();
+
+                // Si ya está guardado en el servidor exactamente con el mismo valor, ignorar y no marcar sucio
+                const isChanged = (itemVal !== origVal) || (itemObs !== origObs) || (itemLabor && itemLabor !== origLabor);
+                if (!isChanged && !isExtra) {
+                    return;
+                }
+            }
+
+            // Registrar en la cola activa solo si realmente es un cambio pendiente
             offlineQueueCache.set(it.id, it);
             modifiedItems.add(it.id);
+            validUnsyncedItems.push(it);
 
             if (isExtra) {
                 if (!document.getElementById(`row-${it.id}`) && it.parent_id) {
@@ -3233,7 +3260,6 @@ async function restoreOfflineChanges() {
                 }
             }
 
-            const obsInput = document.getElementById(`obs-${it.id}`);
             if (btn) {
                 setCheckCircleState(btn, it.val);
                 if (obsInput && it.obs !== undefined) obsInput.value = it.obs;
@@ -3249,6 +3275,18 @@ async function restoreOfflineChanges() {
             recalculateZoneKPIs();
             updateSaveButtonsUI(false);
             showFenoToast(`✓ Se restauraron ${restoredCount} calificaciones locales pendientes de sincronizar.`);
+        } else {
+            // Si todos los items locales ya estaban guardados en el servidor, limpiar cola obsoleta
+            try {
+                localStorage.removeItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
+                localStorage.removeItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
+                if (window.FenoIndexedDB && typeof FenoIndexedDB.clear === 'function') {
+                    FenoIndexedDB.clear(SEMANA_ACTUAL);
+                }
+            } catch(e) {}
+            modifiedItems.clear();
+            offlineQueueCache.clear();
+            updateSaveButtonsUI(false);
         }
     } catch (e) {
         console.warn('Error al restaurar cambios offline:', e);
@@ -3486,7 +3524,7 @@ async function saveAllChanges(isForced = false) {
             } catch (e) {}
             clearOfflineDeletions();
             if (window.FenoIndexedDB && typeof FenoIndexedDB.clear === 'function') {
-                FenoIndexedDB.clear(SEMANA_ACTUAL);
+                await FenoIndexedDB.clear(SEMANA_ACTUAL);
             }
 
             updateSaveButtonsUI(false);

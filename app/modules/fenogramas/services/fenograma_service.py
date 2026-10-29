@@ -1643,6 +1643,7 @@ def obtener_datos_dashboard(semana):
                 'pendientes': 0,
                 'quedaron': 0,
                 'pct': 0.0,
+                'tareas': [],
                 'tareas_quedaron': []
             }
 
@@ -1653,35 +1654,43 @@ def obtener_datos_dashboard(semana):
         if r.cumplido == 1:
             entry['cumplidas'] += 1
             c_entry['cumplidas'] += 1
+            estado_txt = 'Cumplida (✓)'
+        elif r.cumplido == 0:
+            entry['incumplidas'] += 1
+            c_entry['incumplidas'] += 1
+            estado_txt = 'Incumplida (0)'
+            entry['quedaron'] += 1
+            c_entry['quedaron'] += 1
         else:
-            if r.cumplido == 0:
-                entry['incumplidas'] += 1
-                c_entry['incumplidas'] += 1
-                estado_txt = 'Incumplida (0)'
-            else:
-                entry['pendientes'] += 1
-                c_entry['pendientes'] += 1
-                estado_txt = 'Pendiente'
-
+            entry['pendientes'] += 1
+            c_entry['pendientes'] += 1
+            estado_txt = 'Pendiente'
             entry['quedaron'] += 1
             c_entry['quedaron'] += 1
 
-            suf = f" {r.sufijo}" if r.sufijo else ""
-            c_entry['tareas_quedaron'].append({
-                'id': r.id,
-                'zona': r.zona,
-                'bloque': clean_block_code(r.bloque),
-                'bloque_raw': r.bloque,
-                'camas': f"{r.cama_inicial}-{r.cama_final}{suf}",
-                'actividad_tipo': r.actividad_tipo,
-                'edad_real': r.edad_real,
-                'labor': r.labor,
-                'estado': estado_txt,
-                'es_incumplida': bool(r.cumplido == 0),
-                'es_arrastre': bool(r.es_pendiente_anterior),
-                'semana_origen': r.semana_origen,
-                'observacion': r.observacion or ''
-            })
+        suf = f" {r.sufijo}" if r.sufijo else ""
+        tarea_dict = {
+            'id': r.id,
+            'zona': r.zona,
+            'bloque': clean_block_code(r.bloque),
+            'bloque_raw': r.bloque,
+            'camas': f"{r.cama_inicial}-{r.cama_final}{suf}",
+            'actividad_tipo': r.actividad_tipo,
+            'edad_real': r.edad_real,
+            'labor': r.labor,
+            'estado': estado_txt,
+            'cumplido': r.cumplido,
+            'es_cumplida': bool(r.cumplido == 1),
+            'es_incumplida': bool(r.cumplido == 0),
+            'es_arrastre': bool(r.es_pendiente_anterior),
+            'semana_origen': r.semana_origen,
+            'observacion': r.observacion or ''
+        }
+        if 'tareas' not in c_entry:
+            c_entry['tareas'] = []
+        c_entry['tareas'].append(tarea_dict)
+        if r.cumplido != 1:
+            c_entry['tareas_quedaron'].append(tarea_dict)
 
     cultivos_columnas = sorted(cultivos_set)
     matriz_auxiliares = []

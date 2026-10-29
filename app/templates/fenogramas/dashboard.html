@@ -692,9 +692,12 @@
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Filtro estado labor">
+                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filtro estado labor">
                             <button type="button" class="btn btn-outline-dark active fw-semibold" id="btn-modal-est-all" onclick="setModalTaskStatusFilter('ALL')" style="font-size: 0.73rem;">
-                                Todas las No Cumplidas
+                                Todas las Labores
+                            </button>
+                            <button type="button" class="btn btn-outline-success fw-semibold" id="btn-modal-est-cum" onclick="setModalTaskStatusFilter('CUMPLIDA')" style="font-size: 0.73rem;">
+                                <i class="fa-solid fa-check me-1"></i>Calificadas (Cumplidas)
                             </button>
                             <button type="button" class="btn btn-outline-danger fw-semibold" id="btn-modal-est-inc" onclick="setModalTaskStatusFilter('INCUMPLIDA')" style="font-size: 0.73rem;">
                                 Calificadas en 0 (Incumplidas)
@@ -1035,7 +1038,25 @@ function actualizarGraficoTendencia(cultivoFiltrado) {
     const pctSeries = datos.map(d => d.pct);
 
     chartTendenciaInstance.updateOptions({
-        xaxis: { categories: labels }
+        xaxis: { categories: labels },
+        annotations: {
+            yaxis: [{
+                y: 90,
+                borderColor: '#ef4444',
+                strokeDashArray: 5,
+                borderWidth: 2,
+                label: {
+                    borderColor: '#ef4444',
+                    style: {
+                        color: '#ffffff',
+                        background: '#ef4444',
+                        fontWeight: 700,
+                        fontSize: '11px'
+                    },
+                    text: 'Meta: 90%'
+                }
+            }]
+        }
     });
     chartTendenciaInstance.updateSeries([{
         name: cultivoFiltrado ? `% Cumplimiento (${cultivoFiltrado})` : '% Cumplimiento Finca',
@@ -1099,6 +1120,24 @@ function renderTendenciaFinca() {
                 formatter: val => `${Math.round(val)}%`,
                 style: { colors: '#475569', fontWeight: 600, fontSize: '11px' }
             }
+        },
+        annotations: {
+            yaxis: [{
+                y: 90,
+                borderColor: '#ef4444',
+                strokeDashArray: 5,
+                borderWidth: 2,
+                label: {
+                    borderColor: '#ef4444',
+                    style: {
+                        color: '#ffffff',
+                        background: '#ef4444',
+                        fontWeight: 700,
+                        fontSize: '11px'
+                    },
+                    text: 'Meta: 90%'
+                }
+            }]
         },
         colors: ['#059669'],
         stroke: {
@@ -1440,6 +1479,7 @@ function setModalTaskStatusFilter(status) {
 
 function updateModalStatusButtonsUI() {
     document.getElementById('btn-modal-est-all')?.classList.toggle('active', currentModalStatusFilter === 'ALL');
+    document.getElementById('btn-modal-est-cum')?.classList.toggle('active', currentModalStatusFilter === 'CUMPLIDA');
     document.getElementById('btn-modal-est-inc')?.classList.toggle('active', currentModalStatusFilter === 'INCUMPLIDA');
     document.getElementById('btn-modal-est-pen')?.classList.toggle('active', currentModalStatusFilter === 'PENDIENTE');
 }
@@ -1488,7 +1528,8 @@ function refreshModalAuxiliarData() {
         if (cInfo) {
             cumplidasCount = cInfo.cumplidas;
             totalCount = cInfo.total;
-            currentModalTasks = (cInfo.tareas_quedaron || []).map(t => ({ ...t, cultivo: currentModalCultivo }));
+            const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
+            currentModalTasks = taskSource.map(t => ({ ...t, cultivo: currentModalCultivo }));
         }
         if (titleEl) {
             titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">${escapeHtml(currentModalCultivo)}</span>`;
@@ -1498,7 +1539,8 @@ function refreshModalAuxiliarData() {
         totalCount = auxRow.total;
         cropKeys.forEach(cKey => {
             const cInfo = auxRow.cultivos[cKey];
-            (cInfo.tareas_quedaron || []).forEach(t => {
+            const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
+            taskSource.forEach(t => {
                 currentModalTasks.push({ ...t, cultivo: cKey });
             });
         });
@@ -1574,8 +1616,9 @@ function renderModalTasksTable() {
     const query = (document.getElementById('pbi-modal-search')?.value || '').toLowerCase().trim();
 
     const filtered = currentModalTasks.filter(t => {
+        if (currentModalStatusFilter === 'CUMPLIDA' && !t.es_cumplida) return false;
         if (currentModalStatusFilter === 'INCUMPLIDA' && !t.es_incumplida) return false;
-        if (currentModalStatusFilter === 'PENDIENTE' && t.es_incumplida) return false;
+        if (currentModalStatusFilter === 'PENDIENTE' && (t.es_cumplida || t.es_incumplida)) return false;
         if (query) {
             const haystack = `${t.cultivo} ${t.zona} bl ${t.bloque} ${t.camas} ${t.actividad_tipo} ${t.labor} ${t.observacion || ''}`.toLowerCase();
             if (!haystack.includes(query)) return false;
@@ -1584,17 +1627,15 @@ function renderModalTasksTable() {
     });
 
     if (footerCount) {
-        footerCount.innerText = `Mostrando ${filtered.length} de ${currentModalTasks.length} labores no cumplidas`;
+        footerCount.innerText = `Mostrando ${filtered.length} de ${currentModalTasks.length} labores`;
     }
 
     if (filtered.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="10" class="text-center py-4 text-success fw-bold">
-                    <i class="fa-solid fa-circle-check me-1"></i>
-                    ${currentModalTasks.length === 0
-                        ? '¡100% Cumplido! No quedaron labores pendientes ni incumplidas para esta selección.'
-                        : 'Ninguna labor coincide con el filtro actual dentro de la ventana.'}
+                <td colspan="10" class="text-center py-4 text-muted fw-bold">
+                    <i class="fa-solid fa-circle-info me-1 text-primary"></i>
+                    No hay labores para mostrar con el filtro actual.
                 </td>
             </tr>
         `;
@@ -1602,9 +1643,12 @@ function renderModalTasksTable() {
     }
 
     tbody.innerHTML = filtered.map(t => {
-        const badgeEstado = t.es_incumplida
-            ? '<span class="badge bg-danger">Incumplida (0)</span>'
-            : '<span class="badge bg-warning text-dark">Pendiente</span>';
+        let badgeEstado = '<span class="badge bg-warning text-dark">Pendiente</span>';
+        if (t.es_cumplida) {
+            badgeEstado = '<span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Cumplida (✓)</span>';
+        } else if (t.es_incumplida) {
+            badgeEstado = '<span class="badge bg-danger">Incumplida (0)</span>';
+        }
         const badgeTipo = t.actividad_tipo === 'Poda'
             ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>'
             : '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>';
