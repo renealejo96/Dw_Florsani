@@ -1769,6 +1769,7 @@ def sincronizar_responsables_calificaciones(semana=None):
         act_norm = normalize_key(c.actividad_tipo or 'Siembra')
         c_labor = (c.labor or '').strip()
 
+        # Nivel 1: Match exacto por producto, edad, actividad y labor
         matched = [
             r for r in rules
             if r['producto_norm'] in target_prods
@@ -1776,6 +1777,30 @@ def sincronizar_responsables_calificaciones(semana=None):
             and (r['actividad_norm'] == act_norm or r['actividad_norm'] == 'todos')
             and r['labor'].lower() == c_labor.lower()
         ]
+
+        # Nivel 2: Fallback por producto, labor y actividad (si la edad cambio por arrastre o atraso)
+        if not matched:
+            matched = [
+                r for r in rules
+                if r['producto_norm'] in target_prods
+                and (r['actividad_norm'] == act_norm or r['actividad_norm'] == 'todos')
+                and r['labor'].lower() == c_labor.lower()
+            ]
+
+        # Nivel 3: Fallback por producto y labor
+        if not matched:
+            matched = [
+                r for r in rules
+                if r['producto_norm'] in target_prods
+                and r['labor'].lower() == c_labor.lower()
+            ]
+
+        # Nivel 4: Fallback por labor universal si no hay ambiguedad
+        if not matched:
+            matched = [
+                r for r in rules
+                if r['labor'].lower() == c_labor.lower()
+            ]
 
         if matched:
             best = matched[0]

@@ -134,7 +134,9 @@ def create_app(config_class=Config):
                     "ALTER TABLE requisition_items ALTER COLUMN product_code TYPE VARCHAR(255)",
                     "ALTER TABLE additional_applications ALTER COLUMN reason TYPE TEXT",
                     "ALTER TABLE additional_applications ALTER COLUMN notes TYPE TEXT",
-                    "ALTER TABLE rotations ADD COLUMN IF NOT EXISTS weighed_products_json TEXT"
+                    "ALTER TABLE rotations ADD COLUMN IF NOT EXISTS weighed_products_json TEXT",
+                    "UPDATE calificaciones SET auxiliar = 'Kevin Buitron', supervisor = 'Maria Dolores Perugachi' WHERE (labor ILIKE '%malla pl%stica%' OR labor ILIKE '%tejido de alambre%') AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
+                    "UPDATE calificaciones SET auxiliar = 'Marcia Medina', supervisor = 'Maria Dolores Perugachi' WHERE labor ILIKE '%malla naranja%' AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')"
                 ]
                 for m in pg_migrations:
                     try:
@@ -142,6 +144,12 @@ def create_app(config_class=Config):
                         db.session.commit()
                     except Exception:
                         db.session.rollback()
+
+                try:
+                    from app.modules.fenogramas.services.fenograma_service import sincronizar_responsables_calificaciones
+                    sincronizar_responsables_calificaciones()
+                except Exception:
+                    pass
         except Exception:
             pass
 
