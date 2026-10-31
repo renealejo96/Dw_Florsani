@@ -136,7 +136,8 @@ def create_app(config_class=Config):
                     "ALTER TABLE additional_applications ALTER COLUMN notes TYPE TEXT",
                     "ALTER TABLE rotations ADD COLUMN IF NOT EXISTS weighed_products_json TEXT",
                     "UPDATE calificaciones SET auxiliar = 'Kevin Buitron', supervisor = 'Maria Dolores Perugachi' WHERE (labor ILIKE '%malla pl%stica%' OR labor ILIKE '%tejido de alambre%') AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
-                    "UPDATE calificaciones SET auxiliar = 'Marcia Medina', supervisor = 'Maria Dolores Perugachi' WHERE labor ILIKE '%malla naranja%' AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')"
+                    "UPDATE calificaciones SET auxiliar = 'Marcia Medina', supervisor = 'Maria Dolores Perugachi' WHERE labor ILIKE '%malla naranja%' AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
+                    "UPDATE calificaciones SET tiene_evaluacion = FALSE, cumplido = NULL, observacion = NULL WHERE (labor = 'No hay actividad' OR labor IS NULL OR TRIM(labor) = '') AND tiene_evaluacion = TRUE"
                 ]
                 for m in pg_migrations:
                     try:

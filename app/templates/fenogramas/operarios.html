@@ -1282,8 +1282,9 @@
 
                     <td class="text-center tabular-nums fw-semibold">{{ item.edad_real }}</td>
 
+                    {% set es_sin_labor = (not item.labor or item.labor == 'No hay actividad' or not item.tiene_evaluacion) %}
                     <td class="cell-labor" title="{{ item.labor }}">
-                        {% if item.labor and item.labor != 'No hay actividad' %}
+                        {% if not es_sin_labor %}
                             <span class="fw-semibold text-dark">{{ item.labor }}</span>
                             {% if not item.tiene_evaluacion %}
                             <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size: 0.65rem;">Sin match</span>
@@ -1295,20 +1296,20 @@
                         {% endif %}
                     </td>
 
-                    <td class="text-center" style="{% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}cursor: not-allowed; opacity: 0.65;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' and item.tiene_evaluacion %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
+                    <td class="text-center" style="{% if semana_estado == 'CERRADA' or es_sin_labor %}cursor: not-allowed; opacity: 0.45;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' and not es_sin_labor %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
                         <div class="calif-cell-wrap" style="pointer-events: none;">
                             <button type="button"
                                     id="btn-check-{{ item.id }}"
                                     class="check-circle state-{{ c_val }}"
-                                    style="pointer-events: auto; {% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}cursor: not-allowed;{% endif %}"
+                                    style="pointer-events: auto; {% if semana_estado == 'CERRADA' or es_sin_labor %}cursor: not-allowed; opacity: 0.35;{% endif %}"
                                     data-item-id="{{ item.id }}"
                                     data-bloque="{{ bloque }}"
                                     data-original-val="{{ c_val }}"
                                     data-current-val="{{ c_val }}"
                                     aria-label="Marcar cumplimiento de labor {{ item.labor }} en bloque {{ bloque }}"
-                                    title="{% if semana_estado == 'CERRADA' %}Semana CERRADA - Calificaciones bloqueadas{% elif not item.tiene_evaluacion %}Sin labor programada para calificar{% else %}Clic para marcar/desmarcar labor ejecutada (✓){% endif %}"
-                                    {% if semana_estado == 'CERRADA' or not item.tiene_evaluacion %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
-                                {% if c_val == '1' %}✓{% endif %}
+                                    title="{% if semana_estado == 'CERRADA' %}Semana CERRADA - Calificaciones bloqueadas{% elif es_sin_labor %}Sin labor programada - Asigne una labor con '+' para calificar{% else %}Clic para marcar/desmarcar labor ejecutada (✓){% endif %}"
+                                    {% if semana_estado == 'CERRADA' or es_sin_labor %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
+                                {% if c_val == '1' and not es_sin_labor %}✓{% endif %}
                             </button>
                         </div>
                     </td>
@@ -1328,11 +1329,11 @@
                         <input type="text"
                                id="obs-{{ item.id }}"
                                class="obs-excel-input"
-                               placeholder="..."
+                               placeholder="{% if es_sin_labor %}Sin labor - Use '+' para asignar{% else %}...{% endif %}"
                                aria-label="Observación fila {{ item.id }}"
                                value="{{ item.observacion or '' }}"
                                data-original-obs="{{ item.observacion or '' }}"
-                               {% if semana_estado == 'CERRADA' %}disabled{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
+                               {% if semana_estado == 'CERRADA' or es_sin_labor %}disabled style="cursor: not-allowed; background-color: #f8fafc; color: #94a3b8;" title="Para ingresar observaciones en este bloque, primero use '+' para asignar la labor y el auxiliar"{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
                     </td>
 
                     <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
@@ -4008,12 +4009,25 @@ function eliminarFilaCalificacion(itemId, bloqueCode) {
                         btnCheck.innerHTML = '';
                         btnCheck.disabled = true;
                         btnCheck.style.cursor = 'not-allowed';
+                        btnCheck.style.opacity = '0.35';
                         btnCheck.setAttribute('data-original-val', 'null');
                         btnCheck.setAttribute('data-current-val', 'null');
+                        const checkTd = btnCheck.closest('td');
+                        if (checkTd) {
+                            checkTd.style.cursor = 'not-allowed';
+                            checkTd.style.opacity = '0.45';
+                            checkTd.removeAttribute('onclick');
+                        }
                     }
                     const inpObs = document.getElementById(`obs-${itemId}`);
                     if (inpObs) {
                         inpObs.value = '';
+                        inpObs.disabled = true;
+                        inpObs.style.cursor = 'not-allowed';
+                        inpObs.style.backgroundColor = '#f8fafc';
+                        inpObs.style.color = '#94a3b8';
+                        inpObs.placeholder = "Sin labor - Use '+' para asignar";
+                        inpObs.title = "Para ingresar observaciones en este bloque, primero use '+' para asignar la labor y el auxiliar";
                         inpObs.setAttribute('data-original-obs', '');
                     }
                 }

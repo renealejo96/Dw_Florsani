@@ -554,6 +554,13 @@ def api_calificar():
         if not calif:
             return jsonify({'success': False, 'error': 'Registro no encontrado'}), 404
 
+        if not calif.labor or calif.labor == 'No hay actividad':
+            if not nueva_labor:
+                return jsonify({
+                    'success': False,
+                    'error': 'No se puede calificar ni registrar observaciones en un bloque sin labor programada. Use "+" para asignar una labor primero.'
+                }), 400
+
         if nueva_labor and nueva_labor != calif.labor:
             existing = Calificacion.query.filter_by(
                 semana_anio=calif.semana_anio,
@@ -820,6 +827,9 @@ def api_calificar_lote():
                         calif.tiene_evaluacion = True
                         calif.fecha_calificacion = now_utc
                 else:
+                    if not calif.labor or calif.labor == 'No hay actividad':
+                        # Omitir filas sin labor programada (no evaluables)
+                        continue
                     calif.cumplido = cumplido
                     calif.observacion = obs
                     calif.tiene_evaluacion = True
@@ -882,7 +892,7 @@ def api_duplicar_calificacion():
             })
 
         # Si la fila base era "No hay actividad" (sin match previo), actualizar esta misma fila en lugar de dejar un renglón vacío
-        if calif_base.labor == 'No hay actividad' and not calif_base.tiene_evaluacion:
+        if calif_base.labor == 'No hay actividad' or not calif_base.labor:
             calif_base.labor = nueva_labor
             calif_base.auxiliar = aux
             calif_base.supervisor = sup

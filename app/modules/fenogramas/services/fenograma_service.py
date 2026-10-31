@@ -755,6 +755,9 @@ def arrastrar_pendientes_semana_anterior(
         FROM calificaciones
         WHERE semana_anio = :semana_previa
           AND tiene_evaluacion = TRUE
+          AND labor != 'No hay actividad'
+          AND labor IS NOT NULL
+          AND TRIM(labor) != ''
           AND {cond_cumplido};
     """), {'semana_previa': semana_previa}).fetchall()
 
