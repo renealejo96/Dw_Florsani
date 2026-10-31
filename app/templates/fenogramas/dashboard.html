@@ -564,6 +564,12 @@
                         Solo con tareas pendientes/0
                     </label>
                 </div>
+
+                <button type="button" class="btn btn-outline-success btn-sm fw-semibold shadow-xs" style="font-size: 0.74rem;"
+                        onclick="sincronizarResponsablesDashboard(this)"
+                        title="Homologa y reasigna todas las labores pendientes al auxiliar y supervisor de la matriz vigente">
+                    <i class="fa-solid fa-arrows-rotate me-1"></i>Sincronizar Responsables
+                </button>
             </div>
         </div>
 
@@ -1771,6 +1777,42 @@ function openUploadModal() {
 
 function openUploadMatrixModal() {
     new bootstrap.Modal(document.getElementById('modalUploadMatrix')).show();
+}
+
+function sincronizarResponsablesDashboard(btnEl) {
+    if (!confirm('Esta accion revisara todas las labores de la semana contra la matriz vigente y corregira cualquier auxiliar o supervisor fantasma o desactualizado.\n\nLas calificaciones ya realizadas (visto bueno o cero) NO se tocan. Deseas continuar?')) {
+        return;
+    }
+    const oldHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Sincronizando...';
+    }
+    fetch("{{ url_for('fenogramas.api_sincronizar_responsables') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semana: SEMANA })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(res.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + (res.error || 'No se pudo sincronizar'));
+            if (btnEl) {
+                btnEl.disabled = false;
+                btnEl.innerHTML = oldHtml;
+            }
+        }
+    })
+    .catch(err => {
+        alert('Error de conexion: ' + err.message);
+        if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = oldHtml;
+        }
+    });
 }
 
 function openConfigModal() {

@@ -822,6 +822,14 @@ def arrastrar_pendientes_semana_anterior(
         """), {'semana_previa': semana_previa})
 
     db.session.commit()
+
+    # Sincronizar de inmediato los responsables con la matriz activa para erradicar
+    # actividades fantasma o nombres desactualizados en las tareas arrastradas
+    try:
+        sincronizar_responsables_calificaciones(semana=semana_destino)
+    except Exception as e_sync:
+        print(f"[FENOGRAMAS] Aviso al sincronizar responsables de arrastre en semana {semana_destino}: {e_sync}")
+
     return carried_count, expired_count
 
 

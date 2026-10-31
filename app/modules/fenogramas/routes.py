@@ -1674,3 +1674,30 @@ def api_reset_semana_limpia():
         flash(f'Error al limpiar y regenerar semana {semana_target}: {e}', 'danger')
     return redirect(url_for('fenogramas.index', semana=semana_target))
 
+
+
+@fenogramas_bp.route('/api/sincronizar-responsables', methods=['POST'])
+@login_required
+def api_sincronizar_responsables():
+    """
+    Sincroniza y alinea todos los auxiliares y supervisores de calificaciones
+    con la matriz de fenogramas vigente (para una semana o todas las semanas).
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        semana = data.get('semana') or request.args.get('semana')
+        if semana:
+            try:
+                semana = int(semana)
+            except (ValueError, TypeError):
+                semana = None
+
+        actualizados = sincronizar_responsables_calificaciones(semana=semana)
+        msg_sem = f"en la semana {semana}" if semana else "en toda la base de datos"
+        return jsonify({
+            'success': True,
+            'updated': actualizados,
+            'message': f'Se sincronizaron con exito {actualizados} labores {msg_sem} con la matriz vigente.'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
