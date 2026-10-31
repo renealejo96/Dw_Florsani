@@ -39,9 +39,15 @@ def salidas():
             'bodega/salidas.html',
             rotation=None,
             orders=[],
+            display_orders=[],
+            selected_order=None,
             scheduled_days=[],
             data_by_area={},
+            data_by_category={'GYPSOPHILA': {}, 'PRODUCTOS_NUEVOS': {}, 'PIV': {}},
             general_summary={},
+            consolidated_products=[],
+            consolidated_by_category={'ALL': [], 'GYPSOPHILA': [], 'PRODUCTOS_NUEVOS': [], 'PIV': []},
+            weighed_products=[],
             product_info={},
             all_rotations=[],
             prev_rotation=None,
@@ -49,7 +55,10 @@ def salidas():
             dispatch_logs=[],
             total_products_count=0,
             total_volume_liters=0.0,
-            total_beds=0.0
+            total_beds=0.0,
+            trichos_calibracion_ordenada=[],
+            trichos_calibracion_tecnicos=[],
+            trichos_calibracion_bombas=[]
         )
 
     # Determine which rotation to display

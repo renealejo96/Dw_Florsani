@@ -101,6 +101,7 @@ def create_app(config_class=Config):
             ensure_column('rotations', 'is_salidas_dispatched', 'BOOLEAN', 'FALSE')
             ensure_column('rotations', 'salidas_dispatched_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
             ensure_column('rotations', 'salidas_dispatched_by', 'VARCHAR(100)', 'NULL')
+            ensure_column('rotations', 'weighed_products_json', 'TEXT', 'NULL')
             ensure_column('fumigation_orders', 'program_statuses_json', 'TEXT', "'{}'")
 
             # Sincronizar categorias maestras en tabla crops (GYPSOPHILA, VARIEDADES, PIV)
@@ -132,7 +133,8 @@ def create_app(config_class=Config):
                     "ALTER TABLE requisition_items ALTER COLUMN pest TYPE TEXT",
                     "ALTER TABLE requisition_items ALTER COLUMN product_code TYPE VARCHAR(255)",
                     "ALTER TABLE additional_applications ALTER COLUMN reason TYPE TEXT",
-                    "ALTER TABLE additional_applications ALTER COLUMN notes TYPE TEXT"
+                    "ALTER TABLE additional_applications ALTER COLUMN notes TYPE TEXT",
+                    "ALTER TABLE rotations ADD COLUMN IF NOT EXISTS weighed_products_json TEXT"
                 ]
                 for m in pg_migrations:
                     try:
