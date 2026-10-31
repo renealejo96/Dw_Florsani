@@ -273,6 +273,92 @@ import re
 def _natural_key(s):
     return [int(text) if text.isdigit() else text.upper() for text in re.split(r'(\d+)', str(s))]
 
+def sort_key_variedad(producto_maestro, variedad):
+    """
+    Retorna la clave de ordenamiento personalizado para variedades según el Producto Maestro:
+    - HYPERICUM:
+      1. Royal Princess (Magical Royal Princess)
+      2. Triumph (Magical Triumph)
+      3. Majestic Pink (Magical Majestic Pink)
+      4. Cherry (Magical Cherry)
+      5. Snow (Magical Snow Prince)
+      6. Renata (Magical Renata Green)
+      7. Red (Magical Red Wine)
+      8. H-21-68-7 (H21-68-7)
+      9. H21-67-3
+      10. H21-117-1
+      11. Otros rojos (Red Sewel, Royal Red)
+      50. Demás códigos y variedades en orden natural
+    - VERONICA:
+      1. Skyler White (Skyler White Improved)
+      2. Skyler Blue
+      3. Skyler Pink
+      4. Skyler Splash White
+      5. Skyler Splash Blue
+      6. Skyler Splash Pink
+      90. Skyler Duo (Crystal Duo, Skyler Duo Crystal, Skyler White Duo)
+    - SOLIDAGO:
+      1. Golden Glory (Golden Glory Yellow)
+      2. Romantic Glory
+    - OTROS:
+      50. Orden alfabético/natural
+    """
+    pm = (producto_maestro or '').strip().upper()
+    v = (variedad or '').strip().upper()
+    v_norm = re.sub(r'[^A-Z0-9]', '', v)
+
+    if pm == 'HYPERICUM':
+        if 'ROYALPRINCESS' in v_norm or 'ROYALPRINCE' in v_norm:
+            return (1, _natural_key(v))
+        if 'TRIUMP' in v_norm:
+            return (2, _natural_key(v))
+        if 'MAJESTICPINK' in v_norm:
+            return (3, _natural_key(v))
+        if 'CHERRY' in v_norm:
+            return (4, _natural_key(v))
+        if 'SNOW' in v_norm:
+            return (5, _natural_key(v))
+        if 'RENATA' in v_norm:
+            return (6, _natural_key(v))
+        if 'REDWINE' in v_norm or v_norm == 'RED':
+            return (7, _natural_key(v))
+        if 'H21687' in v_norm:
+            return (8, _natural_key(v))
+        if 'H21673' in v_norm:
+            return (9, _natural_key(v))
+        if 'H211171' in v_norm:
+            return (10, _natural_key(v))
+        if 'RED' in v_norm:
+            return (11, _natural_key(v))
+        return (50, _natural_key(v))
+
+    elif pm == 'VERONICA':
+        if 'WHITE' in v_norm and 'SPLASH' not in v_norm and 'DUO' not in v_norm:
+            return (1, _natural_key(v))
+        if 'BLUE' in v_norm and 'SPLASH' not in v_norm and 'DUO' not in v_norm:
+            return (2, _natural_key(v))
+        if 'PINK' in v_norm and 'SPLASH' not in v_norm and 'DUO' not in v_norm:
+            return (3, _natural_key(v))
+        if 'SPLASH' in v_norm and 'WHITE' in v_norm:
+            return (4, _natural_key(v))
+        if 'SPLASH' in v_norm and 'BLUE' in v_norm:
+            return (5, _natural_key(v))
+        if 'SPLASH' in v_norm and 'PINK' in v_norm:
+            return (6, _natural_key(v))
+        if 'DUO' in v_norm:
+            return (90, _natural_key(v))
+        return (50, _natural_key(v))
+
+    elif pm == 'SOLIDAGO':
+        if 'GOLDENGLORY' in v_norm or 'GOLDEN' in v_norm:
+            return (1, _natural_key(v))
+        if 'ROMANTICGLORY' in v_norm or 'ROMANTIC' in v_norm:
+            return (2, _natural_key(v))
+        return (50, _natural_key(v))
+
+    return (50, _natural_key(v))
+
+
 def limpiar_modulo_str(m):
     if not m:
         return ''
@@ -622,7 +708,7 @@ def construir_productos_con_variedades():
             productos_con_variedades[producto.strip().upper()].append(variedad.strip())
 
     for producto in productos_con_variedades:
-        productos_con_variedades[producto] = sorted(set(productos_con_variedades[producto]), key=lambda value: value.upper())
+        productos_con_variedades[producto] = sorted(set(productos_con_variedades[producto]), key=lambda v: sort_key_variedad(producto, v))
 
     # Asegurar que productos solos sin variedades asignadas también tengan su clave
     productos_solos = cargar_productos_maestros()

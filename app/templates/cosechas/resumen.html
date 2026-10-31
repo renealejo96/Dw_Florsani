@@ -354,7 +354,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for variedad, dias in variedades.items()|sort %}
+                            {% for variedad, dias in variedades.items() %}
                             <tr>
                                 <td class="sticky-col col-variedad fw-semibold text-dark" title="{{ variedad }}">
                                     <div class="d-inline-flex align-items-baseline gap-1.5" style="white-space: normal;">
@@ -547,6 +547,51 @@ function naturalSort(a, b) {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 
+function getVarietySortKey(productoMaestro, variedad) {
+    const pm = (productoMaestro || '').trim().toUpperCase();
+    const v = (variedad || '').trim().toUpperCase();
+    const vNorm = v.replace(/[^A-Z0-9]/g, '');
+
+    if (pm === 'HYPERICUM') {
+        if (vNorm.includes('ROYALPRINCESS') || vNorm.includes('ROYALPRINCE')) return 1;
+        if (vNorm.includes('TRIUMP')) return 2;
+        if (vNorm.includes('MAJESTICPINK')) return 3;
+        if (vNorm.includes('CHERRY')) return 4;
+        if (vNorm.includes('SNOW')) return 5;
+        if (vNorm.includes('RENATA')) return 6;
+        if (vNorm.includes('REDWINE') || vNorm === 'RED') return 7;
+        if (vNorm.includes('H21687')) return 8;
+        if (vNorm.includes('H21673')) return 9;
+        if (vNorm.includes('H211171')) return 10;
+        if (vNorm.includes('RED')) return 11;
+        return 50;
+    } else if (pm === 'VERONICA') {
+        if (vNorm.includes('WHITE') && !vNorm.includes('SPLASH') && !vNorm.includes('DUO')) return 1;
+        if (vNorm.includes('BLUE') && !vNorm.includes('SPLASH') && !vNorm.includes('DUO')) return 2;
+        if (vNorm.includes('PINK') && !vNorm.includes('SPLASH') && !vNorm.includes('DUO')) return 3;
+        if (vNorm.includes('SPLASH') && vNorm.includes('WHITE')) return 4;
+        if (vNorm.includes('SPLASH') && vNorm.includes('BLUE')) return 5;
+        if (vNorm.includes('SPLASH') && vNorm.includes('PINK')) return 6;
+        if (vNorm.includes('DUO')) return 90;
+        return 50;
+    } else if (pm === 'SOLIDAGO') {
+        if (vNorm.includes('GOLDENGLORY') || vNorm.includes('GOLDEN')) return 1;
+        if (vNorm.includes('ROMANTICGLORY') || vNorm.includes('ROMANTIC')) return 2;
+        return 50;
+    }
+    return 50;
+}
+
+function sortVariedades(productoMaestro, arrayVariedades) {
+    return arrayVariedades.slice().sort((a, b) => {
+        const rankA = getVarietySortKey(productoMaestro, a);
+        const rankB = getVarietySortKey(productoMaestro, b);
+        if (rankA !== rankB) return rankA - rankB;
+        return naturalSort(a, b);
+    });
+}
+
+
 function abrirModalBloque(semana, prodMaestro) {
     const elNombre = document.getElementById('modal-pm-nombre');
     const elSemana = document.getElementById('modal-pm-semana');
@@ -602,7 +647,7 @@ function abrirModalBloque(semana, prodMaestro) {
     const tfoot = document.getElementById('tfoot-modal-bloques');
     if (tbody) tbody.innerHTML = '';
 
-    const sortedVariedades = Object.keys(variedadesMap).sort();
+    const sortedVariedades = sortVariedades(prodMaestro, Object.keys(variedadesMap));
 
     if (sortedVariedades.length === 0) {
         if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No hay registros detallados por variedad para ${prodMaestro} en la semana ${semana}.</td></tr>`;

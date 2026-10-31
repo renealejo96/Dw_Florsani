@@ -13,6 +13,8 @@ from app.shared.models import RegistroCosecha, Estimado, User
 from app.shared.audit import record_audit
 from app.modules.auth.routes import login_required, permission_required
 from .utils import (
+    sort_key_variedad,
+    _natural_key,
     ZONA_HORARIA, formato_semana, cargar_variedades, guardar_variedades,
     cargar_responsables, obtener_monitores_sistema, cargar_modulos, cargar_maestro_productos,
     cargar_relaciones_maestro, guardar_relaciones_maestro,
@@ -828,7 +830,10 @@ def resumen():
     # Conversión a dicts estándar para Jinja2
     datos_finales = {
         sem: {
-            pm: {var: dict(dias) for var, dias in vars_.items()}
+            pm: {
+                var: dict(dias)
+                for var, dias in sorted(vars_.items(), key=lambda item: sort_key_variedad(pm, item[0]))
+            }
             for pm, vars_ in pms.items()
         }
         for sem, pms in datos_por_semana.items()
@@ -838,7 +843,7 @@ def resumen():
         sem: {
             pm: {
                 var: {dia: dict(mods) for dia, mods in dias.items()}
-                for var, dias in vars_.items()
+                for var, dias in sorted(vars_.items(), key=lambda item: sort_key_variedad(pm, item[0]))
             }
             for pm, vars_ in pms.items()
         }
@@ -1552,7 +1557,7 @@ def api_resumen_bloques_excel():
         datos_matriz[(var, mod)][d_idx] += int(r.total_tallos or 0)
         
     filas = []
-    for (var, mod), tallos_dias in sorted(datos_matriz.items(), key=lambda x: (x[0][0], x[0][1])):
+    for (var, mod), tallos_dias in sorted(datos_matriz.items(), key=lambda x: (sort_key_variedad(prod_nombre, x[0][0]), _natural_key(x[0][1]))):
         total_mod_var = sum(tallos_dias)
         fila = {
             'Semana': semana_filtro,
