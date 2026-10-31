@@ -668,6 +668,12 @@ def sync_excel_to_db(semana_anio=None, anio=None, ec_file_path=None, mf_file_pat
         exigir_consecutiva=True,
         validar_censo_activo=True
     )
+
+    try:
+        sincronizar_responsables_calificaciones(semana=semana_anio)
+    except Exception as e_sync:
+        print(f"[FENOGRAMAS] Aviso al sincronizar responsables para semana {semana_anio}: {e_sync}")
+
     print(f"[FENOGRAMAS] Sincronizados {len(final_items_map)} ítems (+{carried_count} arrastrados, {expired_count} caducados por límite).")
     return len(final_items_map) + carried_count
 
@@ -1262,6 +1268,12 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
         solo_calificadas_cero=False,
         cerrar_previa=False
     )
+
+    try:
+        sincronizar_responsables_calificaciones(semana=semana_corte)
+    except Exception as e_sync:
+        print(f"[FENOGRAMAS] Aviso al sincronizar responsables para semana {semana_corte}: {e_sync}")
+
     print(f"[FENOGRAMAS] Generadas {len(final_items_map)} actividades ({fuente_usada}, delta={delta_semanas_aplicado:+d} sem) para semana {semana_corte} (+{carried_count} arrastradas, {expired_count} caducadas).")
     return len(final_items_map) + carried_count
 

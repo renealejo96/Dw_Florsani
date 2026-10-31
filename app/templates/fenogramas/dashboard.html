@@ -239,11 +239,11 @@
 
 <style>
 #modalPbiDrilldown .table td, #modalPbiDrilldown .table th {
-    padding: 3px 6px !important;
-    font-size: 0.72rem !important;
-    line-height: 1.15 !important;
+    padding: 2px 5px !important;
+    font-size: 0.71rem !important;
+    line-height: 1.12 !important;
+    vertical-align: middle !important;
 }
-</style>
 </style>
 
 <div class="container-fluid py-2">
@@ -745,7 +745,7 @@
                                     <th>Camas</th>
                                     <th>Tipo</th>
                                     <th class="text-center">Edad</th>
-                                    <th>Labor / Asignación</th>
+                                    <th>Labor</th>
                                     <th class="text-center">Estado</th>
                                     <th>Observación</th>
                                     <th class="text-end pe-2">Acción</th>
@@ -1608,7 +1608,7 @@ function refreshModalAuxiliarData() {
                 }));
             }
             if (titleEl) {
-                titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">${escapeHtml(currentModalCultivo)}</span>`;
+                titleEl.innerHTML = `<i class="fa-solid fa-user-tie text-info me-1.5"></i>${escapeHtml(auxRow.supervisor)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.auxiliar)})</span> &bull; <span class="text-warning">${escapeHtml(currentModalCultivo)}</span>`;
             }
         } else {
             cumplidasCount = auxRow.cumplidas;
@@ -1626,7 +1626,7 @@ function refreshModalAuxiliarData() {
                 });
             });
             if (titleEl) {
-                titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">Todos los Cultivos</span>`;
+                titleEl.innerHTML = `<i class="fa-solid fa-user-tie text-info me-1.5"></i>${escapeHtml(auxRow.supervisor)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.auxiliar)})</span> &bull; <span class="text-warning">Todos los Cultivos</span>`;
             }
         }
     }
@@ -1738,24 +1738,20 @@ function renderModalTasksTable() {
             : '';
         const hrefCampo = `${FENO_INDEX_URL}?semana=${encodeURIComponent(SEMANA_DASH)}&zona=${encodeURIComponent(t.zona)}&bloque=${encodeURIComponent(t.bloque_raw)}`;
         return `
-            <tr style="height: 28px;">
+            <tr style="height: 22px;">
                 <td class="ps-2 fw-semibold text-truncate" style="max-width: 90px;">${escapeHtml(t.cultivo)}</td>
                 <td>${escapeHtml(t.zona)}</td>
                 <td class="fw-bold text-dark tabular-nums">BL ${escapeHtml(t.bloque)}</td>
                 <td class="tabular-nums">${escapeHtml(t.camas)}</td>
                 <td class="text-center">${badgeTipo}</td>
                 <td class="text-center tabular-nums fw-semibold">${escapeHtml(t.edad_real)}</td>
-                <td class="fw-semibold text-dark">
+                <td class="fw-semibold text-dark text-truncate" style="max-width: 340px;" title="${escapeHtml(t.labor)}">
                     ${escapeHtml(t.labor)} ${arrastreTag}
-                    <div class="text-muted" style="font-size: 0.65rem; line-height: 1.1;">
-                        <span class="text-secondary fw-semibold">${escapeHtml(t.auxiliar || 'Sin Auxiliar')}</span>
-                        <span class="text-muted">• Sup: ${escapeHtml(t.supervisor || 'Sin Supervisor')}</span>
-                    </div>
                 </td>
                 <td class="text-center">${badgeEstado}</td>
                 <td class="text-muted text-truncate" style="max-width: 140px;" title="${escapeHtml(t.observacion || '')}">${escapeHtml(t.observacion || '-')}</td>
                 <td class="text-end pe-2">
-                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-1 fw-semibold" style="font-size: 0.67rem; line-height: 1.2;">
+                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-1 fw-semibold" style="font-size: 0.65rem; line-height: 1.1;">
                         Calificar &nearr;
                     </a>
                 </td>
