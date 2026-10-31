@@ -257,7 +257,12 @@
                                     </td>
                                     <td class="text-center"><span class="badge bg-light text-dark border">{{ p.unit }}</span></td>
                                     <td class="text-center">
-                                        <input type="checkbox" class="form-check-input" style="width: 16px; height: 16px;">
+                                        <input type="checkbox"
+                                               class="form-check-input check-pesado-input"
+                                               data-product-code="{{ p.code }}"
+                                               {% if p.code in weighed_products %}checked{% endif %}
+                                               {% if rotation %}onchange="togglePesadoProducto({{ rotation.id }}, '{{ p.code }}', this.checked)"{% endif %}
+                                               style="width: 16px; height: 16px; cursor: pointer;">
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -305,7 +310,12 @@
                                     </td>
                                     <td class="text-center"><span class="badge bg-light text-dark border">{{ p.unit }}</span></td>
                                     <td class="text-center">
-                                        <input type="checkbox" class="form-check-input" style="width: 16px; height: 16px;">
+                                        <input type="checkbox"
+                                               class="form-check-input check-pesado-input"
+                                               data-product-code="{{ p.code }}"
+                                               {% if p.code in weighed_products %}checked{% endif %}
+                                               {% if rotation %}onchange="togglePesadoProducto({{ rotation.id }}, '{{ p.code }}', this.checked)"{% endif %}
+                                               style="width: 16px; height: 16px; cursor: pointer;">
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -547,6 +557,36 @@ function setBodegaPrintOrientation(orient) {
             btnPort.className = 'btn btn-outline-secondary fw-semibold';
         }
     }
+}
+
+// Sincronizar pesaje de producto desde Bodega
+function togglePesadoProducto(rotationId, productCode, isChecked) {
+    if (!rotationId) return;
+    fetch(`/bodega/rotaciones/${rotationId}/toggle-pesado`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ product_code: productCode, weighed: isChecked })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.querySelectorAll(`.check-pesado-input[data-product-code="${productCode}"]`).forEach(cb => {
+                cb.checked = isChecked;
+            });
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo guardar el pesaje.'));
+            document.querySelectorAll(`.check-pesado-input[data-product-code="${productCode}"]`).forEach(cb => {
+                cb.checked = !isChecked;
+            });
+        }
+    })
+    .catch(err => {
+        console.error('Error toggling pesado:', err);
+        alert('Error al comunicar con el servidor.');
+    });
 }
 </script>
 {% endblock %}

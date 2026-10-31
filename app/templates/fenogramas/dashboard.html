@@ -236,6 +236,14 @@
 .trend-sube { background: #dcfce7; color: #15803d; }
 .trend-baja { background: #fee2e2; color: #b91c1c; }
 .trend-igual { background: #f1f5f9; color: #475569; }
+
+<style>
+#modalPbiDrilldown .table td, #modalPbiDrilldown .table th {
+    padding: 3px 6px !important;
+    font-size: 0.72rem !important;
+    line-height: 1.15 !important;
+}
+</style>
 </style>
 
 <div class="container-fluid py-2">
@@ -679,7 +687,7 @@
 
     <!-- MODAL DINÁMICO: LABORES NO CUMPLIDAS POR AUXILIAR Y CULTIVO (ESTILO POWER BI) -->
     <div class="modal fade" id="modalPbiDrilldown" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 95vw;">
             <div class="modal-content border-0 shadow-lg" style="border-top: 4px solid #2563eb !important;">
                 <div class="modal-header bg-dark text-white py-2 px-3">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -705,13 +713,11 @@
                                 Todas las Labores
                             </button>
                             <button type="button" class="btn btn-outline-success fw-semibold" id="btn-modal-est-cum" onclick="setModalTaskStatusFilter('CUMPLIDA')" style="font-size: 0.73rem;">
-                                <i class="fa-solid fa-check me-1"></i>Calificadas (Cumplidas)
+                                <i class="fa-solid fa-check me-1"></i>Calificadas (Cumplidas ✓)
                             </button>
-                            <button type="button" class="btn btn-outline-danger fw-semibold" id="btn-modal-est-inc" onclick="setModalTaskStatusFilter('INCUMPLIDA')" style="font-size: 0.73rem;">
-                                Calificadas en 0 (Incumplidas)
-                            </button>
+                            
                             <button type="button" class="btn btn-outline-warning text-dark fw-semibold" id="btn-modal-est-pen" onclick="setModalTaskStatusFilter('PENDIENTE')" style="font-size: 0.73rem;">
-                                Pendientes sin Calificar
+                                <i class="fa-solid fa-clock me-1"></i>Pendientes / No Cumplidas
                             </button>
                         </div>
 
@@ -727,16 +733,16 @@
                         <table class="table table-sm table-hover align-middle mb-0 bg-white small" style="font-size: 0.77rem;">
                             <thead class="table-light" style="position: sticky; top: 0; z-index: 5; border-bottom: 2px solid #cbd5e1;">
                                 <tr>
-                                    <th class="ps-3">Cultivo</th>
+                                    <th class="ps-2">Cultivo</th>
                                     <th>Zona</th>
                                     <th>Bloque</th>
                                     <th>Camas</th>
                                     <th>Tipo</th>
-                                    <th class="text-center">Sem. Edad</th>
-                                    <th>Labor que No se Cumplió</th>
+                                    <th class="text-center">Edad</th>
+                                    <th>Labor / Asignación</th>
                                     <th class="text-center">Estado</th>
                                     <th>Observación</th>
-                                    <th class="text-end pe-3">Ir a Calificar</th>
+                                    <th class="text-end pe-2">Acción</th>
                                 </tr>
                             </thead>
                             <tbody id="pbi-drill-tbody"></tbody>
@@ -1496,7 +1502,6 @@ function setModalTaskStatusFilter(status) {
 function updateModalStatusButtonsUI() {
     document.getElementById('btn-modal-est-all')?.classList.toggle('active', currentModalStatusFilter === 'ALL');
     document.getElementById('btn-modal-est-cum')?.classList.toggle('active', currentModalStatusFilter === 'CUMPLIDA');
-    document.getElementById('btn-modal-est-inc')?.classList.toggle('active', currentModalStatusFilter === 'INCUMPLIDA');
     document.getElementById('btn-modal-est-pen')?.classList.toggle('active', currentModalStatusFilter === 'PENDIENTE');
 }
 
@@ -1504,6 +1509,7 @@ function refreshModalAuxiliarData() {
     const titleEl = document.getElementById('pbi-drill-title');
     const badgesEl = document.getElementById('pbi-drill-summary-badges');
     const tabsEl = document.getElementById('pbi-modal-crop-tabs');
+    const activeSupFilter = document.getElementById('pbi-filter-sup')?.value || 'ALL';
 
     let cumplidasCount = 0;
     let totalCount = 0;
@@ -1511,22 +1517,30 @@ function refreshModalAuxiliarData() {
 
     if (currentModalAuxIdx === null) {
         // ==============================================================
-        // MODO CULTIVO GENERAL (Toda la finca para este cultivo)
+        // MODO CULTIVO GENERAL (Finca o filtrado por Supervisor activo)
         // ==============================================================
         const targetCrop = currentModalCultivo;
         MATRIZ_AUX.forEach(auxRow => {
+            // Si el usuario seleccionó un supervisor en el slicer, respetar ese filtro
+            if (activeSupFilter !== 'ALL' && !(auxRow.supervisor || '').includes(activeSupFilter)) {
+                return;
+            }
             const cropKeys = targetCrop ? [targetCrop] : Object.keys(auxRow.cultivos || {});
             cropKeys.forEach(cKey => {
                 const cInfo = (auxRow.cultivos || {})[cKey];
                 if (cInfo) {
-                    cumplidasCount += (cInfo.cumplidas || 0);
-                    totalCount += (cInfo.total || 0);
                     const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
                     taskSource.forEach(t => {
+                        const tSup = t.supervisor || auxRow.supervisor || '';
+                        if (activeSupFilter !== 'ALL' && !tSup.includes(activeSupFilter)) {
+                            return;
+                        }
+                        cumplidasCount += (t.es_cumplida ? 1 : 0);
+                        totalCount += 1;
                         currentModalTasks.push({
                             ...t,
-                            auxiliar: auxRow.auxiliar,
-                            supervisor: auxRow.supervisor,
+                            auxiliar: t.auxiliar || auxRow.auxiliar,
+                            supervisor: tSup,
                             cultivo: cKey
                         });
                     });
@@ -1534,11 +1548,12 @@ function refreshModalAuxiliarData() {
             });
         });
 
+        const filterScope = (activeSupFilter !== 'ALL') ? `Supervisor: ${escapeHtml(activeSupFilter)}` : 'Toda la Finca';
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fa-solid fa-seedling text-warning me-1"></i>Cultivo: <span class="text-warning">${escapeHtml(targetCrop || 'Todos los Cultivos')}</span> &bull; <span class="text-white-50 fw-normal">Toda la Finca</span>`;
+            titleEl.innerHTML = `<i class="fa-solid fa-seedling text-warning me-1"></i>Cultivo: <span class="text-warning">${escapeHtml(targetCrop || 'Todos los Cultivos')}</span> &bull; <span class="text-white-50 fw-normal">${filterScope}</span>`;
         }
         if (tabsEl) {
-            tabsEl.innerHTML = `<span class="badge bg-secondary text-white px-2.5 py-1" style="font-size: 0.75rem;"><i class="fa-solid fa-users me-1"></i>Listado Consolidado de Toda la Finca</span>`;
+            tabsEl.innerHTML = `<span class="badge bg-secondary text-white px-2.5 py-1" style="font-size: 0.75rem;"><i class="fa-solid fa-filter me-1"></i>${filterScope}</span>`;
         }
     } else {
         // ==============================================================
@@ -1560,7 +1575,7 @@ function refreshModalAuxiliarData() {
             cropKeys.forEach(cKey => {
                 const cObj = auxRow.cultivos[cKey];
                 const isAct = (currentModalCultivo === cKey);
-                const escapedKey = escapeHtml(cKey).replace(/'/g, "\\'");
+                const escapedKey = escapeHtml(cKey).replace(/'/g, "\'");
                 tabsHtml += `
                     <button type="button"
                             class="btn btn-sm py-0 px-2 fw-semibold ${isAct ? 'btn-primary' : 'btn-outline-secondary'}"
@@ -1579,7 +1594,12 @@ function refreshModalAuxiliarData() {
                 cumplidasCount = cInfo.cumplidas;
                 totalCount = cInfo.total;
                 const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
-                currentModalTasks = taskSource.map(t => ({ ...t, auxiliar: auxRow.auxiliar, supervisor: auxRow.supervisor, cultivo: currentModalCultivo }));
+                currentModalTasks = taskSource.map(t => ({
+                    ...t,
+                    auxiliar: t.auxiliar || auxRow.auxiliar,
+                    supervisor: t.supervisor || auxRow.supervisor,
+                    cultivo: currentModalCultivo
+                }));
             }
             if (titleEl) {
                 titleEl.innerHTML = `${escapeHtml(auxRow.auxiliar)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.supervisor)})</span> &bull; <span class="text-info">${escapeHtml(currentModalCultivo)}</span>`;
@@ -1591,7 +1611,12 @@ function refreshModalAuxiliarData() {
                 const cInfo = auxRow.cultivos[cKey];
                 const taskSource = (cInfo.tareas && cInfo.tareas.length > 0) ? cInfo.tareas : (cInfo.tareas_quedaron || []);
                 taskSource.forEach(t => {
-                    currentModalTasks.push({ ...t, auxiliar: auxRow.auxiliar, supervisor: auxRow.supervisor, cultivo: cKey });
+                    currentModalTasks.push({
+                        ...t,
+                        auxiliar: t.auxiliar || auxRow.auxiliar,
+                        supervisor: t.supervisor || auxRow.supervisor,
+                        cultivo: cKey
+                    });
                 });
             });
             if (titleEl) {
@@ -1600,15 +1625,14 @@ function refreshModalAuxiliarData() {
         }
     }
 
-    const incumpCount = currentModalTasks.filter(t => t.es_incumplida).length;
     const cumplCount = currentModalTasks.filter(t => t.es_cumplida).length;
-    const pendCount = currentModalTasks.length - incumpCount - cumplCount;
+    const pendCount = currentModalTasks.length - cumplCount;
 
     if (badgesEl) {
         badgesEl.innerHTML = `
-            <span class="badge bg-success-subtle text-success border border-success-subtle">Cumplidas: ${cumplCount}/${totalCount}</span>
-            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Incumplidas (0): ${incumpCount}</span>
-            <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Pendientes: ${pendCount}</span>
+            <span class="badge bg-secondary text-white">Total: ${currentModalTasks.length}</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">Cumplidas (✓): ${cumplCount}</span>
+            <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Pendientes / No Cumplidas: ${pendCount}</span>
         `;
     }
 
@@ -1669,10 +1693,9 @@ function renderModalTasksTable() {
 
     const filtered = currentModalTasks.filter(t => {
         if (currentModalStatusFilter === 'CUMPLIDA' && !t.es_cumplida) return false;
-        if (currentModalStatusFilter === 'INCUMPLIDA' && !t.es_incumplida) return false;
-        if (currentModalStatusFilter === 'PENDIENTE' && (t.es_cumplida || t.es_incumplida)) return false;
+        if (currentModalStatusFilter === 'PENDIENTE' && t.es_cumplida) return false;
         if (query) {
-            const haystack = `${t.cultivo} ${t.zona} bl ${t.bloque} ${t.camas} ${t.actividad_tipo} ${t.labor} ${t.observacion || ''}`.toLowerCase();
+            const haystack = `${t.cultivo} ${t.zona} bl ${t.bloque} ${t.camas} ${t.actividad_tipo} ${t.labor} ${t.auxiliar || ''} ${t.supervisor || ''} ${t.observacion || ''}`.toLowerCase();
             if (!haystack.includes(query)) return false;
         }
         return true;
@@ -1695,33 +1718,39 @@ function renderModalTasksTable() {
     }
 
     tbody.innerHTML = filtered.map(t => {
-        let badgeEstado = '<span class="badge bg-warning text-dark">Pendiente</span>';
+        let badgeEstado = '<span class="badge bg-warning text-dark" style="font-size: 0.68rem;">Pendiente</span>';
         if (t.es_cumplida) {
-            badgeEstado = '<span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Cumplida (✓)</span>';
+            badgeEstado = '<span class="badge bg-success" style="font-size: 0.68rem;"><i class="fa-solid fa-check me-1"></i>Cumplida (✓)</span>';
         } else if (t.es_incumplida) {
-            badgeEstado = '<span class="badge bg-danger">Incumplida (0)</span>';
+            badgeEstado = '<span class="badge bg-danger" style="font-size: 0.68rem;">Incumplida (0)</span>';
         }
         const badgeTipo = t.actividad_tipo === 'Poda'
-            ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>'
-            : '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>';
+            ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.65rem; padding: 1px 4px;" title="Poda">P</span>'
+            : '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.65rem; padding: 1px 4px;" title="Siembra">S</span>';
         const arrastreTag = t.es_arrastre
-            ? `<span class="badge bg-danger-subtle text-danger border ms-1" title="Arrastrada de Semana ${t.semana_origen}">Arrastre S${t.semana_origen}</span>`
+            ? `<span class="badge bg-danger-subtle text-danger border ms-1" style="font-size: 0.62rem;" title="Arrastrada de Semana ${t.semana_origen}">Arrastre S${t.semana_origen}</span>`
             : '';
         const hrefCampo = `${FENO_INDEX_URL}?semana=${encodeURIComponent(SEMANA_DASH)}&zona=${encodeURIComponent(t.zona)}&bloque=${encodeURIComponent(t.bloque_raw)}`;
         return `
-            <tr>
-                <td class="ps-3 fw-semibold">${escapeHtml(t.cultivo)}</td>
+            <tr style="height: 28px;">
+                <td class="ps-2 fw-semibold text-truncate" style="max-width: 90px;">${escapeHtml(t.cultivo)}</td>
                 <td>${escapeHtml(t.zona)}</td>
                 <td class="fw-bold text-dark tabular-nums">BL ${escapeHtml(t.bloque)}</td>
                 <td class="tabular-nums">${escapeHtml(t.camas)}</td>
                 <td class="text-center">${badgeTipo}</td>
                 <td class="text-center tabular-nums fw-semibold">${escapeHtml(t.edad_real)}</td>
-                <td class="fw-semibold text-dark">${escapeHtml(t.labor)} ${arrastreTag}</td>
+                <td class="fw-semibold text-dark">
+                    ${escapeHtml(t.labor)} ${arrastreTag}
+                    <div class="text-muted" style="font-size: 0.65rem; line-height: 1.1;">
+                        <span class="text-secondary fw-semibold">${escapeHtml(t.auxiliar || 'Sin Auxiliar')}</span>
+                        <span class="text-muted">• Sup: ${escapeHtml(t.supervisor || 'Sin Supervisor')}</span>
+                    </div>
+                </td>
                 <td class="text-center">${badgeEstado}</td>
-                <td class="text-muted">${escapeHtml(t.observacion || '-')}</td>
-                <td class="text-end pe-3">
-                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold" style="font-size: 0.71rem;">
-                        Abrir BL ${escapeHtml(t.bloque)} &nearr;
+                <td class="text-muted text-truncate" style="max-width: 140px;" title="${escapeHtml(t.observacion || '')}">${escapeHtml(t.observacion || '-')}</td>
+                <td class="text-end pe-2">
+                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-1 fw-semibold" style="font-size: 0.67rem; line-height: 1.2;">
+                        Calificar &nearr;
                     </a>
                 </td>
             </tr>

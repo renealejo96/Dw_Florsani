@@ -1,11 +1,12 @@
 import io
+import json
 import datetime
 import pandas as pd
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 from app.extensions import db
 from app.shared.models import (
     Rotation, FumigationOrder, FumigationOrderDetail, FumigationOrderProductSummary,
-    WarehouseDispatchLog, Product, Crop
+    WarehouseDispatchLog, Product, Crop, User
 )
 from app.modules.fumigacion.services.order_service import OrderService
 from app.shared.utils import (
@@ -175,6 +176,44 @@ def salidas():
                 'total_quantity': round(tot_q, 2)
             })
 
+    # Segmented consolidated by operational category (Gypsophila, Productos Nuevos/Variedades, PIV)
+    consolidated_by_category = {
+        'ALL': consolidated_products,
+        'GYPSOPHILA': [],
+        'PRODUCTOS_NUEVOS': [],
+        'PIV': []
+    }
+    for cat_key in ['GYPSOPHILA', 'PRODUCTOS_NUEVOS', 'PIV']:
+        cat_summary = {}
+        for area_name, area_info in data_by_area.items():
+            if area_info.get('category') == cat_key:
+                for p_code, day_qtys in area_info['products'].items():
+                    if p_code not in cat_summary:
+                        cat_summary[p_code] = {d: 0.0 for d in scheduled_days}
+                    for d, q in day_qtys.items():
+                        if d in cat_summary[p_code]:
+                            cat_summary[p_code][d] += q
+
+        for p_code, day_qtys in sorted(cat_summary.items(), key=lambda x: (product_info.get(x[0], {}).get('commercial_name', x[0]))):
+            tot_q = sum(day_qtys.values())
+            if tot_q > 0:
+                consolidated_by_category[cat_key].append({
+                    'product_code': p_code,
+                    'commercial_name': product_info.get(p_code, {}).get('commercial_name', p_code),
+                    'unit': product_info.get(p_code, {}).get('unit', 'CC'),
+                    'category': cat_key,
+                    'pest': product_info.get(p_code, {}).get('pest', ''),
+                    'days': day_qtys,
+                    'total_quantity': round(tot_q, 2)
+                })
+
+    weighed_products = []
+    if current_rot.weighed_products_json:
+        try:
+            weighed_products = json.loads(current_rot.weighed_products_json)
+        except Exception:
+            weighed_products = []
+
     total_products_count = len(product_info)
     total_volume_liters = sum(ord.total_liters for ord in display_orders)
     total_beds = sum(ord.total_standard_beds for ord in display_orders)
@@ -204,6 +243,8 @@ def salidas():
         data_by_category=data_by_category,
         general_summary=general_summary,
         consolidated_products=consolidated_products,
+        consolidated_by_category=consolidated_by_category,
+        weighed_products=weighed_products,
         product_info=product_info,
         all_rotations=approved_rotations,
         prev_rotation=prev_rotation,
@@ -327,14 +368,23 @@ def orden_detalle(order_id):
     overall_liquids = [p for p in all_products if p['is_liquid']]
     overall_solids = [p for p in all_products if not p['is_liquid']]
 
+    weighed_products = []
+    if order.rotation and order.rotation.weighed_products_json:
+        try:
+            weighed_products = json.loads(order.rotation.weighed_products_json)
+        except Exception:
+            weighed_products = []
+
     return render_template(
         'bodega/orden_detalle.html',
         order=order,
+        rotation=order.rotation,
         zones_list=zones_list,
         products_summary=order.products_summary,
         distinct_products=all_products,
         overall_liquids=overall_liquids,
-        overall_solids=overall_solids
+        overall_solids=overall_solids,
+        weighed_products=weighed_products
     )
 
 
@@ -698,4 +748,55 @@ def marcar_salidas_digitadas(rotation_id):
 
     flash(msg_text, "success" if rotation.is_salidas_digitadas else "info")
     return redirect(url_for('bodega.salidas', rotation_id=rotation.id))
+
+
+@bodega_bp.route('/rotaciones/<int:rotation_id>/toggle-pesado', methods=['POST'])
+@login_required
+def toggle_pesado(rotation_id):
+    """
+    Permite registrar o desmarcar el estado de pesado en balanza de un producto químico.
+    Exclusivo para personal de Bodega/Almacén y Administradores.
+    """
+    user_id = session.get('user_id')
+    user = User.query.get(user_id) if user_id else None
+    user_role = (user.role if user else session.get('role')) or ''
+
+    if user_role not in ['BODEGA', 'ADMIN']:
+        return jsonify({
+            'success': False,
+            'error': 'Permiso denegado. Solo el personal de Bodega / Almacén puede registrar el pesaje de insumos.'
+        }), 403
+
+    rotation = Rotation.query.filter_by(id=rotation_id, status='APROBADA').first_or_404()
+    data = request.get_json() or {}
+    product_code = (data.get('product_code') or '').strip()
+    is_weighed = bool(data.get('weighed', False))
+
+    if not product_code:
+        return jsonify({'success': False, 'error': 'Código de producto requerido.'}), 400
+
+    weighed_list = []
+    if rotation.weighed_products_json:
+        try:
+            weighed_list = json.loads(rotation.weighed_products_json)
+        except Exception:
+            weighed_list = []
+
+    if is_weighed:
+        if product_code not in weighed_list:
+            weighed_list.append(product_code)
+    else:
+        if product_code in weighed_list:
+            weighed_list.remove(product_code)
+
+    rotation.weighed_products_json = json.dumps(weighed_list)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'product_code': product_code,
+        'is_weighed': is_weighed,
+        'weighed_products': weighed_list
+    })
+
 

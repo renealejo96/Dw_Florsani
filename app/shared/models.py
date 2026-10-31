@@ -295,6 +295,7 @@ class Rotation(db.Model):
     is_salidas_dispatched = db.Column(db.Boolean, default=False, nullable=False)
     salidas_dispatched_at = db.Column(db.DateTime, nullable=True)
     salidas_dispatched_by = db.Column(db.String(100), nullable=True)
+    weighed_products_json = db.Column(db.Text, nullable=True)  # JSON array of weighed product codes ['PROD1', 'PROD2']
     created_at = db.Column(db.DateTime, default=get_local_now)
     updated_at = db.Column(db.DateTime, default=get_local_now, onupdate=get_local_now)
 

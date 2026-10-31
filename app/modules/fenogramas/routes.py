@@ -23,7 +23,8 @@ from app.modules.fenogramas.services.fenograma_service import (
     sync_from_mrt_estado_cultivo, cerrar_semana_evaluacion,
     obtener_datos_dashboard, MAX_SEMANAS_ARRASTRE_DEFAULT,
     clean_block_code, find_responsible_for_labor,
-    get_matching_matrix_products, normalize_key
+    get_matching_matrix_products, normalize_key,
+    sincronizar_responsables_calificaciones
 )
 
 fenogramas_bp = Blueprint('fenogramas', __name__, url_prefix='/fenogramas')
@@ -1106,9 +1107,10 @@ def api_guardar_matriz():
             ))
         db.session.commit()
 
-        # Recalcular la semana con el estado de cultivo actual en base de datos
+        # Recalcular la semana y sincronizar responsables con la nueva matriz
         try:
             count = sync_from_mrt_estado_cultivo(semana_corte=semana, anio=2026, fuente='AUTO')
+            sincronizar_responsables_calificaciones(semana=semana)
         except Exception as e_calc:
             print(f"[AVISO] Error al recalcular semana {semana} tras guardar matriz: {e_calc}")
             count = len(items)
@@ -1595,6 +1597,7 @@ def api_inyectar_matriz():
         if semana and semana > 0:
             try:
                 recalculadas = sync_from_mrt_estado_cultivo(semana_corte=semana, anio=2026, fuente='AUTO')
+                sincronizar_responsables_calificaciones(semana=semana)
             except Exception as e_recalc:
                 print(f"[AVISO] Al recalcular calificaciones para semana {semana}: {e_recalc}")
 

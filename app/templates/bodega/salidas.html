@@ -648,21 +648,35 @@
         </div>
         {% endfor %}
         <!-- Resumen Consolidado de Agroquímicos para Salidas de Bodega -->
-        {% if consolidated_products and consolidated_products|length > 0 %}
-        <div class="card mb-4 border-0 shadow-sm border-start border-4 border-dark print-page-break-inside-avoid">
+        {% set category_titles = {
+            'ALL': 'Resumen Consolidado Total de Insumos para Despacho de Bodega (Todo el Programa)',
+            'GYPSOPHILA': 'Resumen Consolidado de Insumos • Solo Gypsophila',
+            'PRODUCTOS_NUEVOS': 'Resumen Consolidado de Insumos • Solo Productos Nuevos / Variedades',
+            'PIV': 'Resumen Consolidado de Insumos • Solo PIV'
+        } %}
+        {% set category_badges = {
+            'ALL': 'bg-secondary',
+            'GYPSOPHILA': 'bg-primary',
+            'PRODUCTOS_NUEVOS': 'bg-success',
+            'PIV': 'bg-info text-dark'
+        } %}
+
+        {% for cat_code, cat_prods in consolidated_by_category.items() %}
+        <div class="card mb-4 border-0 shadow-sm border-start border-4 border-dark print-page-break-inside-avoid consolidated-summary-card {% if cat_code != 'ALL' %}d-none{% endif %}" data-category-summary="{{ cat_code }}">
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
                 <h6 class="mb-0 fw-bold">
                     <i class="fa-solid fa-boxes-stacked me-2 text-warning"></i>
-                    Resumen Consolidado Total de Insumos para Despacho de Bodega
+                    {{ category_titles[cat_code] }}
                     {% if selected_order %}
                     <span class="badge bg-primary text-white ms-2 font-monospace">Vuelta {{ selected_order.round_number }}: {{ selected_order.round_name }} ({{ selected_order.total_liters|format_number(1) }} L)</span>
                     {% else %}
-                    <span class="badge bg-secondary text-white ms-2 font-monospace">Consolidado Total Semana {{ rotation.week }} ({{ total_volume_liters|format_number(1) }} L)</span>
+                    <span class="badge {{ category_badges[cat_code] }} ms-2 font-monospace">Semana {{ rotation.week }}</span>
                     {% endif %}
                 </h6>
-                <span class="badge bg-light text-dark font-monospace">{{ consolidated_products|length }} insumos</span>
+                <span class="badge bg-light text-dark font-monospace">{{ cat_prods|length }} insumos</span>
             </div>
             <div class="card-body p-0">
+                {% if cat_prods and cat_prods|length > 0 %}
                 <div class="table-responsive">
                     <table class="table table-sm table-bordered table-hover align-middle mb-0 small">
                         <thead class="table-light text-center">
@@ -679,7 +693,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for p in consolidated_products %}
+                            {% for p in cat_prods %}
                             <tr>
                                 <td class="text-center text-muted fw-bold">{{ loop.index }}</td>
                                 <td class="font-monospace fw-bold text-primary">{{ p.product_code }}</td>
@@ -695,16 +709,30 @@
                                     {{ p.total_quantity|format_product(p.unit) }}
                                 </td>
                                 <td class="text-center no-print">
-                                    <input type="checkbox" class="form-check-input" style="width: 16px; height: 16px;">
+                                    <input type="checkbox"
+                                           class="form-check-input check-pesado-input"
+                                           data-product-code="{{ p.product_code }}"
+                                           {% if p.product_code in weighed_products %}checked{% endif %}
+                                           {% if current_user.role not in ['BODEGA', 'ADMIN'] %}
+                                           disabled title="Solo el personal de Bodega / Almacén puede registrar el pesaje"
+                                           {% else %}
+                                           onchange="togglePesadoProducto({{ rotation.id }}, '{{ p.product_code }}', this.checked)"
+                                           {% endif %}
+                                           style="width: 16px; height: 16px; cursor: {% if current_user.role in ['BODEGA', 'ADMIN'] %}pointer{% else %}not-allowed{% endif %};">
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <div class="text-center py-4 text-muted small">
+                    <i class="fa-solid fa-flask-vial text-secondary me-1"></i> No hay insumos programados para este segmento en la semana seleccionada.
+                </div>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
+        {% endfor %}
         {% else %}
         <div class="text-center py-5 text-muted bg-white rounded-3 shadow-sm border p-4 my-3">
             <i class="fa-solid fa-boxes-packing fs-1 text-secondary mb-3"></i>
@@ -716,7 +744,7 @@
 
     <!-- Sub-Tab 2: Warehouse Dispatch & Print Logs -->
 
-    <div class="tab-pane fade" id="history-view" role="tabpanel">
+    <div class="tab-pane fade no-print d-print-none" id="history-view" role="tabpanel">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold text-dark">
@@ -1181,6 +1209,18 @@ function filterBodegaCategory(cat, btnElement) {
             card.style.display = 'none';
         }
     });
+
+    // Filter Tab 1: Consolidated summary tables by category
+    document.querySelectorAll('.consolidated-summary-card').forEach(card => {
+        const cCat = card.getAttribute('data-category-summary');
+        if (cCat === cat) {
+            card.style.display = '';
+            card.classList.remove('d-none');
+        } else {
+            card.style.display = 'none';
+            card.classList.add('d-none');
+        }
+    });
 }
 
 // Activate Pill 2 if URL hash is #pill-salidas or order_id filter is passed
@@ -1194,5 +1234,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+// Toggle pesaje de insumos en bodega
+function togglePesadoProducto(rotationId, productCode, isChecked) {
+    fetch(`/bodega/rotaciones/${rotationId}/toggle-pesado`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ product_code: productCode, weighed: isChecked })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Sincronizar todos los checkboxes con este product_code en la pantalla
+            document.querySelectorAll(`.check-pesado-input[data-product-code="${productCode}"]`).forEach(cb => {
+                cb.checked = isChecked;
+            });
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo actualizar el pesaje.'));
+            document.querySelectorAll(`.check-pesado-input[data-product-code="${productCode}"]`).forEach(cb => {
+                cb.checked = !isChecked;
+            });
+        }
+    })
+    .catch(err => {
+        console.error('Error toggling pesado:', err);
+        alert('Error de conexión al guardar el pesaje en bodega.');
+    });
+}
 </script>
 {% endblock %}

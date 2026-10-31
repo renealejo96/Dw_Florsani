@@ -1678,6 +1678,8 @@ def obtener_datos_dashboard(semana):
             'actividad_tipo': r.actividad_tipo,
             'edad_real': r.edad_real,
             'labor': r.labor,
+            'auxiliar': r.auxiliar or aux_name,
+            'supervisor': r.supervisor or 'Sin Supervisor',
             'estado': estado_txt,
             'cumplido': r.cumplido,
             'es_cumplida': bool(r.cumplido == 1),
@@ -1726,3 +1728,67 @@ def obtener_datos_dashboard(semana):
         'zonas_por_cultivo': zonas_por_cultivo,
         'tendencia_por_cultivo': tendencia_por_cultivo
     }
+
+
+def sincronizar_responsables_calificaciones(semana=None):
+    """
+    Sincroniza y actualiza los auxiliares y supervisores en la tabla `calificaciones`
+    haciendo match con la tabla `matriz_fenogramas` vigente, preservando al 100%
+    todas las calificaciones realizadas (cumplido, observación, fechas).
+    """
+    config = load_mapeos_config()
+    prod_aliases = {normalize_key(k): v for k, v in config.get("producto_aliases", {}).items()}
+
+    mat_rows = db.session.execute(text("""
+        SELECT producto, actividad_tipo, semana, labor, auxiliar, supervisor
+        FROM matriz_fenogramas;
+    """)).fetchall()
+
+    rules = []
+    for m in mat_rows:
+        rules.append({
+            'producto_norm': normalize_key(normalize_product_name(m.producto)),
+            'actividad_norm': normalize_key(m.actividad_tipo),
+            'semana': int(m.semana),
+            'labor': m.labor.strip(),
+            'auxiliar': (m.auxiliar or '').strip(),
+            'supervisor': (m.supervisor or '').strip()
+        })
+
+    query = "SELECT id, producto_maestro, actividad_tipo, edad_real, labor, auxiliar, supervisor FROM calificaciones"
+    params = {}
+    if semana:
+        query += " WHERE semana_anio = :sem"
+        params['sem'] = int(semana)
+
+    califs = db.session.execute(text(query), params).fetchall()
+    updated = 0
+
+    for c in califs:
+        target_prods = get_matching_matrix_products(c.producto_maestro, prod_aliases)
+        act_norm = normalize_key(c.actividad_tipo or 'Siembra')
+        c_labor = (c.labor or '').strip()
+
+        matched = [
+            r for r in rules
+            if r['producto_norm'] in target_prods
+            and r['semana'] == c.edad_real
+            and (r['actividad_norm'] == act_norm or r['actividad_norm'] == 'todos')
+            and r['labor'].lower() == c_labor.lower()
+        ]
+
+        if matched:
+            best = matched[0]
+            new_aux = best['auxiliar'] or c.auxiliar
+            new_sup = best['supervisor'] or c.supervisor
+            if new_aux != c.auxiliar or new_sup != c.supervisor:
+                db.session.execute(text("""
+                    UPDATE calificaciones
+                    SET auxiliar = :aux, supervisor = :sup
+                    WHERE id = :id;
+                """), {'aux': new_aux, 'sup': new_sup, 'id': c.id})
+                updated += 1
+
+    db.session.commit()
+    print(f"[FENOGRAMAS] Sincronizados {updated} registros de calificaciones con la matriz vigente.")
+    return updated
