@@ -237,12 +237,30 @@
 .trend-baja { background: #fee2e2; color: #b91c1c; }
 .trend-igual { background: #f1f5f9; color: #475569; }
 
-<style>
 #modalPbiDrilldown .table td, #modalPbiDrilldown .table th {
-    padding: 2px 5px !important;
-    font-size: 0.71rem !important;
-    line-height: 1.12 !important;
+    padding: 1px 4px !important;
+    font-size: 0.67rem !important;
+    line-height: 1.05 !important;
     vertical-align: middle !important;
+}
+#modalPbiDrilldown .table tbody tr {
+    height: 19px !important;
+}
+#modalPbiDrilldown .table thead tr {
+    height: 22px !important;
+}
+#modalPbiDrilldown .btn-sm {
+    padding: 0 4px !important;
+    font-size: 0.62rem !important;
+    line-height: 1.05 !important;
+    height: 18px !important;
+}
+#modalPbiDrilldown .badge {
+    padding: 1px 4px !important;
+    font-size: 0.62rem !important;
+}
+#pbi-drill-title, #pbi-drill-title span {
+    color: #ffffff !important;
 }
 </style>
 
@@ -698,7 +716,7 @@
                 <div class="modal-header bg-dark text-white py-2 px-3">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <span class="badge bg-primary px-2 py-1"><i class="fa-solid fa-magnifying-glass-chart me-1"></i>Detalle de Labores No Cumplidas</span>
-                        <h6 class="modal-title fw-bold mb-0" id="pbi-drill-title">Auxiliar &bull; Cultivo</h6>
+                        <h6 class="modal-title fw-bold mb-0 text-white" id="pbi-drill-title" style="color: #ffffff !important;">Auxiliar &bull; Cultivo</h6>
                     </div>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
@@ -1556,7 +1574,7 @@ function refreshModalAuxiliarData() {
 
         const filterScope = (activeSupFilter !== 'ALL') ? `Supervisor: ${escapeHtml(activeSupFilter)}` : 'Toda la Finca';
         if (titleEl) {
-            titleEl.innerHTML = `<i class="fa-solid fa-seedling text-warning me-1"></i>Cultivo: <span class="text-warning">${escapeHtml(targetCrop || 'Todos los Cultivos')}</span> &bull; <span class="text-white-50 fw-normal">${filterScope}</span>`;
+            titleEl.innerHTML = `<i class="fa-solid fa-seedling text-warning me-1"></i><span class="text-white">Cultivo: </span><span class="text-warning fw-bold">${escapeHtml(targetCrop || 'Todos los Cultivos')}</span> &bull; <span class="text-white-50 fw-normal">${filterScope}</span>`;
         }
         if (tabsEl) {
             tabsEl.innerHTML = `<span class="badge bg-secondary text-white px-2.5 py-1" style="font-size: 0.75rem;"><i class="fa-solid fa-filter me-1"></i>${filterScope}</span>`;
@@ -1608,7 +1626,7 @@ function refreshModalAuxiliarData() {
                 }));
             }
             if (titleEl) {
-                titleEl.innerHTML = `<i class="fa-solid fa-user-tie text-info me-1.5"></i>${escapeHtml(auxRow.supervisor)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.auxiliar)})</span> &bull; <span class="text-warning">${escapeHtml(currentModalCultivo)}</span>`;
+                titleEl.innerHTML = `<i class="fa-solid fa-user-tie text-info me-1.5"></i><span class="text-white fw-bold" style="color: #ffffff !important;">${escapeHtml(auxRow.supervisor)}</span> <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.auxiliar)})</span> &bull; <span class="text-warning fw-bold">${escapeHtml(currentModalCultivo)}</span>`;
             }
         } else {
             cumplidasCount = auxRow.cumplidas;
@@ -1626,7 +1644,7 @@ function refreshModalAuxiliarData() {
                 });
             });
             if (titleEl) {
-                titleEl.innerHTML = `<i class="fa-solid fa-user-tie text-info me-1.5"></i>${escapeHtml(auxRow.supervisor)} <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.auxiliar)})</span> &bull; <span class="text-warning">Todos los Cultivos</span>`;
+                titleEl.innerHTML = `<i class="fa-solid fa-user-tie text-info me-1.5"></i><span class="text-white fw-bold" style="color: #ffffff !important;">${escapeHtml(auxRow.supervisor)}</span> <span class="text-white-50 fw-normal">(${escapeHtml(auxRow.auxiliar)})</span> &bull; <span class="text-warning fw-bold">Todos los Cultivos</span>`;
             }
         }
     }
@@ -1738,20 +1756,20 @@ function renderModalTasksTable() {
             : '';
         const hrefCampo = `${FENO_INDEX_URL}?semana=${encodeURIComponent(SEMANA_DASH)}&zona=${encodeURIComponent(t.zona)}&bloque=${encodeURIComponent(t.bloque_raw)}`;
         return `
-            <tr style="height: 22px;">
-                <td class="ps-2 fw-semibold text-truncate" style="max-width: 90px;">${escapeHtml(t.cultivo)}</td>
-                <td>${escapeHtml(t.zona)}</td>
-                <td class="fw-bold text-dark tabular-nums">BL ${escapeHtml(t.bloque)}</td>
-                <td class="tabular-nums">${escapeHtml(t.camas)}</td>
-                <td class="text-center">${badgeTipo}</td>
-                <td class="text-center tabular-nums fw-semibold">${escapeHtml(t.edad_real)}</td>
-                <td class="fw-semibold text-dark text-truncate" style="max-width: 340px;" title="${escapeHtml(t.labor)}">
+            <tr style="height: 19px;">
+                <td class="ps-2 fw-semibold text-truncate" style="max-width: 90px; padding-top: 1px; padding-bottom: 1px;">${escapeHtml(t.cultivo)}</td>
+                <td style="padding-top: 1px; padding-bottom: 1px;">${escapeHtml(t.zona)}</td>
+                <td class="fw-bold text-dark tabular-nums" style="padding-top: 1px; padding-bottom: 1px;">BL ${escapeHtml(t.bloque)}</td>
+                <td class="tabular-nums" style="padding-top: 1px; padding-bottom: 1px;">${escapeHtml(t.camas)}</td>
+                <td class="text-center" style="padding-top: 1px; padding-bottom: 1px;">${badgeTipo}</td>
+                <td class="text-center tabular-nums fw-semibold" style="padding-top: 1px; padding-bottom: 1px;">${escapeHtml(t.edad_real)}</td>
+                <td class="fw-semibold text-dark text-truncate" style="max-width: 340px; padding-top: 1px; padding-bottom: 1px;" title="${escapeHtml(t.labor)}">
                     ${escapeHtml(t.labor)} ${arrastreTag}
                 </td>
-                <td class="text-center">${badgeEstado}</td>
-                <td class="text-muted text-truncate" style="max-width: 140px;" title="${escapeHtml(t.observacion || '')}">${escapeHtml(t.observacion || '-')}</td>
-                <td class="text-end pe-2">
-                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-1 fw-semibold" style="font-size: 0.65rem; line-height: 1.1;">
+                <td class="text-center" style="padding-top: 1px; padding-bottom: 1px;">${badgeEstado}</td>
+                <td class="text-muted text-truncate" style="max-width: 140px; padding-top: 1px; padding-bottom: 1px;" title="${escapeHtml(t.observacion || '')}">${escapeHtml(t.observacion || '-')}</td>
+                <td class="text-end pe-2" style="padding-top: 1px; padding-bottom: 1px;">
+                    <a href="${hrefCampo}" class="btn btn-outline-dark btn-sm py-0 px-1 fw-semibold" style="font-size: 0.62rem; line-height: 1.0; height: 18px; display: inline-flex; align-items: center;">
                         Calificar &nearr;
                     </a>
                 </td>

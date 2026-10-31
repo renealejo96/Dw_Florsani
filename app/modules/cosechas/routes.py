@@ -1549,16 +1549,16 @@ def api_resumen_bloques_excel():
         mod = str(r.modulo or 'S/M').strip()
         var = str(r.variedad or '').strip()
         d_idx = r.fecha.weekday()
-        datos_matriz[(mod, var)][d_idx] += int(r.total_tallos or 0)
+        datos_matriz[(var, mod)][d_idx] += int(r.total_tallos or 0)
         
     filas = []
-    for (mod, var), tallos_dias in sorted(datos_matriz.items(), key=lambda x: (x[0][0], x[0][1])):
+    for (var, mod), tallos_dias in sorted(datos_matriz.items(), key=lambda x: (x[0][0], x[0][1])):
         total_mod_var = sum(tallos_dias)
         fila = {
             'Semana': semana_filtro,
             'Producto Maestro': prod_nombre,
-            'Bloque/Módulo': mod,
             'Variedad': var,
+            'Bloque/Módulo': mod,
             'Lunes': tallos_dias[0] if tallos_dias[0] > 0 else 0,
             'Martes': tallos_dias[1] if tallos_dias[1] > 0 else 0,
             'Miércoles': tallos_dias[2] if tallos_dias[2] > 0 else 0,
@@ -1571,7 +1571,7 @@ def api_resumen_bloques_excel():
         filas.append(fila)
         
     df = pd.DataFrame(filas) if filas else pd.DataFrame(columns=[
-        'Semana', 'Producto Maestro', 'Bloque/Módulo', 'Variedad',
+        'Semana', 'Producto Maestro', 'Variedad', 'Bloque/Módulo',
         'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo', 'Total Tallos'
     ])
     

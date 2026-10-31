@@ -141,9 +141,16 @@
             padding-left: 0.4rem !important;
             padding-right: 0.3rem !important;
         }
-        .modal-table-bloques td:nth-child(2) {
+        .modal-table-bloques td:nth-child(1) {
             min-width: 155px !important;
             max-width: 220px !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.2 !important;
+        }
+        .modal-table-bloques td:nth-child(2) {
+            min-width: 110px !important;
             white-space: normal !important;
             word-break: normal !important;
             overflow-wrap: break-word !important;
@@ -457,7 +464,7 @@
                     </div>
                     <div class="text-truncate">
                         <h6 class="modal-title fw-bold mb-0 text-white text-truncate" id="modalResumenBloqueLabel" style="font-size: 0.92rem;">
-                            Detalle por Bloque: <span id="modal-pm-nombre" class="text-warning"></span>
+                            Detalle por Variedad y Bloque: <span id="modal-pm-nombre" class="text-warning"></span>
                         </h6>
                         <span class="small text-white-50" style="font-size: 0.72rem;">
                             Semana <strong id="modal-pm-semana" class="text-white"></strong> &bull; Desglose diario
@@ -482,7 +489,7 @@
                         <span class="input-group-text bg-white border-end-0 py-0 px-2">
                             <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 0.75rem;"></i>
                         </span>
-                        <input type="text" id="filtro-modal-input" class="form-control border-start-0 ps-1 py-1" style="font-size: 0.78rem;" placeholder="Buscar bloque o variedad en corte..." oninput="filtrarTablaModal(this.value)">
+                        <input type="text" id="filtro-modal-input" class="form-control border-start-0 ps-1 py-1" style="font-size: 0.78rem;" placeholder="Buscar variedad o bloque en corte..." oninput="filtrarTablaModal(this.value)">
                         <button class="btn btn-outline-secondary py-0 px-2" type="button" style="font-size: 0.75rem;" onclick="document.getElementById('filtro-modal-input').value = ''; filtrarTablaModal('');">
                             Limpiar
                         </button>
@@ -500,8 +507,8 @@
                     <table class="table modal-table-bloques table-hover table-striped align-middle mb-0" id="tabla-modal-bloques">
                         <thead class="table-dark sticky-top">
                             <tr>
-                                <th style="min-width: 140px; text-align: left; padding-left: 1rem;">Bloque / Módulo</th>
-                                <th style="min-width: 180px; text-align: left;">Variedad</th>
+                                <th style="min-width: 170px; text-align: left; padding-left: 1rem;">Variedad</th>
+                                <th style="min-width: 130px; text-align: left;">Bloque / Módulo</th>
                                 <th style="width: 80px;">Lun</th>
                                 <th style="width: 80px;">Mar</th>
                                 <th style="width: 80px;">Mié</th>
@@ -509,7 +516,7 @@
                                 <th style="width: 80px;">Vie</th>
                                 <th style="width: 80px;">Sáb</th>
                                 <th style="width: 80px;">Dom</th>
-                                <th style="min-width: 120px;" class="bg-warning text-dark fw-bold">Total Bloque</th>
+                                <th style="min-width: 120px;" class="bg-warning text-dark fw-bold">Total Variedad</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-modal-bloques">
@@ -557,8 +564,8 @@ function abrirModalBloque(semana, prodMaestro) {
     const semData = DESGLOSE_DATA[semana] || {};
     const prodData = semData[prodMaestro] || {};
 
-    // Transformar datos a estructura: modulo -> { variedad: [d0, d1, d2, d3, d4, d5, d6] }
-    const modulosMap = {};
+    // Transformar datos a estructura: variedad -> { modulo: [d0, d1, d2, d3, d4, d5, d6] }
+    const variedadesMap = {};
     let totalGlobal = 0;
     const totalDiasGlobal = [0, 0, 0, 0, 0, 0, 0];
     const variedadesSet = new Set();
@@ -566,14 +573,16 @@ function abrirModalBloque(semana, prodMaestro) {
 
     for (const [variedad, diasObj] of Object.entries(prodData)) {
         variedadesSet.add(variedad);
+        if (!variedadesMap[variedad]) variedadesMap[variedad] = {};
         for (const [diaStr, modsObj] of Object.entries(diasObj)) {
             const diaIdx = parseInt(diaStr, 10);
             for (const [modulo, tallos] of Object.entries(modsObj)) {
                 const modStr = String(modulo).trim();
                 modulosSet.add(modStr);
-                if (!modulosMap[modStr]) modulosMap[modStr] = {};
-                if (!modulosMap[modStr][variedad]) modulosMap[modStr][variedad] = [0, 0, 0, 0, 0, 0, 0];
-                modulosMap[modStr][variedad][diaIdx] += tallos;
+                if (!variedadesMap[variedad][modStr]) {
+                    variedadesMap[variedad][modStr] = [0, 0, 0, 0, 0, 0, 0];
+                }
+                variedadesMap[variedad][modStr][diaIdx] += tallos;
                 totalGlobal += tallos;
                 if (diaIdx >= 0 && diaIdx < 7) {
                     totalDiasGlobal[diaIdx] += tallos;
@@ -593,34 +602,34 @@ function abrirModalBloque(semana, prodMaestro) {
     const tfoot = document.getElementById('tfoot-modal-bloques');
     if (tbody) tbody.innerHTML = '';
 
-    const sortedModulos = Object.keys(modulosMap).sort(naturalSort);
+    const sortedVariedades = Object.keys(variedadesMap).sort();
 
-    if (sortedModulos.length === 0) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No hay registros detallados por bloque para ${prodMaestro} en la semana ${semana}.</td></tr>`;
+    if (sortedVariedades.length === 0) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No hay registros detallados por variedad para ${prodMaestro} en la semana ${semana}.</td></tr>`;
         if (tfoot) tfoot.innerHTML = '';
     } else {
-        sortedModulos.forEach(mod => {
-            const varsMap = modulosMap[mod];
-            const sortedVars = Object.keys(varsMap).sort();
-            let totalModulo = 0;
-            const subtotalDiasMod = [0, 0, 0, 0, 0, 0, 0];
+        sortedVariedades.forEach(varName => {
+            const modsMap = variedadesMap[varName];
+            const sortedModulos = Object.keys(modsMap).sort(naturalSort);
+            let totalVariedad = 0;
+            const subtotalDiasVar = [0, 0, 0, 0, 0, 0, 0];
 
-            sortedVars.forEach((varName) => {
-                const dias = varsMap[varName];
+            sortedModulos.forEach(mod => {
+                const dias = modsMap[mod];
                 const totalFila = dias.reduce((a, b) => a + b, 0);
-                totalModulo += totalFila;
-                dias.forEach((v, d) => subtotalDiasMod[d] += v);
+                totalVariedad += totalFila;
+                dias.forEach((v, d) => subtotalDiasVar[d] += v);
 
                 const tr = document.createElement('tr');
                 tr.className = 'fila-bloque-modal';
-                tr.setAttribute('data-search', `${mod} ${varName}`.toLowerCase());
+                tr.setAttribute('data-search', `${varName} ${mod}`.toLowerCase());
 
                 tr.innerHTML = `
-                    <td style="text-align: left; padding-left: 1rem;" class="fw-bold text-dark font-monospace">
-                        <i class="fa-solid fa-cubes text-secondary me-1"></i> Bloque ${mod}
-                    </td>
-                    <td style="text-align: left;" class="fw-semibold text-secondary">
+                    <td style="text-align: left; padding-left: 1rem;" class="fw-semibold text-secondary">
                         <i class="fa-solid fa-leaf text-success me-1"></i> ${varName}
+                    </td>
+                    <td style="text-align: left;" class="fw-bold text-dark font-monospace">
+                        <i class="fa-solid fa-cubes text-secondary me-1"></i> Bloque ${mod}
                     </td>
                     ${dias.map(d => `<td>${d > 0 ? `<span class="badge-valor">${d.toLocaleString()}</span>` : '<span class="text-muted">-</span>'}</td>`).join('')}
                     <td class="col-total text-end pe-3">
@@ -630,18 +639,18 @@ function abrirModalBloque(semana, prodMaestro) {
                 if (tbody) tbody.appendChild(tr);
             });
 
-            // Si hay más de una variedad en el mismo bloque, agregar fila de subtotal del bloque
-            if (sortedVars.length > 1) {
+            // Subtotal de la Variedad (agrupa todos los bloques asignados a esa variedad)
+            if (sortedModulos.length > 1) {
                 const trSub = document.createElement('tr');
                 trSub.className = 'table-light fw-bold fila-bloque-subtotal';
-                trSub.setAttribute('data-search', `${mod}`.toLowerCase());
+                trSub.setAttribute('data-search', `${varName}`.toLowerCase());
                 trSub.innerHTML = `
                     <td colspan="2" style="text-align: left; padding-left: 1.5rem;" class="text-uppercase small text-primary">
-                        <i class="fa-solid fa-calculator me-1"></i> Subtotal Bloque ${mod}
+                        <i class="fa-solid fa-calculator me-1"></i> Subtotal Variedad ${varName} <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal ms-1" style="font-size: 0.68rem;">${sortedModulos.length} bloques</span>
                     </td>
-                    ${subtotalDiasMod.map(d => `<td class="text-center">${d > 0 ? `<strong class="text-dark">${d.toLocaleString()}</strong>` : '-'}</td>`).join('')}
+                    ${subtotalDiasVar.map(d => `<td class="text-center">${d > 0 ? `<strong class="text-dark">${d.toLocaleString()}</strong>` : '-'}</td>`).join('')}
                     <td class="col-total text-end pe-3">
-                        <strong class="text-primary">${totalModulo.toLocaleString()}</strong>
+                        <strong class="text-primary">${totalVariedad.toLocaleString()}</strong>
                     </td>
                 `;
                 if (tbody) tbody.appendChild(trSub);
