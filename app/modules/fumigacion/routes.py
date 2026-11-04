@@ -758,6 +758,122 @@ def rotacion_restablecer_censo(rotation_id):
         return jsonify({'success': False, 'error': f'Error al restablecer censo: {str(e)}'}), 500
 
 
+@fumigacion_bp.route('/rotaciones/<int:rotation_id>/sincronizar-bloques', methods=['POST'])
+@login_required
+@permission_required('fumigacion')
+def rotacion_sincronizar_bloques(rotation_id):
+    """
+    Sincroniza e incorpora nuevos bloques o camas del censo/plano vigente a la rotacion actual,
+    preservando intactas todas las calibraciones, productos, recetas, dosis y operarios asignados en borradores.
+    """
+    try:
+        rotation = Rotation.query.get_or_404(rotation_id)
+        rot_week = rotation.week.strip() if rotation.week else ''
+        cached_crop_records = CalculationEngine.get_projected_crop_records(rot_week)
+
+        # Cargar borradores existentes
+        review_by_round = {}
+        if rotation.review_data_by_round_json:
+            try:
+                review_by_round = json.loads(rotation.review_data_by_round_json)
+            except Exception:
+                review_by_round = {}
+
+        draft_segments = []
+        if rotation.review_data_json:
+            try:
+                draft_segments = json.loads(rotation.review_data_json)
+            except Exception:
+                draft_segments = []
+
+        all_rounds = RotationRound.query.filter_by(rotation_id=rotation.id).order_by(RotationRound.round_number.asc()).all()
+        if not all_rounds:
+            return jsonify({'success': False, 'error': 'La rotacion no tiene vueltas configuradas.'}), 400
+
+        nuevos_agregados = 0
+        actualizados = 0
+
+        # Para cada vuelta, calcular los segmentos frescos base desde el censo proyectado
+        for r in all_rounds:
+            r_key = str(r.id)
+            calc_base = CalculationEngine.calculate_round(r, cached_crop_records=cached_crop_records)
+            fresh_segments = calc_base.get('segments', [])
+
+            existing_segs = review_by_round.get(r_key)
+            if existing_segs is None:
+                if draft_segments:
+                    existing_segs = list(draft_segments)
+                else:
+                    existing_segs = list(fresh_segments)
+                    review_by_round[r_key] = existing_segs
+                    nuevos_agregados += len(fresh_segments)
+                    continue
+
+            # Crear indice de segmentos existentes por (clean_block, sufijo, crop_normalized)
+            existing_map = {}
+            for idx, s in enumerate(existing_segs):
+                raw_b = str(s.get('block_name') or '').strip()
+                suf = str(s.get('suffix') or 'A').strip().upper()
+                c_b = clean_block_name(raw_b, suf)
+                c_n = CalculationEngine.normalize_crop_name(s.get('crop_name') or '')
+                existing_map[(c_b, suf, c_n)] = (idx, s)
+
+            # Recorrer fresh_segments e incorporar los que falten o actualizar rango si cambio
+            for fs in fresh_segments:
+                raw_b = str(fs.get('block_name') or '').strip()
+                suf = str(fs.get('suffix') or 'A').strip().upper()
+                c_b = clean_block_name(raw_b, suf)
+                c_n = CalculationEngine.normalize_crop_name(fs.get('crop_name') or '')
+                key_seg = (c_b, suf, c_n)
+
+                if key_seg not in existing_map:
+                    # Segmento o bloque completamente nuevo (ej. bloque 154 sembrado)
+                    existing_segs.append(fs)
+                    nuevos_agregados += 1
+                else:
+                    # Segmento existente: Si en el censo tiene mas camas que en el borrador previo
+                    # (ej. antes solo 41 y 75-77, ahora 1-77), actualizamos camas sin tocar productos/dosis
+                    idx, es = existing_map[key_seg]
+                    f_beds = safe_int(fs.get('bed_count'), 0)
+                    e_beds = safe_int(es.get('bed_count'), 0)
+                    if f_beds > e_beds or safe_int(es.get('bed_start'), 0) != safe_int(fs.get('bed_start'), 0):
+                        es['bed_start'] = fs.get('bed_start')
+                        es['bed_end'] = fs.get('bed_end')
+                        es['bed_count'] = fs.get('bed_count')
+                        es['standard_beds'] = fs.get('standard_beds')
+                        es['real_age'] = fs.get('real_age')
+                        es['activity_type'] = fs.get('activity_type')
+                        es['ultimo_evento'] = fs.get('ultimo_evento')
+                        actualizados += 1
+
+            review_by_round[r_key] = existing_segs
+
+        # Actualizar tambien draft_segments si existe
+        if draft_segments and all_rounds:
+            first_r_key = str(all_rounds[0].id)
+            if first_r_key in review_by_round:
+                rotation.review_data_json = json.dumps(review_by_round[first_r_key], ensure_ascii=False)
+
+        rotation.review_data_by_round_json = json.dumps(review_by_round, ensure_ascii=False)
+        db.session.commit()
+
+        record_audit('FUMIGACION', 'SYNC_CENSO_BLOCKS', 'Rotation', rotation.id, details={
+            'week': rotation.week,
+            'nuevos': nuevos_agregados,
+            'actualizados': actualizados
+        })
+
+        return jsonify({
+            'success': True,
+            'message': f'Sincronizacion completada: +{nuevos_agregados} bloques nuevos incorporados y {actualizados} actualizados desde el Censo. Calibraciones y recetas guardadas intactas.'
+        })
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Error al sincronizar bloques: {str(e)}'}), 500
+
+
 @fumigacion_bp.route('/rotaciones/<int:rotation_id>/get-cumulative', methods=['GET'])
 def rotacion_get_cumulative(rotation_id):
     """

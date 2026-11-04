@@ -791,12 +791,23 @@
                 {% endfor %}
             </select>
             <button type="button"
-                    class="btn btn-success btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
+                    class="btn btn-outline-success btn-sm py-0 px-2 fw-semibold text-nowrap"
                     style="height: 27px; font-size: 0.73rem;"
-                    onclick="abrirModalGenerarSemanaFeno({{ semana }})"
-                    title="Sincronizar camas desde Estado de Cultivo y proyectar labores (Conserva calificaciones hechas)">
-                <i class="fa-solid fa-arrows-rotate me-1"></i>Sincronizar / Proyectar Semana
+                    id="btn-sync-current-plano"
+                    onclick="ejecutarSincronizarPlanoActual({{ semana }})"
+                    title="Sincronizar camas y edades desde el último Estado de Cultivo para la Semana {{ semana }} (Conserva el 100% de las calificaciones hechas)">
+                <i class="fa-solid fa-arrows-rotate me-1 text-success"></i>Sincronizar Plano Actual
             </button>
+            {% if session.get('role') == 'ADMIN' %}
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm py-0 px-2 fw-semibold text-nowrap"
+                    style="height: 27px; font-size: 0.73rem;"
+                    id="btn-project-new-week"
+                    onclick="abrirModalGenerarSemanaFeno({{ semana }})"
+                    title="Proyectar y generar una nueva semana de fenograma (Semana {{ semana + 1 }})">
+                <i class="fa-solid fa-calendar-plus me-1 text-primary"></i>Proyectar Nueva Semana
+            </button>
+            {% endif %}
             {% if session.get('role') == 'ADMIN' %}
             <a href="{{ url_for('fenogramas.api_reset_semana_limpia', semana=semana) }}"
                class="btn btn-outline-danger btn-sm py-0 px-2 fw-bold shadow-xs text-nowrap"
@@ -3010,13 +3021,18 @@ let syncWatchdogTimer = null;
 /* ============================================================================
    GESTIÓN OFFLINE ROBUSTA: GUARDADO LOCAL & COLA DE ELIMINACIONES
    ============================================================================ */
-function guardarCambiosSmart() {
+async function guardarCambiosSmart() {
+    if (modifiedItems.size === 0) {
+        showFenoToast('No hay cambios pendientes por guardar.');
+        return;
+    }
     if (navigator.onLine) {
-        saveAllChanges();
+        showFenoToast('Guardando directamente en el servidor...');
+        await saveAllChanges();
     } else {
         persistOfflineChanges();
         const count = modifiedItems.size;
-        showFenoToast(`💾 Guardado en memoria local (${count} evaluaciones). Pulsa 'Sincronizar' cuando tengas conexión.`);
+        showFenoToast(`💾 Guardado en tablet (${count} evaluaciones sin internet). Pulsa 'Sincronizar' al regresar a la oficina.`);
         updateSaveButtonsUI(false);
     }
 }
@@ -3191,21 +3207,6 @@ function persistOfflineChanges() {
 async function restoreOfflineChanges() {
     try {
         let raw = localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`);
-        if (!raw) {
-            // Respaldo secundario si la llave principal fue alterada
-            const backupRaw = localStorage.getItem(`feno_backup_hist_${SEMANA_ACTUAL}`);
-            if (backupRaw) {
-                try {
-                    const parsed = JSON.parse(backupRaw);
-                    if (parsed && Array.isArray(parsed.payload) && parsed.payload.length > 0) {
-                        raw = JSON.stringify(parsed.payload);
-                    }
-                } catch (e) {}
-            }
-        }
-
-
-
         let items = [];
         if (raw) {
             try { items = JSON.parse(raw); } catch (e) {}

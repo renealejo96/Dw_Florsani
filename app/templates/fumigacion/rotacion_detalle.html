@@ -567,9 +567,12 @@
                                     <i class="fa-solid fa-rotate-right me-1"></i> Rehacer
                                 </button>
                             </div>
+                            <button type="button" class="btn btn-outline-success btn-sm fw-semibold" id="btn-sync-census-blocks" title="Sincronizar e incorporar nuevos bloques o camas del Censo actualizado sin perder productos ni recetas guardadas">
+                                <i class="fa-solid fa-arrows-rotate me-1 text-success"></i> Sincronizar Bloques
+                            </button>
                             {% if current_user.role == 'ADMIN' %}
-                            <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btn-reset-census" title="Restablecer camas y bloques originales desde el Censo">
-                                <i class="fa-solid fa-arrows-rotate me-1 text-primary"></i> Restablecer Censo
+                            <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btn-reset-census" title="Restablecer camas y bloques originales desde el Censo (borra borrador)">
+                                <i class="fa-solid fa-rotate-left me-1 text-danger"></i> Restablecer Censo
                             </button>
                             {% endif %}
                             <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btn-save-draft-review" title="Guardar borrador de trabajo">
@@ -2940,6 +2943,38 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Error de red al guardar borrador: ' + err);
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Borrador';
+        });
+    });
+
+    // Sincronizar Nuevos Bloques del Censo
+    document.getElementById('btn-sync-census-blocks')?.addEventListener('click', function() {
+        if (!confirm('¿Sincronizar e incorporar nuevos bloques o camas del Censo de la semana {{ rotation.week }}?\n\nTus dosis, productos, recetas y operarios guardados se mantendrán 100% intactos.')) {
+            return;
+        }
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sincronizando...';
+
+        fetch('{{ url_for("fumigacion.rotacion_sincronizar_bloques", rotation_id=rotation.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || 'Bloques sincronizados exitosamente.');
+                sessionStorage.setItem('active_workflow_tab', 'tab-paso2');
+                window.location.reload();
+            } else {
+                alert('Error al sincronizar bloques: ' + (data.error || 'Desconocido'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1 text-success"></i> Sincronizar Bloques';
+            }
+        })
+        .catch(err => {
+            alert('Error de red al sincronizar: ' + err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1 text-success"></i> Sincronizar Bloques';
         });
     });
 

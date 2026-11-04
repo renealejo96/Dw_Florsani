@@ -391,3 +391,50 @@ def clean_block_name(block_name: str, suffix: str = None) -> str:
     return b
 
 
+def normalizar_producto_maestro(p: str) -> str:
+    """
+    Homologa y normaliza el producto o cultivo a los nombres oficiales canónicos de la finca.
+    Evita que códigos o variedades comerciales (ej. Billion Lights, G5, G49, Splash, etc.)
+    se fragmenten en cultivos separados en tableros, calibraciones o fenogramas.
+    """
+    if not p:
+        return ""
+    p_clean = str(p).strip().upper()
+    for orig, rep in [('Á', 'A'), ('É', 'E'), ('Í', 'I'), ('Ó', 'O'), ('Ú', 'U'), ('Ñ', 'N')]:
+        p_clean = p_clean.replace(orig, rep)
+
+    # 1. Gypsophila (Billion Lights, Million Star, G5, G49, PIV, Brillantina, Xlence)
+    if any(k in p_clean for k in ['GYPSO', 'BILLION', 'XLENCE', 'MILLION', 'SMALL BLOOM']) or p_clean in ('G5', 'G49', 'PIV', 'BRILLANTINA', 'GYPSOPHILA'):
+        return 'GYPSOPHILA'
+
+    # 2. Veronica (Splash, Skyler, etc.)
+    if 'VERONICA' in p_clean or 'VERONICAS' in p_clean:
+        return 'VERONICA'
+
+    # 3. Hypericum
+    if 'HYPERICUM' in p_clean or 'HIPERICUM' in p_clean:
+        return 'HYPERICUM'
+
+    # 4. Solidago
+    if 'SOLIDAGO' in p_clean:
+        return 'SOLIDAGO'
+
+    # 5. Girasol / Sunflower
+    if any(k in p_clean for k in ['SUNFLOWER', 'GIRASOL']):
+        return 'SUNFLOWER'
+
+    # 6. Limonium
+    if 'LIMONIUM' in p_clean:
+        return 'LIMONIUM'
+
+    # 7. Delphinium
+    if 'DELPHINIUM' in p_clean:
+        return 'DELPHINIUM'
+
+    # 8. Matricaria
+    if 'MATRICARIA' in p_clean:
+        return 'MATRICARIA'
+
+    return p_clean
+
+

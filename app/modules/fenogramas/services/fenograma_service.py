@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 from sqlalchemy import text, bindparam
 from app.extensions import db
+from app.shared.utils import normalizar_producto_maestro
 from app.modules.fenogramas.models import (
     SemanaEvaluacion, MatrizFenograma, PlanoCultivo, Calificacion
 )
@@ -118,18 +119,7 @@ def normalize_key(s):
     return s
 
 def normalize_product_name(p):
-    norm = normalize_key(p)
-    if 'VERONICA SPLASH' in norm or 'VERONICAS SPLASH' in norm:
-        return 'VERONICA SPLASH'
-    if norm in ['VERONICA', 'VERONICAS', 'VERÓNICA', 'VERÓNICAS']:
-        return 'VERONICA'
-    if any(k in norm for k in ['BILLION', 'GYPSO', 'XLENCE', 'MILLION', 'SMALL BLOOM', 'GYPSOPHILA']):
-        if 'BILLION' in norm: return 'BILLION LIGHTS'
-        if 'XLENCE' in norm or 'GYPSO' in norm: return 'GYPSO XLENCE'
-        if 'MILLION' in norm: return 'MILLION STAR II'
-        if 'SMALL' in norm: return 'SMALL BLOOM'
-        return 'GYPSOPHILA'
-    return norm
+    return normalizar_producto_maestro(p)
 
 def map_person_name(name, alias_dict):
     cleaned = clean_str(name)
@@ -145,19 +135,19 @@ def map_person_name(name, alias_dict):
     return cleaned
 
 def get_matching_matrix_products(ec_producto, producto_aliases):
-    norm_ec = normalize_product_name(ec_producto)
-    if norm_ec == 'VERONICA':
-        return ['VERONICA', 'VERONICAS', 'VERÓNICA', 'VERÓNICAS']
-    if norm_ec == 'VERONICA SPLASH':
-        return ['VERONICA SPLASH', 'VERONICAS SPLASH', 'VERÓNICA SPLASH', 'VERÓNICAS SPLASH']
-    if norm_ec in producto_aliases:
-        mapped = [normalize_key(p) for p in producto_aliases[norm_ec]]
-        if norm_ec in mapped:
-            mapped.remove(norm_ec)
-        return [norm_ec] + mapped
-    if any(k in norm_ec for k in ['BILLION', 'GYPSO', 'XLENCE', 'MILLION', 'SMALL BLOOM', 'GYPSOPHILA']):
-        return [norm_ec, 'GYPSOPHILA', 'BILLION LIGHT', 'BILLION LIGHTS', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM']
-    return [norm_ec]
+    norm = normalizar_producto_maestro(ec_producto)
+    if norm == 'GYPSOPHILA':
+        return ['GYPSOPHILA', 'BILLION LIGHT', 'BILLION LIGHTS', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM', 'G5', 'G49', 'BRILLANTINA', 'PIV']
+    if norm == 'VERONICA':
+        return ['VERONICA', 'VERONICAS', 'VERONICA SPLASH', 'VERONICAS SPLASH', 'VERÓNICA', 'VERÓNICAS']
+    if norm == 'HYPERICUM':
+        return ['HYPERICUM', 'HIPERICUM']
+    if norm == 'SOLIDAGO':
+        return ['SOLIDAGO', 'SOLIDAGOS']
+    if norm in producto_aliases:
+        mapped = [normalize_key(p) for p in producto_aliases[norm]]
+        return [norm] + [m for m in mapped if m != norm]
+    return [norm]
 
 def find_responsible_for_labor(producto_maestro, labor, default_aux='', default_sup=''):
     """
@@ -972,7 +962,7 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                     'SUFIJO': suf_c,
                     'NUM_CAMA': n_cama,
                     'ACTIVIDAD': r.actividad,
-                    'PRODUCTO_MAESTRO': clean_str(r.producto_maestro),
+                    'PRODUCTO_MAESTRO': normalizar_producto_maestro(clean_str(r.producto_maestro)),
                     'EDAD_REAL': int(edad_proy)
                 }
 
@@ -1085,9 +1075,47 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                         'SUFIJO': suf_c,
                         'NUM_CAMA': n_cama,
                         'ACTIVIDAD': actividad,
-                        'PRODUCTO_MAESTRO': clean_str(r.producto_maestro),
+                        'PRODUCTO_MAESTRO': normalizar_producto_maestro(clean_str(r.producto_maestro)),
                         'EDAD_REAL': edad_proy
                     }
+
+    # 3. Asegurar que TODOS los bloques fisicos de la finca existan en camas_map para cada zona
+    try:
+        all_phys_blocks = db.session.execute(text("""
+            SELECT 
+                COALESCE(NULLIF(TRIM(b.zona), ''), NULLIF(TRIM(c.zona), ''), 'ZONA1') as zona,
+                COALESCE(NULLIF(TRIM(c.blq), ''), TRIM(c.codigo_bloque)) as bloque,
+                COALESCE(NULLIF(TRIM(c.sufijo), ''), 'A') as sufijo,
+                MIN(c.num_cama) as min_cama,
+                MAX(c.num_cama) as max_cama,
+                COALESCE(NULLIF(TRIM(MAX(c.area_producto_comercial)), ''), 'SIN CULTIVO') as prod_com
+            FROM dim_camas c
+            LEFT JOIN dim_bloques b ON c.codigo_bloque = b.codigo_bloque
+            WHERE c.num_cama IS NOT NULL
+            GROUP BY 1, 2, 3
+            ORDER BY 1, 2, 3;
+        """)).fetchall()
+
+        existing_blq_set = set((it['BLOQUE'], it['SUFIJO']) for it in camas_map.values())
+        for pb in all_phys_blocks:
+            b_code = clean_block_code(pb.bloque)
+            s_code = str(pb.sufijo or 'A').strip().upper()
+            if (b_code, s_code) not in existing_blq_set:
+                norm_p = normalizar_producto_maestro(pb.prod_com)
+                if norm_p in ('VACIO', 'SIN CULTIVO', ''):
+                    norm_p = 'SIN CULTIVO'
+                min_c = int(pb.min_cama or 1)
+                camas_map[(b_code, min_c, s_code)] = {
+                    'ZONA': clean_str(pb.zona),
+                    'BLOQUE': b_code,
+                    'SUFIJO': s_code,
+                    'NUM_CAMA': min_c,
+                    'ACTIVIDAD': 'Siembra',
+                    'PRODUCTO_MAESTRO': norm_p,
+                    'EDAD_REAL': 0
+                }
+    except Exception as e_phys:
+        print(f"[WARN] Error asegurando bloques fisicos completos en fenograma: {e_phys}")
 
     if not camas_map:
         return 0
@@ -1137,7 +1165,9 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
             db.session.execute(text("""
                 DELETE FROM calificaciones
                 WHERE semana_anio = :sem
-                  AND bloque NOT IN :blocks;
+                  AND bloque NOT IN :blocks
+                  AND cumplido IS NULL
+                  AND (observacion IS NULL OR TRIM(observacion) = '');
             """).bindparams(bindparam('blocks', expanding=True)), {'sem': semana_corte, 'blocks': active_blocks})
 
     db.session.commit()

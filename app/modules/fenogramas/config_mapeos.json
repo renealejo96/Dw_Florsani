@@ -20,20 +20,31 @@
         "XAVIER BUITRON": "Xavier Buitron"
     },
     "producto_aliases": {
-        "BILLION LIGHTS": [
+        "GYPSOPHILA": [
+            "GYPSOPHILA",
+            "BILLION LIGHT",
+            "BILLION LIGHTS",
             "GYPSO XLENCE",
             "MILLION STAR II",
-            "BILLION LIGHTS",
             "SMALL BLOOM",
-            "GYPSOPHILA"
+            "G5",
+            "G49",
+            "BRILLANTINA",
+            "PIV"
         ],
         "VERONICA": [
+            "VERONICA",
             "VERONICAS",
-            "VERONICA"
+            "VERONICA SPLASH",
+            "VERONICAS SPLASH"
         ],
-        "VERONICA SPLASH": [
-            "VERONICAS SPLASH",
-            "VERONICA SPLASH"
+        "HYPERICUM": [
+            "HYPERICUM",
+            "HIPERICUM"
+        ],
+        "SOLIDAGO": [
+            "SOLIDAGO",
+            "SOLIDAGOS"
         ]
     }
 }

@@ -2,6 +2,7 @@ import io
 import pandas as pd
 import numpy as np
 from app.shared.normalizer import ColumnMapper, normalize_text
+from app.shared.utils import normalizar_producto_maestro
 
 class ExcelParserService:
 
@@ -248,7 +249,8 @@ class ExcelParserService:
                 suffix = safe_scalar_str(row.get('sufijo'), default='A').upper() or 'A'
 
                 # Crop master & Product
-                crop_master = safe_scalar_str(row.get('producto_maestro')).upper()
+                raw_crop_master = safe_scalar_str(row.get('producto_maestro')).upper()
+                crop_master = normalizar_producto_maestro(raw_crop_master)
                 product_name = safe_scalar_str(row.get('producto')).upper() or crop_master
                 variety = safe_scalar_str(row.get('variedades_elite')).upper()
                 zone = safe_scalar_str(row.get('zona')).upper()
