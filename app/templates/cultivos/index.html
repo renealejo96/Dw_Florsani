@@ -82,6 +82,11 @@
                                     <i class="fa-solid {% if c.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
                                 </button>
                             </form>
+                            <form action="{{ url_for('cultivos.delete', crop_id=c.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Está seguro de eliminar permanentemente el cultivo {{ c.name }}?');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar Cultivo">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </form>
                         </td>
                     </tr>
                     {% endfor %}

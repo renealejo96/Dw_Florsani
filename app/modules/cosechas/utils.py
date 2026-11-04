@@ -107,6 +107,24 @@ def _get_tombstones_set():
             pass
     return tombstones
 
+def _get_tombstones_productos_set():
+    """Retorna el conjunto de productos maestros eliminados permanentemente (cat_productos_eliminados)"""
+    tombstones = set()
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        rows = db.session.execute(text("SELECT UPPER(TRIM(producto_maestro)) FROM cat_productos_eliminados WHERE producto_maestro IS NOT NULL")).fetchall()
+        for r in rows:
+            if r[0]:
+                tombstones.add(r[0].strip().upper())
+    except Exception:
+        try:
+            from app.extensions import db
+            db.session.rollback()
+        except Exception:
+            pass
+    return tombstones
+
 def cargar_variedades():
     """Cargar variedades activas autorizadas desde cat_variedades_maestro (fuente principal autorizada sin resucitar eliminadas)"""
     variedades = set()
@@ -520,6 +538,7 @@ def cargar_relaciones_maestro():
     vistos = set()
     db_count = 0
     tombstones = _get_tombstones_set()
+    tombstones_prod = _get_tombstones_productos_set()
     
     # 1. Cargar desde cat_variedades_maestro de BD (fuente principal autorizada)
     try:
@@ -529,7 +548,7 @@ def cargar_relaciones_maestro():
         for r in res_cat:
             v = (r[0] or '').strip().upper()
             p = (r[1] or '').strip().upper()
-            if v and p and v not in tombstones:
+            if v and p and v not in tombstones and p not in tombstones_prod:
                 if v not in vistos:
                     vistos.add(v)
                     relaciones.append((v, p))
@@ -543,8 +562,7 @@ def cargar_relaciones_maestro():
         try:
             if csv_path.exists():
                 with open(csv_path, 'r', encoding='utf-8-sig') as file:
-                    content = file.read()
-                    lines = content.strip().split('\n')
+                    lines = file.read().strip().split('\n')
                     if len(lines) > 1:
                         for line in lines[1:]:
                             if ';' not in line:
@@ -554,7 +572,7 @@ def cargar_relaciones_maestro():
                                 continue
                             variedad = partes[0].strip().upper()
                             producto = partes[1].strip().upper()
-                            if not variedad or not producto or variedad in tombstones:
+                            if not variedad or not producto or variedad in tombstones or producto in tombstones_prod:
                                 continue
                             if variedad in vistos:
                                 continue
@@ -626,8 +644,9 @@ def guardar_relaciones_maestro(relaciones):
         print(f"Error sincronizando relaciones con cat_variedades_maestro en BD: {e}")
 
 def cargar_productos_maestros():
-    """Cargar productos maestros unificando CSV, cat_variedades_maestro, dim_prod_maestros y crops"""
+    """Cargar productos maestros unificando CSV, cat_variedades_maestro, dim_prod_maestros y crops, excluyendo eliminados"""
     productos = set()
+    tombstones_prod = _get_tombstones_productos_set()
     
     # 1. Desde CSV
     productos_csv = _get_csv_path('productos_maestros.csv')
@@ -636,16 +655,17 @@ def cargar_productos_maestros():
             with open(productos_csv, 'r', encoding='utf-8-sig') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    producto = (row.get('producto_maestro') or '').strip()
-                    if producto:
-                        productos.add(producto.upper())
+                    producto = (row.get('producto_maestro') or '').strip().upper()
+                    if producto and producto not in tombstones_prod:
+                        productos.add(producto)
     except Exception as e:
         print(f"Error cargando productos maestros CSV: {e}")
 
     # 2. Desde relaciones maestro activas
     for _, producto in cargar_relaciones_maestro():
-        if producto and producto.strip():
-            productos.add(producto.strip().upper())
+        p_up = (producto or '').strip().upper()
+        if p_up and p_up not in tombstones_prod:
+            productos.add(p_up)
 
     # 3. Desde dim_prod_maestros de la base de datos
     try:
@@ -654,21 +674,28 @@ def cargar_productos_maestros():
         res_dp = db.session.execute(text("SELECT producto_maestro FROM dim_prod_maestros WHERE producto_maestro IS NOT NULL;")).fetchall()
         for r in res_dp:
             if r[0] and r[0].strip():
-                productos.add(r[0].strip().upper())
+                p_up = r[0].strip().upper()
+                if p_up not in tombstones_prod:
+                    productos.add(p_up)
     except Exception:
         pass
 
-    # 4. Desde tabla crops
+    # 4. Desde tabla crops (activos y no eliminados)
     try:
         from app.shared.models import Crop
         for c in Crop.query.filter_by(is_active=True).all():
             if c.name and c.name.strip():
-                productos.add(c.name.strip().upper())
+                p_up = c.name.strip().upper()
+                if p_up not in tombstones_prod:
+                    productos.add(p_up)
     except Exception:
         pass
 
     if not productos:
         productos = {'HYPERICUM', 'GYPSOPHILA', 'SOLIDAGO', 'ASTER', 'SUNFLOWER', 'VERONICA', 'CRASPEDIA', 'PROD.NUEVOS'}
+
+    # Filtrar estrictamente productos eliminados
+    productos = {p for p in productos if p not in tombstones_prod}
 
     return sorted(list(productos), key=lambda value: value.upper())
 

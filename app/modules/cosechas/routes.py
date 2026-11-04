@@ -656,23 +656,84 @@ def catalogos():
 
             elif accion == 'eliminar_producto':
                 producto = request.form.get('producto_maestro', '').strip().upper()
-                relaciones = cargar_relaciones_maestro()
-                vars_asoc = [var for var, prod in relaciones if prod.upper() == producto]
-                if vars_asoc:
-                    flash(f'No se puede eliminar "{producto}" porque tiene {len(vars_asoc)} variedades asociadas. Reasigne o elimine primero sus variedades.', 'warning')
+                if not producto:
+                    flash('Debe especificar el producto maestro a eliminar.', 'danger')
                 else:
-                    prods = {p for p in cargar_productos_maestros() if p.upper() != producto}
-                    guardar_productos_maestros(sorted(list(prods)))
+                    from sqlalchemy import text
+                    from app.shared.models import Crop
+
+                    # Generar variantes singular/plural (ej: EUCALIPTO y EUCALIPTOS)
+                    p_alt = producto[:-1] if producto.endswith('S') else (producto + 'S')
+                    prods_a_eliminar = {producto, p_alt}
+
+                    # 1. Registrar permanentemente en lápidas cat_productos_eliminados
                     try:
-                        from sqlalchemy import text
-                        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': producto})
-                        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) = :p"), {'p': producto})
+                        db.session.execute(text("""
+                            CREATE TABLE IF NOT EXISTS cat_productos_eliminados (
+                                id SERIAL PRIMARY KEY,
+                                producto_maestro VARCHAR(150) NOT NULL UNIQUE,
+                                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """))
+                        for p_elim in prods_a_eliminar:
+                            db.session.execute(text("""
+                                INSERT INTO cat_productos_eliminados (producto_maestro)
+                                VALUES (:p)
+                                ON CONFLICT (producto_maestro) DO NOTHING;
+                            """), {'p': p_elim})
+                        db.session.commit()
+                    except Exception as e_tomb:
+                        db.session.rollback()
+                        print(f"Error registrando tombstone de producto: {e_tomb}")
+
+                    # 2. Desvincular y registrar en lápidas de variedades eliminadas
+                    relaciones = cargar_relaciones_maestro()
+                    vars_asoc = [var for var, prod in relaciones if prod.upper() in prods_a_eliminar]
+                    try:
+                        for v in vars_asoc:
+                            db.session.execute(text("""
+                                INSERT INTO cat_variedades_eliminadas (variedad, producto_maestro)
+                                VALUES (:v, :p)
+                                ON CONFLICT (variedad) DO NOTHING;
+                            """), {'v': v, 'p': producto})
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+
+                    # 3. Eliminar de tablas de base de datos
+                    try:
+                        for p_elim in prods_a_eliminar:
+                            db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) = :p"), {'p': p_elim})
+                            db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': p_elim})
+                        for v in vars_asoc:
+                            db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(variedad) = :v"), {'v': v})
+                            db.session.execute(text("DELETE FROM dim_variedades WHERE UPPER(variedad) = :v"), {'v': v})
+                            db.session.execute(text("DELETE FROM dim_productos WHERE UPPER(variedad) = :v"), {'v': v})
+                            db.session.execute(text("DELETE FROM variedades WHERE UPPER(nombre) = :v"), {'v': v})
+
+                        # Desactivar/eliminar de Crop
+                        crops_to_del = Crop.query.filter(db.func.upper(Crop.name).in_(prods_a_eliminar)).all()
+                        for cr in crops_to_del:
+                            db.session.delete(cr)
+
                         db.session.commit()
                     except Exception as e_del_prod:
                         db.session.rollback()
-                        print(f"Error eliminando producto maestro: {e_del_prod}")
-                    record_audit('COSECHAS', 'PRODUCTO_DELETE', 'Catalogo', None, details=f"Producto '{producto}' eliminado")
-                    flash(f'Producto maestro "{producto}" eliminado exitosamente.', 'success')
+                        print(f"Error eliminando producto maestro de BD: {e_del_prod}")
+
+                    # 4. Actualizar CSVs y listas maestras
+                    relaciones_nuevas = [(var, prod) for var, prod in relaciones if prod.upper() not in prods_a_eliminar and var not in vars_asoc]
+                    guardar_relaciones_maestro(relaciones_nuevas)
+
+                    prods = {p for p in cargar_productos_maestros() if p.upper() not in prods_a_eliminar}
+                    guardar_productos_maestros(sorted(list(prods)))
+
+                    if vars_asoc:
+                        vars_restantes = {v for v in cargar_variedades() if v not in vars_asoc}
+                        guardar_variedades(sorted(list(vars_restantes)))
+
+                    record_audit('COSECHAS', 'PRODUCTO_DELETE', 'Catalogo', None, details=f"Producto '{producto}' y {len(vars_asoc)} variedades eliminados permanentemente")
+                    flash(f'Producto maestro "{producto}" y sus variedades asociadas eliminados permanentemente del sistema.', 'success')
 
             else:
                 flash('Acción no válida solicitada.', 'danger')

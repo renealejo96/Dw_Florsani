@@ -137,7 +137,11 @@ def map_person_name(name, alias_dict):
 def get_matching_matrix_products(ec_producto, producto_aliases):
     norm = normalizar_producto_maestro(ec_producto)
     if norm == 'GYPSOPHILA':
-        return ['GYPSOPHILA', 'BILLION LIGHT', 'BILLION LIGHTS', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM', 'G5', 'G49', 'BRILLANTINA', 'PIV']
+        return ['GYPSOPHILA', 'BILLION LIGHT', 'BILLION LIGHTS', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM', 'G5', 'G49']
+    if norm == 'BRILLANTINA':
+        return ['BRILLANTINA', 'BRILLANTINAS']
+    if norm == 'PIV':
+        return ['PIV', 'PROPAGACION', 'PROPAGACION PIV']
     if norm == 'VERONICA':
         return ['VERONICA', 'VERONICAS', 'VERONICA SPLASH', 'VERONICAS SPLASH', 'VERÓNICA', 'VERÓNICAS']
     if norm == 'HYPERICUM':

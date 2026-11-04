@@ -107,7 +107,7 @@ def create_app(config_class=Config):
             # Sincronizar categorias maestras en tabla crops (GYPSOPHILA, VARIEDADES, PIV)
             try:
                 db.session.execute(text("UPDATE crops SET category = 'GYPSOPHILA' WHERE UPPER(name) LIKE '%GYPSO%';"))
-                db.session.execute(text("UPDATE crops SET category = 'PIV' WHERE UPPER(name) LIKE '%EUCAL%' OR UPPER(name) LIKE '%LISI%' OR UPPER(name) LIKE '%LYSI%' OR UPPER(name) LIKE '%ASTER%' OR UPPER(name) LIKE '%RUSCUS%' OR UPPER(name) LIKE '%RUMEX%' OR UPPER(name) LIKE '%PROD.NUEVOS%' OR UPPER(name) LIKE '%VICIA%' OR UPPER(name) LIKE '%MOSTAZA%';"))
+                db.session.execute(text("UPDATE crops SET category = 'PIV' WHERE UPPER(name) LIKE '%LISI%' OR UPPER(name) LIKE '%LYSI%' OR UPPER(name) LIKE '%ASTER%' OR UPPER(name) LIKE '%RUSCUS%' OR UPPER(name) LIKE '%RUMEX%' OR UPPER(name) LIKE '%PROD.NUEVOS%' OR UPPER(name) LIKE '%VICIA%' OR UPPER(name) LIKE '%MOSTAZA%';"))
                 db.session.commit()
             except Exception:
                 db.session.rollback()
@@ -138,10 +138,22 @@ def create_app(config_class=Config):
                     "UPDATE calificaciones SET auxiliar = 'Kevin Buitron', supervisor = 'Maria Dolores Perugachi' WHERE (labor ILIKE '%malla pl%stica%' OR labor ILIKE '%tejido de alambre%') AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
                     "UPDATE calificaciones SET auxiliar = 'Marcia Medina', supervisor = 'Maria Dolores Perugachi' WHERE labor ILIKE '%malla naranja%' AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
                     "UPDATE calificaciones SET tiene_evaluacion = FALSE, cumplido = NULL WHERE (labor = 'No hay actividad' OR labor IS NULL OR TRIM(labor) = '') AND tiene_evaluacion = TRUE",
-                    "UPDATE dim_camas SET area_producto_comercial = 'GYPSOPHILA' WHERE UPPER(TRIM(area_producto_comercial)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'BRILLANTINA', 'PIV')",
+                    "CREATE TABLE IF NOT EXISTS cat_productos_eliminados (id SERIAL PRIMARY KEY, producto_maestro VARCHAR(150) NOT NULL UNIQUE, deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+                    "INSERT INTO cat_productos_eliminados (producto_maestro) VALUES ('EUCALIPTO'), ('EUCALIPTOS') ON CONFLICT (producto_maestro) DO NOTHING",
+                    "INSERT INTO cat_variedades_eliminadas (variedad, producto_maestro) VALUES ('BABY BLUE', 'EUCALIPTO'), ('GUNNII', 'EUCALIPTO'), ('PARVIFOLIA', 'EUCALIPTO') ON CONFLICT (variedad) DO NOTHING",
+                    "DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) IN ('EUCALIPTO', 'EUCALIPTOS') OR UPPER(variedad) IN ('BABY BLUE', 'GUNNII', 'PARVIFOLIA')",
+                    "DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) IN ('EUCALIPTO', 'EUCALIPTOS')",
+                    "DELETE FROM crops WHERE UPPER(name) IN ('EUCALIPTO', 'EUCALIPTOS')",
+                    "UPDATE dim_camas SET area_producto_comercial = 'VACIO', variedad_comercial = 'VACIO' WHERE UPPER(TRIM(area_producto_comercial)) IN ('EUCALIPTO', 'EUCALIPTOS') OR UPPER(TRIM(variedad_comercial)) IN ('BABY BLUE', 'GUNNII', 'PARVIFOLIA')",
+                    "UPDATE dim_camas SET area_producto_comercial = 'GYPSOPHILA' WHERE UPPER(TRIM(area_producto_comercial)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49')",
                     "UPDATE dim_camas SET area_producto_comercial = 'VERONICA' WHERE UPPER(TRIM(area_producto_comercial)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')",
-                    "UPDATE calificaciones SET producto_maestro = 'GYPSOPHILA' WHERE UPPER(TRIM(producto_maestro)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'BRILLANTINA', 'PIV')",
-                    "UPDATE calificaciones SET producto_maestro = 'VERONICA' WHERE UPPER(TRIM(producto_maestro)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')"
+                    "UPDATE dim_camas SET area_producto_comercial = 'BRILLANTINA' WHERE UPPER(TRIM(variedad_comercial)) = 'BRILLANTINA' OR UPPER(TRIM(area_producto_comercial)) = 'BRILLANTINA'",
+                    "UPDATE calificaciones SET producto_maestro = 'GYPSOPHILA' WHERE UPPER(TRIM(producto_maestro)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49')",
+                    "UPDATE calificaciones SET producto_maestro = 'VERONICA' WHERE UPPER(TRIM(producto_maestro)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')",
+                    "UPDATE calificaciones SET producto_maestro = 'BRILLANTINA' WHERE UPPER(TRIM(variedad_comercial)) = 'BRILLANTINA' OR UPPER(TRIM(producto_maestro)) = 'BRILLANTINA'",
+                    "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('BRILLANTINA', 'BRILLANTINA') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'BRILLANTINA'",
+                    "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('PIV', 'PIV') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'PIV'",
+                    "INSERT INTO dim_prod_maestros (id_productos, producto_maestro) SELECT COALESCE(MAX(id_productos), 0) + 1, 'BRILLANTINA' FROM dim_prod_maestros WHERE NOT EXISTS (SELECT 1 FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'BRILLANTINA')"
                 ]
                 for m in pg_migrations:
                     try:

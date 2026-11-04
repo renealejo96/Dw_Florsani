@@ -133,3 +133,49 @@ def toggle_status(crop_id):
     status_str = "activado" if crop.is_active else "desactivado"
     flash(f"Cultivo '{crop.name}' {status_str}.", "info")
     return redirect(url_for('cultivos.index'))
+
+
+@cultivos_bp.route('/<int:crop_id>/eliminar', methods=['POST'])
+@login_required
+@permission_required('catalogos')
+def delete(crop_id):
+    crop = Crop.query.get_or_404(crop_id)
+    c_name = (crop.name or '').strip().upper()
+    try:
+        from sqlalchemy import text
+        # 1. Registrar permanentemente en cat_productos_eliminados
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS cat_productos_eliminados (
+                id SERIAL PRIMARY KEY,
+                producto_maestro VARCHAR(150) NOT NULL UNIQUE,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        p_alt = c_name[:-1] if c_name.endswith('S') else (c_name + 'S')
+        for p in (c_name, p_alt):
+            db.session.execute(text("""
+                INSERT INTO cat_productos_eliminados (producto_maestro)
+                VALUES (:p)
+                ON CONFLICT (producto_maestro) DO NOTHING;
+            """), {'p': p})
+
+        # 2. Eliminar de dim_prod_maestros y cat_variedades_maestro
+        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) IN (:p1, :p2)"), {'p1': c_name, 'p2': p_alt})
+        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) IN (:p1, :p2)"), {'p1': c_name, 'p2': p_alt})
+
+        # 3. Eliminar de Crop
+        db.session.delete(crop)
+        db.session.commit()
+
+        # 4. Limpiar CSVs de cosechas
+        from app.modules.cosechas.utils import cargar_productos_maestros, guardar_productos_maestros
+        prods = [p for p in cargar_productos_maestros() if p.upper() not in (c_name, p_alt)]
+        guardar_productos_maestros(prods)
+
+        record_audit('CULTIVOS', 'DELETE', 'Crop', crop_id, details={'name': c_name})
+        flash(f"Cultivo '{crop.name}' eliminado permanentemente del sistema.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error al eliminar cultivo: {e}", "danger")
+    return redirect(url_for('cultivos.index'))
+

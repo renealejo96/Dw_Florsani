@@ -198,9 +198,14 @@ def upload():
                 if cm and cm.upper() not in ('VACIO', 'DESCARTE', 'TUMBAR', 'NAN', 'TOTAL', 'TOTAL_GENERAL', ''):
                     discovered_crops.add(cm)
 
-            # Ensure crops exist in Crop catalog
+            # Ensure crops exist in Crop catalog (excluding permanently deleted tombstones)
+            from app.modules.cosechas.utils import _get_tombstones_productos_set
+            tombstones_prods = _get_tombstones_productos_set()
+
             for c_name in discovered_crops:
                 c_name_norm = c_name.strip()
+                if c_name_norm.upper() in tombstones_prods:
+                    continue
                 existing = Crop.query.filter(db.func.upper(Crop.name) == c_name_norm.upper()).first()
                 if not existing:
                     for c_in_db in Crop.query.all():

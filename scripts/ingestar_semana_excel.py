@@ -292,7 +292,7 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
 
     return {
         'nuevos_eventos': len(nuevos_eventos),
-        'nuevas_camas': len(camas_a_crear),
+        'nuevas_camas': len(camas_a_sincronizar),
         'semana_iso': semana_iso_str,
         'semana_campo': semana_campo_val
     }

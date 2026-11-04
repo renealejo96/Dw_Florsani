@@ -391,11 +391,73 @@ def clean_block_name(block_name: str, suffix: str = None) -> str:
     return b
 
 
+_COSECHAS_MAP_CACHE = None
+_COSECHAS_MAP_TIME = 0
+
+def get_cosechas_maestro_map():
+    """
+    Retorna dos estructuras cacheadas en memoria (TTL 60s):
+    1. var_to_pm: {variedad_normalizada: producto_maestro_canonico}
+    2. pm_set: set de productos maestros activos y autorizados en Cosechas
+    Excluye permanentemente productos y variedades registradas en lápidas (tombstones).
+    """
+    global _COSECHAS_MAP_CACHE, _COSECHAS_MAP_TIME
+    import time
+    now = time.time()
+    if _COSECHAS_MAP_CACHE is not None and (now - _COSECHAS_MAP_TIME < 60):
+        return _COSECHAS_MAP_CACHE
+
+    var_to_pm = {}
+    pm_set = set()
+
+    try:
+        from app.extensions import db
+        from sqlalchemy import text
+        if db.engine:
+            with db.engine.connect() as conn:
+                # 1. Variedades autorizadas y su producto maestro
+                rows = conn.execute(text("""
+                    SELECT UPPER(TRIM(c.variedad)), UPPER(TRIM(c.producto_maestro))
+                    FROM cat_variedades_maestro c
+                    WHERE c.variedad IS NOT NULL AND c.producto_maestro IS NOT NULL
+                      AND UPPER(TRIM(c.producto_maestro)) NOT IN (
+                          SELECT UPPER(TRIM(producto_maestro)) FROM cat_productos_eliminados WHERE producto_maestro IS NOT NULL
+                      )
+                      AND UPPER(TRIM(c.variedad)) NOT IN (
+                          SELECT UPPER(TRIM(variedad)) FROM cat_variedades_eliminadas WHERE variedad IS NOT NULL
+                      );
+                """)).fetchall()
+                for r in rows:
+                    if r[0] and r[1]:
+                        var_to_pm[r[0]] = r[1]
+                        pm_set.add(r[1])
+
+                # 2. Productos maestros registrados
+                pm_rows = conn.execute(text("""
+                    SELECT UPPER(TRIM(producto_maestro))
+                    FROM dim_prod_maestros
+                    WHERE producto_maestro IS NOT NULL
+                      AND UPPER(TRIM(producto_maestro)) NOT IN (
+                          SELECT UPPER(TRIM(producto_maestro)) FROM cat_productos_eliminados WHERE producto_maestro IS NOT NULL
+                      );
+                """)).fetchall()
+                for r in pm_rows:
+                    if r[0]:
+                        pm_set.add(r[0])
+    except Exception:
+        pass
+
+    _COSECHAS_MAP_CACHE = (var_to_pm, pm_set)
+    _COSECHAS_MAP_TIME = now
+    return _COSECHAS_MAP_CACHE
+
+
 def normalizar_producto_maestro(p: str) -> str:
     """
-    Homologa y normaliza el producto o cultivo a los nombres oficiales canónicos de la finca.
-    Evita que códigos o variedades comerciales (ej. Billion Lights, G5, G49, Splash, etc.)
-    se fragmenten en cultivos separados en tableros, calibraciones o fenogramas.
+    Homologa y normaliza el producto o variedad al Producto Maestro oficial de Cosechas.
+    Utiliza el catálogo maestro de cosechas (cat_variedades_maestro) como fuente autorizada
+    única para todo el ERP (Fumigación, Fenogramas, Cosechas, Cultivos).
+    PIV y BRILLANTINA son productos independientes y NO se agrupan en GYPSOPHILA.
     """
     if not p:
         return ""
@@ -403,38 +465,65 @@ def normalizar_producto_maestro(p: str) -> str:
     for orig, rep in [('Á', 'A'), ('É', 'E'), ('Í', 'I'), ('Ó', 'O'), ('Ú', 'U'), ('Ñ', 'N')]:
         p_clean = p_clean.replace(orig, rep)
 
-    # 1. Gypsophila (Billion Lights, Million Star, G5, G49, PIV, Brillantina, Xlence)
-    if any(k in p_clean for k in ['GYPSO', 'BILLION', 'XLENCE', 'MILLION', 'SMALL BLOOM']) or p_clean in ('G5', 'G49', 'PIV', 'BRILLANTINA', 'GYPSOPHILA'):
+    # 1. Chequeo contra el mapeo canónico de Cosechas (cat_variedades_maestro y dim_prod_maestros)
+    try:
+        var_to_pm, pm_set = get_cosechas_maestro_map()
+        if p_clean in pm_set:
+            return p_clean
+        if p_clean in var_to_pm:
+            return var_to_pm[p_clean]
+
+        import re
+        norm_key = re.sub(r'[^A-Z0-9]', '', p_clean)
+        for var, pm in var_to_pm.items():
+            if re.sub(r'[^A-Z0-9]', '', var) == norm_key:
+                return pm
+        for pm in pm_set:
+            if re.sub(r'[^A-Z0-9]', '', pm) == norm_key:
+                return pm
+    except Exception:
+        pass
+
+    # 2. Reglas canónicas para productos independientes:
+    # PIV y BRILLANTINA nunca son Gypsophila
+    if p_clean in ('BRILLANTINA', 'BRILLANTINAS') or 'BRILLANTINA' in p_clean:
+        return 'BRILLANTINA'
+    if p_clean in ('PIV', 'PROPAGACION', 'PROPAGACION PIV') or p_clean.startswith('PIV '):
+        return 'PIV'
+
+    # 3. Gypsophila (Billion Lights, Million Star, G3, G5, G49, Xlence, Small Bloom)
+    if any(k in p_clean for k in ['GYPSO', 'BILLION', 'XLENCE', 'MILLION', 'SMALL BLOOM']) or p_clean in ('G5', 'G49', 'G3', 'GYPSOPHILA'):
         return 'GYPSOPHILA'
 
-    # 2. Veronica (Splash, Skyler, etc.)
+    # 4. Veronica (Splash, Skyler, etc.)
     if 'VERONICA' in p_clean or 'VERONICAS' in p_clean:
         return 'VERONICA'
 
-    # 3. Hypericum
+    # 5. Hypericum
     if 'HYPERICUM' in p_clean or 'HIPERICUM' in p_clean:
         return 'HYPERICUM'
 
-    # 4. Solidago
+    # 6. Solidago
     if 'SOLIDAGO' in p_clean:
         return 'SOLIDAGO'
 
-    # 5. Girasol / Sunflower
+    # 7. Girasol / Sunflower
     if any(k in p_clean for k in ['SUNFLOWER', 'GIRASOL']):
         return 'SUNFLOWER'
 
-    # 6. Limonium
+    # 8. Limonium
     if 'LIMONIUM' in p_clean:
         return 'LIMONIUM'
 
-    # 7. Delphinium
+    # 9. Delphinium
     if 'DELPHINIUM' in p_clean:
         return 'DELPHINIUM'
 
-    # 8. Matricaria
+    # 10. Matricaria
     if 'MATRICARIA' in p_clean:
         return 'MATRICARIA'
 
     return p_clean
+
 
 

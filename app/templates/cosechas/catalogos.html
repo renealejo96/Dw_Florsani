@@ -163,15 +163,13 @@
                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 badge-conteo">
                                     {{ vars|length }} variedades
                                 </span>
-                                {% if not vars %}
-                                <form method="POST" action="{{ url_for('cosechas.catalogos') }}" class="d-inline" onsubmit="return confirm('¿Eliminar producto maestro {{ prod }} sin variedades?');">
+                                <form method="POST" action="{{ url_for('cosechas.catalogos') }}" class="d-inline" onsubmit="return confirm('¿Eliminar producto maestro {{ prod }}{% if vars %} y sus {{ vars|length }} variedades asociadas{% endif %}? Esta acción es permanente.');">
                                     <input type="hidden" name="accion" value="eliminar_producto">
                                     <input type="hidden" name="producto_maestro" value="{{ prod }}">
                                     <button type="submit" class="btn btn-link text-danger p-0 ms-1" title="Eliminar producto maestro">
                                         <i class="fa-solid fa-trash-can"></i>
                                     </button>
                                 </form>
-                                {% endif %}
                             </div>
                         </div>
                         <div class="flex-grow-1 overflow-auto" style="max-height: 240px;">
