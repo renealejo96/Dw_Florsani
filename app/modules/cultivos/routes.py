@@ -151,17 +151,15 @@ def delete(crop_id):
                 deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """))
-        p_alt = c_name[:-1] if c_name.endswith('S') else (c_name + 'S')
-        for p in (c_name, p_alt):
-            db.session.execute(text("""
-                INSERT INTO cat_productos_eliminados (producto_maestro)
-                VALUES (:p)
-                ON CONFLICT (producto_maestro) DO NOTHING;
-            """), {'p': p})
+        db.session.execute(text("""
+            INSERT INTO cat_productos_eliminados (producto_maestro)
+            VALUES (:p)
+            ON CONFLICT (producto_maestro) DO NOTHING;
+        """), {'p': c_name})
 
         # 2. Eliminar de dim_prod_maestros y cat_variedades_maestro
-        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) IN (:p1, :p2)"), {'p1': c_name, 'p2': p_alt})
-        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) IN (:p1, :p2)"), {'p1': c_name, 'p2': p_alt})
+        db.session.execute(text("DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = :p"), {'p': c_name})
+        db.session.execute(text("DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) = :p"), {'p': c_name})
 
         # 3. Eliminar de Crop
         db.session.delete(crop)
@@ -169,7 +167,7 @@ def delete(crop_id):
 
         # 4. Limpiar CSVs de cosechas
         from app.modules.cosechas.utils import cargar_productos_maestros, guardar_productos_maestros
-        prods = [p for p in cargar_productos_maestros() if p.upper() not in (c_name, p_alt)]
+        prods = [p for p in cargar_productos_maestros() if p.upper() != c_name]
         guardar_productos_maestros(prods)
 
         record_audit('CULTIVOS', 'DELETE', 'Crop', crop_id, details={'name': c_name})

@@ -485,6 +485,10 @@ def normalizar_producto_maestro(p: str) -> str:
         pass
 
     # 2. Reglas canónicas para productos independientes:
+    # Eucalipto (producto maestro singular)
+    if p_clean in ('EUCALIPTO', 'EUCALIPTOS'):
+        return 'EUCALIPTO'
+
     # PIV y BRILLANTINA nunca son Gypsophila
     if p_clean in ('BRILLANTINA', 'BRILLANTINAS') or 'BRILLANTINA' in p_clean:
         return 'BRILLANTINA'

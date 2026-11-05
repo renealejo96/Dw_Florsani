@@ -662,9 +662,8 @@ def catalogos():
                     from sqlalchemy import text
                     from app.shared.models import Crop
 
-                    # Generar variantes singular/plural (ej: EUCALIPTO y EUCALIPTOS)
-                    p_alt = producto[:-1] if producto.endswith('S') else (producto + 'S')
-                    prods_a_eliminar = {producto, p_alt}
+                    # Solo eliminar el producto maestro específico indicado por el usuario
+                    prods_a_eliminar = {producto}
 
                     # 1. Registrar permanentemente en lápidas cat_productos_eliminados
                     try:
