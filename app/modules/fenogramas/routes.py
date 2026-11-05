@@ -714,8 +714,23 @@ def api_calificar_lote():
                 except (ValueError, TypeError):
                     cumplido = None
 
-            # Soporte offline para labores adicionales agregadas con el botón '+'
+            # Soporte offline y online para labores adicionales agregadas con el botón '+'
             if item.get('is_extra') or str(item_id).startswith('client_extra_') or str(item_id).startswith('temp_'):
+                labor_extra = (item.get('nueva_labor') or item.get('labor') or '').strip()
+                if not labor_extra:
+                    continue
+
+                bloque_extra = str(item.get('bloque') or '').strip()
+                sem_extra = item.get('semana') or item.get('semana_anio') or semana_activa or 45
+                cama_ini = item.get('cama_inicial')
+                cama_fin = item.get('cama_final')
+                sufijo_extra = str(item.get('sufijo') or '').strip()
+                prod_extra = str(item.get('producto_maestro') or '').strip()
+                act_extra = str(item.get('actividad_tipo') or 'Siembra').strip()
+                zona_extra = str(item.get('zona') or '').strip()
+                edad_extra = int(item.get('edad_real') or 0)
+
+                # Intentar localizar parent_calif para heredar atributos si falta alguno
                 parent_id = item.get('parent_id')
                 clean_parent_id = None
                 try:
@@ -724,40 +739,48 @@ def api_calificar_lote():
                     clean_parent_id = None
 
                 parent_calif = db.session.get(Calificacion, clean_parent_id) if clean_parent_id else None
-                if not parent_calif and item.get('bloque'):
-                    sem_it = item.get('semana') or item.get('semana_anio')
-                    q_p = Calificacion.query.filter(Calificacion.bloque == str(item['bloque']).strip())
-                    if sem_it:
-                        try: q_p = q_p.filter(Calificacion.semana_anio == int(sem_it))
+                if not parent_calif and bloque_extra:
+                    q_p = Calificacion.query.filter(Calificacion.bloque == bloque_extra)
+                    if sem_extra:
+                        try: q_p = q_p.filter(Calificacion.semana_anio == int(sem_extra))
                         except Exception: pass
+                    if cama_ini is not None and str(cama_ini).isdigit():
+                        q_p = q_p.filter(Calificacion.cama_inicial == int(cama_ini))
                     parent_calif = q_p.first()
 
-                if not parent_calif:
+                if parent_calif:
+                    if not bloque_extra: bloque_extra = parent_calif.bloque
+                    if not prod_extra: prod_extra = parent_calif.producto_maestro
+                    if not zona_extra: zona_extra = parent_calif.zona
+                    if not act_extra: act_extra = parent_calif.actividad_tipo
+                    if cama_ini is None: cama_ini = parent_calif.cama_inicial
+                    if cama_fin is None: cama_fin = parent_calif.cama_final
+                    if not sufijo_extra: sufijo_extra = parent_calif.sufijo
+                    if not edad_extra: edad_extra = parent_calif.edad_real
+
+                if not bloque_extra:
                     continue
 
-                labor_extra = (item.get('nueva_labor') or item.get('labor') or '').strip()
-                if not labor_extra:
-                    continue
-
-                # Si la labor extra no trajo auxiliar o supervisor explícito, resolverlo automáticamente
+                # Resolver auxiliar y supervisor automáticamente si no vinieron explícitos
                 if not nuevo_aux or not nuevo_sup:
                     auto_aux, auto_sup = find_responsible_for_labor(
-                        parent_calif.producto_maestro, labor_extra, parent_calif.auxiliar, parent_calif.supervisor
+                        prod_extra or 'GYPSOPHILA', labor_extra, nuevo_aux, nuevo_sup
                     )
                     if not nuevo_aux: nuevo_aux = auto_aux
                     if not nuevo_sup: nuevo_sup = auto_sup
 
-                existing_extra = Calificacion.query.filter_by(
-                    semana_anio=parent_calif.semana_anio,
-                    anio=parent_calif.anio,
-                    zona=parent_calif.zona,
-                    bloque=parent_calif.bloque,
-                    producto_maestro=parent_calif.producto_maestro,
-                    cama_inicial=parent_calif.cama_inicial,
-                    cama_final=parent_calif.cama_final,
-                    sufijo=parent_calif.sufijo,
-                    labor=labor_extra
-                ).first()
+                # Buscar si ya existe la calificación en base de datos para esta labor
+                q_ex = Calificacion.query.filter(
+                    Calificacion.semana_anio == int(sem_extra),
+                    Calificacion.bloque == bloque_extra,
+                    Calificacion.labor == labor_extra
+                )
+                if cama_ini is not None and str(cama_ini).isdigit():
+                    q_ex = q_ex.filter(Calificacion.cama_inicial == int(cama_ini))
+                if sufijo_extra:
+                    q_ex = q_ex.filter(Calificacion.sufijo == sufijo_extra)
+                existing_extra = q_ex.first()
+
                 if existing_extra:
                     existing_extra.cumplido = cumplido
                     existing_extra.observacion = obs
@@ -768,16 +791,16 @@ def api_calificar_lote():
                     reconciled_ids[str(item_id)] = existing_extra.id
                 else:
                     new_calif = Calificacion(
-                        semana_anio=parent_calif.semana_anio,
-                        anio=parent_calif.anio,
-                        zona=parent_calif.zona,
-                        bloque=parent_calif.bloque,
-                        actividad_tipo=parent_calif.actividad_tipo,
-                        producto_maestro=parent_calif.producto_maestro,
-                        cama_inicial=parent_calif.cama_inicial,
-                        cama_final=parent_calif.cama_final,
-                        sufijo=parent_calif.sufijo,
-                        edad_real=parent_calif.edad_real,
+                        semana_anio=int(sem_extra),
+                        anio=2026,
+                        zona=zona_extra,
+                        bloque=bloque_extra,
+                        actividad_tipo=act_extra,
+                        producto_maestro=prod_extra or 'GYPSOPHILA',
+                        cama_inicial=int(cama_ini) if (cama_ini is not None and str(cama_ini).isdigit()) else 1,
+                        cama_final=int(cama_fin) if (cama_fin is not None and str(cama_fin).isdigit()) else 1,
+                        sufijo=sufijo_extra,
+                        edad_real=edad_extra,
                         labor=labor_extra,
                         auxiliar=nuevo_aux,
                         supervisor=nuevo_sup,
@@ -785,7 +808,7 @@ def api_calificar_lote():
                         observacion=obs,
                         tiene_evaluacion=True,
                         es_pendiente_anterior=False,
-                        semana_origen=parent_calif.semana_anio,
+                        semana_origen=int(sem_extra),
                         fecha_calificacion=now_utc
                     )
                     db.session.add(new_calif)

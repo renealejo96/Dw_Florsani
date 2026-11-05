@@ -2057,6 +2057,18 @@ function crearFilaLaborOffline(parentId, nuevaLabor, forcedTempId = null) {
         const inpObs = parentRow.querySelector('.obs-excel-input');
         if (inpObs) inpObs.disabled = false;
 
+        const semVal = parentRow.getAttribute('data-semana') || SEMANA_ACTUAL;
+        const cIniVal = parentRow.getAttribute('data-cama-inicial') || null;
+        const cFinVal = parentRow.getAttribute('data-cama-final') || null;
+        const sufVal = parentRow.getAttribute('data-sufijo') || '';
+        const prodVal = parentRow.getAttribute('data-producto') || '';
+        const actVal = parentRow.getAttribute('data-actividad') || 'Siembra';
+        const edadVal = parentRow.querySelector('.tabular-nums.fw-semibold')?.innerText?.trim() || 0;
+
+        parentRow.setAttribute('data-labor', nuevaLabor);
+        parentRow.setAttribute('data-auxiliar', assignedAux);
+        parentRow.setAttribute('data-supervisor', assignedSup);
+
         offlineExtraItems[parentId] = {
             id: parentId,
             parent_id: parentId,
@@ -2068,7 +2080,14 @@ function crearFilaLaborOffline(parentId, nuevaLabor, forcedTempId = null) {
             observacion: inpObs ? inpObs.value : '',
             is_extra: true,
             bloque: blq,
-            zona: parentRow.getAttribute('data-zona')
+            zona: parentRow.getAttribute('data-zona'),
+            semana: semVal,
+            cama_inicial: cIniVal,
+            cama_final: cFinVal,
+            sufijo: sufVal,
+            producto_maestro: prodVal,
+            actividad_tipo: actVal,
+            edad_real: edadVal
         };
         modifiedItems.add(parentId);
         persistOfflineChanges();
@@ -2141,6 +2160,27 @@ function crearFilaLaborOffline(parentId, nuevaLabor, forcedTempId = null) {
 
     parentRow.parentNode.insertBefore(newRow, parentRow.nextSibling);
 
+    const semVal = parentRow.getAttribute('data-semana') || SEMANA_ACTUAL;
+    const cIniVal = parentRow.getAttribute('data-cama-inicial') || null;
+    const cFinVal = parentRow.getAttribute('data-cama-final') || null;
+    const sufVal = parentRow.getAttribute('data-sufijo') || '';
+    const prodVal = parentRow.getAttribute('data-producto') || '';
+    const actVal = parentRow.getAttribute('data-actividad') || 'Siembra';
+    const edadVal = parentRow.querySelector('.tabular-nums.fw-semibold')?.innerText?.trim() || 0;
+
+    newRow.setAttribute('data-semana', semVal);
+    newRow.setAttribute('data-bloque', blq);
+    newRow.setAttribute('data-zona', parentRow.getAttribute('data-zona'));
+    newRow.setAttribute('data-cama-inicial', cIniVal);
+    newRow.setAttribute('data-cama-final', cFinVal);
+    newRow.setAttribute('data-sufijo', sufVal);
+    newRow.setAttribute('data-producto', prodVal);
+    newRow.setAttribute('data-actividad', actVal);
+    newRow.setAttribute('data-labor', nuevaLabor);
+    newRow.setAttribute('data-auxiliar', assignedAux);
+    newRow.setAttribute('data-supervisor', assignedSup);
+    newRow.setAttribute('data-is-extra', '1');
+
     offlineExtraItems[tempId] = {
         id: tempId,
         parent_id: parentId,
@@ -2152,7 +2192,14 @@ function crearFilaLaborOffline(parentId, nuevaLabor, forcedTempId = null) {
         observacion: '',
         is_extra: true,
         bloque: blq,
-        zona: parentRow.getAttribute('data-zona')
+        zona: parentRow.getAttribute('data-zona'),
+        semana: semVal,
+        cama_inicial: cIniVal,
+        cama_final: cFinVal,
+        sufijo: sufVal,
+        producto_maestro: prodVal,
+        actividad_tipo: actVal,
+        edad_real: edadVal
     };
 
     modifiedItems.add(tempId);
@@ -3197,14 +3244,34 @@ function persistOfflineChanges() {
                 itemObj.is_extra = true;
                 itemObj.parent_id = extra.parent_id;
                 itemObj.nueva_labor = extra.nueva_labor;
-                itemObj.bloque = extra.bloque;
-                itemObj.zona = extra.zona;
+                itemObj.labor = extra.nueva_labor || extra.labor;
+                itemObj.bloque = extra.bloque || itemObj.bloque;
+                itemObj.zona = extra.zona || itemObj.zona;
+                itemObj.semana = extra.semana || itemObj.semana;
+                itemObj.cama_inicial = extra.cama_inicial || itemObj.cama_inicial;
+                itemObj.cama_final = extra.cama_final || itemObj.cama_final;
+                itemObj.sufijo = extra.sufijo || itemObj.sufijo;
+                itemObj.producto_maestro = extra.producto_maestro || itemObj.producto_maestro;
+                itemObj.actividad_tipo = extra.actividad_tipo || itemObj.actividad_tipo;
+                itemObj.edad_real = extra.edad_real || itemObj.edad_real;
+                itemObj.auxiliar = extra.auxiliar || itemObj.auxiliar;
+                itemObj.supervisor = extra.supervisor || itemObj.supervisor;
             } else if (cached && cached.is_extra) {
                 itemObj.is_extra = true;
                 itemObj.parent_id = cached.parent_id;
                 itemObj.nueva_labor = cached.nueva_labor;
-                itemObj.bloque = cached.bloque;
-                itemObj.zona = cached.zona;
+                itemObj.labor = cached.nueva_labor || cached.labor;
+                itemObj.bloque = cached.bloque || itemObj.bloque;
+                itemObj.zona = cached.zona || itemObj.zona;
+                itemObj.semana = cached.semana || itemObj.semana;
+                itemObj.cama_inicial = cached.cama_inicial || itemObj.cama_inicial;
+                itemObj.cama_final = cached.cama_final || itemObj.cama_final;
+                itemObj.sufijo = cached.sufijo || itemObj.sufijo;
+                itemObj.producto_maestro = cached.producto_maestro || itemObj.producto_maestro;
+                itemObj.actividad_tipo = cached.actividad_tipo || itemObj.actividad_tipo;
+                itemObj.edad_real = cached.edad_real || itemObj.edad_real;
+                itemObj.auxiliar = cached.auxiliar || itemObj.auxiliar;
+                itemObj.supervisor = cached.supervisor || itemObj.supervisor;
             }
 
             payload.push(itemObj);
@@ -3302,8 +3369,19 @@ async function restoreOfflineChanges() {
             validUnsyncedItems.push(it);
 
             if (isExtra) {
-                if (!document.getElementById(`row-${it.id}`) && it.parent_id) {
-                    crearFilaLaborOffline(it.parent_id, it.nueva_labor || 'Labor Adicional', it.id);
+                if (!document.getElementById(`row-${it.id}`)) {
+                    let parentId = it.parent_id;
+                    let pRow = parentId ? document.getElementById(`row-${parentId}`) : null;
+                    if (!pRow && it.bloque) {
+                        const selector = (it.cama_inicial !== undefined && it.cama_inicial !== null)
+                            ? `#excel-tbody tr[data-bloque="${it.bloque}"][data-cama-inicial="${it.cama_inicial}"]`
+                            : `#excel-tbody tr[data-bloque="${it.bloque}"]`;
+                        pRow = document.querySelector(selector);
+                        if (pRow) parentId = pRow.getAttribute('data-item-id');
+                    }
+                    if (pRow && parentId) {
+                        crearFilaLaborOffline(parentId, it.nueva_labor || it.labor || 'Labor Adicional', it.id);
+                    }
                 }
             }
 
@@ -3495,6 +3573,15 @@ async function saveAllChanges(isForced = false) {
             payloadItem.labor = extra.nueva_labor || customLabor;
             payloadItem.auxiliar = extra.auxiliar || customAux;
             payloadItem.supervisor = extra.supervisor || customSup;
+            payloadItem.bloque = extra.bloque || payloadItem.bloque;
+            payloadItem.semana = extra.semana || payloadItem.semana;
+            payloadItem.zona = extra.zona || payloadItem.zona;
+            payloadItem.cama_inicial = extra.cama_inicial || payloadItem.cama_inicial;
+            payloadItem.cama_final = extra.cama_final || payloadItem.cama_final;
+            payloadItem.sufijo = extra.sufijo || payloadItem.sufijo;
+            payloadItem.producto_maestro = extra.producto_maestro || payloadItem.producto_maestro;
+            payloadItem.actividad_tipo = extra.actividad_tipo || payloadItem.actividad_tipo;
+            payloadItem.edad_real = extra.edad_real || payloadItem.edad_real;
         }
         payloadItems.push(payloadItem);
     });
