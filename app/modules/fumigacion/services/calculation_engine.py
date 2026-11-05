@@ -410,27 +410,30 @@ class CalculationEngine:
                             elif len(nums) == 1:
                                 v_n = int(nums[0])
                                 census_wk = (v_n % 100) if v_n > 2000 else v_n
-                        if ev_week_num and ev_week_num <= census_wk:
+                        if ev_week_num is None or (ev_week_num and ev_week_num <= census_wk):
                             is_mr_tumba = False
 
                 if is_mr_tumba:
                     continue
 
                 proj_age = None
-                if mr[6]:
-                    s_ev_str = str(mr[6]).strip()
-                    if len(s_ev_str) == 4 and s_ev_str.isdigit():
-                        ev_year = 2000 + int(s_ev_str[:2])
-                        ev_week = int(s_ev_str[2:])
+                # Solo proyectar edad desde evento de campo si el evento es una SIEMBRA o PODA vigente
+                if u_ev in ('SIEMBRA', 'PODA'):
+                    if mr[6]:
+                        s_ev_str = str(mr[6]).strip()
+                        if len(s_ev_str) == 4 and s_ev_str.isdigit():
+                            ev_year = 2000 + int(s_ev_str[:2])
+                            ev_week = int(s_ev_str[2:])
+                            proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
+                        elif s_ev_str.isdigit():
+                            ev_week = int(s_ev_str)
+                            proj_age = target_week - ev_week
+                    elif mr[7]:
+                        dt = mr[7]
+                        ev_year, ev_week = dt.isocalendar()[0], dt.isocalendar()[1]
                         proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
-                    elif s_ev_str.isdigit():
-                        ev_week = int(s_ev_str)
-                        proj_age = target_week - ev_week
-                elif mr[7]:
-                    dt = mr[7]
-                    ev_year, ev_week = dt.isocalendar()[0], dt.isocalendar()[1]
-                    proj_age = (target_year - ev_year) * 52 + (target_week - ev_week)
 
+                # Si no hay evento SIEMBRA/PODA en mrt (o fue una tumba previa), usar la edad base del censo + offset
                 if proj_age is None:
                     base_age = 10.0 if (r.real_age is None or r.real_age < 0) else float(r.real_age)
                     proj_age = base_age + week_offset
@@ -444,6 +447,14 @@ class CalculationEngine:
             if proj_age < 2.0:
                 continue
 
+            active_crop_m = r.crop_master
+            if mr and mr[3] and str(mr[3]).strip().upper() not in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', ''):
+                active_crop_m = mr[3]
+
+            active_var = r.variety
+            if mr and mr[4] and str(mr[4]).strip().upper() not in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', ''):
+                active_var = mr[4]
+
             act_type = 'PODA' if (mr and 'PODA' in str(mr[5] or '').upper()) or ('PODA' in str(r.status_raw or '').upper()) else 'SIEMBRA'
             all_active_records.append(ProjectedCropRecord(
                 id=r.id,
@@ -452,10 +463,10 @@ class CalculationEngine:
                 block_num=clean_blk,
                 bed_num=r.bed_num,
                 suffix=suf,
-                crop_master=mr[3] if (mr and mr[3]) else r.crop_master,
-                product_name=mr[3] if (mr and mr[3]) else r.product_name,
-                variety=mr[4] if (mr and mr[4]) else r.variety,
-                standard_bed=float(mr[8] or r.standard_bed or 0.0),
+                crop_master=active_crop_m,
+                product_name=active_crop_m,
+                variety=active_var,
+                standard_bed=float(mr[8] or r.standard_bed or 0.0) if mr else float(r.standard_bed or 0.0),
                 zone=mr[9] if (mr and mr[9]) else r.zone,
                 real_age=proj_age,
                 status_raw=mr[5] if (mr and mr[5]) else r.status_raw,

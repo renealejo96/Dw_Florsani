@@ -1256,6 +1256,11 @@
                     data-item-id="{{ item.id }}"
                     data-bloque="{{ bloque }}"
                     data-zona="{{ item.zona }}"
+                    data-semana="{{ item.semana_anio }}"
+                    data-cama-inicial="{{ item.cama_inicial }}"
+                    data-cama-final="{{ item.cama_final }}"
+                    data-sufijo="{{ item.sufijo or '' }}"
+                    data-labor="{{ item.labor or '' }}"
                     data-evaluable="1"
                     data-producto="{{ item.producto_maestro }}"
                     data-actividad="{{ item.actividad_tipo }}"
@@ -3171,10 +3176,21 @@ function persistOfflineChanges() {
             else if (cached && cached.obs !== undefined) obs = cached.obs;
             else if (extra && extra.observacion) obs = extra.observacion;
 
+            const row = document.getElementById(`row-${itemId}`);
             const itemObj = {
                 id: itemId,
                 val: val,
-                obs: obs
+                obs: obs,
+                cumplido: (val === '1' || val === 1) ? 1 : ((val === '0' || val === 0) ? 0 : null),
+                observacion: obs,
+                semana: row ? row.getAttribute('data-semana') : (cached?.semana || SEMANA_ACTUAL),
+                bloque: row ? row.getAttribute('data-bloque') : (cached?.bloque || null),
+                zona: row ? row.getAttribute('data-zona') : (cached?.zona || currentActiveZone),
+                cama_inicial: row ? row.getAttribute('data-cama-inicial') : (cached?.cama_inicial || null),
+                cama_final: row ? row.getAttribute('data-cama-final') : (cached?.cama_final || null),
+                sufijo: row ? row.getAttribute('data-sufijo') : (cached?.sufijo || ''),
+                labor: (extra && extra.nueva_labor) ? extra.nueva_labor : (cached?.nueva_labor || (row ? row.getAttribute('data-labor') : '')),
+                producto_maestro: row ? row.getAttribute('data-producto') : (cached?.producto_maestro || '')
             };
 
             if (extra) {
@@ -3240,9 +3256,29 @@ async function restoreOfflineChanges() {
         items.forEach(it => {
             if (!it || it.id === undefined) return;
             const isExtra = it.is_extra || String(it.id).startsWith('temp_') || String(it.id).startsWith('client_extra_');
-            const btn = document.getElementById(`btn-check-${it.id}`);
-            const obsInput = document.getElementById(`obs-${it.id}`);
-            const selLabor = document.getElementById(`sel-labor-${it.id}`);
+            let btn = document.getElementById(`btn-check-${it.id}`);
+            let obsInput = document.getElementById(`obs-${it.id}`);
+            let selLabor = document.getElementById(`sel-labor-${it.id}`);
+
+            // Reconciliación resiliente: si el ID cambió por regeneración del plano, buscar la fila por bloque y cama
+            if (!btn && it.bloque) {
+                let fallbackRow = null;
+                if (it.cama_inicial !== undefined && it.cama_inicial !== null) {
+                    fallbackRow = document.querySelector(`#excel-tbody tr[data-bloque="${it.bloque}"][data-cama-inicial="${it.cama_inicial}"]`);
+                }
+                if (!fallbackRow) {
+                    fallbackRow = document.querySelector(`#excel-tbody tr[data-bloque="${it.bloque}"]`);
+                }
+                if (fallbackRow) {
+                    const reconciledDbId = fallbackRow.getAttribute('data-item-id');
+                    if (reconciledDbId) {
+                        it.id = reconciledDbId;
+                        btn = document.getElementById(`btn-check-${reconciledDbId}`);
+                        obsInput = document.getElementById(`obs-${reconciledDbId}`);
+                        selLabor = document.getElementById(`sel-labor-${reconciledDbId}`);
+                    }
+                }
+            }
 
             if (btn) {
                 const origVal = btn.getAttribute('data-original-val') || 'null';
@@ -3441,9 +3477,16 @@ async function saveAllChanges(isForced = false) {
             id: itemId,
             cumplido: cumplidoVal,
             observacion: obsVal,
-            labor: (extra && extra.nueva_labor) ? extra.nueva_labor : (cached?.nueva_labor || customLabor),
-            auxiliar: (extra && extra.auxiliar) ? extra.auxiliar : customAux,
-            supervisor: (extra && extra.supervisor) ? extra.supervisor : customSup
+            labor: (extra && extra.nueva_labor) ? extra.nueva_labor : (cached?.nueva_labor || customLabor || (row ? row.getAttribute('data-labor') : '')),
+            auxiliar: (extra && extra.auxiliar) ? extra.auxiliar : (cached?.auxiliar || customAux),
+            supervisor: (extra && extra.supervisor) ? extra.supervisor : (cached?.supervisor || customSup),
+            bloque: rowBlq,
+            semana: row ? row.getAttribute('data-semana') : (cached?.semana || SEMANA_ACTUAL),
+            zona: row ? row.getAttribute('data-zona') : (cached?.zona || currentActiveZone),
+            cama_inicial: row ? row.getAttribute('data-cama-inicial') : (cached?.cama_inicial || null),
+            cama_final: row ? row.getAttribute('data-cama-final') : (cached?.cama_final || null),
+            sufijo: row ? row.getAttribute('data-sufijo') : (cached?.sufijo || ''),
+            producto_maestro: row ? row.getAttribute('data-producto') : (cached?.producto_maestro || '')
         };
         if (extra) {
             payloadItem.is_extra = true;
@@ -3502,6 +3545,28 @@ async function saveAllChanges(isForced = false) {
         if (data && data.success) {
             syncRetryCount = 0;
             isSyncInProgress = false;
+
+            // Reconciliar IDs devueltos por el servidor si cambiaron
+            if (data.reconciled_ids && typeof data.reconciled_ids === 'object') {
+                for (const [oldId, newDbId] of Object.entries(data.reconciled_ids)) {
+                    if (String(oldId) !== String(newDbId)) {
+                        const oldRow = document.getElementById(`row-${oldId}`);
+                        if (oldRow) {
+                            oldRow.id = `row-${newDbId}`;
+                            oldRow.setAttribute('data-item-id', newDbId);
+                        }
+                        const oldBtn = document.getElementById(`btn-check-${oldId}`);
+                        if (oldBtn) {
+                            oldBtn.id = `btn-check-${newDbId}`;
+                            oldBtn.setAttribute('data-item-id', newDbId);
+                        }
+                        const oldObs = document.getElementById(`obs-${oldId}`);
+                        if (oldObs) oldObs.id = `obs-${newDbId}`;
+                        const oldSel = document.getElementById(`sel-labor-${oldId}`);
+                        if (oldSel) oldSel.id = `sel-labor-${newDbId}`;
+                    }
+                }
+            }
 
             payloadItems.forEach(item => {
                 const btn = document.getElementById(`btn-check-${item.id}`);
@@ -4097,11 +4162,7 @@ function ejecutarSincronizarPlanoActual(targetWeek) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            try { 
-                localStorage.removeItem(`feno_offline_sync_${sem}`); 
-                localStorage.removeItem(`feno_backup_hist_${sem}`);
-                if (window.FenoIndexedDB) FenoIndexedDB.clear(sem);
-            } catch(e){}
+            // Evaluaciones previas conservadas sin purgar cola local
             showFenoToast(data.message || `Semana ${sem} sincronizada exitosamente con el último Estado de Cultivo.`);
             setTimeout(() => {
                 window.location.reload();
@@ -4318,9 +4379,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('beforeunload', (e) => {
-        if (modifiedItems.size > 0) {
+        // Solo alertar si hay cambios en memoria que aún NO han sido guardados ni en local
+        const hasLocalBackup = Boolean(localStorage.getItem(`feno_offline_sync_${SEMANA_ACTUAL}`));
+        if (modifiedItems.size > 0 && !hasLocalBackup) {
             e.preventDefault();
-            e.returnValue = 'Tienes calificaciones de fenograma pendientes sin sincronizar. ¿Deseas salir?';
+            e.returnValue = 'Tienes calificaciones de fenograma pendientes sin guardar. ¿Deseas salir?';
         }
     });
 });

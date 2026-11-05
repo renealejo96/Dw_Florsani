@@ -4,6 +4,7 @@ operator zone assignment, and toxicological categorization.
 """
 
 import datetime
+import re
 from zoneinfo import ZoneInfo
 
 # Local Timezone for Ecuador / Colombia (UTC-5)
@@ -284,10 +285,43 @@ def get_crop_category(crop_name: str, crop_obj=None) -> str:
     else:
         return 'PRODUCTOS_NUEVOS'
 
+def parse_week_and_year(w_str, default_year=2026):
+    """
+    Parses any week string format:
+    '2026-44', '2026-46', '2646', '2644', '46', '44', 'Semana 46', 'W46', '202646'
+    Returns (year, week_number) or (None, None).
+    """
+    if not w_str:
+        return None, None
+    s = str(w_str).strip().upper()
+    if '-' in s:
+        p = s.split('-')
+        try:
+            return int(p[0]), int(p[1])
+        except Exception:
+            pass
+    nums = re.findall(r'\d+', s)
+    if not nums:
+        return None, None
+    if len(nums) >= 2:
+        y, w = int(nums[0]), int(nums[1])
+        if y < 100:
+            y += 2000
+        return y, w
+    val = int(nums[0])
+    s_digits = nums[0]
+    if len(s_digits) == 6 and s_digits.startswith('20'):
+        return int(s_digits[:4]), int(s_digits[4:])
+    elif len(s_digits) == 4:
+        return 2000 + int(s_digits[:2]), int(s_digits[2:])
+    elif 1 <= val <= 53:
+        return default_year, val
+    return None, None
+
 def get_week_difference(target_week_str: str, base_week_str: str) -> int:
     """
     Computes difference in weeks: target_week - base_week.
-    Supports formats like '2026-40', '2640', '2026-39', '2639'.
+    Supports formats like '2026-40', '2640', '2026-39', '2639', '46', '44', 'Semana 46'.
     Uses dim_calendario_agricola if available, with robust calendar arithmetic fallback.
     """
     if not target_week_str or not base_week_str:
@@ -297,22 +331,20 @@ def get_week_difference(target_week_str: str, base_week_str: str) -> int:
     if t_clean == b_clean:
         return 0
 
-    def parse_sc(w_str):
-        s = str(w_str).strip().replace('-', '')
-        if len(s) == 6 and s.startswith('20'):
-            return int(s[2:])
-        elif len(s) == 4 and s.isdigit():
-            return int(s)
-        return None
+    y_t, w_t = parse_week_and_year(t_clean)
+    y_b, w_b = parse_week_and_year(b_clean)
 
-    sc_target = parse_sc(t_clean)
-    sc_base = parse_sc(b_clean)
+    if y_t is None or y_b is None:
+        return 0
+
+    sc_target = (y_t % 100) * 100 + w_t
+    sc_base = (y_b % 100) * 100 + w_b
 
     # 1. Try DB lookup in dim_calendario_agricola
     try:
         from app.extensions import db
         from sqlalchemy import text
-        if sc_target and sc_base and db.engine:
+        if db.engine:
             with db.engine.connect() as conn:
                 rows = conn.execute(
                     text("SELECT semana_campo, semana_abs FROM dim_calendario_agricola WHERE semana_campo IN (:st, :sb)"),
@@ -325,23 +357,7 @@ def get_week_difference(target_week_str: str, base_week_str: str) -> int:
         pass
 
     # 2. Fallback calendar arithmetic
-    def parse_yw(w_str):
-        s = str(w_str).strip()
-        if '-' in s:
-            p = s.split('-')
-            return int(p[0]), int(p[1])
-        if len(s) == 4 and s.isdigit():
-            return 2000 + int(s[:2]), int(s[2:])
-        if len(s) == 6 and s.isdigit():
-            return int(s[:4]), int(s[4:])
-        return None, None
-
-    y_t, w_t = parse_yw(t_clean)
-    y_b, w_b = parse_yw(b_clean)
-    if y_t is not None and y_b is not None:
-        return (y_t - y_b) * 52 + (w_t - w_b)
-
-    return 0
+    return (y_t - y_b) * 52 + (w_t - w_b)
 
 _DIM_BLOQUES_CACHE = None
 _DIM_BLOQUES_CACHE_TIME = 0

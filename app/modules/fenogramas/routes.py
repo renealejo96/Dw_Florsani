@@ -675,6 +675,7 @@ def api_calificar_lote():
 
     updated_count = 0
     deleted_count = 0
+    reconciled_ids = {}
     now_utc = datetime.utcnow()
     try:
         # Procesar eliminaciones offline
@@ -723,8 +724,17 @@ def api_calificar_lote():
                     clean_parent_id = None
 
                 parent_calif = db.session.get(Calificacion, clean_parent_id) if clean_parent_id else None
+                if not parent_calif and item.get('bloque'):
+                    sem_it = item.get('semana') or item.get('semana_anio')
+                    q_p = Calificacion.query.filter(Calificacion.bloque == str(item['bloque']).strip())
+                    if sem_it:
+                        try: q_p = q_p.filter(Calificacion.semana_anio == int(sem_it))
+                        except Exception: pass
+                    parent_calif = q_p.first()
+
                 if not parent_calif:
                     continue
+
                 labor_extra = (item.get('nueva_labor') or item.get('labor') or '').strip()
                 if not labor_extra:
                     continue
@@ -755,6 +765,7 @@ def api_calificar_lote():
                     if nuevo_sup: existing_extra.supervisor = nuevo_sup
                     existing_extra.tiene_evaluacion = True
                     existing_extra.fecha_calificacion = now_utc
+                    reconciled_ids[str(item_id)] = existing_extra.id
                 else:
                     new_calif = Calificacion(
                         semana_anio=parent_calif.semana_anio,
@@ -778,6 +789,8 @@ def api_calificar_lote():
                         fecha_calificacion=now_utc
                     )
                     db.session.add(new_calif)
+                    db.session.flush()
+                    reconciled_ids[str(item_id)] = new_calif.id
                 updated_count += 1
                 continue
 
@@ -787,61 +800,95 @@ def api_calificar_lote():
             except (ValueError, TypeError):
                 clean_id = None
 
+            calif = None
             if clean_id:
                 calif = db.session.get(Calificacion, clean_id)
-                if not calif:
-                    continue
 
-                if nueva_labor and nueva_labor != calif.labor:
-                    if not nuevo_aux or not nuevo_sup:
-                        auto_aux, auto_sup = find_responsible_for_labor(
-                            calif.producto_maestro, nueva_labor, calif.auxiliar, calif.supervisor
-                        )
-                        if not nuevo_aux: nuevo_aux = auto_aux
-                        if not nuevo_sup: nuevo_sup = auto_sup
+            # Blindaje resiliente: si el ID no existe en DB (ej. plano regenerado con nuevos IDs),
+            # buscar por clave de negocio en la semana activa: bloque, labor, cama_inicial
+            if not calif:
+                sem_it = item.get('semana') or item.get('semana_anio')
+                bloque_it = str(item.get('bloque') or '').strip()
+                labor_it = (nueva_labor or item.get('labor') or '').strip()
+                cama_ini = item.get('cama_inicial')
+                sufijo_it = str(item.get('sufijo') or '').strip()
 
-                    existing = Calificacion.query.filter_by(
-                        semana_anio=calif.semana_anio,
-                        anio=calif.anio,
-                        zona=calif.zona,
-                        bloque=calif.bloque,
-                        producto_maestro=calif.producto_maestro,
-                        cama_inicial=calif.cama_inicial,
-                        cama_final=calif.cama_final,
-                        sufijo=calif.sufijo,
-                        labor=nueva_labor
-                    ).first()
+                if bloque_it:
+                    q = Calificacion.query.filter(Calificacion.bloque == bloque_it)
+                    if sem_it:
+                        try:
+                            q = q.filter(Calificacion.semana_anio == int(sem_it))
+                        except (ValueError, TypeError):
+                            pass
+                    if cama_ini is not None and str(cama_ini).isdigit():
+                        q = q.filter(Calificacion.cama_inicial == int(cama_ini))
+                    if sufijo_it:
+                        q = q.filter(Calificacion.sufijo == sufijo_it)
 
-                    if existing and existing.id != calif.id:
-                        existing.cumplido = cumplido
-                        existing.observacion = obs
-                        if nuevo_aux:
-                            existing.auxiliar = nuevo_aux
-                        if nuevo_sup:
-                            existing.supervisor = nuevo_sup
-                        existing.tiene_evaluacion = True
-                        existing.fecha_calificacion = now_utc
-                    else:
-                        calif.labor = nueva_labor
-                        if nuevo_aux:
-                            calif.auxiliar = nuevo_aux
-                        if nuevo_sup:
-                            calif.supervisor = nuevo_sup
-                        calif.cumplido = cumplido
-                        calif.observacion = obs
-                        calif.tiene_evaluacion = True
-                        calif.fecha_calificacion = now_utc
+                    if labor_it:
+                        calif = q.filter(Calificacion.labor == labor_it).first()
+                    if not calif:
+                        calif = q.first()
+
+            if not calif:
+                continue
+
+            if clean_id and calif.id != clean_id:
+                reconciled_ids[str(item_id)] = calif.id
+
+            if nueva_labor and nueva_labor != calif.labor:
+                if not nuevo_aux or not nuevo_sup:
+                    auto_aux, auto_sup = find_responsible_for_labor(
+                        calif.producto_maestro, nueva_labor, calif.auxiliar, calif.supervisor
+                    )
+                    if not nuevo_aux: nuevo_aux = auto_aux
+                    if not nuevo_sup: nuevo_sup = auto_sup
+
+                existing = Calificacion.query.filter_by(
+                    semana_anio=calif.semana_anio,
+                    anio=calif.anio,
+                    zona=calif.zona,
+                    bloque=calif.bloque,
+                    producto_maestro=calif.producto_maestro,
+                    cama_inicial=calif.cama_inicial,
+                    cama_final=calif.cama_final,
+                    sufijo=calif.sufijo,
+                    labor=nueva_labor
+                ).first()
+
+                if existing and existing.id != calif.id:
+                    existing.cumplido = cumplido
+                    existing.observacion = obs
+                    if nuevo_aux:
+                        existing.auxiliar = nuevo_aux
+                    if nuevo_sup:
+                        existing.supervisor = nuevo_sup
+                    existing.tiene_evaluacion = True
+                    existing.fecha_calificacion = now_utc
+                    reconciled_ids[str(item_id)] = existing.id
                 else:
+                    calif.labor = nueva_labor
+                    if nuevo_aux:
+                        calif.auxiliar = nuevo_aux
+                    if nuevo_sup:
+                        calif.supervisor = nuevo_sup
                     calif.cumplido = cumplido
                     calif.observacion = obs
                     calif.tiene_evaluacion = True
                     calif.fecha_calificacion = now_utc
+                    reconciled_ids[str(item_id)] = calif.id
+            else:
+                calif.cumplido = cumplido
+                calif.observacion = obs
+                calif.tiene_evaluacion = True
+                calif.fecha_calificacion = now_utc
+                reconciled_ids[str(item_id)] = calif.id
 
-                updated_count += 1
+            updated_count += 1
 
         db.session.commit()
         record_audit('FENOGRAMAS', 'BATCH_EVALUATE', 'Calificacion', None, user=session.get('username'), details={'count': updated_count, 'total_sent': len(items)})
-        return jsonify({'success': True, 'updated': updated_count})
+        return jsonify({'success': True, 'updated': updated_count, 'reconciled_ids': reconciled_ids})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': f'Error guardando calificaciones en servidor: {str(e)}'}), 500

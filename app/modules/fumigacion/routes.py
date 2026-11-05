@@ -833,13 +833,18 @@ def rotacion_sincronizar_bloques(rotation_id):
                     continue
 
             # Crear indice de segmentos existentes por (clean_block, sufijo, crop_normalized)
-            existing_map = {}
+            existing_groups = {}
             for idx, s in enumerate(existing_segs):
                 raw_b = str(s.get('block_name') or '').strip()
                 suf = str(s.get('suffix') or 'A').strip().upper()
                 c_b = clean_block_name(raw_b, suf)
                 c_n = CalculationEngine.normalize_crop_name(s.get('crop_name') or '')
-                existing_map[(c_b, suf, c_n)] = (idx, s)
+                key_grp = (c_b, suf, c_n)
+                if key_grp not in existing_groups:
+                    existing_groups[key_grp] = []
+                existing_groups[key_grp].append((idx, s))
+
+            used_existing_indices = set()
 
             # Recorrer fresh_segments e incorporar los que falten o actualizar rango si cambio
             for fs in fresh_segments:
@@ -849,36 +854,57 @@ def rotacion_sincronizar_bloques(rotation_id):
                 c_n = CalculationEngine.normalize_crop_name(fs.get('crop_name') or '')
                 key_seg = (c_b, suf, c_n)
 
-                if key_seg in existing_map:
+                matched_es = None
+                matched_idx = None
+                if key_seg in existing_groups:
+                    for (e_idx, e_seg) in existing_groups[key_seg]:
+                        if e_idx not in used_existing_indices:
+                            matched_es = e_seg
+                            matched_idx = e_idx
+                            used_existing_indices.add(e_idx)
+                            break
+
+                if matched_es is not None:
                     # Segmento existente: Si en el censo cambio el rango o numero de camas
                     # (ej. antes solo 41 y 75-77, ahora 1-77), actualizamos camas sin tocar productos/dosis
-                    idx, es = existing_map[key_seg]
                     f_beds = safe_int(fs.get('bed_count'), 0)
-                    e_beds = safe_int(es.get('bed_count'), 0)
-                    if f_beds != e_beds or safe_int(es.get('bed_start'), 0) != safe_int(fs.get('bed_start'), 0) or safe_int(es.get('bed_end'), 0) != safe_int(fs.get('bed_end'), 0):
-                        es['bed_start'] = fs.get('bed_start')
-                        es['bed_end'] = fs.get('bed_end')
-                        es['bed_count'] = fs.get('bed_count')
-                        es['standard_beds'] = fs.get('standard_beds')
-                        es['real_age'] = fs.get('real_age')
-                        es['activity_type'] = fs.get('activity_type')
-                        es['ultimo_evento'] = fs.get('ultimo_evento')
+                    e_beds = safe_int(matched_es.get('bed_count'), 0)
+                    if f_beds != e_beds or safe_int(matched_es.get('bed_start'), 0) != safe_int(fs.get('bed_start'), 0) or safe_int(matched_es.get('bed_end'), 0) != safe_int(fs.get('bed_end'), 0):
+                        matched_es['bed_start'] = fs.get('bed_start')
+                        matched_es['bed_end'] = fs.get('bed_end')
+                        matched_es['bed_range'] = fs.get('bed_range')
+                        matched_es['bed_count'] = fs.get('bed_count')
+                        matched_es['standard_beds'] = fs.get('standard_beds')
+                        matched_es['real_age'] = fs.get('real_age')
+                        matched_es['activity_type'] = fs.get('activity_type')
+                        matched_es['ultimo_evento'] = fs.get('ultimo_evento')
+                        if fs.get('crop_name'):
+                            matched_es['crop_name'] = fs.get('crop_name')
+                        if fs.get('variety'):
+                            matched_es['variety'] = fs.get('variety')
                         
                         # Recalcular total_liters respetando los litros_per_bed configurados
-                        lit_b = safe_float(es.get('liters_per_bed'), 0.0)
+                        lit_b = safe_float(matched_es.get('liters_per_bed'), 0.0)
                         if lit_b > 0:
-                            raw_lit = safe_float(es['standard_beds'], 0.0) * lit_b
-                            es['total_liters'] = round_to_tank_step(raw_lit, step=20)
+                            raw_lit = safe_float(matched_es['standard_beds'], 0.0) * lit_b
+                            matched_es['total_liters'] = round_to_tank_step(raw_lit, step=20)
+
+                        # Actualizar dosis y cantidades de productos en el segmento
+                        new_lit = safe_float(matched_es.get('total_liters'), 0.0)
+                        if 'products_detail' in matched_es and isinstance(matched_es['products_detail'], list):
+                            for pd in matched_es['products_detail']:
+                                if isinstance(pd, dict):
+                                    d = safe_float(pd.get('dose'), 0.0)
+                                    u = pd.get('dose_unit') or 'CC'
+                                    pd['product_amount'] = round_product_amount(new_lit * d, u)
                         actualizados += 1
                 else:
-                    # Segmento no está en existing_segs:
-                    # Solo lo incorporamos si es un bloque NUEVO (no estaba activo en censos previos, ej. recien sembrado 154)
-                    # Si ya estaba activo previamente, significa que el agronomo lo descarto deliberadamente
                     is_known_excluded = (c_b, suf, c_n) in prev_snapshot_active_blocks or (c_b, 'A', c_n) in prev_snapshot_active_blocks
-                    if not is_known_excluded:
+                    f_age_val = safe_float(fs.get('real_age'), 99.0)
+                    is_new_planting = (f_age_val <= 4.0 or fs.get('activity_type') == 'SIEMBRA')
+                    if not is_known_excluded or is_new_planting:
                         existing_segs.append(fs)
                         nuevos_agregados += 1
-
             review_by_round[r_key] = existing_segs
 
         # Actualizar tambien draft_segments si existe
