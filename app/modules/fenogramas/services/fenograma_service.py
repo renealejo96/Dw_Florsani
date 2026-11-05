@@ -348,7 +348,7 @@ def consolidar_camas_cultivo_df(df_ec):
         grupo = grupo.sort_values(['NUM_CAMA', 'SUFIJO']).reset_index(drop=True)
         grupo['SUFIJO'] = grupo['SUFIJO'].fillna('').astype(str).str.strip()
         grupo['ACTIVIDAD'] = grupo['ACTIVIDAD'].fillna('').astype(str).str.strip()
-        grupo['PRODUCTO_MAESTRO'] = grupo['PRODUCTO_MAESTRO'].fillna('').astype(str).str.strip()
+        grupo['PRODUCTO_MAESTRO'] = grupo['PRODUCTO_MAESTRO'].fillna('').astype(str).str.strip().apply(normalizar_producto_maestro)
 
         # Determinar cultivo comercial predominante del bloque (ej. HYPERICUM, VERONICA, etc.)
         prods_validos = [p for p in grupo['PRODUCTO_MAESTRO'] if p and p not in ('PROD.NUEVOS', 'VACIO', 'DISPONIBLE', 'ERRADICADO', 'DESCONOCIDA')]
@@ -404,10 +404,7 @@ def consolidar_camas_cultivo_df(df_ec):
                 s_fin = cama_records[i - 1]['sufijo']
                 suf_final = s_ini if (c_ini == c_fin or s_ini == s_fin) else ''
 
-                prod_final = cama_records[seg_start]['producto_maestro']
-                prod_norm = normalize_product_name(prod_final)
-                if prod_norm == 'VERONICA':
-                    prod_final = 'VERONICA'
+                prod_final = normalizar_producto_maestro(cama_records[seg_start]['producto_maestro'])
 
                 resultados.append({
                     'ZONA': clean_str(zona),
@@ -1469,17 +1466,30 @@ def obtener_datos_dashboard(semana):
         ORDER BY producto_maestro ASC;
     """), {'semana': semana}).fetchall()
 
-    productos_list = []
+    productos_map = {}
     for p in por_producto:
-        tot = p.total
-        productos_list.append({
-            'producto_maestro': p.producto_maestro,
-            'total': tot,
-            'cumplidas': p.cumplidas,
-            'incumplidas': p.incumplidas,
-            'pendientes': p.pendientes,
-            'pct': round((p.cumplidas / tot * 100), 1) if tot > 0 else 0
-        })
+        norm_pm = normalizar_producto_maestro(p.producto_maestro) or 'SIN PRODUCTO'
+        if norm_pm not in productos_map:
+            productos_map[norm_pm] = {
+                'producto_maestro': norm_pm,
+                'total': 0,
+                'cumplidas': 0,
+                'incumplidas': 0,
+                'pendientes': 0,
+                'pct': 0.0
+            }
+        entry_p = productos_map[norm_pm]
+        entry_p['total'] += int(p.total or 0)
+        entry_p['cumplidas'] += int(p.cumplidas or 0)
+        entry_p['incumplidas'] += int(p.incumplidas or 0)
+        entry_p['pendientes'] += int(p.pendientes or 0)
+
+    productos_list = []
+    for norm_pm in sorted(productos_map.keys()):
+        entry_p = productos_map[norm_pm]
+        tot = entry_p['total']
+        entry_p['pct'] = round((entry_p['cumplidas'] / tot * 100), 1) if tot > 0 else 0
+        productos_list.append(entry_p)
 
     por_personal = db.session.execute(text("""
         SELECT 
@@ -1636,18 +1646,32 @@ def obtener_datos_dashboard(semana):
         ORDER BY zona ASC, producto_maestro ASC;
     """), {'semana': semana}).fetchall()
 
-    zonas_por_cultivo = []
+    zonas_map = {}
     for zp in zona_prod_rows:
-        tot_zp = int(zp.total or 0)
-        zonas_por_cultivo.append({
-            'zona': zp.zona,
-            'producto_maestro': zp.producto_maestro,
-            'total': tot_zp,
-            'cumplidas': int(zp.cumplidas or 0),
-            'incumplidas': int(zp.incumplidas or 0),
-            'pendientes': int(zp.pendientes or 0),
-            'pct': round((zp.cumplidas / tot_zp * 100), 1) if tot_zp > 0 else 0.0
-        })
+        norm_pm = normalizar_producto_maestro(zp.producto_maestro) or 'SIN PRODUCTO'
+        key = (zp.zona, norm_pm)
+        if key not in zonas_map:
+            zonas_map[key] = {
+                'zona': zp.zona,
+                'producto_maestro': norm_pm,
+                'total': 0,
+                'cumplidas': 0,
+                'incumplidas': 0,
+                'pendientes': 0,
+                'pct': 0.0
+            }
+        z_entry = zonas_map[key]
+        z_entry['total'] += int(zp.total or 0)
+        z_entry['cumplidas'] += int(zp.cumplidas or 0)
+        z_entry['incumplidas'] += int(zp.incumplidas or 0)
+        z_entry['pendientes'] += int(zp.pendientes or 0)
+
+    zonas_por_cultivo = []
+    for (z_name, norm_pm) in sorted(zonas_map.keys()):
+        z_entry = zonas_map[(z_name, norm_pm)]
+        tot_zp = z_entry['total']
+        z_entry['pct'] = round((z_entry['cumplidas'] / tot_zp * 100), 1) if tot_zp > 0 else 0.0
+        zonas_por_cultivo.append(z_entry)
 
     # Tendencia semanal individual por Cultivo
     trend_prod_rows = db.session.execute(text("""
@@ -1662,15 +1686,24 @@ def obtener_datos_dashboard(semana):
         ORDER BY semana_anio ASC, producto_maestro ASC;
     """)).fetchall()
 
-    tendencia_por_cultivo = {}
+    trend_map = {}
     for tp in trend_prod_rows:
-        pm = tp.producto_maestro
-        if pm not in tendencia_por_cultivo:
-            tendencia_por_cultivo[pm] = []
-        tot_tp = int(tp.total or 0)
-        c_tp = int(tp.cumplidas or 0)
-        tendencia_por_cultivo[pm].append({
-            'semana': int(tp.semana_anio),
+        norm_pm = normalizar_producto_maestro(tp.producto_maestro) or 'SIN PRODUCTO'
+        sem = int(tp.semana_anio)
+        key = (norm_pm, sem)
+        if key not in trend_map:
+            trend_map[key] = {'total': 0, 'cumplidas': 0}
+        trend_map[key]['total'] += int(tp.total or 0)
+        trend_map[key]['cumplidas'] += int(tp.cumplidas or 0)
+
+    tendencia_por_cultivo = {}
+    for (norm_pm, sem), vals in sorted(trend_map.items()):
+        if norm_pm not in tendencia_por_cultivo:
+            tendencia_por_cultivo[norm_pm] = []
+        tot_tp = vals['total']
+        c_tp = vals['cumplidas']
+        tendencia_por_cultivo[norm_pm].append({
+            'semana': sem,
             'total': tot_tp,
             'cumplidas': c_tp,
             'pct': round((c_tp / tot_tp * 100), 1) if tot_tp > 0 else 0.0
@@ -1705,7 +1738,7 @@ def obtener_datos_dashboard(semana):
 
     for r in detalle_aux_rows:
         aux_name = r.auxiliar
-        prod_name = r.producto_maestro
+        prod_name = normalizar_producto_maestro(r.producto_maestro) or 'SIN PRODUCTO'
         cultivos_set.add(prod_name)
 
         if aux_name not in aux_matrix_map:
@@ -1769,6 +1802,8 @@ def obtener_datos_dashboard(semana):
             'actividad_tipo': r.actividad_tipo,
             'edad_real': r.edad_real,
             'labor': r.labor,
+            'cultivo': prod_name,
+            'producto_maestro': prod_name,
             'auxiliar': r.auxiliar or aux_name,
             'supervisor': r.supervisor or 'Sin Supervisor',
             'estado': estado_txt,

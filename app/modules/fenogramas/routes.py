@@ -12,6 +12,7 @@ from sqlalchemy import text
 from app.extensions import db
 from app.shared.models import User
 from app.shared.audit import record_audit
+from app.shared.utils import normalizar_producto_maestro
 from app.modules.auth.routes import login_required, permission_required, admin_required
 from app.modules.fenogramas.models import (
     SemanaEvaluacion, MatrizFenograma, PlanoCultivo, Calificacion
@@ -146,6 +147,7 @@ def index():
             raw_bloques[bl] = []
         raw_bloques[bl].append(item)
         if item.get('producto_maestro'):
+            item['producto_maestro'] = normalizar_producto_maestro(item['producto_maestro'])
             productos_set.add(item['producto_maestro'])
         if item.get('supervisor') and str(item['supervisor']).strip():
             responsables_set.add(str(item['supervisor']).strip())
@@ -796,7 +798,7 @@ def api_calificar_lote():
                         zona=zona_extra,
                         bloque=bloque_extra,
                         actividad_tipo=act_extra,
-                        producto_maestro=prod_extra or 'GYPSOPHILA',
+                        producto_maestro=normalizar_producto_maestro(prod_extra) or 'GYPSOPHILA',
                         cama_inicial=int(cama_ini) if (cama_ini is not None and str(cama_ini).isdigit()) else 1,
                         cama_final=int(cama_fin) if (cama_fin is not None and str(cama_fin).isdigit()) else 1,
                         sufijo=sufijo_extra,
@@ -1423,8 +1425,12 @@ def exportar_auxiliar_excel():
             params['auxiliar'] = auxiliar_param
 
     if cultivo_param and cultivo_param.upper() not in ('ALL', 'TODOS', 'TODOS LOS CULTIVOS', ''):
-        query += " AND (UPPER(TRIM(producto_maestro)) = UPPER(TRIM(:cultivo)) OR UPPER(TRIM(producto_maestro)) LIKE UPPER(TRIM(:cultivo)) || '%')"
-        params['cultivo'] = cultivo_param
+        norm_cult = normalizar_producto_maestro(cultivo_param)
+        if norm_cult == 'GYPSOPHILA':
+            query += " AND (UPPER(TRIM(producto_maestro)) IN ('GYPSOPHILA', 'BILLION LIGHT', 'BILLION LIGHTS', 'BILLION', 'G5', 'G49', 'G3', 'GYPSO XLENCE', 'MILLION STAR II', 'SMALL BLOOM') OR UPPER(TRIM(producto_maestro)) LIKE 'BILLION%' OR UPPER(TRIM(producto_maestro)) LIKE 'GYPSO%')"
+        else:
+            query += " AND (UPPER(TRIM(producto_maestro)) = UPPER(TRIM(:cultivo)) OR UPPER(TRIM(producto_maestro)) LIKE UPPER(TRIM(:cultivo)) || '%')"
+            params['cultivo'] = norm_cult
 
     query += " ORDER BY producto_maestro ASC, bloque ASC, cama_inicial ASC, id ASC;"
     rows = db.session.execute(text(query), params).fetchall()
