@@ -1115,13 +1115,10 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                             SELECT producto_maestro, tipo_evento, semana_campo, fecha_evento
                             FROM fact_eventos_cultivo
                             WHERE (codigo_bloque = :b OR codigo_bloque LIKE :b_prefix)
-                              AND tipo_evento IN ('SIEMBRA', 'PODA')
-                              AND producto_maestro IS NOT NULL
-                              AND UPPER(TRIM(producto_maestro)) NOT IN ('VACIO', 'ERRADICADO', 'SIN CULTIVO', '')
                             ORDER BY fecha_evento DESC, id_evento DESC
                             LIMIT 1;
                         """), {'b': b_code, 'b_prefix': f"{b_code}%"}).fetchone()
-                        if last_ev:
+                        if last_ev and last_ev.tipo_evento in ('SIEMBRA', 'PODA') and last_ev.producto_maestro and str(last_ev.producto_maestro).strip().upper() not in ('VACIO', 'ERRADICADO', 'SIN CULTIVO', ''):
                             norm_p = normalizar_producto_maestro(last_ev.producto_maestro)
                             act_name = 'Poda' if 'PODA' in (last_ev.tipo_evento or '').upper() else 'Siembra'
                             if last_ev.semana_campo:
@@ -1134,25 +1131,10 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                             else:
                                 edad_proy = 1
                         else:
-                            last_csr = db.session.execute(text("""
-                                SELECT crop_master, real_age, week, status_raw
-                                FROM crop_state_records
-                                WHERE (block_num = :b OR block_full LIKE :b_like)
-                                  AND crop_master IS NOT NULL
-                                  AND UPPER(TRIM(crop_master)) NOT IN ('VACIO', 'ERRADICADO', 'SIN CULTIVO', '')
-                                ORDER BY id DESC
-                                LIMIT 1;
-                            """), {'b': b_code, 'b_like': f"%{b_code}%"}).fetchone()
-                            if last_csr:
-                                norm_p = normalizar_producto_maestro(last_csr.crop_master)
-                                act_name = 'Poda' if 'PODA' in str(last_csr.status_raw or '').upper() else 'Siembra'
-                                yr_csr, wk_csr = _parse_week_code_to_tuple(last_csr.week, anio)
-                                delta = (anio - yr_csr) * 52 + (semana_corte - wk_csr)
-                                edad_proy = max(1, int(round(float(last_csr.real_age or 0))) + delta)
-                            else:
-                                norm_p = 'SIN CULTIVO'
-                                act_name = 'Siembra'
-                                edad_proy = 0
+                            # Si el último evento fue TUMBA o no tiene cultivo activo, no resucitar eventos antiguos
+                            norm_p = 'SIN CULTIVO'
+                            act_name = 'Siembra'
+                            edad_proy = 0
                     except Exception as e_recov:
                         norm_p = 'SIN CULTIVO'
                         act_name = 'Siembra'

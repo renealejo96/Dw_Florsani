@@ -18,7 +18,7 @@ import sys
 import re
 import unicodedata
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, text
@@ -141,6 +141,32 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
         sem_siem_excel = pd.to_numeric(row.get('sem_siem'), errors='coerce')
         sem_poda_excel = pd.to_numeric(row.get('sema_poda'), errors='coerce')
 
+        # Fallback robusto: Si fecha_siem es texto/blanco pero existe semana de siembra
+        if pd.isnull(f_siem) and pd.notnull(sem_siem_excel) and sem_siem_excel > 0:
+            s_val = int(sem_siem_excel)
+            y_s = 2000 + (s_val // 100) if s_val >= 2000 else 2026
+            w_s = s_val % 100 if s_val >= 2000 else s_val
+            if 1 <= w_s <= 53:
+                try:
+                    f_siem = pd.to_datetime(datetime.combine(date.fromisocalendar(y_s, w_s, 1), datetime.min.time()))
+                except Exception:
+                    pass
+
+        # Fallback robusto: Si fecha_poda es texto/blanco pero existe semana de poda
+        if pd.isnull(f_poda) and pd.notnull(sem_poda_excel) and sem_poda_excel > 0:
+            p_val = int(sem_poda_excel)
+            y_p = 2000 + (p_val // 100) if p_val >= 2000 else 2026
+            w_p = p_val % 100 if p_val >= 2000 else p_val
+            if 1 <= w_p <= 53:
+                try:
+                    f_poda = pd.to_datetime(datetime.combine(date.fromisocalendar(y_p, w_p, 1), datetime.min.time()))
+                except Exception:
+                    pass
+
+        is_empty_or_tumba = (actividad == 'VACIO' or prod_maestro.upper() in ('VACIO', 'ERRADICADO', 'NAN', ''))
+        area_prod_val = 'VACIO' if is_empty_or_tumba else (prod_maestro or 'GYPSOPHILA')
+        var_val = 'VACIO' if is_empty_or_tumba else variedad
+
         # Mantener métricas físicas de la cama sincronizadas con el archivo (particiones, cama estándar, metros)
         camas_a_sincronizar[id_cama] = {
             'id_cama': id_cama,
@@ -154,7 +180,9 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
             'metros_brutos': float(pd.to_numeric(row.get('metros_brutos', 30.0), errors='coerce') or 30.0),
             'ha': float(pd.to_numeric(row.get('ha', 0.0), errors='coerce') or 0.0),
             'zona': str(row.get('zona', 'SIN ZONA')).strip(),
-            'tecnico_de_riego': str(row.get('tecnico_de_riego', 'C1')).strip()
+            'tecnico_de_riego': str(row.get('tecnico_de_riego', 'C1')).strip(),
+            'area_producto_comercial': area_prod_val,
+            'variedad_comercial': var_val
         }
 
         # 1. SIEMBRA
@@ -234,16 +262,20 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
                 conn.execute(text("""
                     INSERT INTO dim_camas (
                         id_cama, codigo_bloque, id_finca, blq, sufijo, num_cama,
-                        cama_estandar, metros_netos, metros_brutos, ha, zona, tecnico_de_riego
+                        cama_estandar, metros_netos, metros_brutos, ha, zona, tecnico_de_riego,
+                        area_producto_comercial, variedad_comercial
                     ) VALUES (
                         :id_cama, :codigo_bloque, :id_finca, :blq, :sufijo, :num_cama,
-                        :cama_estandar, :metros_netos, :metros_brutos, :ha, :zona, :tecnico_de_riego
+                        :cama_estandar, :metros_netos, :metros_brutos, :ha, :zona, :tecnico_de_riego,
+                        :area_producto_comercial, :variedad_comercial
                     ) ON CONFLICT (id_cama) DO UPDATE SET
                         cama_estandar = EXCLUDED.cama_estandar,
                         metros_netos = EXCLUDED.metros_netos,
                         metros_brutos = EXCLUDED.metros_brutos,
                         ha = EXCLUDED.ha,
-                        zona = COALESCE(EXCLUDED.zona, dim_camas.zona);
+                        zona = COALESCE(EXCLUDED.zona, dim_camas.zona),
+                        area_producto_comercial = EXCLUDED.area_producto_comercial,
+                        variedad_comercial = EXCLUDED.variedad_comercial;
                 """), c)
 
         # Insertar nuevos eventos

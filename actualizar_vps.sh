@@ -45,6 +45,9 @@ docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_fin
 echo "🌾 Sincronizando universalmente particiones de cultivo y conteo de plantas en toda la finca..."
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_ajustes_cultivo.py || true
 
+echo "🌱 Blindando siembras reales de Zona 3 (Bloques 36, 38C, 39E) y calibrando Fenograma Semana 45..."
+docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_siembras_zona3_y_blindaje.py || true
+
 echo "💰 Sincronizando catálogo maestro de costos, factores tras y bodegas de insumos..."
 docker cp "costos productos.xlsx" dw_florsani_app:/app/ 2>/dev/null || true
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_costos_productos.py || true
