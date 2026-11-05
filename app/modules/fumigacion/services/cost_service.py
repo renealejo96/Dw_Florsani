@@ -276,17 +276,55 @@ class CostService:
                 """)).scalar()
 
             rows = db.session.execute(text("""
-                SELECT UPPER(TRIM(producto_comercial)), ha 
+                SELECT UPPER(TRIM(producto_comercial)), UPPER(TRIM(COALESCE(producto_grupo, producto_comercial))), ha 
                 FROM dim_distribucion_areas 
                 WHERE es_cultivo = TRUE AND semana_iso = :w
             """), {'w': target_week}).fetchall()
-            return {r[0]: float(r[1]) for r in rows}
+
+            areas = {}
+            grupo_sums = {}
+            for r in rows:
+                p_com = str(r[0]).upper().strip()
+                p_grp = str(r[1]).upper().strip()
+                h_val = float(r[2] or 0.0)
+                areas[p_com] = h_val
+                grupo_sums[p_grp] = round(grupo_sums.get(p_grp, 0.0) + h_val, 4)
+
+            # Consolidar producto maestro GYPSOPHILA (Billion Lights + G49 + G5 = 4.55 ha)
+            gyp_total = grupo_sums.get('GYPSOPHILA', 0.0)
+            if gyp_total <= 0:
+                gyp_total = round(areas.get('BILLION LIGHTS', 0.0) + areas.get('G49', 0.0) + areas.get('G5', 0.0), 4)
+            if gyp_total > 0:
+                areas['GYPSOPHILA'] = gyp_total
+                areas['GYPSOPHILAS'] = gyp_total
+
+            # Consolidar producto maestro VERONICA (Veronica + Veronica Splash = 5.13 ha)
+            ver_total = grupo_sums.get('VERONICA', 0.0)
+            if ver_total <= 0:
+                ver_total = round(areas.get('VERONICA', 0.0) + areas.get('VERONICA SPLASH', 0.0), 4)
+            if ver_total > 0:
+                areas['VERONICA'] = ver_total
+                areas['VERONICAS'] = ver_total
+
+            # Consolidar alias plurales y singulares
+            for k, v in list(areas.items()):
+                if k.endswith('S') and k[:-1] not in areas:
+                    areas[k[:-1]] = v
+                elif not k.endswith('S') and (k + 'S') not in areas:
+                    areas[k + 'S'] = v
+
+            return areas
         except Exception:
             return {
                 'SOLIDAGO': 4.60,
+                'SOLIDAGOS': 4.60,
                 'HYPERICUM': 5.61,
-                'VERONICA': 3.63,
+                'HYPERICUMS': 5.61,
+                'VERONICA': 5.13,
+                'VERONICAS': 5.13,
                 'VERONICA SPLASH': 1.50,
+                'GYPSOPHILA': 4.55,
+                'GYPSOPHILAS': 4.55,
                 'BILLION LIGHTS': 4.12,
                 'G49': 0.31,
                 'G5': 0.12,
@@ -605,7 +643,17 @@ class CostService:
                         blocks_treated_set.add(raw_blk)
                         b_info = area_map.get(raw_blk, {'ha': 0.0, 'zona': seg.get('zone', '')})
                         b_ha = b_info['ha']
-                        c_nom = str(seg.get('crop_name', 'VARIOS')).strip().upper()
+                        raw_c = str(seg.get('crop_name', 'VARIOS')).strip().upper()
+                        if any(k in raw_c for k in ['GYPSO', 'BILLION', 'XLENCE']) or raw_c in ('G5', 'G49'):
+                            c_nom = 'GYPSOPHILA'
+                        elif 'VERONICA' in raw_c:
+                            c_nom = 'VERONICA'
+                        elif 'SOLIDAGO' in raw_c:
+                            c_nom = 'SOLIDAGO'
+                        elif 'HYPERICUM' in raw_c:
+                            c_nom = 'HYPERICUM'
+                        else:
+                            c_nom = raw_c
 
                         seg_liters = float(seg.get('total_liters', 0.0))
                         seg_cost = round((seg_liters / rd_liters) * rd_cost, 2)

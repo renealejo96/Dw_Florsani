@@ -1010,6 +1010,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const a = normCrop(cropA);
         const b = normCrop(cropB);
         if (a === b) return true;
+
+        // Homologación oficial de Gypsophila y sus variedades comerciales (Billion Lights, G49, G5, Small Bloom)
+        const isGypA = a.includes('GYPSO') || a.includes('BILLION') || a === 'G5' || a === 'G49';
+        const isGypB = b.includes('GYPSO') || b.includes('BILLION') || b === 'G5' || b === 'G49';
+        if (isGypA && isGypB) return true;
+
+        // Homologación oficial de Verónica (Veronica, Veronica Splash)
+        const isVerA = a.includes('VERONICA');
+        const isVerB = b.includes('VERONICA');
+        if (isVerA && isVerB) return true;
+
         const aNoS = a.endsWith('S') ? a.slice(0, -1) : a;
         const bNoS = b.endsWith('S') ? b.slice(0, -1) : b;
         return aNoS === bNoS || a.startsWith(bNoS) || b.startsWith(aNoS);
@@ -1020,13 +1031,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const target = cropName.toUpperCase().trim();
         if (dataMap[target] !== undefined) return dataMap[target];
 
-        const targetNorm = normCrop(target);
-        const targetNoS = targetNorm.endsWith('S') ? targetNorm.slice(0, -1) : targetNorm;
-
         for (const [k, v] of Object.entries(dataMap)) {
-            const kNorm = normCrop(k);
-            const kNoS = kNorm.endsWith('S') ? kNorm.slice(0, -1) : kNorm;
-            if (kNorm === targetNorm || kNoS === targetNoS || kNorm.startsWith(targetNoS) || targetNorm.startsWith(kNoS)) {
+            if (isCropMatch(k, target)) {
                 return v;
             }
         }
@@ -1350,7 +1356,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let baseList = (modo === 'ALL' || query.length > 0) ? allBlocksGlobal : topBlocksGlobal;
 
         if (activeSegmentedCrop) {
-            baseList = allBlocksGlobal.filter(b => (b.crop || '').toUpperCase().includes(activeSegmentedCrop));
+            baseList = allBlocksGlobal.filter(b => isCropMatch(b.crop || '', activeSegmentedCrop));
         }
 
         if (query) {

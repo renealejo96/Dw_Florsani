@@ -953,20 +953,26 @@ def create_app(config_class=Config):
                 kpi_area_camas_by_crop['VERONICAS'] = {'ha': v_tot, 'camas': v_camas, 'bloques': v_blqs}
                 kpi_area_camas_by_crop['VERONICA'] = {'ha': v_tot, 'camas': v_camas, 'bloques': v_blqs}
 
-            # Consolidado de GYPSOPHILA: BILLION LIGHTS (4.12) + G49 (0.31) + G5 (0.12) = 4.55 ha
-            bl_ha = kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('ha', 0.0)
-            g49_ha = kpi_area_camas_by_crop.get('G49', {}).get('ha', 0.0)
-            g5_ha = kpi_area_camas_by_crop.get('G5', {}).get('ha', 0.0)
-            gyp_tot = round(bl_ha + g49_ha + g5_ha, 2)
-            if gyp_tot > 0:
-                gyp_camas = (kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('camas', 0) +
-                             kpi_area_camas_by_crop.get('G49', {}).get('camas', 0) +
-                             kpi_area_camas_by_crop.get('G5', {}).get('camas', 0))
-                gyp_blqs = (kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('bloques', 0) +
-                            kpi_area_camas_by_crop.get('G49', {}).get('bloques', 0) +
-                            kpi_area_camas_by_crop.get('G5', {}).get('bloques', 0))
-                kpi_area_camas_by_crop['GYPSOPHILA'] = {'ha': gyp_tot, 'camas': gyp_camas, 'bloques': gyp_blqs}
-                kpi_area_camas_by_crop['GYPSOPHILAS'] = {'ha': gyp_tot, 'camas': gyp_camas, 'bloques': gyp_blqs}
+            # Consolidado unificado de GYPSOPHILA (Billion Lights + G49 + G5 = 4.55 ha)
+            gyp_entry = kpi_area_camas_by_crop.get('GYPSOPHILA') or kpi_area_camas_by_crop.get('GYPSOPHILAS')
+            if not gyp_entry or float(gyp_entry.get('ha', 0.0)) <= 0:
+                bl_ha = kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('ha', 0.0)
+                g49_ha = kpi_area_camas_by_crop.get('G49', {}).get('ha', 0.0)
+                g5_ha = kpi_area_camas_by_crop.get('G5', {}).get('ha', 0.0)
+                gyp_tot = round(bl_ha + g49_ha + g5_ha, 2)
+                if gyp_tot > 0:
+                    gyp_camas = (kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('camas', 0) +
+                                 kpi_area_camas_by_crop.get('G49', {}).get('camas', 0) +
+                                 kpi_area_camas_by_crop.get('G5', {}).get('camas', 0))
+                    gyp_blqs = (kpi_area_camas_by_crop.get('BILLION LIGHTS', {}).get('bloques', 0) +
+                                kpi_area_camas_by_crop.get('G49', {}).get('bloques', 0) +
+                                kpi_area_camas_by_crop.get('G5', {}).get('bloques', 0))
+                    gyp_entry = {'ha': gyp_tot, 'camas': gyp_camas, 'bloques': gyp_blqs}
+            if gyp_entry:
+                kpi_area_camas_by_crop['GYPSOPHILA'] = gyp_entry
+                kpi_area_camas_by_crop['GYPSOPHILAS'] = gyp_entry
+                kpi_area_camas_by_crop['BILLION LIGHTS'] = gyp_entry
+                kpi_area_camas_by_crop['BILLION'] = gyp_entry
         except Exception:
             pass
 
@@ -1012,6 +1018,24 @@ def create_app(config_class=Config):
                     kpi_costos_by_crop.setdefault(c_nom + 'S', item)
                 first_tok = c_nom.split()[0].replace('-', ' ')
                 kpi_costos_by_crop.setdefault(first_tok, item)
+
+        # Homologar alias recíprocos de GYPSOPHILA en todas las dimensiones Bento
+        feno_gyp = kpi_feno_by_crop.get('GYPSOPHILA') or kpi_feno_by_crop.get('GYPSOPHILAS')
+        if feno_gyp:
+            kpi_feno_by_crop['BILLION LIGHTS'] = feno_gyp
+            kpi_feno_by_crop['BILLION'] = feno_gyp
+
+        gyp_cos = kpi_cosecha_by_crop.get('GYPSOPHILA') or kpi_cosecha_by_crop.get('GYPSOPHILAS') or kpi_cosecha_by_crop.get('BILLION LIGHTS')
+        if gyp_cos:
+            kpi_cosecha_by_crop['GYPSOPHILA'] = gyp_cos
+            kpi_cosecha_by_crop['GYPSOPHILAS'] = gyp_cos
+            kpi_cosecha_by_crop['BILLION LIGHTS'] = gyp_cos
+            kpi_cosecha_by_crop['BILLION'] = gyp_cos
+
+        cost_gyp = kpi_costos_by_crop.get('GYPSOPHILA') or kpi_costos_by_crop.get('GYPSOPHILAS')
+        if cost_gyp:
+            kpi_costos_by_crop['BILLION LIGHTS'] = cost_gyp
+            kpi_costos_by_crop['BILLION'] = cost_gyp
 
         kpi_cosecha_by_crop_json = json.dumps(dict(kpi_cosecha_by_crop))
         kpi_feno_by_crop_json = json.dumps(kpi_feno_by_crop)
