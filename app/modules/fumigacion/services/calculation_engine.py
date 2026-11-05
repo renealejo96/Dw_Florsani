@@ -390,7 +390,30 @@ class CalculationEngine:
             if mr:
                 u_ev = str(mr[5] or '').strip().upper()
                 p_act = str(mr[3] or '').strip().upper()
-                if u_ev == 'TUMBA' or p_act in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', ''):
+                is_mr_tumba = (u_ev == 'TUMBA' or p_act in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', ''))
+                if is_mr_tumba:
+                    # Si el registro de censo r tiene un cultivo activo, verificar si el evento TUMBA es anterior
+                    census_crop = str(r.crop_master or '').strip().upper()
+                    if census_crop not in ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', '', 'DESCARTE', 'TUMBAR'):
+                        ev_week_num = None
+                        if mr[6]:
+                            s_str = str(mr[6]).strip()
+                            if len(s_str) == 4 and s_str.isdigit():
+                                ev_week_num = int(s_str[2:])
+                            elif s_str.isdigit():
+                                ev_week_num = int(s_str)
+                        census_wk = target_week
+                        if r.week:
+                            nums = re.findall(r'\d+', str(r.week))
+                            if len(nums) >= 2:
+                                census_wk = int(nums[1])
+                            elif len(nums) == 1:
+                                v_n = int(nums[0])
+                                census_wk = (v_n % 100) if v_n > 2000 else v_n
+                        if ev_week_num and ev_week_num <= census_wk:
+                            is_mr_tumba = False
+
+                if is_mr_tumba:
                     continue
 
                 proj_age = None

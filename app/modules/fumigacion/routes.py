@@ -793,6 +793,29 @@ def rotacion_sincronizar_bloques(rotation_id):
         nuevos_agregados = 0
         actualizados = 0
 
+        # Obtener bloques que ya estaban activos en censos previos para no resucitar
+        # bloques que el agronomo deliberadamente saco/descarto de la rotacion
+        prev_snapshot_active_blocks = set()
+        try:
+            all_snaps = [w[0] for w in db.session.query(CropStateRecord.week).distinct().order_by(CropStateRecord.week.desc()).all() if w[0]]
+            prev_snaps = [sw for sw in all_snaps if sw != rot_week and get_week_difference(rot_week, sw) > 0]
+            if prev_snaps:
+                prev_active_rows = db.session.execute(text("""
+                    SELECT DISTINCT COALESCE(NULLIF(TRIM(block_num), ''), TRIM(block_full)) as blq,
+                                    COALESCE(NULLIF(TRIM(suffix), ''), 'A') as suf,
+                                    UPPER(TRIM(crop_master)) as crop
+                    FROM crop_state_records
+                    WHERE week IN :pws
+                      AND crop_master IS NOT NULL
+                      AND UPPER(TRIM(crop_master)) NOT IN ('VACIO', 'ERRADICADO', 'TOTAL', 'NAN', '', 'DESCARTE', 'TUMBAR');
+                """).bindparams(bindparam('pws', expanding=True)), {'pws': prev_snaps[:2]}).fetchall()
+                for ab in prev_active_rows:
+                    b_clean = clean_block_name(ab[0], ab[1])
+                    c_norm = CalculationEngine.normalize_crop_name(ab[2])
+                    prev_snapshot_active_blocks.add((b_clean, str(ab[1] or 'A').strip().upper(), c_norm))
+        except Exception as e_prev:
+            print(f"[WARN] Error consultando censos previos en rotacion_sincronizar_bloques: {e_prev}")
+
         # Para cada vuelta, calcular los segmentos frescos base desde el censo proyectado
         for r in all_rounds:
             r_key = str(r.id)
@@ -826,17 +849,13 @@ def rotacion_sincronizar_bloques(rotation_id):
                 c_n = CalculationEngine.normalize_crop_name(fs.get('crop_name') or '')
                 key_seg = (c_b, suf, c_n)
 
-                if key_seg not in existing_map:
-                    # Segmento o bloque completamente nuevo (ej. bloque 154 sembrado)
-                    existing_segs.append(fs)
-                    nuevos_agregados += 1
-                else:
-                    # Segmento existente: Si en el censo tiene mas camas que en el borrador previo
+                if key_seg in existing_map:
+                    # Segmento existente: Si en el censo cambio el rango o numero de camas
                     # (ej. antes solo 41 y 75-77, ahora 1-77), actualizamos camas sin tocar productos/dosis
                     idx, es = existing_map[key_seg]
                     f_beds = safe_int(fs.get('bed_count'), 0)
                     e_beds = safe_int(es.get('bed_count'), 0)
-                    if f_beds > e_beds or safe_int(es.get('bed_start'), 0) != safe_int(fs.get('bed_start'), 0):
+                    if f_beds != e_beds or safe_int(es.get('bed_start'), 0) != safe_int(fs.get('bed_start'), 0) or safe_int(es.get('bed_end'), 0) != safe_int(fs.get('bed_end'), 0):
                         es['bed_start'] = fs.get('bed_start')
                         es['bed_end'] = fs.get('bed_end')
                         es['bed_count'] = fs.get('bed_count')
@@ -844,7 +863,21 @@ def rotacion_sincronizar_bloques(rotation_id):
                         es['real_age'] = fs.get('real_age')
                         es['activity_type'] = fs.get('activity_type')
                         es['ultimo_evento'] = fs.get('ultimo_evento')
+                        
+                        # Recalcular total_liters respetando los litros_per_bed configurados
+                        lit_b = safe_float(es.get('liters_per_bed'), 0.0)
+                        if lit_b > 0:
+                            raw_lit = safe_float(es['standard_beds'], 0.0) * lit_b
+                            es['total_liters'] = round_to_tank_step(raw_lit, step=20)
                         actualizados += 1
+                else:
+                    # Segmento no está en existing_segs:
+                    # Solo lo incorporamos si es un bloque NUEVO (no estaba activo en censos previos, ej. recien sembrado 154)
+                    # Si ya estaba activo previamente, significa que el agronomo lo descarto deliberadamente
+                    is_known_excluded = (c_b, suf, c_n) in prev_snapshot_active_blocks or (c_b, 'A', c_n) in prev_snapshot_active_blocks
+                    if not is_known_excluded:
+                        existing_segs.append(fs)
+                        nuevos_agregados += 1
 
             review_by_round[r_key] = existing_segs
 

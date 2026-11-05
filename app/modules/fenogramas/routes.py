@@ -64,14 +64,19 @@ def index():
         semanas = [{'semana_anio': sem_cal_hoy_default, 'estado': 'ABIERTA'}]
 
     semanas_list = [s['semana_anio'] for s in semanas]
+    semanas_abiertas = [s['semana_anio'] for s in semanas if s.get('estado') == 'ABIERTA']
     semana_arg = request.args.get('semana', type=int)
     if semana_arg and semana_arg in semanas_list:
         semana = semana_arg
         session['fenogramas_semana_activa'] = semana
+    elif session.get('fenogramas_semana_activa') in semanas_abiertas:
+        semana = session.get('fenogramas_semana_activa')
+    elif semanas_abiertas:
+        semana = semanas_abiertas[-1]
+        session['fenogramas_semana_activa'] = semana
     elif session.get('fenogramas_semana_activa') in semanas_list:
         semana = session.get('fenogramas_semana_activa')
     else:
-        # Por defecto seleccionar la semana actual
         semanas_actuales = [s for s in semanas_list if s <= sem_cal_hoy_default]
         semana = semanas_actuales[-1] if semanas_actuales else (semanas_list[-1] if semanas_list else sem_cal_hoy_default)
         session['fenogramas_semana_activa'] = semana
@@ -827,9 +832,6 @@ def api_calificar_lote():
                         calif.tiene_evaluacion = True
                         calif.fecha_calificacion = now_utc
                 else:
-                    if not calif.labor or calif.labor == 'No hay actividad':
-                        # Omitir filas sin labor programada (no evaluables)
-                        continue
                     calif.cumplido = cumplido
                     calif.observacion = obs
                     calif.tiene_evaluacion = True

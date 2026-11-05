@@ -3026,11 +3026,20 @@ async function guardarCambiosSmart() {
         showFenoToast('No hay cambios pendientes por guardar.');
         return;
     }
+    // Siempre asegurar respaldo local primero por seguridad absoluta ante microcortes
+    persistOfflineChanges();
+
     if (navigator.onLine) {
-        showFenoToast('Guardando directamente en el servidor...');
-        await saveAllChanges();
+        showFenoToast('Guardando directamente en el servidor...', false);
+        try {
+            await saveAllChanges();
+        } catch (err) {
+            console.warn('[FENO] Fallo guardado directo online, respaldado localmente:', err);
+            const count = modifiedItems.size;
+            showFenoToast(`💾 Guardado en tablet (${count} evaluaciones sin internet). Pulsa 'Sincronizar' al regresar a la oficina.`);
+            updateSaveButtonsUI(false);
+        }
     } else {
-        persistOfflineChanges();
         const count = modifiedItems.size;
         showFenoToast(`💾 Guardado en tablet (${count} evaluaciones sin internet). Pulsa 'Sincronizar' al regresar a la oficina.`);
         updateSaveButtonsUI(false);
@@ -3500,10 +3509,20 @@ async function saveAllChanges(isForced = false) {
                 const selLabor = document.getElementById(`sel-labor-${item.id}`);
                 const row = document.getElementById(`row-${item.id}`);
 
-                if (btn) btn.setAttribute('data-original-val', item.cumplido === null ? 'null' : String(item.cumplido));
-                if (obsInput) obsInput.setAttribute('data-original-obs', item.observacion);
-                if (selLabor && item.labor) selLabor.setAttribute('data-original-labor', item.labor);
-                if (row) row.classList.remove('row-dirty');
+                const savedVal = item.cumplido === null ? 'null' : String(item.cumplido);
+                if (btn) {
+                    btn.setAttribute('data-original-val', savedVal);
+                    btn.setAttribute('data-current-val', savedVal);
+                }
+                if (obsInput) {
+                    obsInput.setAttribute('data-original-obs', item.observacion || '');
+                }
+                if (selLabor && item.labor) {
+                    selLabor.setAttribute('data-original-labor', item.labor);
+                }
+                if (row) {
+                    row.classList.remove('row-dirty');
+                }
             });
 
             affectedBlocks.forEach(blq => recalculateBlockMetrics(blq));
@@ -4044,6 +4063,63 @@ function eliminarFilaCalificacion(itemId, bloqueCode) {
     })
     .catch(err => {
         alert('Error de red al eliminar labor: ' + err);
+    });
+}
+
+function ejecutarSincronizarPlanoActual(targetWeek) {
+    const sem = parseInt(targetWeek || '{{ semana }}', 10);
+    if (!sem || sem < 1 || sem > 53) {
+        showFenoToast('Semana no válida para sincronizar.', true);
+        return;
+    }
+    const btn = document.getElementById('btn-sync-current-plano');
+    const originalHtml = btn ? btn.innerHTML : '';
+
+    if (!confirm(`¿Sincronizar camas, edades y cultivos del último Estado de Cultivo para la Semana ${sem}?\n\nTodas las evaluaciones ya calificadas en esta semana se conservarán intactas al 100%.`)) {
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Sincronizando...';
+    }
+
+    fetch('{{ url_for("fenogramas.api_generar_desde_fact") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            semana_corte: sem,
+            fuente: 'AUTO',
+            anio: 2026,
+            forzar_limpieza: false
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            try { 
+                localStorage.removeItem(`feno_offline_sync_${sem}`); 
+                localStorage.removeItem(`feno_backup_hist_${sem}`);
+                if (window.FenoIndexedDB) FenoIndexedDB.clear(sem);
+            } catch(e){}
+            showFenoToast(data.message || `Semana ${sem} sincronizada exitosamente con el último Estado de Cultivo.`);
+            setTimeout(() => {
+                window.location.reload();
+            }, 600);
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+            showFenoToast(data.error || 'No se pudo sincronizar el plano actual.', true);
+        }
+    })
+    .catch(err => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+        showFenoToast('Error de conexión al sincronizar plano: ' + err, true);
     });
 }
 

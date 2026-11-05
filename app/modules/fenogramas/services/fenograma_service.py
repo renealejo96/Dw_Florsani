@@ -1106,18 +1106,70 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
             s_code = str(pb.sufijo or 'A').strip().upper()
             if (b_code, s_code) not in existing_blq_set:
                 norm_p = normalizar_producto_maestro(pb.prod_com)
+                act_name = 'Siembra'
+                edad_proy = 0
                 if norm_p in ('VACIO', 'SIN CULTIVO', ''):
-                    norm_p = 'SIN CULTIVO'
+                    # Recuperar último cultivo, evento y edad activa desde fact_eventos_cultivo
+                    try:
+                        last_ev = db.session.execute(text("""
+                            SELECT producto_maestro, tipo_evento, semana_campo, fecha_evento
+                            FROM fact_eventos_cultivo
+                            WHERE (codigo_bloque = :b OR codigo_bloque LIKE :b_prefix)
+                              AND tipo_evento IN ('SIEMBRA', 'PODA')
+                              AND producto_maestro IS NOT NULL
+                              AND UPPER(TRIM(producto_maestro)) NOT IN ('VACIO', 'ERRADICADO', 'SIN CULTIVO', '')
+                            ORDER BY fecha_evento DESC, id_evento DESC
+                            LIMIT 1;
+                        """), {'b': b_code, 'b_prefix': f"{b_code}%"}).fetchone()
+                        if last_ev:
+                            norm_p = normalizar_producto_maestro(last_ev.producto_maestro)
+                            act_name = 'Poda' if 'PODA' in (last_ev.tipo_evento or '').upper() else 'Siembra'
+                            if last_ev.semana_campo:
+                                yr_ev, wk_ev = _parse_week_code_to_tuple(last_ev.semana_campo, anio)
+                                edad_proy = max(1, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
+                            elif last_ev.fecha_evento:
+                                dt = last_ev.fecha_evento
+                                yr_ev, wk_ev = dt.isocalendar()[0], dt.isocalendar()[1]
+                                edad_proy = max(1, (anio - yr_ev) * 52 + (semana_corte - wk_ev))
+                            else:
+                                edad_proy = 1
+                        else:
+                            last_csr = db.session.execute(text("""
+                                SELECT crop_master, real_age, week, status_raw
+                                FROM crop_state_records
+                                WHERE (block_num = :b OR block_full LIKE :b_like)
+                                  AND crop_master IS NOT NULL
+                                  AND UPPER(TRIM(crop_master)) NOT IN ('VACIO', 'ERRADICADO', 'SIN CULTIVO', '')
+                                ORDER BY id DESC
+                                LIMIT 1;
+                            """), {'b': b_code, 'b_like': f"%{b_code}%"}).fetchone()
+                            if last_csr:
+                                norm_p = normalizar_producto_maestro(last_csr.crop_master)
+                                act_name = 'Poda' if 'PODA' in str(last_csr.status_raw or '').upper() else 'Siembra'
+                                yr_csr, wk_csr = _parse_week_code_to_tuple(last_csr.week, anio)
+                                delta = (anio - yr_csr) * 52 + (semana_corte - wk_csr)
+                                edad_proy = max(1, int(round(float(last_csr.real_age or 0))) + delta)
+                            else:
+                                norm_p = 'SIN CULTIVO'
+                                act_name = 'Siembra'
+                                edad_proy = 0
+                    except Exception as e_recov:
+                        norm_p = 'SIN CULTIVO'
+                        act_name = 'Siembra'
+                        edad_proy = 0
+
                 min_c = int(pb.min_cama or 1)
-                camas_map[(b_code, min_c, s_code)] = {
-                    'ZONA': clean_str(pb.zona),
-                    'BLOQUE': b_code,
-                    'SUFIJO': s_code,
-                    'NUM_CAMA': min_c,
-                    'ACTIVIDAD': 'Siembra',
-                    'PRODUCTO_MAESTRO': norm_p,
-                    'EDAD_REAL': 0
-                }
+                max_c = int(pb.max_cama or min_c)
+                for nc in range(min_c, max_c + 1):
+                    camas_map[(b_code, nc, s_code)] = {
+                        'ZONA': clean_str(pb.zona),
+                        'BLOQUE': b_code,
+                        'SUFIJO': s_code,
+                        'NUM_CAMA': nc,
+                        'ACTIVIDAD': act_name,
+                        'PRODUCTO_MAESTRO': norm_p,
+                        'EDAD_REAL': edad_proy
+                    }
     except Exception as e_phys:
         print(f"[WARN] Error asegurando bloques fisicos completos en fenograma: {e_phys}")
 
