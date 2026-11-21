@@ -152,6 +152,10 @@ class Product(db.Model):
     dose_drench = db.Column(db.Float, nullable=True)
     dose_trichos = db.Column(db.Float, nullable=True)
     dose_solidos = db.Column(db.Float, nullable=True)
+    dose_moshe = db.Column(db.Float, nullable=True)
+    dose_alcaplant = db.Column(db.Float, nullable=True)
+    dose_presiembra = db.Column(db.Float, nullable=True)
+    dose_diferenciada = db.Column(db.Float, nullable=True)
     dose_desinfecciones = db.Column(db.Float, nullable=True)
     pest = db.Column(db.String(150), nullable=True)
     active_ingredient = db.Column(db.String(200), nullable=True)
@@ -195,6 +199,10 @@ class Product(db.Model):
             'dose_drench': self.dose_drench,
             'dose_trichos': self.dose_trichos,
             'dose_solidos': self.dose_solidos,
+            'dose_moshe': self.dose_moshe,
+            'dose_alcaplant': self.dose_alcaplant,
+            'dose_presiembra': self.dose_presiembra,
+            'dose_diferenciada': self.dose_diferenciada,
             'dose_desinfecciones': self.dose_desinfecciones,
             'pest': self.pest or '',
             'active_ingredient': self.active_ingredient or '',
@@ -250,11 +258,13 @@ class CropStateRecord(db.Model):
     zone = db.Column(db.String(100), nullable=True, index=True)
     real_age = db.Column(db.Float, nullable=True, index=True)
     status_raw = db.Column(db.String(100), nullable=True)
+    id_finca = db.Column(db.Integer, default=1, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=get_local_now)
 
     def to_dict(self):
         return {
             'id': self.id,
+            'id_finca': self.id_finca,
             'week': self.week,
             'block_full': self.block_full,
             'block_num': self.block_num,
@@ -295,6 +305,12 @@ class Rotation(db.Model):
     is_salidas_dispatched = db.Column(db.Boolean, default=False, nullable=False)
     salidas_dispatched_at = db.Column(db.DateTime, nullable=True)
     salidas_dispatched_by = db.Column(db.String(100), nullable=True)
+    is_fertilizacion_printed = db.Column(db.Boolean, default=False, nullable=True)
+    fertilizacion_printed_at = db.Column(db.DateTime, nullable=True)
+    fertilizacion_printed_by = db.Column(db.String(100), nullable=True)
+    is_fertilizacion_digitadas = db.Column(db.Boolean, default=False, nullable=True)
+    fertilizacion_digitadas_at = db.Column(db.DateTime, nullable=True)
+    fertilizacion_digitadas_by = db.Column(db.String(100), nullable=True)
     weighed_products_json = db.Column(db.Text, nullable=True)  # JSON array of weighed product codes ['PROD1', 'PROD2']
     created_at = db.Column(db.DateTime, default=get_local_now)
     updated_at = db.Column(db.DateTime, default=get_local_now, onupdate=get_local_now)

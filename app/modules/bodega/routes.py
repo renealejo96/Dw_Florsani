@@ -58,7 +58,9 @@ def salidas():
             total_beds=0.0,
             trichos_calibracion_ordenada=[],
             trichos_calibracion_tecnicos=[],
-            trichos_calibracion_bombas=[]
+            trichos_calibracion_bombas=[],
+            fertilizacion_consolidado_productos=[],
+            fertilizacion_programas_oficiales=[]
         )
 
     # Determine which rotation to display
@@ -229,7 +231,7 @@ def salidas():
 
     # Obtener calibración de Trichos y Sólidos para esta semana (para Kelly / Almacén & Estadística)
     from app.modules.fertilizacion.models import DrenchItem
-    from app.modules.fertilizacion.routes import procesar_calibracion_fertilizacion
+    from app.modules.fertilizacion.routes import procesar_calibracion_fertilizacion, obtener_programas_oficiales_fertilizacion
     w_target = str(current_rot.week).strip()
     w_clean = w_target.replace('-', '').replace('20', '', 1) if w_target.startswith('20') else w_target
     drench_records = DrenchItem.query.filter(
@@ -240,6 +242,49 @@ def salidas():
         )
     ).all()
     trichos_calibracion_ordenada, trichos_calibracion_tecnicos, trichos_calibracion_bombas = procesar_calibracion_fertilizacion(drench_records)
+    fertilizacion_programas_oficiales = obtener_programas_oficiales_fertilizacion(trichos_calibracion_bombas)
+
+    # Consolidado de insumos de fertilización para bodega (pesaje y despacho unificado)
+    # REGLA ESTRICTA: Solo los insumos de los programas asignados/guardados por agronomía van al despacho
+    ferti_prods_dict = {}
+    for prog in fertilizacion_programas_oficiales:
+        for p in prog.get('productos', []):
+            p_name = (p.get('name') or '').strip().upper()
+            p_unit = p.get('unit', 'GR')
+            p_qty = float(p.get('total_cantidad', 0.0))
+            if not p_name or p_qty <= 0:
+                continue
+            if p_name not in ferti_prods_dict:
+                p_match = Product.query.filter(
+                    db.or_(
+                        Product.commercial_name.ilike(p_name),
+                        Product.code.ilike(p_name)
+                    ),
+                    Product.is_active == True
+                ).first()
+                p_code = p_match.code if p_match else p_name
+                ferti_prods_dict[p_name] = {
+                    'product_code': p_code,
+                    'commercial_name': p_match.commercial_name if p_match else p_name,
+                    'unit': p_unit,
+                    'total_quantity': 0.0,
+                    'tecnicos': set()
+                }
+            ferti_prods_dict[p_name]['total_quantity'] += p_qty
+            for t in prog.get('tecnicos', []):
+                ferti_prods_dict[p_name]['tecnicos'].add(t)
+
+    fertilizacion_consolidado_productos = sorted(
+        [
+            {
+                **v,
+                'total_quantity': round(v['total_quantity'], 2),
+                'tecnicos_str': ', '.join(sorted(list(v['tecnicos'])))
+            }
+            for v in ferti_prods_dict.values()
+        ],
+        key=lambda x: x['commercial_name']
+    )
 
     return render_template(
         'bodega/salidas.html',
@@ -264,7 +309,9 @@ def salidas():
         total_beds=total_beds,
         trichos_calibracion_ordenada=trichos_calibracion_ordenada,
         trichos_calibracion_tecnicos=trichos_calibracion_tecnicos,
-        trichos_calibracion_bombas=trichos_calibracion_bombas
+        trichos_calibracion_bombas=trichos_calibracion_bombas,
+        fertilizacion_consolidado_productos=fertilizacion_consolidado_productos,
+        fertilizacion_programas_oficiales=fertilizacion_programas_oficiales
     )
 
 
@@ -757,6 +804,84 @@ def marcar_salidas_digitadas(rotation_id):
 
     flash(msg_text, "success" if rotation.is_salidas_digitadas else "info")
     return redirect(url_for('bodega.salidas', rotation_id=rotation.id))
+
+
+@bodega_bp.route('/rotaciones/<int:rotation_id>/marcar-fertilizacion-digitada', methods=['POST'])
+@login_required
+@permission_required('salidas_ver', 'bodega')
+def marcar_fertilizacion_digitada(rotation_id):
+    """Marca o desmarca si las salidas de fertilización (Trichos/Sólidos/Moshe) fueron digitadas en el sistema"""
+    rotation = Rotation.query.filter_by(id=rotation_id, status='APROBADA').first_or_404()
+    user_name = session.get('full_name') or session.get('username') or 'Estadística'
+    user_role = session.get('role') or 'ESTADISTICA'
+
+    rotation.is_fertilizacion_digitadas = not bool(rotation.is_fertilizacion_digitadas)
+    if rotation.is_fertilizacion_digitadas:
+        rotation.fertilizacion_digitadas_at = get_local_now()
+        rotation.fertilizacion_digitadas_by = user_name
+        status_action = "FERTILIZACION_DIGITADA"
+        msg_text = f"Salidas de Fertilización Sem. {rotation.week} marcadas como DIGITADAS por {user_name}."
+    else:
+        rotation.fertilizacion_digitadas_at = None
+        rotation.fertilizacion_digitadas_by = None
+        status_action = "REVERTIR_FERTILIZACION_DIGITADA"
+        msg_text = f"Estado de digitación de Fertilización Sem. {rotation.week} devuelto a PENDIENTE."
+
+    log_entry = WarehouseDispatchLog(
+        week=rotation.week,
+        rotation_id=rotation.id,
+        action=status_action,
+        performed_by=user_name,
+        role=user_role,
+        notes=msg_text
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+
+    record_audit('ESTADISTICA', status_action, 'Rotation', rotation.id, details={'week': rotation.week, 'digitadas': rotation.is_fertilizacion_digitadas})
+
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'success': True,
+            'is_digitadas': rotation.is_fertilizacion_digitadas,
+            'digitadas_at': format_local_datetime(rotation.fertilizacion_digitadas_at) if rotation.fertilizacion_digitadas_at else None,
+            'digitadas_by': rotation.fertilizacion_digitadas_by or ''
+        })
+
+    flash(msg_text, "success" if rotation.is_fertilizacion_digitadas else "info")
+    return redirect(url_for('bodega.salidas', rotation_id=rotation.id) + '#labor-tricho')
+
+
+@bodega_bp.route('/rotaciones/<int:rotation_id>/marcar-fertilizacion-impresa', methods=['POST'])
+@login_required
+@permission_required('salidas_ver', 'bodega')
+def marcar_fertilizacion_impresa(rotation_id):
+    """Registra la impresión oficial del programa de fertilización para bodega y campo"""
+    rotation = Rotation.query.filter_by(id=rotation_id, status='APROBADA').first_or_404()
+    user_name = session.get('full_name') or session.get('username') or 'Estadística'
+    user_role = session.get('role') or 'ESTADISTICA'
+
+    rotation.is_fertilizacion_printed = True
+    rotation.fertilizacion_printed_at = get_local_now()
+    rotation.fertilizacion_printed_by = user_name
+
+    log_entry = WarehouseDispatchLog(
+        week=rotation.week,
+        rotation_id=rotation.id,
+        action="IMPRESION_FERTILIZACION",
+        performed_by=user_name,
+        role=user_role,
+        notes=f"Programa de Fertilización Sem. {rotation.week} impreso por {user_name}."
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'is_printed': True,
+        'printed_at': format_local_datetime(rotation.fertilizacion_printed_at),
+        'printed_by': rotation.fertilizacion_printed_by
+    })
 
 
 @bodega_bp.route('/rotaciones/<int:rotation_id>/toggle-pesado', methods=['POST'])

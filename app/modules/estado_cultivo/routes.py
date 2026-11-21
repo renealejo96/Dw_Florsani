@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, session
 from app.extensions import db
 from app.shared.models import CropStateRecord, Crop
 from app.modules.fumigacion.services.calculation_engine import CalculationEngine
@@ -42,11 +42,16 @@ def index():
             return f"{yr}-{wk:02d}"
         return str(sc or '')
 
+    finca_id = session.get('finca_id', 0)
+
     # Semanas cargadas en crop_state_records con conteo de camas
-    week_counts_rows = db.session.query(
+    week_counts_query = db.session.query(
         CropStateRecord.week,
         db.func.count(CropStateRecord.id)
-    ).filter(CropStateRecord.week.isnot(None)).group_by(CropStateRecord.week).all()
+    ).filter(CropStateRecord.week.isnot(None))
+    if finca_id and finca_id != 0:
+        week_counts_query = week_counts_query.filter(CropStateRecord.id_finca == finca_id)
+    week_counts_rows = week_counts_query.group_by(CropStateRecord.week).all()
 
     semanas_cargadas_info = []
     for w_val, cnt in week_counts_rows:
@@ -74,6 +79,8 @@ def index():
         week_filter = raw_week_arg.strip()
 
     base_week_query = CropStateRecord.query
+    if finca_id and finca_id != 0:
+        base_week_query = base_week_query.filter(CropStateRecord.id_finca == finca_id)
     if week_filter and week_filter != 'ALL':
         base_week_query = base_week_query.filter(CropStateRecord.week == week_filter)
 
@@ -192,8 +199,13 @@ def index():
             'std_beds': round(cd['std_beds'], 2)
         })
 
-    unique_crops = [r[0] for r in db.session.query(CropStateRecord.crop_master).filter(CropStateRecord.crop_master.isnot(None), CropStateRecord.crop_master != 'VACIO').distinct().order_by(CropStateRecord.crop_master).all() if r[0]]
-    unique_zones = [r[0] for r in db.session.query(CropStateRecord.zone).distinct().order_by(CropStateRecord.zone).all() if r[0]]
+    crops_q = db.session.query(CropStateRecord.crop_master).filter(CropStateRecord.crop_master.isnot(None), CropStateRecord.crop_master != 'VACIO')
+    zones_q = db.session.query(CropStateRecord.zone).filter(CropStateRecord.zone.isnot(None))
+    if finca_id and finca_id != 0:
+        crops_q = crops_q.filter(CropStateRecord.id_finca == finca_id)
+        zones_q = zones_q.filter(CropStateRecord.id_finca == finca_id)
+    unique_crops = [r[0] for r in crops_q.distinct().order_by(CropStateRecord.crop_master).all() if r[0]]
+    unique_zones = [r[0] for r in zones_q.distinct().order_by(CropStateRecord.zone).all() if r[0]]
 
     curr_cal_week = db.session.execute(db.text("SELECT semana_campo FROM dim_calendario_agricola WHERE fecha = CURRENT_DATE LIMIT 1;")).scalar() or 2642
 

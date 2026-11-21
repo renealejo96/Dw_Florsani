@@ -1345,11 +1345,11 @@
                         <input type="text"
                                id="obs-{{ item.id }}"
                                class="obs-excel-input"
-                               placeholder="{% if es_sin_labor and not item.observacion %}Sin labor - Use '+' para asignar{% else %}...{% endif %}"
+                               placeholder="{% if es_sin_labor and not item.observacion %}Sin labor - Observación...{% else %}...{% endif %}"
                                aria-label="Observación fila {{ item.id }}"
                                value="{{ item.observacion or '' }}"
                                data-original-obs="{{ item.observacion or '' }}"
-                               {% if semana_estado == 'CERRADA' or es_sin_labor %}disabled style="cursor: not-allowed; background-color: #f8fafc; color: {% if item.observacion %}#1e293b; font-weight: 500;{% else %}#94a3b8;{% endif %}" title="{% if item.observacion %}Observación guardada: '{{ item.observacion }}'. Use '+' para asignar la labor y auxiliar correspondiente.{% else %}Para ingresar observaciones en este bloque, primero use '+' para asignar la labor y el auxiliar.{% endif %}"{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
+                               {% if semana_estado == 'CERRADA' %}disabled style="cursor: not-allowed; background-color: #f8fafc;" title="Semana cerrada"{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
                     </td>
 
                     <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
@@ -3385,6 +3385,12 @@ async function restoreOfflineChanges() {
                 }
             }
 
+            if (!btn) {
+                btn = document.getElementById(`btn-check-${it.id}`);
+                obsInput = document.getElementById(`obs-${it.id}`);
+                selLabor = document.getElementById(`sel-labor-${it.id}`);
+            }
+
             if (btn) {
                 setCheckCircleState(btn, it.val);
                 if (obsInput && it.obs !== undefined) obsInput.value = it.obs;
@@ -3656,10 +3662,11 @@ async function saveAllChanges(isForced = false) {
             }
 
             payloadItems.forEach(item => {
-                const btn = document.getElementById(`btn-check-${item.id}`);
-                const obsInput = document.getElementById(`obs-${item.id}`);
-                const selLabor = document.getElementById(`sel-labor-${item.id}`);
-                const row = document.getElementById(`row-${item.id}`);
+                const effectiveId = (data.reconciled_ids && data.reconciled_ids[item.id]) ? data.reconciled_ids[item.id] : item.id;
+                const btn = document.getElementById(`btn-check-${effectiveId}`) || document.getElementById(`btn-check-${item.id}`);
+                const obsInput = document.getElementById(`obs-${effectiveId}`) || document.getElementById(`obs-${item.id}`);
+                const selLabor = document.getElementById(`sel-labor-${effectiveId}`) || document.getElementById(`sel-labor-${item.id}`);
+                const row = document.getElementById(`row-${effectiveId}`) || document.getElementById(`row-${item.id}`);
 
                 const savedVal = item.cumplido === null ? 'null' : String(item.cumplido);
                 if (btn) {

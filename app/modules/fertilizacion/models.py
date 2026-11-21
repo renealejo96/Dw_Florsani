@@ -99,12 +99,16 @@ class DrenchItem(db.Model):
     cantidad_camas = db.Column(db.Integer, default=0)
     grupo_id = db.Column(db.Integer, default=1)
     segmento_edades = db.Column(db.String(50))
+    dia_aplicacion = db.Column(db.String(20), nullable=True, default='LUNES', index=True)
+    estado_calibracion = db.Column(db.String(20), nullable=True, default='SIN_TOCAR', index=True)
     
     # Checklist tracking
     completado = db.Column(db.Boolean, default=False, index=True)
     aplicador = db.Column(db.String(100), nullable=True)
     tecnico = db.Column(db.String(100), nullable=True)
     fecha_completado = db.Column(db.DateTime, nullable=True)
+    dosis_diferenciada = db.Column(db.Float, nullable=True)
+    producto_especifico = db.Column(db.Text, nullable=True)
     observaciones = db.Column(db.Text, nullable=True)
 
     def to_dict(self):
@@ -112,6 +116,8 @@ class DrenchItem(db.Model):
             "id": self.id,
             "fecha": self.fecha.strftime("%Y-%m-%d") if self.fecha else "",
             "semana": self.semana or calcular_semana_formato(self.fecha),
+            "dia_aplicacion": self.dia_aplicacion or "LUNES",
+            "estado_calibracion": self.estado_calibracion or "SIN_TOCAR",
             "clasificacion": self.clasificacion,
             "actividad": self.actividad,
             "bomba": self.bomba,

@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, session, g
+from flask import Flask, render_template, session, g, request
 from app.config import Config
 from app.extensions import db
 from app.shared.utils import (
@@ -72,108 +72,144 @@ def create_app(config_class=Config):
     with app.app_context():
         from sqlalchemy import inspect, text
         try:
-            inspector = inspect(db.engine)
-            existing_tables = inspector.get_table_names()
-            is_sqlite = 'sqlite' in str(app.config.get('SQLALCHEMY_DATABASE_URI', ''))
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS _system_one_time_migrations (
+                    migration_key VARCHAR(100) PRIMARY KEY,
+                    executed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            db.session.commit()
 
-            def ensure_column(table_name, column_name, col_type_sql, default_sql=None):
-                if table_name not in existing_tables:
-                    return
-                cols = [c['name'] for c in inspector.get_columns(table_name)]
-                if column_name not in cols:
-                    default_clause = f" DEFAULT {default_sql}" if default_sql is not None else ""
-                    sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {col_type_sql}{default_clause}"
-                    try:
-                        db.session.execute(text(sql))
-                        db.session.commit()
-                    except Exception:
-                        db.session.rollback()
+            mig_ddl_done = db.session.execute(text(
+                "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = 'system_init_schema_and_catalogs_v8'"
+            )).scalar()
 
-            ensure_column('crops', 'category', 'VARCHAR(50)', "'PRODUCTOS_NUEVOS'")
-            ensure_column('products', 'dose_trichos', 'DOUBLE PRECISION', 'NULL')
-            ensure_column('products', 'dose_solidos', 'DOUBLE PRECISION', 'NULL')
-            ensure_column('products', 'dose_desinfecciones', 'DOUBLE PRECISION', 'NULL')
-            ensure_column('fumigation_order_details', 'spray_lance', 'VARCHAR(100)', "'Lanza 2 Boquillas'")
-            ensure_column('additional_applications', 'spray_lance', 'VARCHAR(100)', "'Lanza 2 Boquillas'")
-            ensure_column('rotations', 'is_salidas_digitadas', 'BOOLEAN', 'FALSE')
-            ensure_column('rotations', 'salidas_digitadas_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
-            ensure_column('rotations', 'salidas_digitadas_by', 'VARCHAR(100)', 'NULL')
-            ensure_column('rotations', 'is_salidas_dispatched', 'BOOLEAN', 'FALSE')
-            ensure_column('rotations', 'salidas_dispatched_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
-            ensure_column('rotations', 'salidas_dispatched_by', 'VARCHAR(100)', 'NULL')
-            ensure_column('rotations', 'weighed_products_json', 'TEXT', 'NULL')
-            ensure_column('fumigation_orders', 'program_statuses_json', 'TEXT', "'{}'")
+            if not mig_ddl_done:
+                inspector = inspect(db.engine)
+                existing_tables = inspector.get_table_names()
+                is_sqlite = 'sqlite' in str(app.config.get('SQLALCHEMY_DATABASE_URI', ''))
 
-            # Sincronizar categorias maestras en tabla crops (GYPSOPHILA, VARIEDADES, PIV)
-            try:
-                db.session.execute(text("UPDATE crops SET category = 'GYPSOPHILA' WHERE UPPER(name) LIKE '%GYPSO%';"))
-                db.session.execute(text("UPDATE crops SET category = 'PIV' WHERE UPPER(name) LIKE '%EUCAL%' OR UPPER(name) LIKE '%LISI%' OR UPPER(name) LIKE '%LYSI%' OR UPPER(name) LIKE '%ASTER%' OR UPPER(name) LIKE '%RUSCUS%' OR UPPER(name) LIKE '%RUMEX%' OR UPPER(name) LIKE '%PROD.NUEVOS%' OR UPPER(name) LIKE '%VICIA%' OR UPPER(name) LIKE '%MOSTAZA%';"))
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
+                def ensure_column(table_name, column_name, col_type_sql, default_sql=None):
+                    if table_name not in existing_tables:
+                        return
+                    cols = [c['name'] for c in inspector.get_columns(table_name)]
+                    if column_name not in cols:
+                        default_clause = f" DEFAULT {default_sql}" if default_sql is not None else ""
+                        sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {col_type_sql}{default_clause}"
+                        try:
+                            db.session.execute(text(sql))
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
 
-            if not is_sqlite:
-                pg_migrations = [
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN bed_range TYPE TEXT",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN real_age TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN crop_name TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN variety_specific TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN product_code TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN commercial_name TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN operator TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN zone TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN block_name TYPE VARCHAR(100)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN suffix TYPE VARCHAR(50)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN phenological_stage TYPE VARCHAR(100)",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN pest TYPE TEXT",
-                    "ALTER TABLE fumigation_order_details ALTER COLUMN active_ingredient TYPE TEXT",
-                    "ALTER TABLE fumigation_order_product_summaries ALTER COLUMN product_code TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_product_summaries ALTER COLUMN commercial_name TYPE VARCHAR(255)",
-                    "ALTER TABLE fumigation_order_product_summaries ALTER COLUMN pest TYPE TEXT",
-                    "ALTER TABLE requisition_items ALTER COLUMN pest TYPE TEXT",
-                    "ALTER TABLE requisition_items ALTER COLUMN product_code TYPE VARCHAR(255)",
-                    "ALTER TABLE additional_applications ALTER COLUMN reason TYPE TEXT",
-                    "ALTER TABLE additional_applications ALTER COLUMN notes TYPE TEXT",
-                    "ALTER TABLE rotations ADD COLUMN IF NOT EXISTS weighed_products_json TEXT",
-                    "UPDATE calificaciones SET auxiliar = 'Kevin Buitron', supervisor = 'Maria Dolores Perugachi' WHERE (labor ILIKE '%malla pl%stica%' OR labor ILIKE '%tejido de alambre%') AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
-                    "UPDATE calificaciones SET auxiliar = 'Marcia Medina', supervisor = 'Maria Dolores Perugachi' WHERE labor ILIKE '%malla naranja%' AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
-                    "UPDATE calificaciones SET tiene_evaluacion = FALSE, cumplido = NULL WHERE (labor = 'No hay actividad' OR labor IS NULL OR TRIM(labor) = '') AND tiene_evaluacion = TRUE",
-                    "CREATE TABLE IF NOT EXISTS cat_productos_eliminados (id SERIAL PRIMARY KEY, producto_maestro VARCHAR(150) NOT NULL UNIQUE, deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
-                    "INSERT INTO cat_productos_eliminados (producto_maestro) VALUES ('EUCALIPTOS') ON CONFLICT (producto_maestro) DO NOTHING",
-                    "DELETE FROM cat_productos_eliminados WHERE UPPER(producto_maestro) = 'EUCALIPTO'",
-                    "DELETE FROM cat_variedades_eliminadas WHERE UPPER(variedad) IN ('BABY BLUE', 'GUNNII', 'PARVIFOLIA')",
-                    "DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) = 'EUCALIPTOS'",
-                    "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('BABY BLUE', 'EUCALIPTO'), ('GUNNII', 'EUCALIPTO'), ('PARVIFOLIA', 'EUCALIPTO') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'EUCALIPTO'",
-                    "DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'EUCALIPTOS'",
-                    "INSERT INTO dim_prod_maestros (id_productos, producto_maestro) SELECT COALESCE(MAX(id_productos), 0) + 1, 'EUCALIPTO' FROM dim_prod_maestros WHERE NOT EXISTS (SELECT 1 FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'EUCALIPTO')",
-                    "DELETE FROM crops WHERE UPPER(name) = 'EUCALIPTOS'",
-                    "INSERT INTO crops (name, category, veg_min_age, veg_max_age, prod_min_age, prod_max_age, is_active, notes) SELECT 'Eucalipto', 'PIV', 0, 12, 13, 999, true, 'Cultivo oficial' WHERE NOT EXISTS (SELECT 1 FROM crops WHERE UPPER(name) = 'EUCALIPTO')",
-                    "UPDATE dim_camas SET area_producto_comercial = 'EUCALIPTO' WHERE UPPER(TRIM(variedad_comercial)) IN ('BABY BLUE', 'GUNNII', 'PARVIFOLIA')",
-                    "UPDATE dim_camas SET area_producto_comercial = 'GYPSOPHILA' WHERE UPPER(TRIM(area_producto_comercial)) LIKE 'BILLION%' OR UPPER(TRIM(area_producto_comercial)) LIKE 'GYPSO%' OR UPPER(TRIM(area_producto_comercial)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'G3', 'SMALL BLOOM', 'MILLION STAR II')",
-                    "UPDATE plano_cultivo SET producto_maestro = 'GYPSOPHILA' WHERE UPPER(TRIM(producto_maestro)) LIKE 'BILLION%' OR UPPER(TRIM(producto_maestro)) LIKE 'GYPSO%' OR UPPER(TRIM(producto_maestro)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'G3', 'SMALL BLOOM', 'MILLION STAR II')",
-                    "UPDATE dim_camas SET area_producto_comercial = 'VERONICA' WHERE UPPER(TRIM(area_producto_comercial)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')",
-                    "UPDATE dim_camas SET area_producto_comercial = 'BRILLANTINA' WHERE UPPER(TRIM(variedad_comercial)) = 'BRILLANTINA' OR UPPER(TRIM(area_producto_comercial)) = 'BRILLANTINA'",
-                    "UPDATE calificaciones SET producto_maestro = 'GYPSOPHILA' WHERE UPPER(TRIM(producto_maestro)) LIKE 'BILLION%' OR UPPER(TRIM(producto_maestro)) LIKE 'GYPSO%' OR UPPER(TRIM(producto_maestro)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'G3', 'SMALL BLOOM', 'MILLION STAR II')",
-                    "UPDATE calificaciones SET producto_maestro = 'VERONICA' WHERE UPPER(TRIM(producto_maestro)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')",
-                    "UPDATE calificaciones SET producto_maestro = 'BRILLANTINA' WHERE UPPER(TRIM(variedad_comercial)) = 'BRILLANTINA' OR UPPER(TRIM(producto_maestro)) = 'BRILLANTINA'",
-                    "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('BRILLANTINA', 'BRILLANTINA') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'BRILLANTINA'",
-                    "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('PIV', 'PIV') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'PIV'",
-                    "INSERT INTO dim_prod_maestros (id_productos, producto_maestro) SELECT COALESCE(MAX(id_productos), 0) + 1, 'BRILLANTINA' FROM dim_prod_maestros WHERE NOT EXISTS (SELECT 1 FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'BRILLANTINA')"
-                ]
-                for m in pg_migrations:
-                    try:
-                        db.session.execute(text(m))
-                        db.session.commit()
-                    except Exception:
-                        db.session.rollback()
+                ensure_column('crops', 'category', 'VARCHAR(50)', "'PRODUCTOS_NUEVOS'")
+                ensure_column('products', 'dose_trichos', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('products', 'dose_solidos', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('products', 'dose_desinfecciones', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('fumigation_order_details', 'spray_lance', 'VARCHAR(100)', "'Lanza 2 Boquillas'")
+                ensure_column('additional_applications', 'spray_lance', 'VARCHAR(100)', "'Lanza 2 Boquillas'")
+                ensure_column('rotations', 'is_salidas_digitadas', 'BOOLEAN', 'FALSE')
+                ensure_column('rotations', 'salidas_digitadas_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
+                ensure_column('rotations', 'salidas_digitadas_by', 'VARCHAR(100)', 'NULL')
+                ensure_column('rotations', 'is_salidas_dispatched', 'BOOLEAN', 'FALSE')
+                ensure_column('rotations', 'salidas_dispatched_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
+                ensure_column('rotations', 'salidas_dispatched_by', 'VARCHAR(100)', 'NULL')
+                ensure_column('rotations', 'weighed_products_json', 'TEXT', 'NULL')
+                ensure_column('fumigation_orders', 'program_statuses_json', 'TEXT', "'{}'")
 
+                # Columnas añadidas para Módulo de Fertilización, Productos y Despachos Oficiales
+                ensure_column('drench_items', 'dia_aplicacion', 'VARCHAR(20)', "'LUNES'")
+                ensure_column('drench_items', 'estado_calibracion', 'VARCHAR(20)', "'SIN_TOCAR'")
+                ensure_column('drench_items', 'dosis_diferenciada', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('drench_items', 'producto_especifico', 'TEXT', 'NULL')
+                ensure_column('products', 'dose_moshe', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('products', 'dose_alcaplant', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('products', 'dose_presiembra', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('products', 'dose_diferenciada', 'DOUBLE PRECISION', 'NULL')
+                ensure_column('rotations', 'is_fertilizacion_printed', 'BOOLEAN', 'FALSE')
+                ensure_column('rotations', 'fertilizacion_printed_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
+                ensure_column('rotations', 'fertilizacion_printed_by', 'VARCHAR(100)', 'NULL')
+                ensure_column('rotations', 'is_fertilizacion_digitadas', 'BOOLEAN', 'FALSE')
+                ensure_column('rotations', 'fertilizacion_digitadas_at', 'TIMESTAMP WITHOUT TIME ZONE', 'NULL')
+                ensure_column('rotations', 'fertilizacion_digitadas_by', 'VARCHAR(100)', 'NULL')
+                ensure_column('crop_state_records', 'id_finca', 'INTEGER', '1')
+
+                # Sincronizar categorias maestras en tabla crops (GYPSOPHILA, VARIEDADES, PIV)
                 try:
-                    from app.modules.fenogramas.services.fenograma_service import sincronizar_responsables_calificaciones
-                    sincronizar_responsables_calificaciones()
+                    db.session.execute(text("UPDATE crops SET category = 'GYPSOPHILA' WHERE UPPER(name) LIKE '%GYPSO%';"))
+                    db.session.execute(text("UPDATE crops SET category = 'PIV' WHERE UPPER(name) LIKE '%EUCAL%' OR UPPER(name) LIKE '%LISI%' OR UPPER(name) LIKE '%LYSI%' OR UPPER(name) LIKE '%ASTER%' OR UPPER(name) LIKE '%RUSCUS%' OR UPPER(name) LIKE '%RUMEX%' OR UPPER(name) LIKE '%PROD.NUEVOS%' OR UPPER(name) LIKE '%VICIA%' OR UPPER(name) LIKE '%MOSTAZA%';"))
+                    db.session.commit()
                 except Exception:
-                    pass
+                    db.session.rollback()
+
+                if not is_sqlite:
+                    pg_migrations = [
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN bed_range TYPE TEXT",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN real_age TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN crop_name TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN variety_specific TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN product_code TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN commercial_name TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN operator TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN zone TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN block_name TYPE VARCHAR(100)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN suffix TYPE VARCHAR(50)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN phenological_stage TYPE VARCHAR(100)",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN pest TYPE TEXT",
+                        "ALTER TABLE fumigation_order_details ALTER COLUMN active_ingredient TYPE TEXT",
+                        "ALTER TABLE fumigation_order_product_summaries ALTER COLUMN product_code TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_product_summaries ALTER COLUMN commercial_name TYPE VARCHAR(255)",
+                        "ALTER TABLE fumigation_order_product_summaries ALTER COLUMN pest TYPE TEXT",
+                        "ALTER TABLE requisition_items ALTER COLUMN pest TYPE TEXT",
+                        "ALTER TABLE requisition_items ALTER COLUMN product_code TYPE VARCHAR(255)",
+                        "ALTER TABLE additional_applications ALTER COLUMN reason TYPE TEXT",
+                        "ALTER TABLE additional_applications ALTER COLUMN notes TYPE TEXT",
+                        "ALTER TABLE rotations ADD COLUMN IF NOT EXISTS weighed_products_json TEXT",
+                        "UPDATE calificaciones SET auxiliar = 'Kevin Buitron', supervisor = 'Maria Dolores Perugachi' WHERE (labor ILIKE '%malla pl%stica%' OR labor ILIKE '%tejido de alambre%') AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
+                        "UPDATE calificaciones SET auxiliar = 'Marcia Medina', supervisor = 'Maria Dolores Perugachi' WHERE labor ILIKE '%malla naranja%' AND (supervisor ILIKE '%borja%' OR auxiliar ILIKE '%borja%')",
+                        "UPDATE calificaciones SET tiene_evaluacion = FALSE, cumplido = NULL WHERE (labor = 'No hay actividad' OR labor IS NULL OR TRIM(labor) = '') AND tiene_evaluacion = TRUE",
+                        "CREATE TABLE IF NOT EXISTS cat_productos_eliminados (id SERIAL PRIMARY KEY, producto_maestro VARCHAR(150) NOT NULL UNIQUE, deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+                        "INSERT INTO cat_productos_eliminados (producto_maestro) VALUES ('EUCALIPTOS') ON CONFLICT (producto_maestro) DO NOTHING",
+                        "DELETE FROM cat_productos_eliminados WHERE UPPER(producto_maestro) = 'EUCALIPTO'",
+                        "DELETE FROM cat_variedades_eliminadas WHERE UPPER(variedad) IN ('BABY BLUE', 'GUNNII', 'PARVIFOLIA')",
+                        "DELETE FROM cat_variedades_maestro WHERE UPPER(producto_maestro) = 'EUCALIPTOS'",
+                        "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('BABY BLUE', 'EUCALIPTO'), ('GUNNII', 'EUCALIPTO'), ('PARVIFOLIA', 'EUCALIPTO') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'EUCALIPTO'",
+                        "DELETE FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'EUCALIPTOS'",
+                        "INSERT INTO dim_prod_maestros (id_productos, producto_maestro) SELECT COALESCE(MAX(id_productos), 0) + 1, 'EUCALIPTO' FROM dim_prod_maestros WHERE NOT EXISTS (SELECT 1 FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'EUCALIPTO')",
+                        "DELETE FROM crops WHERE UPPER(name) = 'EUCALIPTOS'",
+                        "INSERT INTO crops (name, category, veg_min_age, veg_max_age, prod_min_age, prod_max_age, is_active, notes) SELECT 'Eucalipto', 'PIV', 0, 12, 13, 999, true, 'Cultivo oficial' WHERE NOT EXISTS (SELECT 1 FROM crops WHERE UPPER(name) = 'EUCALIPTO')",
+                        "UPDATE dim_camas SET area_producto_comercial = 'EUCALIPTO' WHERE UPPER(TRIM(variedad_comercial)) IN ('BABY BLUE', 'GUNNII', 'PARVIFOLIA')",
+                        "UPDATE dim_camas SET area_producto_comercial = 'GYPSOPHILA' WHERE UPPER(TRIM(area_producto_comercial)) LIKE 'BILLION%' OR UPPER(TRIM(area_producto_comercial)) LIKE 'GYPSO%' OR UPPER(TRIM(area_producto_comercial)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'G3', 'SMALL BLOOM', 'MILLION STAR II')",
+                        "UPDATE plano_cultivo SET producto_maestro = 'GYPSOPHILA' WHERE UPPER(TRIM(producto_maestro)) LIKE 'BILLION%' OR UPPER(TRIM(producto_maestro)) LIKE 'GYPSO%' OR UPPER(TRIM(producto_maestro)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'G3', 'SMALL BLOOM', 'MILLION STAR II')",
+                        "UPDATE dim_camas SET area_producto_comercial = 'VERONICA' WHERE UPPER(TRIM(area_producto_comercial)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')",
+                        "UPDATE dim_camas SET area_producto_comercial = 'BRILLANTINA' WHERE UPPER(TRIM(variedad_comercial)) = 'BRILLANTINA' OR UPPER(TRIM(area_producto_comercial)) = 'BRILLANTINA'",
+                        "UPDATE calificaciones SET producto_maestro = 'GYPSOPHILA' WHERE UPPER(TRIM(producto_maestro)) LIKE 'BILLION%' OR UPPER(TRIM(producto_maestro)) LIKE 'GYPSO%' OR UPPER(TRIM(producto_maestro)) IN ('BILLION LIGHTS', 'BILLION LIGHT', 'BILLION', 'G5', 'G49', 'G3', 'SMALL BLOOM', 'MILLION STAR II')",
+                        "UPDATE calificaciones SET producto_maestro = 'VERONICA' WHERE UPPER(TRIM(producto_maestro)) IN ('VERONICA SPLASH', 'VERONICAS SPLASH')",
+                        "UPDATE calificaciones SET producto_maestro = 'BRILLANTINA' WHERE UPPER(TRIM(variedad_comercial)) = 'BRILLANTINA' OR UPPER(TRIM(producto_maestro)) = 'BRILLANTINA'",
+                        "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('BRILLANTINA', 'BRILLANTINA') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'BRILLANTINA'",
+                        "INSERT INTO cat_variedades_maestro (variedad, producto_maestro) VALUES ('PIV', 'PIV') ON CONFLICT (variedad) DO UPDATE SET producto_maestro = 'PIV'",
+                        "INSERT INTO dim_prod_maestros (id_productos, producto_maestro) SELECT COALESCE(MAX(id_productos), 0) + 1, 'BRILLANTINA' FROM dim_prod_maestros WHERE NOT EXISTS (SELECT 1 FROM dim_prod_maestros WHERE UPPER(producto_maestro) = 'BRILLANTINA')"
+                    ]
+                    for m in pg_migrations:
+                        try:
+                            db.session.execute(text(m))
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+
+                    try:
+                        from app.modules.fenogramas.services.fenograma_service import sincronizar_responsables_calificaciones
+                        sincronizar_responsables_calificaciones()
+                    except Exception:
+                        pass
+
+                db.session.execute(text(
+                    "INSERT INTO _system_one_time_migrations (migration_key) VALUES ('system_init_schema_and_catalogs_v8')"
+                ))
+                db.session.commit()
+                print("[SYSTEM] Migraciones DDL iniciales ejecutadas con éxito.")
         except Exception:
-            pass
+            db.session.rollback()
 
         # Ensure database tables exist and initial admin is ready
         try:
@@ -385,7 +421,7 @@ def create_app(config_class=Config):
             try:
                 from app.shared.models import User
                 user = User.query.filter_by(username=auth.username).first()
-                if user and user.check_password(auth.password) and user.active:
+                if user and user.check_password(auth.password) and user.is_active:
                     session['user_id'] = user.id
                     return None
             except Exception:
@@ -429,6 +465,18 @@ def create_app(config_class=Config):
                 }), 401
             return redirect(url_for('auth.login', next=request.url))
 
+        # Sincronización en caliente de roles y permisos desde la base de datos
+        user_id = session.get('user_id')
+        if user_id:
+            try:
+                from app.shared.models import User
+                active_user = db.session.get(User, user_id)
+                if active_user and active_user.is_active:
+                    session['permissions'] = active_user.permissions
+                    session['role'] = active_user.role
+            except Exception:
+                pass
+
 
     @app.route('/api/datos-semanales', methods=['GET', 'HEAD'])
     @app.route('/api/datos-semanales.csv', methods=['GET', 'HEAD'])
@@ -450,6 +498,49 @@ def create_app(config_class=Config):
         response = send_from_directory(app.static_folder, 'sw.js', mimetype='application/javascript')
         response.headers['Service-Worker-Allowed'] = '/'
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+
+    # ==============================================================================
+    # COMPRESIÓN GZIP AUTOMÁTICA EN RESPUESTAS HTTP (HTML, JSON, JS, CSS, CSV)
+    # Acelera la carga en teléfonos móviles en campo y reduce el consumo de red en 70-80%
+    # ==============================================================================
+    import gzip
+    from io import BytesIO
+
+    @app.after_request
+    def compress_response(response):
+        accept_encoding = request.headers.get('Accept-Encoding', '')
+        if 'gzip' not in accept_encoding.lower():
+            return response
+
+        if (
+            response.status_code < 200
+            or response.status_code >= 300
+            or 'Content-Encoding' in response.headers
+            or getattr(response, 'is_streamed', False)
+        ):
+            return response
+
+        content_type = (response.headers.get('Content-Type') or '').lower()
+        compressible_types = (
+            'text/', 'application/json', 'application/javascript',
+            'application/xml', 'application/x-javascript', 'image/svg+xml'
+        )
+        if not any(content_type.startswith(ct) for ct in compressible_types):
+            return response
+
+        data = response.get_data()
+        if len(data) < 500:  # Si la respuesta es menor a 500 bytes, no comprimir
+            return response
+
+        gzip_buffer = BytesIO()
+        with gzip.GzipFile(mode='wb', fileobj=gzip_buffer, compresslevel=6) as gzip_file:
+            gzip_file.write(data)
+
+        response.set_data(gzip_buffer.getvalue())
+        response.headers['Content-Encoding'] = 'gzip'
+        response.headers['Content-Length'] = len(response.get_data())
+        response.headers['Vary'] = 'Accept-Encoding'
         return response
 
     # Main dashboard route
@@ -483,66 +574,9 @@ def create_app(config_class=Config):
         rotations_count = Rotation.query.count()
         orders_count = FumigationOrder.query.count()
 
-        all_rotations = Rotation.query.options(
-            db.joinedload(Rotation.rounds).joinedload(RotationRound.items).joinedload(RotationRoundItem.product)
-        ).order_by(Rotation.week.desc(), Rotation.version.desc()).all()
-        
-        # Group rotations by week with full details of rounds and chemicals
+        # Optimización: las rotaciones detalladas no se renderizan en el dashboard principal
         weekly_rotations_data = {}
-        for rot in all_rotations:
-            w = rot.week
-            if w not in weekly_rotations_data:
-                weekly_rotations_data[w] = []
-            
-            rounds_info = []
-            for rd in sorted(rot.rounds, key=lambda x: x.round_number):
-                formula_groups = {}
-                for it in sorted(rd.items, key=lambda x: x.order_index):
-                    crop_k = it.crop_name or 'Cultivo'
-                    stage_k = it.phenological_stage or 'GENERAL'
-                    grp_k = f"{crop_k} ({stage_k})"
-                    if grp_k not in formula_groups:
-                        formula_groups[grp_k] = []
-                    
-                    p_code = it.product.code if it.product else f"Prod #{it.product_id}"
-                    p_name = it.product.commercial_name if (it.product and it.product.commercial_name) else p_code
-                    formula_groups[grp_k].append({
-                        'code': p_code,
-                        'name': p_name,
-                        'dose': it.dose_applied,
-                        'unit': it.dose_unit or (it.product.unit if it.product else 'CC')
-                    })
-                
-                distinct_formulas = []
-                for grp_k, p_list in formula_groups.items():
-                    distinct_formulas.append({
-                        'label': grp_k,
-                        'products': p_list
-                    })
-
-                rounds_info.append({
-                    'round_number': rd.round_number,
-                    'name': rd.name,
-                    'day': rd.scheduled_day,
-                    'formulas': distinct_formulas,
-                    'total_items': len(rd.items)
-                })
-
-            weekly_rotations_data[w].append({
-                'id': rot.id,
-                'week': rot.week,
-                'version': rot.version,
-                'title': rot.title or f"Rotación Semana {rot.week}",
-                'status': rot.status,
-                'created_by': rot.created_by,
-                'approved_by': rot.approved_by,
-                'created_at': rot.created_at,
-                'approved_at': rot.approved_at,
-                'notes': rot.notes,
-                'rounds': rounds_info
-            })
-
-        weeks_list = list(weekly_rotations_data.keys())
+        weeks_list = []
         selected_week = request.args.get('week')
 
         recent_orders = FumigationOrder.query.order_by(FumigationOrder.created_at.desc()).limit(8).all()

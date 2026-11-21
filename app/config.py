@@ -45,10 +45,10 @@ class Config:
     if use_pg and chosen_pg_url:
         SQLALCHEMY_DATABASE_URI = chosen_pg_url
         SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_size': int(os.environ.get('DB_POOL_SIZE', 10)),
-            'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', 20)),
-            'pool_timeout': 30,
-            'pool_recycle': 1800,
+            'pool_size': int(os.environ.get('DB_POOL_SIZE', 15)),
+            'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', 25)),
+            'pool_timeout': 10,
+            'pool_recycle': 900,
             'pool_pre_ping': True,
         }
     else:

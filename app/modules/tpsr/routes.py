@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, session
 from datetime import datetime, date
 from sqlalchemy import text
 from app.extensions import db
@@ -145,6 +145,7 @@ def registro():
                     STRING_AGG(DISTINCT b.sufijo, ', ' ORDER BY b.sufijo) AS segmentos_str,
                     STRING_AGG(DISTINCT b.tecnico_de_riego, ', ') AS tecnico
                 FROM dim_bloques b
+                WHERE (:finca_id = 0 OR b.id_finca = :finca_id)
                 GROUP BY b.blq
             ),
             mrt_agg AS (
@@ -214,7 +215,8 @@ def registro():
         bloques = []
         zonas_map = {}
 
-        for r in conn.execute(text(query_blqs)).fetchall():
+        finca_id_activa = session.get('finca_id', 0)
+        for r in conn.execute(text(query_blqs), {'finca_id': finca_id_activa}).fetchall():
             blq_code = r[0]
             zona_name = (r[1] or 'SIN ZONA').strip()
             tot_c = int(r[2]) if r[2] else 0
@@ -567,11 +569,12 @@ def api_guardar_evento():
             nuevo_sufijo = (item.get('sufijo') or '').strip().upper()
             if nuevo_sufijo and nuevo_sufijo != sufijo_actual_cama:
                 nuevo_cb = f"{blq}{nuevo_sufijo}"
+                finca_cama = session.get('finca_id', 1) or 1
                 conn.execute(text("""
                     INSERT INTO dim_bloques (codigo_bloque, id_finca, blq, sufijo, zona, tecnico_de_riego)
-                    VALUES (:cb, 1, :blq, :suf, :z, :t)
+                    VALUES (:cb, :id_finca, :blq, :suf, :z, :t)
                     ON CONFLICT (codigo_bloque) DO NOTHING;
-                """), {'cb': nuevo_cb, 'blq': blq, 'suf': nuevo_sufijo, 'z': zona_cama, 't': tecnico_cama})
+                """), {'cb': nuevo_cb, 'id_finca': finca_cama, 'blq': blq, 'suf': nuevo_sufijo, 'z': zona_cama, 't': tecnico_cama})
                 conn.execute(text("""
                     UPDATE dim_camas
                     SET sufijo = :suf, codigo_bloque = :cb
@@ -944,15 +947,17 @@ def api_crear_cama():
             brow = conn.execute(q_b2, {'b': blq}).fetchone()
             zona = brow[0] if brow else 'ZONA UNIFICADA'
             tecnico = brow[1] if brow else 'C1'
+            finca_cama = session.get('finca_id', 1) or 1
             # Insertar dim_bloques si no existe
             conn.execute(text("""
                 INSERT INTO dim_bloques (codigo_bloque, id_finca, blq, sufijo, zona, tecnico_de_riego)
-                VALUES (:cb, 1, :blq, :suf, :z, :t)
+                VALUES (:cb, :id_finca, :blq, :suf, :z, :t)
                 ON CONFLICT (codigo_bloque) DO NOTHING;
-            """), {'cb': codigo_bloque, 'blq': blq, 'suf': sufijo, 'z': zona, 't': tecnico})
+            """), {'cb': codigo_bloque, 'id_finca': finca_cama, 'blq': blq, 'suf': sufijo, 'z': zona, 't': tecnico})
         else:
             zona = brow[0]
             tecnico = brow[1]
+            finca_cama = session.get('finca_id', 1) or 1
 
         # Verificar si ya existe id_cama
         q_exists = text("SELECT 1 FROM dim_camas WHERE id_cama = :id;")
@@ -965,13 +970,14 @@ def api_crear_cama():
                 id_cama, codigo_bloque, id_finca, blq, sufijo, num_cama,
                 cama_estandar, metros_netos, metros_brutos, zona, tecnico_de_riego
             ) VALUES (
-                :id_cama, :codigo_bloque, 1, :blq, :sufijo, :num_cama,
+                :id_cama, :codigo_bloque, :id_finca, :blq, :sufijo, :num_cama,
                 :cama_std, :metros_netos, :metros_netos, :zona, :tecnico
             );
         """)
         conn.execute(insert_cama, {
             'id_cama': id_cama,
             'codigo_bloque': codigo_bloque,
+            'id_finca': finca_cama,
             'blq': blq,
             'sufijo': sufijo,
             'num_cama': num_cama,

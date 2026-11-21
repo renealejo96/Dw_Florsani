@@ -82,79 +82,81 @@
   <div class="card mb-3 border-0 shadow-sm bg-white no-print">
     <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('fertilizacion.index', semana=semana) }}" class="btn btn-outline-secondary btn-sm fw-bold">
-          <i class="fa-solid fa-arrow-left me-1"></i> Volver a Fertilización
+        <a href="{{ url_for('bodega.salidas') }}#pill-fertilizacion" class="btn btn-outline-secondary btn-sm fw-bold">
+          <i class="fa-solid fa-arrow-left me-1"></i> Volver a Salidas y Despachos (Paso 2)
         </a>
-        <span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1">
-          <i class="fa-solid fa-leaf me-1"></i> Programa Oficial Trichos y Sólidos &bull; Sem. {{ semana }}
+        <a href="{{ url_for('fertilizacion.index', semana=semana) }}" class="btn btn-light btn-sm text-muted">
+          <i class="fa-solid fa-sliders me-1"></i> Ir a Calibración
+        </a>
+        <span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1 font-monospace">
+          <i class="fa-solid fa-leaf me-1"></i> Sem. {{ semana }}
         </span>
       </div>
 
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <!-- Filtrar por Bomba y Técnico -->
+        <!-- Filtrar por Módulo, Día y Técnico -->
         <form method="GET" action="{{ url_for('fertilizacion.programa_impresion') }}" class="d-flex align-items-center gap-2 flex-wrap">
           <input type="hidden" name="semana" value="{{ semana }}">
-          
+          {% if filtro_edad %}<input type="hidden" name="edad" value="{{ filtro_edad }}">{% endif %}
+
           <div class="d-flex align-items-center gap-1">
-            <label class="small fw-bold text-muted mb-0">Bomba:</label>
-            <select name="bomba" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-success" style="min-width: 170px;">
-              <option value="TODAS" {% if not filtro_bomba or filtro_bomba == 'TODAS' %}selected{% endif %}>Todas las Bombas</option>
-              {% for b in calibracion_bombas %}
-              <option value="{{ b.bomba }}" {% if filtro_bomba == b.bomba %}selected{% endif %}>
-                {{ b.bomba }} (Sem {{ b.edad }})
-              </option>
+            <label class="small fw-bold text-muted mb-0">Módulo Asignado:</label>
+            <select name="apartado" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-success" style="min-width: 155px;">
+              <option value="TODOS" {% if not filtro_apartado or filtro_apartado == 'TODOS' %}selected{% endif %}>Todos los Asignados</option>
+              {% for ap in apartados_disponibles %}
+              <option value="{{ ap }}" {% if filtro_apartado == ap %}selected{% endif %}>{{ ap }}</option>
               {% endfor %}
             </select>
           </div>
 
           <div class="d-flex align-items-center gap-1">
+            <label class="small fw-bold text-muted mb-0">Día Asignado:</label>
+            <select name="dia" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-warning" style="min-width: 120px;">
+              <option value="TODOS" {% if not filtro_dia or filtro_dia == 'TODOS' %}selected{% endif %}>Todos los Días</option>
+              {% for d in dias_disponibles %}
+              <option value="{{ d }}" {% if filtro_dia == d %}selected{% endif %}>{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="d-flex align-items-center gap-1">
             <label class="small fw-bold text-muted mb-0">Cuarto / Técnico:</label>
-            <select name="tecnico" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-primary" style="min-width: 170px;">
-              <option value="TODOS" {% if not filtro_tecnico or filtro_tecnico == 'TODOS' %}selected{% endif %}>Todos los Cuartos</option>
-              {% for t in calibracion_tecnicos %}
-              <option value="{{ t.tecnico }}" {% if filtro_tecnico == t.tecnico %}selected{% endif %}>
-                {{ t.tecnico }} ({{ t.camas_totales }} camas)
-              </option>
+            <select name="tecnico" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-primary" style="min-width: 160px;">
+              <option value="TODOS" {% if not filtro_tecnico or filtro_tecnico == 'TODOS' %}selected{% endif %}>Todos los Técnicos</option>
+              {% for t in todos_tecnicos %}
+              <option value="{{ t }}" {% if filtro_tecnico == t %}selected{% endif %}>{{ t }}</option>
               {% endfor %}
             </select>
           </div>
         </form>
 
-        <button type="button" class="btn btn-dark btn-sm fw-bold shadow-xs" onclick="window.print();">
-          <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir Programa Oficial
+        <button type="button" class="btn btn-dark btn-sm fw-bold shadow-xs px-3" onclick="window.print();">
+          <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Slicer de Tratamiento (No Print) -->
+  <!-- Slicer de Módulos Rápido Dinámico (Solo muestra módulos asignados) -->
+  {% if apartados_disponibles and apartados_disponibles|length > 0 %}
   <div class="card mb-3 border-0 shadow-sm bg-white no-print">
     <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div class="d-flex align-items-center gap-2">
-        <span class="small fw-bold text-dark"><i class="fa-solid fa-filter text-primary me-1"></i>Slicer por Tratamiento / Receta:</span>
+        <span class="small fw-bold text-dark"><i class="fa-solid fa-filter text-primary me-1"></i>Módulos Asignados para Imprimir:</span>
       </div>
-      <div class="btn-group btn-group-sm flex-wrap" role="group" id="treatment-slicer-group">
-        <button type="button" class="btn btn-dark active fw-bold btn-slicer" data-cat="TODOS" onclick="filtrarTratamiento(this, 'TODOS')">
-          <i class="fa-solid fa-list-check me-1"></i> TODOS
-        </button>
-        <button type="button" class="btn btn-outline-success fw-bold btn-slicer" data-cat="TRICHOS" onclick="filtrarTratamiento(this, 'TRICHOS')">
-          <i class="fa-solid fa-shield-virus me-1"></i> TRICHOS & BIOLÓGICOS
-        </button>
-        <button type="button" class="btn btn-outline-warning text-dark fw-bold btn-slicer" data-cat="MOSHE" onclick="filtrarTratamiento(this, 'MOSHE')">
-          <i class="fa-solid fa-vial me-1"></i> MOSHE
-        </button>
-        <button type="button" class="btn btn-outline-info text-dark fw-bold btn-slicer" data-cat="ALCAPLANT" onclick="filtrarTratamiento(this, 'ALCAPLANT')">
-          <i class="fa-solid fa-cubes me-1"></i> ALCAPLANT
-        </button>
-        <button type="button" class="btn btn-outline-primary fw-bold btn-slicer" data-cat="ENRAIZANTES" onclick="filtrarTratamiento(this, 'ENRAIZANTES')">
-          <i class="fa-solid fa-seedling me-1"></i> ENRAIZANTES
-        </button>
-        <button type="button" class="btn btn-outline-secondary fw-bold btn-slicer" data-cat="SOLIDOS" onclick="filtrarTratamiento(this, 'SOLIDOS')">
-          <i class="fa-solid fa-boxes-stacked me-1"></i> SÓLIDOS EDÁFICOS
-        </button>
+      <div class="btn-group btn-group-sm flex-wrap" role="group">
+        <a href="{{ url_for('fertilizacion.programa_impresion', semana=semana, apartado='TODOS', dia=filtro_dia, tecnico=filtro_tecnico) }}" class="btn {% if not filtro_apartado or filtro_apartado == 'TODOS' %}btn-dark active{% else %}btn-outline-dark{% endif %} fw-bold">
+          <i class="fa-solid fa-list-check me-1"></i> TODOS ({{ apartados_disponibles|length }})
+        </a>
+        {% for ap in apartados_disponibles %}
+        <a href="{{ url_for('fertilizacion.programa_impresion', semana=semana, apartado=ap, dia=filtro_dia, tecnico=filtro_tecnico) }}" class="btn {% if filtro_apartado == ap %}btn-success text-white active{% else %}btn-outline-success{% endif %} fw-bold">
+          <i class="fa-solid fa-circle-check me-1"></i> {{ ap }}
+        </a>
+        {% endfor %}
       </div>
     </div>
   </div>
+  {% endif %}
 
   <!-- Printable Document Header -->
   <div class="card border mb-3 shadow-none bg-white">
@@ -206,19 +208,30 @@
 
   <!-- Sections Grouped by Bomba -->
   {% for b in calibracion_bombas %}
-  <div class="card card-tecnico border shadow-xs mb-4 bg-white" data-tratamiento="{{ b.tratamiento_key }}" data-camas="{{ b.camas_totales }}" data-litros="{{ b.litros_totales }}">
+  <div class="card card-tecnico border shadow-xs mb-4 bg-white" data-tratamiento="{{ b.apartado or b.tratamiento_key }}" data-camas="{{ b.camas_totales }}" data-litros="{{ b.litros_totales }}">
     <!-- Encabezado de Alto Contraste Negro y Amarillo para cada Bomba -->
     <div class="card-header card-header-print bg-dark text-white py-2 px-3 d-flex justify-content-between align-items-center">
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <i class="fa-solid fa-atom text-warning"></i>
         <span class="fw-bold fs-6 font-monospace text-uppercase text-warning">{{ b.bomba }}</span>
-        <span class="badge bg-secondary font-monospace">Semana {{ b.edad }}</span>
+        <span class="badge bg-secondary font-monospace">{% if b.es_programa_completo %}Semanas {{ b.edad }}{% else %}Semana {{ b.edad }}{% endif %}</span>
         <span class="badge badge-bomba-yellow font-monospace">{{ b.descripcion }}</span>
-        <span class="badge bg-info-subtle text-info border border-info font-monospace">{{ b.vol_default }} L/cama</span>
+        <span class="badge bg-warning text-dark font-monospace fw-bold">
+          <i class="fa-solid fa-calendar-day me-1"></i>DÍA: {{ b.dia_aplicacion or (b.dias|join(', ') if b.dias else 'LUNES') }}
+        </span>
+        {% if b.vol_default == 0 or b.es_presiembra %}
+          <span class="badge bg-warning-subtle text-dark border border-warning font-monospace">Espolvoreo directo</span>
+        {% else %}
+          <span class="badge bg-info-subtle text-info border border-info font-monospace">{{ b.vol_default }} L/cama</span>
+        {% endif %}
       </div>
       <div class="text-end small">
         <span class="badge bg-success font-monospace fw-bold fs-7">{{ b.camas_totales }} Camas</span>
-        <span class="badge bg-primary font-monospace fw-bold fs-7 ms-1">{{ b.litros_totales|round(1) }} L Caldo</span>
+        {% if b.vol_default == 0 or b.es_presiembra %}
+          <span class="badge bg-warning-subtle text-dark border border-warning font-monospace fw-bold fs-7 ms-1">0 L (En Seco)</span>
+        {% else %}
+          <span class="badge bg-primary font-monospace fw-bold fs-7 ms-1">{{ b.litros_totales|round(1) }} L Caldo</span>
+        {% endif %}
       </div>
     </div>
 
@@ -229,17 +242,21 @@
         <span class="small fw-bold text-dark font-monospace text-uppercase">
           <i class="fa-solid fa-boxes-stacked text-primary me-1"></i> Dosificación e Insumos Requeridos en Bodega (Receta del Tanque):
         </span>
-        <span class="badge bg-white text-dark border font-monospace small">Volumen Tanque: {{ b.litros_totales|round(1) }} L</span>
+        {% if b.vol_default == 0 or b.es_presiembra %}
+          <span class="badge bg-warning-subtle text-dark border font-monospace small">Aplicación: Espolvoreo Directo en Cama (Sin Agua)</span>
+        {% else %}
+          <span class="badge bg-white text-dark border font-monospace small">Volumen Tanque: {{ b.litros_totales|round(1) }} L</span>
+        {% endif %}
       </div>
       <div class="table-responsive">
         <table class="table table-sm table-bordered table-print align-middle mb-0 bg-white">
           <thead class="table-light text-uppercase font-monospace" style="font-size: 0.67rem;">
             <tr>
               <th style="width: 250px;">Producto Comercial / Químico</th>
-              <th style="width: 65px;" class="text-center">U.M</th>
-              <th style="width: 95px;" class="text-end">Dosis / Litro</th>
-              <th style="width: 105px;" class="text-end">Volumen Caldo</th>
-              <th style="width: 130px;" class="text-end bg-light fw-bold text-success">Total a Pesar / Despachar</th>
+              <th style="width: 60px;" class="text-center">U.M</th>
+              <th style="width: 110px;" class="text-end">Dosis</th>
+              <th style="width: 110px;" class="text-end">Volumen Caldo</th>
+              <th style="width: 140px;" class="text-end bg-light fw-bold text-success">Total a Pesar / Despachar</th>
               <th>Notas de Mezcla / Recomendación Técnica</th>
               <th style="width: 130px;" class="text-center">Visto Bueno Bodega</th>
             </tr>
@@ -249,8 +266,20 @@
             <tr>
               <td class="fw-bold text-dark font-monospace">{{ prod.name }}</td>
               <td class="text-center font-monospace text-muted">{{ prod.unit }}</td>
-              <td class="text-end font-monospace text-muted">{{ prod.dose }}</td>
-              <td class="text-end font-monospace text-muted">{{ b.litros_totales|round(1) }} L</td>
+              <td class="text-end font-monospace fw-bold text-dark">
+                {% if prod.dosis_diferenciada %}
+                  <span class="text-primary">{{ prod.dosis_diferenciada }} {{ prod.unit }}{% if b.vol_default > 0 %}/L{% else %}/cama{% endif %}</span>
+                {% else %}
+                  {{ prod.dose_str or (prod.dose ~ ' ' ~ prod.unit) }}
+                {% endif %}
+              </td>
+              <td class="text-end font-monospace text-muted">
+                {% if b.vol_default == 0 or b.es_presiembra %}
+                  <span class="text-muted">-</span>
+                {% else %}
+                  {{ b.litros_totales|round(1) }} L
+                {% endif %}
+              </td>
               <td class="text-end font-monospace fw-bold text-success bg-light fs-7">
                 {{ prod.total_cantidad }} {{ prod.unit }}
               </td>
@@ -265,7 +294,7 @@
       </div>
       {% endif %}
 
-      <!-- 2. TABLA VERTICAL DE BLOQUES CALIBRADOS (Distribución en Campo) -->
+      <!-- 2. TABLA VERTICAL DE BLOQUES CALIBRADOS (Distribución en Campo - Formato Fumigación) -->
       <div class="p-2 bg-light border-top border-bottom">
         <span class="small fw-bold text-dark font-monospace text-uppercase">
           <i class="fa-solid fa-map-location-dot text-success me-1"></i> Bloques Calibrados para {{ b.bomba }} (Distribución de Campo):
@@ -275,66 +304,82 @@
         <table class="table table-sm table-bordered table-print table-hover align-middle mb-0">
           <thead class="table-light text-uppercase font-monospace" style="font-size: 0.68rem;">
             <tr>
-              <th style="width: 35px;" class="text-center">#</th>
-              <th style="width: 75px;" class="text-center">BLOQUE</th>
-              <th style="width: 95px;" class="text-center">ZONA</th>
-              <th style="width: 120px;">VARIEDAD / CULTIVO</th>
-              <th style="width: 55px;" class="text-center">EDAD</th>
-              <th style="width: 55px;" class="text-center">C. INIC.</th>
-              <th style="width: 55px;" class="text-center">C. FIN.</th>
-              <th style="width: 65px;" class="text-end bg-light fw-bold text-success">CAMAS</th>
-              <th style="width: 60px;" class="text-end">L/CAMA</th>
-              <th style="width: 80px;" class="text-end text-primary fw-bold">VOL. (L)</th>
-              <th style="width: 140px;">PRODUCTO</th>
+              <th style="width: 30px;" class="text-center">#</th>
+              <th style="width: 65px;" class="text-center">BLOQUE</th>
+              <th style="width: 75px;" class="text-center">ZONA</th>
+              <th style="width: 100px;">VARIEDAD</th>
+              <th style="width: 45px;" class="text-center">EDAD</th>
+              <th style="width: 75px;" class="text-center">DÍA</th>
+              <th style="width: 80px;" class="text-center">RANGO CAMAS</th>
+              <th style="width: 55px;" class="text-end bg-light fw-bold text-success">CAMAS</th>
+              <th style="width: 50px;" class="text-end">L/CAMA</th>
+              <th style="width: 70px;" class="text-end text-primary fw-bold">VOL. (L)</th>
+              <th style="width: 150px;">PRODUCTO</th>
+              <th style="width: 35px;" class="text-center">U.M</th>
               <th style="width: 85px;" class="text-end">DOSIS</th>
-              <th style="width: 140px;">CUARTO DE BOMBEO / TÉCNICO</th>
-              <th style="width: 70px;" class="text-center">CONFORME</th>
+              <th style="width: 85px;" class="text-end fw-bold text-dark">TOTAL PROD.</th>
+              <th style="width: 120px;">CUARTO / TÉCNICO</th>
+              <th style="width: 55px;" class="text-center">CONFORME</th>
             </tr>
           </thead>
           <tbody>
             {% for it in (b.bloque_items if b.bloque_items is defined else b['items']) %}
+            {% set block_loop_idx = loop.index %}
+            {% set prods = it.productos if (it.productos and it.productos|length > 0) else [{'name': b.bomba, 'unit': 'L', 'dose': '-', 'dose_str': '-', 'total_producto': '-'}] %}
+            {% set num_prods = prods|length %}
+            {% for p in prods %}
             <tr>
-              <td class="text-center text-muted font-monospace small">{{ loop.index }}</td>
-              <td class="text-center fw-bold text-dark font-monospace fs-7 bg-light">{{ it.bloque }}</td>
-              <td class="text-center font-monospace small"><span class="badge bg-light text-dark border">{{ it.zona or 'GENERAL' }}</span></td>
-              <td class="fw-semibold text-dark small">{{ it.variedad }}</td>
-              <td class="text-center font-monospace small">Sem {{ it.edad }}</td>
-              <td class="text-center font-monospace text-muted small">{{ it.cama_inicial or '-' }}</td>
-              <td class="text-center font-monospace text-muted small">{{ it.cama_final or '-' }}</td>
-              <td class="text-end font-monospace fw-bold text-success bg-light fs-7">{{ it.cantidad_camas }}</td>
-              <td class="text-end font-monospace text-muted small">{{ it.litros_cama }}</td>
-              <td class="text-end font-monospace fw-bold text-primary">{{ it.total_litros|round(1) }} L</td>
-              <td class="small">
-                <div class="d-flex flex-column gap-1">
-                  {% for p in (it.productos or []) %}
-                  <span class="fw-semibold text-dark text-nowrap">{{ p.name }}</span>
-                  {% else %}
-                  <span class="text-muted">-</span>
-                  {% endfor %}
-                </div>
+              {% if loop.first %}
+              <td rowspan="{{ num_prods }}" class="text-center text-muted font-monospace small align-middle">{{ block_loop_idx }}</td>
+              <td rowspan="{{ num_prods }}" class="text-center fw-bold text-dark font-monospace fs-7 bg-light align-middle">{{ it.bloque }}</td>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle"><span class="badge bg-light text-dark border">{{ it.zona or 'GENERAL' }}</span></td>
+              <td rowspan="{{ num_prods }}" class="fw-semibold text-dark small align-middle">{{ it.variedad }}</td>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle">Sem {{ it.edad }}</td>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle">
+                <span class="badge bg-light text-dark border fw-bold" style="font-size: 0.68rem;">{{ it.dia_aplicacion or b.dia_aplicacion or 'LUNES' }}</span>
               </td>
-              <td class="small text-end font-monospace">
-                <div class="d-flex flex-column gap-1 text-end">
-                  {% for p in (it.productos or []) %}
-                  <span class="text-secondary text-nowrap">{{ p.dose_str or (p.dose ~ ' ' ~ p.unit) }}</span>
-                  {% else %}
-                  <span class="text-muted">-</span>
-                  {% endfor %}
-                </div>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle text-nowrap">
+                {% if it.cama_inicial and it.cama_final %}
+                  {% if it.cama_inicial == it.cama_final %}{{ it.cama_inicial }}{% else %}{{ it.cama_inicial }} - {{ it.cama_final }}{% endif %}
+                {% else %}
+                  -
+                {% endif %}
               </td>
-              <td class="small fw-semibold text-secondary font-monospace">{{ it.tecnico }}</td>
-              <td class="text-center text-muted font-monospace" style="font-size: 0.65rem;">
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace fw-bold text-success bg-light fs-7 align-middle">{{ it.cantidad_camas }}</td>
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace text-muted small align-middle">{% if it.litros_cama == '-' or b.vol_default == 0 %}-{% else %}{{ it.litros_cama }}{% endif %}</td>
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace fw-bold text-primary align-middle">{% if it.litros_cama == '-' or b.vol_default == 0 %}-{% else %}{{ it.total_litros|round(1) }} L{% endif %}</td>
+              {% endif %}
+
+              <!-- Fila individual por cada producto de la bomba -->
+              <td class="small fw-semibold text-dark font-monospace">{{ p.name }}</td>
+              <td class="text-center font-monospace small text-muted">{{ p.unit }}</td>
+              <td class="text-end font-monospace small fw-bold text-dark">
+                {% if p.dosis_diferenciada %}
+                  <span class="text-primary">{{ p.dosis_diferenciada }} {{ p.unit }}{% if it.litros_cama != '-' and it.litros_cama > 0 %}/L{% else %}/cama{% endif %}</span>
+                {% else %}
+                  {{ p.dose_str or p.dose }}
+                {% endif %}
+              </td>
+              <td class="text-end font-monospace small fw-bold text-dark bg-light-subtle">
+                {{ p.total_producto }} {{ p.unit if p.total_producto != '-' else '' }}
+              </td>
+
+              {% if loop.first %}
+              <td rowspan="{{ num_prods }}" class="small fw-semibold text-secondary font-monospace align-middle">{{ it.tecnico }}</td>
+              <td rowspan="{{ num_prods }}" class="text-center text-muted font-monospace align-middle" style="font-size: 0.65rem;">
                 [ &nbsp; ]
               </td>
+              {% endif %}
             </tr>
+            {% endfor %}
             {% endfor %}
             <!-- Subtotal Row -->
             <tr class="table-light fw-bold font-monospace border-top border-2 border-dark">
               <td colspan="7" class="text-end text-uppercase">Subtotal {{ b.bomba }}:</td>
               <td class="text-end text-success fs-7">{{ b.camas_totales }}</td>
-              <td class="text-end text-muted">-</td>
-              <td class="text-end text-primary fs-7">{{ b.litros_totales|round(1) }} L</td>
-              <td colspan="4" class="text-muted small">Bloques: {{ b.bloques|join(', ') }}</td>
+              <td class="text-end text-muted">{% if b.vol_default == 0 %}-{% else %}{{ b.vol_default }}{% endif %}</td>
+              <td class="text-end text-primary fs-7">{% if b.vol_default == 0 %}-{% else %}{{ b.litros_totales|round(1) }} L{% endif %}</td>
+              <td colspan="6" class="text-muted small">Bloques: {{ b.bloques|join(', ') }}</td>
             </tr>
           </tbody>
         </table>
@@ -353,10 +398,17 @@
     </div>
   </div>
   {% else %}
-  <div class="text-center py-5 text-muted bg-white rounded border">
-    <i class="fa-solid fa-seedling fs-1 text-secondary mb-2"></i>
-    <h5>No hay programas de Trichos o Sólidos registrados para la Semana {{ semana }}</h5>
-    <p class="small text-muted mb-0">Seleccione otra semana o proyecte el programa desde la pestaña de Fertilización.</p>
+  <div class="card border-0 shadow-sm p-5 text-center my-4 bg-white rounded-3">
+    <div class="py-4">
+      <i class="fa-solid fa-clipboard-check fs-1 text-muted mb-3 opacity-75"></i>
+      <h5 class="fw-bold text-dark mb-1">No hay programas de fertilización asignados para la Semana {{ semana }}</h5>
+      <p class="text-muted small mb-3">
+        Solo los programas y bombas que hayan sido calibrados y asignados a un día en Agronomía están disponibles para impresión y despacho en bodega.
+      </p>
+      <a href="{{ url_for('fertilizacion.index', semana=semana) }}" class="btn btn-primary btn-sm fw-bold">
+        <i class="fa-solid fa-sliders me-1"></i> Ir a Calibrar y Asignar Programas
+      </a>
+    </div>
   </div>
   {% endfor %}
 

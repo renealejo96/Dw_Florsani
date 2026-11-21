@@ -1,0 +1,627 @@
+{% extends "base.html" %}
+
+{% block title %}Check List & Aplicaciones &bull; Semana {{ semana_activa }} | Florsani ERP{% endblock %}
+
+{% block extra_css %}
+<style>
+  .metric-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .table-success-subtle {
+    background-color: #d1e7dd !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 py-3">
+
+  <!-- Header Bento Card -->
+  <div class="bento-card p-3 p-md-4 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="badge bg-success-subtle text-success border border-success fw-bold font-monospace">EJECUCIÓN DE CAMPO</span>
+          <span class="badge bg-light text-muted border font-monospace">PERSONAL OPERATIVO</span>
+        </div>
+        <h4 class="fw-bold mb-1 text-dark">
+          <i class="fa-solid fa-list-check text-success me-2"></i>Check List & Aplicaciones de Fertilización
+        </h4>
+        <p class="text-muted small mb-0">
+          Control de ejecución en campo procedente de las mesas de calibración de Trichos y Sólidos.
+        </p>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <a href="{{ url_for('fertilizacion.index', semana=semana_activa) }}" class="btn btn-outline-primary btn-sm fw-bold shadow-xs">
+          <i class="fa-solid fa-calculator me-1"></i> Programas Trichos y Sólidos (Calibración)
+        </a>
+
+        <!-- Selector de Semana -->
+        <form method="GET" action="{{ url_for('fertilizacion.checklist') }}" class="d-flex align-items-center gap-1">
+          <label class="small fw-bold text-muted mb-0"><i class="fa-solid fa-calendar me-1"></i>Sem:</label>
+          <select name="semana" onchange="this.form.submit()" class="form-select form-select-sm fw-bold border-success" style="width: auto; min-width: 105px;">
+            {% for s in semanas_disponibles %}
+              <option value="{{ s }}" {% if s == semana_activa %}selected{% endif %}>Sem. {{ s }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pestañas Operativas del Check List -->
+  <ul class="nav nav-pills gap-2 mb-3" id="checklistTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active fw-bold px-3 py-2 rounded-3 shadow-xs" id="trichos-tab" data-bs-toggle="pill" data-bs-target="#tab-trichos" type="button" role="tab">
+        <i class="fa-solid fa-shield-virus me-1.5 text-success"></i> 1. Trichos & Biológicos ({{ trichos_items|length }})
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="solidos-tab" data-bs-toggle="pill" data-bs-target="#tab-solidos" type="button" role="tab">
+        <i class="fa-solid fa-cubes-stacked me-1.5 text-warning"></i> 2. Moshe & Sólidos ({{ solidos_items|length }})
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="riego-tab" data-bs-toggle="pill" data-bs-target="#tab-riego" type="button" role="tab">
+        <i class="fa-solid fa-shower me-1.5 text-info"></i> 3. Riego Ducha ({{ riego_ducha_items|length }})
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="valvulas-tab" data-bs-toggle="pill" data-bs-target="#tab-valvulas" type="button" role="tab">
+        <i class="fa-solid fa-gauge-high me-1.5 text-secondary"></i> 4. Control de Válvulas ({{ valvula_items|length }})
+      </button>
+    </li>
+  </ul>
+
+  <!-- Contenido de las Pestañas -->
+  <div class="tab-content" id="checklistTabsContent">
+
+    <!-- ============================================================== -->
+    <!-- TAB 1: CHECKLIST TRICHOS (BIOLÓGICOS & ENRAIZANTES) -->
+    <!-- ============================================================== -->
+    <div class="tab-pane fade show active" id="tab-trichos" role="tabpanel">
+      <div class="bento-card p-3 p-md-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="badge bg-success text-white font-monospace">CHECKLIST OPERATIVO</span>
+              <span class="badge bg-light text-dark border">Trichos & Biológicos</span>
+            </div>
+            <h5 class="fw-bold mb-0">Checklist Trichos (Biológicos & Enraizantes)</h5>
+            <p class="text-muted small mb-0">Marca las camas y bombas de biológicos aplicadas. El estado se sincroniza al instante.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <input type="text" id="filtro-busqueda-trichos" onkeyup="filtrarTablaGenerica('tabla-trichos', this.value)" placeholder="Buscar bloque, bomba..." class="form-control form-control-sm" style="max-width: 220px;">
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="tabla-trichos">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th style="width: 50px;" class="text-center">Estado</th>
+                <th>Clasificación</th>
+                <th>Bloque</th>
+                <th>Zona</th>
+                <th>Camas</th>
+                <th>Edad</th>
+                <th>Bomba</th>
+                <th>Cultivo</th>
+                <th>Cuarto / Técnico</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in trichos_items %}
+              <tr id="row-drench-{{ item.id }}" class="{% if item.completado %}table-success-subtle opacity-75{% endif %}">
+                <td class="text-center">
+                  {% if item.completado %}
+                    <i class="fa-solid fa-circle-check text-success fs-5"></i>
+                  {% else %}
+                    <i class="fa-regular fa-circle text-secondary fs-5"></i>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge rounded-pill bg-success-subtle text-success fw-bold">{{ item.clasificacion }}</span>
+                </td>
+                <td class="fw-bold font-monospace">{{ item.bloque }}</td>
+                <td class="font-monospace small"><span class="badge bg-light text-dark border">{{ item.zona or 'GENERAL' }}</span></td>
+                <td class="metric-tabular font-monospace">
+                  C{{ item.cama_inicial }} - C{{ item.cama_final }} 
+                  <span class="text-muted small">({{ item.cantidad_camas }} camas)</span>
+                </td>
+                <td class="metric-tabular font-monospace">{{ item.edad }} sem</td>
+                <td class="small fw-semibold font-monospace text-truncate" style="max-width: 250px;" title="{{ item.bomba }}">
+                  {{ item.bomba }}
+                </td>
+                <td><span class="badge bg-secondary-subtle text-secondary">{{ item.cultivo }}</span></td>
+                <td class="small text-muted">
+                  {% if item.completado %}
+                    <strong>{{ item.aplicador or 'N/A' }}</strong> &bull; {{ item.tecnico or 'N/A' }}
+                  {% else %}
+                    <span class="text-warning-emphasis">Pendiente</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button type="button" onclick="toggleDrenchItem({{ item.id }}, {{ 'true' if not item.completado else 'false' }})" class="btn btn-sm {% if item.completado %}btn-outline-secondary{% else %}btn-success{% endif %} fw-semibold">
+                    {% if item.completado %}
+                      <i class="fa-solid fa-rotate-left me-1"></i> Deshacer
+                    {% else %}
+                      <i class="fa-solid fa-check me-1"></i> Completar
+                    {% endif %}
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="10" class="text-center py-4 text-muted">
+                  No hay aplicaciones de Trichos/Biológicos registradas para la Semana {{ semana_activa }}.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 2: CHECKLIST SÓLIDOS (MOSHE, ALCAPLANT & SULFATO) -->
+    <!-- ============================================================== -->
+    <div class="tab-pane fade" id="tab-solidos" role="tabpanel">
+      <div class="bento-card p-3 p-md-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="badge bg-warning text-dark font-monospace">CHECKLIST OPERATIVO</span>
+              <span class="badge bg-light text-dark border">Sólidos & Nutrición</span>
+            </div>
+            <h5 class="fw-bold mb-0">Checklist Sólidos (Moshe, Alcaplant & Sulfato)</h5>
+            <p class="text-muted small mb-0">Marca las camas y bombas de fertilizantes sólidos aplicadas.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <input type="text" id="filtro-busqueda-solidos" onkeyup="filtrarTablaGenerica('tabla-solidos', this.value)" placeholder="Buscar bloque, bomba..." class="form-control form-control-sm" style="max-width: 220px;">
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="tabla-solidos">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th style="width: 50px;" class="text-center">Estado</th>
+                <th>Clasificación</th>
+                <th>Bloque</th>
+                <th>Zona</th>
+                <th>Camas</th>
+                <th>Edad</th>
+                <th>Bomba</th>
+                <th>Cultivo</th>
+                <th>Cuarto / Técnico</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in solidos_items %}
+              <tr id="row-drench-{{ item.id }}" class="{% if item.completado %}table-success-subtle opacity-75{% endif %}">
+                <td class="text-center">
+                  {% if item.completado %}
+                    <i class="fa-solid fa-circle-check text-success fs-5"></i>
+                  {% else %}
+                    <i class="fa-regular fa-circle text-secondary fs-5"></i>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis fw-bold">{{ item.clasificacion }}</span>
+                </td>
+                <td class="fw-bold font-monospace">{{ item.bloque }}</td>
+                <td class="font-monospace small"><span class="badge bg-light text-dark border">{{ item.zona or 'GENERAL' }}</span></td>
+                <td class="metric-tabular font-monospace">
+                  C{{ item.cama_inicial }} - C{{ item.cama_final }} 
+                  <span class="text-muted small">({{ item.cantidad_camas }} camas)</span>
+                </td>
+                <td class="metric-tabular font-monospace">{{ item.edad }} sem</td>
+                <td class="small fw-semibold font-monospace text-truncate" style="max-width: 250px;" title="{{ item.bomba }}">
+                  {{ item.bomba }}
+                </td>
+                <td><span class="badge bg-secondary-subtle text-secondary">{{ item.cultivo }}</span></td>
+                <td class="small text-muted">
+                  {% if item.completado %}
+                    <strong>{{ item.aplicador or 'N/A' }}</strong> &bull; {{ item.tecnico or 'N/A' }}
+                  {% else %}
+                    <span class="text-warning-emphasis">Pendiente</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button type="button" onclick="toggleDrenchItem({{ item.id }}, {{ 'true' if not item.completado else 'false' }})" class="btn btn-sm {% if item.completado %}btn-outline-secondary{% else %}btn-success{% endif %} fw-semibold">
+                    {% if item.completado %}
+                      <i class="fa-solid fa-rotate-left me-1"></i> Deshacer
+                    {% else %}
+                      <i class="fa-solid fa-check me-1"></i> Completar
+                    {% endif %}
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="10" class="text-center py-4 text-muted">
+                  No hay aplicaciones de Sólidos registradas para la Semana {{ semana_activa }}.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 3: RIEGO DUCHA -->
+    <!-- ============================================================== -->
+    <div class="tab-pane fade" id="tab-riego" role="tabpanel">
+      <div class="bento-card p-3 p-md-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+          <div>
+            <h5 class="fw-bold mb-1">Registros de Riego Ducha (Rendimientos Operativos)</h5>
+            <p class="text-muted small mb-0">Seguimiento de minutos/cama y camas/hora por técnico y aplicador.</p>
+          </div>
+          <button type="button" class="btn btn-sm btn-info text-white fw-bold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalRiegoDucha">
+            <i class="fa-solid fa-plus me-1"></i> Registrar Riego Ducha
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th>Fecha</th>
+                <th>Aplicador</th>
+                <th>Técnico</th>
+                <th>Bloque</th>
+                <th>Pases</th>
+                <th>Camas</th>
+                <th>Duración</th>
+                <th>Rendimiento</th>
+                <th class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for reg in riego_ducha_items %}
+              <tr>
+                <td class="small">{{ reg.fecha.strftime('%d/%m/%Y') if reg.fecha else '' }}</td>
+                <td class="fw-bold">{{ reg.aplicador }}</td>
+                <td class="small text-muted">{{ reg.tecnico }}</td>
+                <td class="fw-bold">{{ reg.bloque }}</td>
+                <td><span class="badge bg-primary-subtle text-primary">{{ reg.pases }} pases</span></td>
+                <td class="metric-tabular">{{ reg.camas_fisicas }}</td>
+                <td class="metric-tabular">{{ reg.duracion_minutos|round(1) }} min</td>
+                <td class="metric-tabular fw-bold text-success">
+                  {{ reg.rendimiento_min_cama|round(2) }} min/cama
+                </td>
+                <td class="text-end">
+                  <button type="button" onclick="eliminarRiegoDucha({{ reg.id }})" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="9" class="text-center py-4 text-muted">
+                  No hay registros de Riego Ducha para el día de hoy.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 4: VÁLVULAS -->
+    <!-- ============================================================== -->
+    <div class="tab-pane fade" id="tab-valvulas" role="tabpanel">
+      <div class="bento-card p-3 p-md-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+          <div>
+            <h5 class="fw-bold mb-1">Registros de Válvulas de Riego</h5>
+            <p class="text-muted small mb-0">Control de apertura de válvulas y tiempos por variedad y bloque.</p>
+          </div>
+          <button type="button" class="btn btn-sm btn-warning text-dark fw-bold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalValvula">
+            <i class="fa-solid fa-plus me-1"></i> Registrar Válvulas
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr class="small text-uppercase text-secondary">
+                <th>Fecha</th>
+                <th>Aplicador</th>
+                <th>Técnico</th>
+                <th>Variedad</th>
+                <th>Válvulas</th>
+                <th>Minutos de Riego</th>
+                <th>Observaciones</th>
+                <th class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for val in valvula_items %}
+              <tr>
+                <td class="small">{{ val.fecha.strftime('%d/%m/%Y') if val.fecha else '' }}</td>
+                <td class="fw-bold">{{ val.aplicador }}</td>
+                <td class="small text-muted">{{ val.tecnico }}</td>
+                <td><span class="badge bg-secondary-subtle text-secondary">{{ val.variedad }}</span></td>
+                <td class="metric-tabular fw-bold">{{ val.cantidad_valvulas }} válvulas</td>
+                <td class="metric-tabular text-info fw-bold">{{ val.minutos_riego }} min</td>
+                <td class="small text-muted">{{ val.observaciones or '-' }}</td>
+                <td class="text-end">
+                  <button type="button" onclick="eliminarValvula({{ val.id }})" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="8" class="text-center py-4 text-muted">
+                  No hay registros de válvulas para el día de hoy.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- MODAL REGISTRO RIEGO DUCHA -->
+<!-- ================================================================== -->
+<div class="modal fade" id="modalRiegoDucha" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bento-card border-0">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-shower text-info me-2"></i>Registrar Riego Ducha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="formRiegoDucha" onsubmit="guardarRiegoDucha(event)">
+        <div class="modal-body space-y-3">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Aplicador:</label>
+            <input type="text" name="aplicador" required class="form-control form-control-sm" placeholder="Nombre del aplicador">
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small fw-bold">Bloque:</label>
+              <input type="text" name="bloque" required class="form-control form-control-sm" placeholder="Ej: BL 11 o 100">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold">Pases:</label>
+              <select name="pases" class="form-select form-select-sm">
+                <option value="1">1 Pase</option>
+                <option value="2">2 Pases</option>
+                <option value="3">3 Pases</option>
+                <option value="4">4 Pases</option>
+                <option value="5">5 Pases</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Técnico Responsable:</label>
+            <select name="tecnico" required class="form-select form-select-sm">
+              <option value="">Seleccione Técnico...</option>
+              {% for t in tecnicos %}
+                <option value="{{ t.nombre }}">{{ t.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-bold">Camas Físicas:</label>
+              <input type="number" name="camas_fisicas" required min="1" class="form-control form-control-sm" placeholder="Ej: 30">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold">Duración (Minutos):</label>
+              <input type="number" step="0.1" name="duracion_minutos" required min="0.1" class="form-control form-control-sm" placeholder="Ej: 45.5">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Observaciones:</label>
+            <textarea name="observaciones" rows="2" class="form-control form-control-sm" placeholder="Notas adicionales..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-info text-white fw-bold">Guardar Registro</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- MODAL REGISTRO VÁLVULA -->
+<!-- ================================================================== -->
+<div class="modal fade" id="modalValvula" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bento-card border-0">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-gauge-high text-warning me-2"></i>Registrar Apertura de Válvulas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="formValvula" onsubmit="guardarValvula(event)">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Aplicador:</label>
+            <input type="text" name="aplicador" required class="form-control form-control-sm" placeholder="Nombre del operador">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Técnico Responsable:</label>
+            <select name="tecnico" required class="form-select form-select-sm">
+              <option value="">Seleccione Técnico...</option>
+              {% for t in tecnicos %}
+                <option value="{{ t.nombre }}">{{ t.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Variedad:</label>
+            <select name="variedad" required class="form-select form-select-sm">
+              <option value="">Seleccione Variedad...</option>
+              {% for v in variedades %}
+                <option value="{{ v.nombre }}">{{ v.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-bold">Cantidad de Válvulas:</label>
+              <input type="number" name="cantidad_valvulas" required min="1" class="form-control form-control-sm" placeholder="Ej: 4">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold">Minutos de Riego:</label>
+              <input type="number" name="minutos_riego" required min="1" class="form-control form-control-sm" placeholder="Ej: 30">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Observaciones:</label>
+            <textarea name="observaciones" rows="2" class="form-control form-control-sm" placeholder="Notas..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-warning text-dark fw-bold">Guardar Válvulas</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function toggleDrenchItem(itemId, nuevoEstado) {
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_drench_toggle') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: itemId, completado: nuevoEstado })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const row = document.getElementById(`row-drench-${itemId}`);
+      if (row) {
+        if (data.item.completado) {
+          row.classList.add('table-success-subtle', 'opacity-75');
+          row.cells[0].innerHTML = '<i class="fa-solid fa-circle-check text-success fs-5"></i>';
+          row.cells[8].innerHTML = `<strong>${data.item.aplicador || 'N/A'}</strong> &bull; ${data.item.tecnico || 'N/A'}`;
+          row.cells[9].innerHTML = `<button type="button" onclick="toggleDrenchItem(${itemId}, false)" class="btn btn-sm btn-outline-secondary fw-semibold"><i class="fa-solid fa-rotate-left me-1"></i> Deshacer</button>`;
+        } else {
+          row.classList.remove('table-success-subtle', 'opacity-75');
+          row.cells[0].innerHTML = '<i class="fa-regular fa-circle text-secondary fs-5"></i>';
+          row.cells[8].innerHTML = '<span class="text-warning-emphasis">Pendiente</span>';
+          row.cells[9].innerHTML = `<button type="button" onclick="toggleDrenchItem(${itemId}, true)" class="btn btn-sm btn-success fw-semibold"><i class="fa-solid fa-check me-1"></i> Completar</button>`;
+        }
+      }
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (err) {
+    alert("Error de conexión: " + err);
+  }
+}
+
+async function guardarRiegoDucha(e) {
+  e.preventDefault();
+  const form = document.getElementById('formRiegoDucha');
+  const formData = new FormData(form);
+  const payload = Object.fromEntries(formData.entries());
+
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_riego_ducha') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      const modalEl = document.getElementById('modalRiegoDucha');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+      form.reset();
+      location.reload();
+    } else {
+      alert("Error al guardar: " + data.message);
+    }
+  } catch (err) {
+    alert("Error al guardar: " + err);
+  }
+}
+
+async function eliminarRiegoDucha(id) {
+  if (!confirm("¿Está seguro de eliminar este registro de riego ducha?")) return;
+  try {
+    const res = await fetch(`/fertilizacion/api/riego-ducha/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.success) location.reload();
+    else alert("Error: " + data.message);
+  } catch (err) {
+    alert("Error de conexión: " + err);
+  }
+}
+
+async function guardarValvula(e) {
+  e.preventDefault();
+  const form = document.getElementById('formValvula');
+  const formData = new FormData(form);
+  const payload = Object.fromEntries(formData.entries());
+
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_valvulas') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      const modalEl = document.getElementById('modalValvula');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+      form.reset();
+      location.reload();
+    } else {
+      alert("Error al guardar: " + data.message);
+    }
+  } catch (err) {
+    alert("Error al guardar: " + err);
+  }
+}
+
+async function eliminarValvula(id) {
+  if (!confirm("¿Está seguro de eliminar este registro de válvula?")) return;
+  try {
+    const res = await fetch(`/fertilizacion/api/valvula/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.success) location.reload();
+    else alert("Error: " + data.message);
+  } catch (err) {
+    alert("Error de conexión: " + err);
+  }
+}
+
+function filtrarTablaGenerica(tableId, query) {
+  const q = query.trim().toUpperCase();
+  const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+  rows.forEach(r => {
+    if (r.cells.length <= 1) return;
+    const txt = r.textContent.toUpperCase();
+    r.style.display = txt.includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

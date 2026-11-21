@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from werkzeug.utils import secure_filename
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, session
 from app.extensions import db
 from app.shared.models import ImportBatch, Product, Litraje, CropStateRecord, Crop, AuditLog
 from app.shared.excel_parser import ExcelParserService
@@ -176,11 +176,13 @@ def upload():
 
             # Auto-discover and register any new crops found in the file
             discovered_crops = set()
+            finca_import = session.get('finca_id', 1) or 1
             records = []
             for r in res['data']:
                 rec = CropStateRecord(
                     batch_id=batch.id,
                     week=target_week,
+                    id_finca=finca_import,
                     block_full=r['block_full'],
                     block_num=r['block_num'],
                     bed_num=r['bed_num'],
@@ -376,11 +378,13 @@ def commit_preview():
         db.session.flush()
 
         discovered_crops = set()
+        finca_import = session.get('finca_id', 1) or 1
         records = []
         for r in res['data']:
             rec = CropStateRecord(
                 batch_id=batch.id,
                 week=target_week,
+                id_finca=finca_import,
                 block_full=r['block_full'],
                 block_num=r['block_num'],
                 bed_num=r['bed_num'],

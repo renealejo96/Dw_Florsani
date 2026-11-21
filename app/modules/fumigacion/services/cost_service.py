@@ -705,6 +705,82 @@ class CostService:
         except Exception:
             pass
 
+        # Incorporar costos de Fertilización (Trichos, Sólidos, Moshe, Alcaplant, Presiembras)
+        try:
+            from app.modules.fertilizacion.models import DrenchItem
+            from app.modules.fertilizacion.routes import procesar_calibracion_fertilizacion
+            drench_q = DrenchItem.query
+            if week and str(week).strip().upper() != 'ALL':
+                drench_q = drench_q.filter(_build_week_filter(DrenchItem.semana, week))
+            drench_records = drench_q.all()
+            if drench_records:
+                _, _, d_bombas = procesar_calibracion_fertilizacion(drench_records)
+                for b_grp in d_bombas:
+                    for it in b_grp.get('items', []):
+                        blk_clean = str(it.get('bloque', '')).replace('BL', '').strip().upper()
+                        if not blk_clean:
+                            continue
+                        blocks_treated_set.add(blk_clean)
+                        b_info = area_map.get(blk_clean, {'ha': 0.0, 'zona': it.get('zona', '')})
+                        b_ha = b_info['ha']
+                        c_raw = str(it.get('cultivo', 'VARIOS')).strip().upper()
+                        if any(k in c_raw for k in ['GYPSO', 'BILLION', 'XLENCE']) or c_raw in ('G5', 'G49'):
+                            c_nom = 'GYPSOPHILA'
+                        elif 'VERONICA' in c_raw:
+                            c_nom = 'VERONICA'
+                        elif 'SOLIDAGO' in c_raw:
+                            c_nom = 'SOLIDAGO'
+                        elif 'HYPERICUM' in c_raw:
+                            c_nom = 'HYPERICUM'
+                        else:
+                            c_nom = c_raw
+
+                        it_cost = 0.0
+                        for p in it.get('productos', []):
+                            p_code = str(p.get('name', '')).strip().upper()
+                            c_info = prod_map.get(p_code) or {}
+                            u_cost = float(c_info.get('costo_unitario') or 0.0)
+                            tot_q = float(p.get('total_producto') or 0.0) if p.get('total_producto') != '-' else 0.0
+                            line_cost = round(tot_q * u_cost, 4)
+                            it_cost += line_cost
+                            total_cost_all += line_cost
+
+                            bod_name = c_info.get('bodega') or 'FERTILIZANTES'
+                            bodega_totals[bod_name] = bodega_totals.get(bod_name, 0.0) + line_cost
+                            p_k = f"{bod_name}|||{p_code}"
+                            if bod_name not in bodega_products_map:
+                                bodega_products_map[bod_name] = {}
+                            if p_k not in bodega_products_map[bod_name]:
+                                bodega_products_map[bod_name][p_k] = {
+                                    'product_code': p_code,
+                                    'commercial_name': c_info.get('commercial_name') or p_code,
+                                    'unit': p.get('unit') or 'GR',
+                                    'unit_cost': u_cost,
+                                    'total_amount': 0.0,
+                                    'total_cost': 0.0
+                                }
+                            bodega_products_map[bod_name][p_k]['total_amount'] += tot_q
+                            bodega_products_map[bod_name][p_k]['total_cost'] += line_cost
+
+                        if blk_clean not in block_totals:
+                            block_totals[blk_clean] = {
+                                'block_name': blk_clean,
+                                'crop': c_nom,
+                                'zone': it.get('zona', b_info.get('zona', '')),
+                                'total_cost': 0.0,
+                                'ha': b_ha,
+                                'applications_count': 0
+                            }
+                        block_totals[blk_clean]['total_cost'] += it_cost
+                        block_totals[blk_clean]['applications_count'] += 1
+
+                        if c_nom not in crop_totals:
+                            crop_totals[c_nom] = {'crop': c_nom, 'total_cost': 0.0, 'ha': 0.0}
+                        crop_totals[c_nom]['total_cost'] += it_cost
+                        crop_totals[c_nom]['ha'] += b_ha
+        except Exception as e_ferti_cost:
+            print(f"[WARN] Error sumando costos fertilizacion: {e_ferti_cost}")
+
         # Área cultivada de la finca oficial de la semana (19.99 ha) y áreas por cultivo
         farm_cultivated_area = cls.get_farm_cultivated_area(week)
         crop_official_areas = cls.get_crop_official_areas(week)

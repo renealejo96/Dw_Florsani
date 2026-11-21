@@ -501,6 +501,8 @@
                                                 <span class="badge bg-light text-dark border" title="Catálogos">Catálogos</span>
                                             {% elif p == 'importador' %}
                                                 <span class="badge bg-light text-dark border" title="Importador">Excel</span>
+                                            {% elif p == 'fertilizacion' %}
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle" title="Fertilización & Drench"><i class="fa-solid fa-droplet me-1"></i>Fertilización</span>
                                             {% elif p == 'fenogramas' %}
                                                 <span class="badge bg-info-subtle text-info border border-info" title="Fenogramas"><i class="fa-solid fa-timeline me-1"></i>Fenogramas</span>
                                             {% else %}
@@ -540,6 +542,19 @@
                                     </div>
                                 </td>
                             </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- MODALES DE EDICIÓN Y ELIMINACIÓN DE USUARIOS (UBICADOS FUERA DE LA TABLA HTML5) -->
+<!-- ============================================================================== -->
+{% for u in users %}
 
                             <!-- Edit Modal for User -->
                             <div class="modal fade" id="editModal{{ u.id }}" tabindex="-1" aria-hidden="true">
@@ -791,7 +806,6 @@
                                                         </div>
                                                     </div>
                                                 </div>
-                                                </div>
                                             </div>
                                             <div class="modal-footer bg-light py-2">
                                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
@@ -830,15 +844,7 @@
                                 </div>
                             </div>
                             {% endif %}
-
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% endfor %}
 {% endblock %}
 
 {% block extra_js %}

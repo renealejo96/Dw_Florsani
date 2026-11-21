@@ -186,14 +186,94 @@
 </div>
 
 <!-- Barra Flotante de Sincronización Offline (Modo Campo) -->
-<div id="offline-sync-bar" class="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 bg-dark text-white rounded-pill shadow-lg d-none align-items-center gap-3 border border-secondary" style="z-index: 1060; font-size: 0.85rem;">
+<div id="offline-sync-bar" class="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 bg-dark text-white rounded-pill shadow-lg d-none align-items-center gap-2 border border-secondary flex-wrap" style="z-index: 1060; font-size: 0.85rem;">
     <span class="d-flex align-items-center gap-2">
         <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
-        <span><strong id="offline-pending-count">0</strong> ticket(s) offline guardados en tu teléfono</span>
+        <span><strong id="offline-pending-count">0</strong> tickets (<strong id="offline-pending-tallos" class="text-warning">0</strong> tallos) en teléfono</span>
     </span>
-    <button type="button" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 py-1" onclick="sincronizarColaOffline()" id="btn-sync-offline">
+    <button type="button" class="btn btn-outline-light btn-sm fw-bold rounded-pill px-3 py-1 shadow-xs" onclick="abrirModalColaOffline()" id="btn-ver-offline">
+        <i class="fa-solid fa-list-check me-1"></i> Ver / Borrar (<span id="offline-btn-count">0</span>)
+    </button>
+    <button type="button" class="btn btn-warning btn-sm fw-bold rounded-pill px-3 py-1 text-dark shadow-xs" onclick="sincronizarColaOffline()" id="btn-sync-offline">
         <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar Ahora
     </button>
+</div>
+
+<!-- Modal: Ver y Gestionar Tickets Offline Guardados en el Teléfono (Permite Borrar Registros Mal Llenos Sin Internet) -->
+<div class="modal fade" id="modalColaOffline" tabindex="-1" aria-hidden="true" style="z-index: 1070;">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bento-card border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white border-bottom py-2.5 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-mobile-screen-button text-warning"></i>
+                    <h6 class="modal-title fw-bold mb-0">Tickets Guardados Offline en este Teléfono</h6>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Totales Acumulados Offline en Vivo (Sin Señal) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="p-2 rounded bg-light border text-center font-monospace">
+                            <span class="text-muted d-block small" style="font-size: 0.70rem;">TICKETS LOCALES:</span>
+                            <strong class="fs-6 text-dark" id="offline-modal-tickets">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 rounded bg-light border text-center font-monospace">
+                            <span class="text-muted d-block small" style="font-size: 0.70rem;">TOTAL MALLAS:</span>
+                            <strong class="fs-6 text-warning" id="offline-modal-mallas">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 rounded bg-light border text-center font-monospace">
+                            <span class="text-muted d-block small" style="font-size: 0.70rem;">TOTAL TALLOS:</span>
+                            <strong class="fs-6 text-success" id="offline-modal-tallos">0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info py-2 px-3 small mb-2 d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-circle-info fs-5 text-primary"></i>
+                    <div>
+                        Estos tickets están guardados en la memoria local de tu dispositivo. Si te equivocaste en un viaje, mallas o bloque, <strong>puedes borrarlo aquí de inmediato antes de sincronizar con el servidor</strong>.
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                    <table class="table table-sm table-hover table-bordered align-middle mb-0 font-monospace" style="font-size: 0.82rem;">
+                        <thead class="table-light text-secondary text-uppercase" style="position: sticky; top: 0; background: #f8fafc;">
+                            <tr>
+                                <th style="width: 30px;" class="text-center">#</th>
+                                <th>FECHA</th>
+                                <th class="text-center">VIAJE</th>
+                                <th>MÓDULO</th>
+                                <th>VARIEDAD</th>
+                                <th class="text-end">MALLAS</th>
+                                <th class="text-end">TALLOS/M.</th>
+                                <th class="text-end text-success fw-bold">TOTAL</th>
+                                <th style="width: 50px;" class="text-center">ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="offline-tickets-tbody">
+                            <!-- JS inyecta filas de tickets offline -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top p-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="vaciarColaOffline()">
+                    <i class="fa-solid fa-trash-can me-1"></i> Borrar Todos los Tickets Locales
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-sm btn-warning fw-bold text-dark" onclick="sincronizarColaOffline()">
+                        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar Ahora
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -501,16 +581,128 @@ Para ingresar cosechas de otra semana, cambie el número de semana arriba.`);
 
     function actualizarBarraOffline() {
         const queue = getOfflineQueue();
+        const pendingCountEl = document.getElementById('offline-pending-count');
+        const pendingTallosEl = document.getElementById('offline-pending-tallos');
+        const btnCountEl = document.getElementById('offline-btn-count');
+
+        let sumTallos = 0;
+        let sumMallas = 0;
+        queue.forEach(item => {
+            const m = parseInt(item.mallas) || 0;
+            const t = parseInt(item.tallos) || 0;
+            sumMallas += m;
+            sumTallos += (m * t);
+        });
+
+        if (pendingCountEl) pendingCountEl.textContent = queue.length;
+        if (pendingTallosEl) pendingTallosEl.textContent = sumTallos.toLocaleString();
+        if (btnCountEl) btnCountEl.textContent = queue.length;
+
+        // Totales en modal offline
+        const modalTicketsEl = document.getElementById('offline-modal-tickets');
+        const modalMallasEl = document.getElementById('offline-modal-mallas');
+        const modalTallosEl = document.getElementById('offline-modal-tallos');
+        if (modalTicketsEl) modalTicketsEl.textContent = queue.length;
+        if (modalMallasEl) modalMallasEl.textContent = sumMallas.toLocaleString();
+        if (modalTallosEl) modalTallosEl.textContent = sumTallos.toLocaleString();
+
         if (queue.length > 0) {
             offlineSyncBar.classList.remove('d-none');
             offlineSyncBar.classList.add('d-flex');
-            offlinePendingCount.textContent = queue.length;
         } else {
             offlineSyncBar.classList.remove('d-flex');
             offlineSyncBar.classList.add('d-none');
-            offlinePendingCount.textContent = '0';
         }
     }
+
+    function escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    window.abrirModalColaOffline = function() {
+        renderTablaColaOffline();
+        const modalEl = document.getElementById('modalColaOffline');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    };
+
+    function renderTablaColaOffline() {
+        const queue = getOfflineQueue();
+        const tbody = document.getElementById('offline-tickets-tbody');
+        if (!tbody) return;
+
+        if (queue.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-4 text-muted">
+                        <i class="fa-solid fa-inbox fs-4 mb-2 d-block text-secondary opacity-50"></i>
+                        No hay tickets pendientes en la memoria de este teléfono.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = queue.map((t, idx) => {
+            const m = parseInt(t.mallas) || 0;
+            const tal = parseInt(t.tallos) || 0;
+            const tot = m * tal;
+            return `
+                <tr>
+                    <td class="text-center text-muted">${idx + 1}</td>
+                    <td>${escapeHtml(t.fecha || '--')}</td>
+                    <td class="text-center"><span class="badge bg-light text-dark border">V.${escapeHtml(t.viaje || '-')}</span></td>
+                    <td class="fw-bold text-primary">${escapeHtml(t.modulo || '-')}</td>
+                    <td>${escapeHtml(t.variedad || '-')}</td>
+                    <td class="text-end">${m}</td>
+                    <td class="text-end">${tal}</td>
+                    <td class="text-end text-success fw-bold">${tot.toLocaleString()}</td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger p-0 px-2" title="Eliminar ticket mal ingresado" onclick="eliminarTicketOffline(${idx})">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    window.eliminarTicketOffline = function(idx) {
+        const queue = getOfflineQueue();
+        if (idx < 0 || idx >= queue.length) return;
+        const target = queue[idx];
+        if (!confirm(`¿Eliminar ticket de ${target.variedad} en ${target.modulo} (${(target.mallas || 0) * (target.tallos || 0)} tallos)?`)) {
+            return;
+        }
+        queue.splice(idx, 1);
+        setOfflineQueue(queue);
+        renderTablaColaOffline();
+        mostrarNotificacion('🗑️ Ticket eliminado de la memoria del teléfono.');
+    };
+
+    window.vaciarColaOffline = function() {
+        const queue = getOfflineQueue();
+        if (!queue.length) return;
+        if (!confirm(`¿Estás seguro de borrar todos los ${queue.length} tickets offline almacenados en este teléfono? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+        localStorage.removeItem(OFFLINE_KEY);
+        actualizarBarraOffline();
+        renderTablaColaOffline();
+        mostrarNotificacion('🗑️ Todos los tickets locales han sido eliminados.');
+        const modalEl = document.getElementById('modalColaOffline');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+    };
 
     function actualizarEstadoConectividad() {
         if (navigator.onLine) {

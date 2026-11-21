@@ -23,5 +23,5 @@ COPY . .
 # Exponer el puerto de producción (8095 por defecto)
 EXPOSE 8095
 
-# Iniciar la aplicación Flask mediante Gunicorn con workers y timeout extendido
-CMD exec gunicorn --bind :$PORT --workers 3 --threads 4 --timeout 180 "run:app"
+# Iniciar la aplicación Flask mediante Gunicorn con workers optimizados, balanceo de carga y reciclaje de memoria
+CMD exec gunicorn --bind :$PORT --workers 4 --threads 4 --worker-class gthread --timeout 180 --max-requests 5000 --max-requests-jitter 500 "run:app"

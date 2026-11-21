@@ -55,8 +55,11 @@
                     <tr>
                         <th>Código / Nombre Corto</th>
                         <th>Nombre Comercial</th>
-                        <th>Dosis Fumigación</th>
-                        <th>Drench / Trichos / Sólidos</th>
+                        <th>Dosis Fumi</th>
+                        <th>Dosis Trichos</th>
+                        <th>Dosis Moshe</th>
+                        <th>Dosis Alcaplant</th>
+                        <th>Dosis Presiembra</th>
                         <th>Unidad</th>
                         <th>Blanco / Plaga</th>
                         <th>Ingrediente Activo</th>
@@ -74,29 +77,38 @@
                             {% if p.dose_fumigation is not none %}
                             <span class="badge bg-success-subtle text-success fw-bold">{{ p.dose_fumigation }} {{ p.unit }}/L</span>
                             {% else %}
-                            <span class="text-muted small">Sin dosis</span>
+                            <span class="text-muted small">-</span>
                             {% endif %}
                         </td>
                         <td>
-                            <div class="d-flex flex-column gap-1" style="font-size: 0.75rem;">
-                                {% if p.dose_drench is not none %}
-                                <span><strong class="text-info">Dr:</strong> {{ p.dose_drench }}</span>
-                                {% endif %}
-                                {% if p.dose_trichos is not none %}
-                                <span><strong class="text-success">Tri:</strong> {{ p.dose_trichos }}</span>
-                                {% endif %}
-                                {% if p.dose_solidos is not none %}
-                                <span><strong class="text-primary">Sól:</strong> {{ p.dose_solidos }}</span>
-                                {% endif %}
-                                {% if p.dose_desinfecciones is not none %}
-                                <span><strong class="text-warning">Des:</strong> {{ p.dose_desinfecciones }}</span>
-                                {% endif %}
-                                {% if p.dose_drench is none and p.dose_trichos is none and p.dose_solidos is none and p.dose_desinfecciones is none %}
-                                <span class="text-muted small">-</span>
-                                {% endif %}
-                            </div>
+                            {% if p.dose_trichos is not none %}
+                            <span class="badge bg-success-subtle text-success border border-success fw-bold font-monospace">{{ p.dose_trichos }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
                         </td>
-                        <td><span class="badge bg-light text-dark border">{{ p.unit or 'CC' }}</span></td>
+                        <td>
+                            {% if p.dose_moshe is not none %}
+                            <span class="badge bg-info-subtle text-info border border-info fw-bold font-monospace">{{ p.dose_moshe }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.dose_alcaplant is not none %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary fw-bold font-monospace">{{ p.dose_alcaplant }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.dose_presiembra is not none %}
+                            <span class="badge bg-warning-subtle text-dark border border-warning fw-bold font-monospace">{{ p.dose_presiembra }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-light text-dark border font-monospace">{{ p.unit or 'CC' }}</span></td>
                         <td class="small">{{ p.pest or '-' }}</td>
                         <td class="small text-muted">{{ p.active_ingredient or '-' }}</td>
                         <td>

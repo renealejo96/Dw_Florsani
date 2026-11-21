@@ -723,7 +723,7 @@ def api_calificar_lote():
                     continue
 
                 bloque_extra = str(item.get('bloque') or '').strip()
-                sem_extra = item.get('semana') or item.get('semana_anio') or semana_activa or 45
+                sem_extra = item.get('semana') or item.get('semana_anio') or session.get('fenogramas_semana_activa') or 45
                 cama_ini = item.get('cama_inicial')
                 cama_fin = item.get('cama_final')
                 sufijo_extra = str(item.get('sufijo') or '').strip()
@@ -770,6 +770,19 @@ def api_calificar_lote():
                     )
                     if not nuevo_aux: nuevo_aux = auto_aux
                     if not nuevo_sup: nuevo_sup = auto_sup
+
+                # Si el bloque base en BD estaba como 'No hay actividad' o sin labor, actualizar in-place
+                if parent_calif and (not parent_calif.labor or parent_calif.labor in ('No hay actividad', '')):
+                    parent_calif.labor = labor_extra
+                    parent_calif.observacion = obs
+                    parent_calif.cumplido = cumplido
+                    if nuevo_aux: parent_calif.auxiliar = nuevo_aux
+                    if nuevo_sup: parent_calif.supervisor = nuevo_sup
+                    parent_calif.tiene_evaluacion = True
+                    parent_calif.fecha_calificacion = now_utc
+                    reconciled_ids[str(item_id)] = parent_calif.id
+                    updated_count += 1
+                    continue
 
                 # Buscar si ya existe la calificación en base de datos para esta labor
                 q_ex = Calificacion.query.filter(
@@ -905,7 +918,13 @@ def api_calificar_lote():
             else:
                 calif.cumplido = cumplido
                 calif.observacion = obs
-                calif.tiene_evaluacion = True
+                # Si el bloque está vacío / sin labor ('No hay actividad'), guardar la observación
+                # pero no marcar tiene_evaluacion = True a menos que tenga labor o calificación explícita
+                es_sin_actividad = (not calif.labor or calif.labor in ('No hay actividad', ''))
+                if es_sin_actividad and cumplido is None:
+                    calif.tiene_evaluacion = False
+                else:
+                    calif.tiene_evaluacion = True
                 calif.fecha_calificacion = now_utc
                 reconciled_ids[str(item_id)] = calif.id
 

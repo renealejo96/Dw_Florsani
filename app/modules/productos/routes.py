@@ -66,6 +66,10 @@ def create():
         dose_drench = request.form.get('dose_drench')
         dose_trichos = request.form.get('dose_trichos')
         dose_solidos = request.form.get('dose_solidos')
+        dose_moshe = request.form.get('dose_moshe')
+        dose_alcaplant = request.form.get('dose_alcaplant')
+        dose_presiembra = request.form.get('dose_presiembra')
+        dose_diferenciada = request.form.get('dose_diferenciada')
         dose_desinfecciones = request.form.get('dose_desinfecciones')
         pest = request.form.get('pest', '').strip()
         ia = request.form.get('active_ingredient', '').strip()
@@ -89,6 +93,10 @@ def create():
             dose_drench=float(dose_drench) if dose_drench else None,
             dose_trichos=float(dose_trichos) if dose_trichos else None,
             dose_solidos=float(dose_solidos) if dose_solidos else None,
+            dose_moshe=float(dose_moshe) if dose_moshe else None,
+            dose_alcaplant=float(dose_alcaplant) if dose_alcaplant else None,
+            dose_presiembra=float(dose_presiembra) if dose_presiembra else None,
+            dose_diferenciada=float(dose_diferenciada) if dose_diferenciada else None,
             dose_desinfecciones=float(dose_desinfecciones) if dose_desinfecciones else None,
             pest=pest,
             active_ingredient=ia,
@@ -119,6 +127,10 @@ def edit(product_id):
         dose_drench = request.form.get('dose_drench')
         dose_trichos = request.form.get('dose_trichos')
         dose_solidos = request.form.get('dose_solidos')
+        dose_moshe = request.form.get('dose_moshe')
+        dose_alcaplant = request.form.get('dose_alcaplant')
+        dose_presiembra = request.form.get('dose_presiembra')
+        dose_diferenciada = request.form.get('dose_diferenciada')
         dose_desinfecciones = request.form.get('dose_desinfecciones')
         pest = request.form.get('pest', '').strip()
         ia = request.form.get('active_ingredient', '').strip()
@@ -143,6 +155,10 @@ def edit(product_id):
         product.dose_drench = float(dose_drench) if dose_drench else None
         product.dose_trichos = float(dose_trichos) if dose_trichos else None
         product.dose_solidos = float(dose_solidos) if dose_solidos else None
+        product.dose_moshe = float(dose_moshe) if dose_moshe else None
+        product.dose_alcaplant = float(dose_alcaplant) if dose_alcaplant else None
+        product.dose_presiembra = float(dose_presiembra) if dose_presiembra else None
+        product.dose_diferenciada = float(dose_diferenciada) if dose_diferenciada else None
         product.dose_desinfecciones = float(dose_desinfecciones) if dose_desinfecciones else None
         product.pest = pest
         product.active_ingredient = ia

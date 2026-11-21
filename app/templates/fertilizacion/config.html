@@ -115,7 +115,7 @@
           </div>
         </div>
 
-        <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
           <table class="table table-hover align-middle mb-0" id="tabla-bloques-config">
             <thead class="table-light sticky-top">
               <tr class="small text-uppercase text-secondary">
@@ -137,6 +137,81 @@
               </tr>
               {% else %}
               <tr><td colspan="5" class="text-center py-3 text-muted">No hay bloques registrados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATRIZ MAESTRA DE DOSIS POR PRODUCTO (FERTILIZACIÓN) -->
+    <div class="col-12">
+      <div class="bento-card p-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <div>
+            <h5 class="fw-bold mb-1"><i class="fa-solid fa-flask-vial text-success me-2"></i>Matriz Maestra de Dosis por Producto (Fertilización)</h5>
+            <p class="text-muted small mb-0">Configura y guarda aquí las dosis oficiales para Trichos, Moshe, Alcaplant y Presiembras sin salir del módulo.</p>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <input type="text" id="filtro-busqueda-prods" onkeyup="filtrarTablaProdsDosis(this.value)" placeholder="Buscar producto..." class="form-control form-control-sm" style="max-width: 250px;">
+            <a href="{{ url_for('productos.index') }}" class="btn btn-sm btn-outline-primary fw-semibold" target="_blank">
+              <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Catálogo Completo
+            </a>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+          <table class="table table-hover align-middle mb-0" id="tabla-prods-dosis">
+            <thead class="table-light sticky-top">
+              <tr class="small text-uppercase text-secondary" style="font-size: 0.72rem;">
+                <th style="min-width: 180px;">Producto / Nombre</th>
+                <th style="width: 85px;" class="text-center">U.M.</th>
+                <th style="width: 110px;" class="text-center text-success">Trichos (/L)</th>
+                <th style="width: 110px;" class="text-center text-info">Moshe (/L)</th>
+                <th style="width: 110px;" class="text-center text-primary">Alcaplant (/L)</th>
+                <th style="width: 120px;" class="text-center text-warning">Presiembra (/cama)</th>
+                <th style="width: 110px;" class="text-center text-secondary">Diferenciada</th>
+                <th style="width: 100px;" class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in (ferti_prods or []) %}
+              <tr data-prod-id="{{ p.id }}">
+                <td>
+                  <div class="fw-bold text-dark font-monospace fs-7">{{ p.code }}</div>
+                  <small class="text-muted">{{ p.commercial_name or p.code }}</small>
+                </td>
+                <td class="text-center">
+                  <select class="form-select form-select-sm p-1 text-center font-monospace inp-unit" style="font-size: 0.75rem;">
+                    <option value="GR" {% if p.unit == 'GR' %}selected{% endif %}>GR</option>
+                    <option value="CC" {% if p.unit == 'CC' %}selected{% endif %}>CC</option>
+                    <option value="KG" {% if p.unit == 'KG' %}selected{% endif %}>KG</option>
+                    <option value="LT" {% if p.unit == 'LT' %}selected{% endif %}>LT</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="number" step="0.00001" min="0" class="form-control form-control-sm text-center font-monospace inp-trichos" placeholder="-" value="{{ p.dose_trichos if p.dose_trichos is not none else '' }}">
+                </td>
+                <td>
+                  <input type="number" step="0.00001" min="0" class="form-control form-control-sm text-center font-monospace inp-moshe" placeholder="-" value="{{ p.dose_moshe if p.dose_moshe is not none else '' }}">
+                </td>
+                <td>
+                  <input type="number" step="0.00001" min="0" class="form-control form-control-sm text-center font-monospace inp-alcaplant" placeholder="-" value="{{ p.dose_alcaplant if p.dose_alcaplant is not none else '' }}">
+                </td>
+                <td>
+                  <input type="number" step="0.0001" min="0" class="form-control form-control-sm text-center font-monospace inp-presiembra" placeholder="-" value="{{ p.dose_presiembra if p.dose_presiembra is not none else '' }}">
+                </td>
+                <td>
+                  <input type="number" step="0.00001" min="0" class="form-control form-control-sm text-center font-monospace inp-diferenciada" placeholder="-" value="{{ p.dose_diferenciada if p.dose_diferenciada is not none else '' }}">
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-success py-1 px-2" onclick="guardarDosisProducto(this, {{ p.id }})" title="Guardar cambios de este producto">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center py-3 text-muted">No hay productos registrados.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -253,6 +328,64 @@ function filtrarTablaBloques(query) {
     const text = r.innerText.toLowerCase();
     r.style.display = (!q || text.includes(q)) ? '' : 'none';
   });
+}
+
+function filtrarTablaProdsDosis(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#tabla-prods-dosis tbody tr');
+  rows.forEach(r => {
+    const text = r.innerText.toLowerCase();
+    r.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+
+async function guardarDosisProducto(btn, prodId) {
+  const tr = btn.closest('tr');
+  const unit = tr.querySelector('.inp-unit')?.value || 'GR';
+  const dose_trichos = tr.querySelector('.inp-trichos')?.value;
+  const dose_moshe = tr.querySelector('.inp-moshe')?.value;
+  const dose_alcaplant = tr.querySelector('.inp-alcaplant')?.value;
+  const dose_presiembra = tr.querySelector('.inp-presiembra')?.value;
+  const dose_diferenciada = tr.querySelector('.inp-diferenciada')?.value;
+
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+  try {
+    const res = await fetch(`{{ url_for('fertilizacion.api_config_producto_dosis') }}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_id: prodId,
+        unit: unit,
+        dose_trichos: dose_trichos,
+        dose_moshe: dose_moshe,
+        dose_alcaplant: dose_alcaplant,
+        dose_presiembra: dose_presiembra,
+        dose_diferenciada: dose_diferenciada
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.className = 'btn btn-sm btn-success py-1 px-2';
+      btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+      setTimeout(() => {
+        btn.className = 'btn btn-sm btn-outline-success py-1 px-2';
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+        btn.disabled = false;
+      }, 1500);
+    } else {
+      alert(data.message || 'Error al guardar dosis');
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error de conexión al guardar dosis');
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
 }
 </script>
 {% endblock %}

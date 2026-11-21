@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Gestión de Fertilización & Drench - Florsani ERP{% endblock %}
+{% block title %}Programas Trichos y Sólidos (Mesa de Calibración & Planning) - Florsani ERP{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-3 px-md-4 py-3">
@@ -14,26 +14,32 @@
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 position-relative" style="z-index: 2;">
           <div class="d-flex align-items-center gap-3">
             <div class="rounded-3 d-flex align-items-center justify-content-center shrink-0" style="width: 52px; height: 52px; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25);">
-              <i class="fa-solid fa-droplet fs-4 text-light"></i>
+              <i class="fa-solid fa-calculator fs-4 text-light"></i>
             </div>
             <div>
               <div class="d-flex align-items-center gap-2 mb-1">
                 <span class="badge rounded-pill px-2.5 py-1 text-uppercase fw-bold" style="background: rgba(16, 185, 129, 0.3); border: 1px solid rgba(16, 185, 129, 0.5); font-size: 11px;">
                   <span class="spinner-grow spinner-grow-sm me-1 text-light" style="width: 6px; height: 6px;" role="status"></span>
-                  Módulo de Fertilización Activo
+                  Agronomía &bull; Mesa de Calibración & Planning
                 </span>
               </div>
               <h2 class="h4 fw-bold text-white mb-0 d-flex align-items-baseline gap-2">
-                <span>SEMANA {{ semana_activa }}</span>
+                <span>PROGRAMAS TRICHOS Y SÓLIDOS &bull; SEMANA {{ semana_activa }}</span>
                 <span class="fs-6 fw-normal text-emerald-100 opacity-75">(Año 20{{ semana_activa[:2] }} &bull; Sem. {{ semana_activa[2:] }})</span>
               </h2>
               <p class="small text-white-50 mb-0">
-                Checklist operativo de Drench, Registro de Riego Ducha con rendimientos y Monitoreo de Válvulas.
+                Calibración técnica de camas, proyección semanal y asignación de días/vueltas de aplicación.
               </p>
             </div>
           </div>
 
           <div class="d-flex flex-wrap align-items-center gap-2">
+            <!-- Enlace a la vista operativa de campo (Checklist) -->
+            <a href="{{ url_for('fertilizacion.checklist') }}?semana={{ semana_activa }}" class="btn btn-outline-light btn-sm fw-bold shadow-xs d-flex align-items-center gap-1.5" title="Ir a la vista operativa de campo para ejecutores">
+              <i class="fa-solid fa-list-check"></i>
+              <span>Ir a Check List & Operación</span>
+            </a>
+
             <!-- Selector de Semanas -->
             <form method="GET" action="{{ url_for('fertilizacion.index') }}" class="d-flex align-items-center gap-2">
               <label for="select-semana" class="small fw-semibold text-white-50 mb-0">Semana:</label>
@@ -60,641 +66,510 @@
   </div>
 
   <!-- ================================================================ -->
-  <!-- 4 TARJETAS KPI DE RESUMEN EJECUTIVO (BENTO STYLE) -->
+  <!-- 4 TARJETAS KPI DE RESUMEN TÉCNICO -->
   <!-- ================================================================ -->
-  {% set total_items = drench_items|length %}
-  {% set completados = drench_items|selectattr('completado')|list|length %}
-  {% set pendientes = total_items - completados %}
-  {% set pct = (completados / total_items * 100)|round(1) if total_items > 0 else 0.0 %}
+  {% set total_bombas = calibracion_bombas|length %}
+  {% set total_camas_prog = calibracion_bombas|map(attribute='camas_totales')|sum %}
+  {% set total_asignadas = calibracion_bombas|selectattr('estado_calibracion', 'equalto', 'ASIGNADO')|list|length %}
+  {% set pct_asignadas = (total_asignadas / total_bombas * 100)|round(1) if total_bombas > 0 else 0.0 %}
 
   <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
       <div class="bento-card p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <span class="text-secondary small fw-semibold text-uppercase">Programación Drench</span>
+          <span class="text-secondary small fw-semibold text-uppercase">Bombas en Calibración</span>
           <div class="badge-kpi bg-primary-subtle text-primary">
-            <i class="fa-solid fa-list-check"></i>
+            <i class="fa-solid fa-sliders"></i>
           </div>
         </div>
-        <div class="metric-tabular fs-3 fw-bold text-dark">{{ total_items }}</div>
-        <span class="text-muted small">Camas/bloques programados</span>
+        <div class="metric-tabular fs-3 fw-bold text-dark">{{ total_bombas }}</div>
+        <span class="text-muted small">Bombas / grupos de edad activos</span>
       </div>
     </div>
 
     <div class="col-6 col-lg-3">
       <div class="bento-card p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <span class="text-secondary small fw-semibold text-uppercase">Cumplimiento</span>
+          <span class="text-secondary small fw-semibold text-uppercase">Camas Programadas</span>
           <div class="badge-kpi bg-success-subtle text-success">
-            <i class="fa-solid fa-circle-check"></i>
+            <i class="fa-solid fa-layer-group"></i>
           </div>
         </div>
-        <div class="metric-tabular fs-3 fw-bold text-success">{{ pct }}%</div>
-        <span class="text-muted small">{{ completados }} de {{ total_items }} aplicados</span>
+        <div class="metric-tabular fs-3 fw-bold text-success">{{ total_camas_prog }}</div>
+        <span class="text-muted small">Camas totales de la semana</span>
       </div>
     </div>
 
     <div class="col-6 col-lg-3">
       <div class="bento-card p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <span class="text-secondary small fw-semibold text-uppercase">Riego Ducha Hoy</span>
+          <span class="text-secondary small fw-semibold text-uppercase">Bombas Asignadas</span>
           <div class="badge-kpi bg-info-subtle text-info">
-            <i class="fa-solid fa-shower"></i>
+            <i class="fa-solid fa-calendar-check"></i>
           </div>
         </div>
-        <div class="metric-tabular fs-3 fw-bold text-info">{{ riego_ducha_items|length }}</div>
-        <span class="text-muted small">Registros operados hoy</span>
+        <div class="metric-tabular fs-3 fw-bold text-info">{{ total_asignadas }} / {{ total_bombas }}</div>
+        <span class="text-muted small">{{ pct_asignadas }}% listas con día asignado</span>
       </div>
     </div>
 
     <div class="col-6 col-lg-3">
       <div class="bento-card p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <span class="text-secondary small fw-semibold text-uppercase">Válvulas Hoy</span>
+          <span class="text-secondary small fw-semibold text-uppercase">Régimen Moshe Activo</span>
           <div class="badge-kpi bg-warning-subtle text-warning">
-            <i class="fa-solid fa-gauge-high"></i>
+            <i class="fa-solid fa-cloud-sun"></i>
           </div>
         </div>
-        <div class="metric-tabular fs-3 fw-bold text-warning">{{ valvula_items|length }}</div>
-        <span class="text-muted small">Eventos de riego reportados</span>
+        <div class="metric-tabular fs-4 fw-bold {% if modo_moshe_actual == 'INVIERNO' %}text-primary{% else %}text-warning{% endif %}">
+          MODO {{ modo_moshe_actual }}
+        </div>
+        <span class="text-muted small">{% if modo_moshe_actual == 'INVIERNO' %}Invierno (Edades 1 a 14){% else %}Verano (Edades 1 a 7){% endif %}</span>
       </div>
     </div>
   </div>
 
   <!-- ================================================================ -->
-  <!-- NAVEGACIÓN DE PESTAÑAS (DRENCH / RIEGO DUCHA / VÁLVULAS) -->
+  <!-- MESA DE CALIBRACIÓN & PLANNING (VISTA PRINCIPAL AGRONOMÍA) -->
   <!-- ================================================================ -->
-  <!-- ================================================================ -->
-  <!-- NAVEGACIÓN DE PESTAÑAS (CALIBRACIÓN / TRICHOS / SÓLIDOS / RIEGO / VÁLVULAS) -->
-  <!-- ================================================================ -->
-  <ul class="nav nav-pills mb-3 gap-2" id="fertiTab" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active fw-bold px-3 py-2 rounded-3 shadow-xs" id="calibracion-tab" data-bs-toggle="pill" data-bs-target="#tab-calibracion" type="button" role="tab">
-        <i class="fa-solid fa-calculator me-1.5 text-primary"></i> 1. Mesa de Calibración & Programas ({{ calibracion_ordenada|length }} Edades)
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="trichos-tab" data-bs-toggle="pill" data-bs-target="#tab-trichos" type="button" role="tab">
-        <i class="fa-solid fa-leaf me-1.5 text-success"></i> 2. Checklist Trichos ({{ trichos_items|length }})
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="solidos-tab" data-bs-toggle="pill" data-bs-target="#tab-solidos" type="button" role="tab">
-        <i class="fa-solid fa-cubes-stacked me-1.5 text-warning"></i> 3. Checklist Sólidos ({{ solidos_items|length }})
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="riego-tab" data-bs-toggle="pill" data-bs-target="#tab-riego" type="button" role="tab">
-        <i class="fa-solid fa-shower me-1.5 text-info"></i> 4. Riego Ducha ({{ riego_ducha_items|length }})
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link fw-bold px-3 py-2 rounded-3 shadow-xs" id="valvulas-tab" data-bs-toggle="pill" data-bs-target="#tab-valvulas" type="button" role="tab">
-        <i class="fa-solid fa-gauge-high me-1.5 text-secondary"></i> 5. Válvulas ({{ valvula_items|length }})
-      </button>
-    </li>
-  </ul>
-
-  <div class="tab-content" id="fertiTabContent">
-
-    <!-- ============================================================== -->
-    <!-- TAB 1: MESA DE CALIBRACIÓN TRICHOS Y SÓLIDOS (TARJETAS POR EDAD) -->
-    <!-- ============================================================== -->
-    <div class="tab-pane fade show active" id="tab-calibracion" role="tabpanel">
-      <div class="bento-card p-3 p-md-4 mb-4">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="badge bg-primary-subtle text-primary border border-primary fw-bold font-monospace">MESA DE CALIBRACIÓN</span>
-              <span class="badge bg-light text-dark border">Semana {{ semana_activa }}</span>
-            </div>
-            <h5 class="fw-bold text-dark mb-1">Programas Trichos y Sólidos por Grupo de Edad</h5>
-            <p class="text-muted small mb-0">
-              Calibración técnica de volumen de agua (Trichos: <strong>41.7 L/cama</strong> &bull; Sólidos: <strong>30.0 L/cama</strong>) y dosificación exacta redondeada a unidades enteras.
-            </p>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('fertilizacion.programa_impresion', semana=semana_activa) }}" target="_blank" class="btn btn-dark btn-sm fw-bold shadow-xs">
-              <i class="fa-solid fa-print me-1 text-warning"></i> Imprimir Programa Oficial (por Bomba)
-            </a>
-          </div>
+  <div class="bento-card p-3 p-md-4 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="badge bg-primary-subtle text-primary border border-primary fw-bold font-monospace">MESA DE CALIBRACIÓN & PLANNING</span>
+          <span class="badge bg-light text-dark border">Semana {{ semana_activa }}</span>
         </div>
+        <h5 class="fw-bold text-dark mb-1">Programas Trichos, Sólidos, Moshe, Alcaplant y Presiembras</h5>
+        <p class="text-muted small mb-0">
+          Calibración técnica de volumen (Trichos: <strong>41.7 L/cama</strong> &bull; Sólidos: <strong>30.0 L/cama</strong> &bull; Presiembras: <strong>Seco / Espolvoreo</strong>) y dosificación exacta redondeada a unidades enteras.
+        </p>
+      </div>
+    </div>
 
-        {% if semana_sin_datos %}
-        <!-- Banner de proyección automática cuando la semana no tiene registros -->
-        <div class="alert alert-warning border border-warning shadow-xs d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 p-3 rounded-3 bg-warning-subtle">
-          <div class="d-flex align-items-center gap-3">
-            <div class="p-2 bg-warning text-dark rounded-circle">
-              <i class="fa-solid fa-wand-magic-sparkles fs-5"></i>
-            </div>
-            <div>
-              <h6 class="fw-bold text-dark mb-0">No hay registros de fertilización para la Semana {{ semana_activa }}</h6>
-              <p class="small text-muted mb-0">
-                Puede proyectar automáticamente los bloques, camas y bombas sumando las semanas transcurridas desde el censo base.
-              </p>
-            </div>
+    {% if semana_sin_datos %}
+    <!-- Banner de proyección automática cuando la semana no tiene registros -->
+    <div class="alert alert-warning border border-warning shadow-xs d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 p-3 rounded-3 bg-warning-subtle">
+      <div class="d-flex align-items-center gap-3">
+        <div class="p-2 bg-warning text-dark rounded-circle">
+          <i class="fa-solid fa-wand-magic-sparkles fs-5"></i>
+        </div>
+        <div>
+          <h6 class="fw-bold text-dark mb-0">No hay registros de fertilización para la Semana {{ semana_activa }}</h6>
+          <p class="small text-muted mb-0">
+            Puede proyectar automáticamente los bloques, camas y bombas sumando las semanas transcurridas desde el censo base.
+          </p>
+        </div>
+      </div>
+      <button type="button" class="btn btn-warning btn-sm fw-bold shadow-xs text-dark px-3" onclick="proyectarSemanaFertilizacion('{{ semana_activa }}')">
+        <i class="fa-solid fa-play me-1"></i> Proyectar Programa para Semana {{ semana_activa }}
+      </button>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================== -->
+    <!-- CONTENEDOR MESA DE CALIBRACIÓN INTERACTIVA (WORKBENCH CARD ÚNICA) -->
+    <!-- ============================================================== -->
+    <div id="ferti-workbench-container" class="card border border-primary shadow-sm mb-4 bg-white rounded-3 d-none">
+      <!-- Encabezado Principal con Botones de Acción Arriba (Sticky Header) -->
+      <div class="card-header bg-dark text-white p-2.5 p-md-3 d-flex justify-content-between align-items-center flex-wrap gap-2 sticky-top shadow-sm" style="top: 0; z-index: 1020; border-radius: 8px 8px 0 0;">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <i class="fa-solid fa-sliders text-warning fs-5"></i>
+          <span class="fw-bold font-monospace fs-6 text-white text-truncate" style="max-width: 460px;" id="wb-title">MESA DE CALIBRACIÓN</span>
+          <span class="badge bg-warning text-dark font-monospace fw-bold" id="wb-vol-badge">41.7 L/cama</span>
+          <span class="badge bg-white bg-opacity-25 text-white font-monospace border border-white-50"><i class="fa-solid fa-layer-group me-1"></i><span id="wb-top-camas">0</span> camas</span>
+          <span class="badge bg-white bg-opacity-25 text-white font-monospace border border-white-50"><i class="fa-solid fa-water me-1"></i><span id="wb-top-litros">0 L</span></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <div class="d-flex align-items-center gap-1 bg-white text-dark px-2 py-1 rounded shadow-xs">
+            <label for="wb-dia-aplicacion" class="small fw-bold mb-0 text-muted" style="font-size: 0.70rem;"><i class="fa-solid fa-calendar-day text-primary me-1"></i>Día:</label>
+            <select id="wb-dia-aplicacion" class="form-select form-select-sm py-0 fw-bold font-monospace border-0" style="font-size: 0.72rem; height: 24px; width: auto;">
+              <option value="LUNES">LUNES</option>
+              <option value="MARTES">MARTES</option>
+              <option value="MIERCOLES">MIÉRCOLES</option>
+              <option value="JUEVES">JUEVES</option>
+              <option value="VIERNES">VIERNES</option>
+              <option value="SABADO">SÁBADO</option>
+              <option value="DOMINGO">DOMINGO</option>
+            </select>
           </div>
-          <button type="button" class="btn btn-warning btn-sm fw-bold shadow-xs text-dark px-3" onclick="proyectarSemanaFertilizacion('{{ semana_activa }}')">
-            <i class="fa-solid fa-play me-1"></i> Proyectar Programa para Semana {{ semana_activa }}
+          <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-sm px-2.5 py-1" onclick="agregarFilaBloqueDirecta()" title="Añadir una nueva fila de bloque directamente a esta calibración">
+            <i class="fa-solid fa-plus me-1"></i> + Añadir Fila de Bloque
+          </button>
+          <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm px-3 py-1" onclick="guardarMesaCalibracion()" title="Cargar y guardar los cambios a la mesa de calibración">
+            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Cargar a la Mesa de Calibración
+          </button>
+          <button type="button" class="btn btn-light btn-sm fw-bold shadow-xs px-2 py-1" onclick="cerrarMesaCalibracion()" title="Cerrar mesa y volver a las tarjetas">
+            <i class="fa-solid fa-xmark me-1"></i> Cerrar Mesa
           </button>
         </div>
-        {% endif %}
+      </div>
 
-        <!-- ============================================================== -->
-        <!-- CONTENEDOR MESA DE CALIBRACIÓN INTERACTIVA (WORKBENCH EXPANDIBLE) -->
-        <!-- ============================================================== -->
-        <div id="ferti-workbench-container" class="card border border-primary shadow-sm mb-4 bg-white rounded-3 d-none">
-          <div class="card-header bg-primary text-white py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div class="d-flex align-items-center gap-2">
-              <i class="fa-solid fa-sliders text-warning"></i>
-              <span class="fw-bold font-monospace fs-6" id="wb-title">MESA DE CALIBRACIÓN &bull; SEMANA 0</span>
-              <span class="badge bg-white text-primary font-monospace fw-bold" id="wb-vol-badge">41.7 L/cama</span>
+      <!-- Tabla de Calibración Directa Responsive (Metodología de Fumigación) -->
+      <div class="table-responsive" style="max-height: 540px; overflow-x: auto; overflow-y: auto;">
+        <table class="table table-sm table-hover table-bordered align-middle mb-0" id="wb-table" style="min-width: 960px; width: 100%;">
+          <thead class="table-light text-uppercase font-monospace text-secondary" style="position: sticky; top: 0; z-index: 10; background: #f8fafc;">
+            <tr>
+              <th style="width: 28px;" class="text-center" title="Arrastrar para reordenar"></th>
+              <th style="width: 34px;" class="text-center">#</th>
+              <th style="width: 120px;" class="text-center">BLOQUE</th>
+              <th style="width: 90px;" class="text-center">ZONA</th>
+              <th>VARIEDAD</th>
+              <th style="width: 70px;" class="text-center">C. INIC.</th>
+              <th style="width: 70px;" class="text-center">C. FIN.</th>
+              <th style="width: 90px;" class="text-end bg-light fw-bold text-success">CAMAS FÍS.</th>
+              <th style="width: 90px;" class="text-end">CAMAS EST.</th>
+              <th style="width: 95px;" class="text-end text-primary fw-bold">VOLUMEN</th>
+              <th style="width: 75px;" class="text-center">EDAD</th>
+              <th style="width: 45px;" class="text-center"></th>
+            </tr>
+          </thead>
+          <tbody id="wb-bomba-tbody" class="wb-bomba-tbody">
+            <!-- JS inyecta filas directamente -->
+          </tbody>
+          <tfoot style="position: sticky; bottom: 0; z-index: 10; background: #f8fafc;">
+            <tr class="table-light fw-bold font-monospace border-top">
+              <td colspan="7" class="text-end text-uppercase small text-secondary">Totales Calibración:</td>
+              <td class="text-end text-success fs-7" id="wb-subtotal-camas">0</td>
+              <td class="text-end text-secondary fs-7" id="wb-subtotal-std">0.0</td>
+              <td class="text-end text-primary fs-7" id="wb-subtotal-litros">0 L</td>
+              <td colspan="2" class="text-end text-muted small"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Pie de Tarjeta con Botones de Acción Rápida -->
+      <div class="card-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2 border-top">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-xs" onclick="agregarFilaBloqueDirecta()">
+            <i class="fa-solid fa-plus me-1"></i> + Añadir Fila de Bloque
+          </button>
+          <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="guardarMesaCalibracion()">
+            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Cargar a la Mesa de Calibración
+          </button>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="small text-muted font-monospace d-none d-md-inline">
+            <i class="fa-solid fa-keyboard me-1 text-primary"></i>Metodología Fumigación: Ingrese bloques directamente en la tabla y presione <strong>Cargar a la Mesa de Calibración</strong>.
+          </span>
+          <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-3 fw-bold" onclick="cerrarMesaCalibracion()">
+            <i class="fa-solid fa-xmark me-1"></i> Cerrar Mesa
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slicer de Filtro por Apartado / Programa -->
+    <div class="card border-0 shadow-sm mb-3 bg-white">
+      <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="small fw-bold text-dark"><i class="fa-solid fa-layer-group text-primary me-1"></i>Filtrar por Apartado:</span>
+        </div>
+        <div class="btn-group btn-group-sm flex-wrap" role="group" id="apartado-filter-group">
+          <button type="button" class="btn btn-outline-success fw-bold btn-apartado" id="btn-filtro-trichos" onclick="filtrarApartado('TRICHOS', this)">
+            <i class="fa-solid fa-shield-virus me-1"></i> TRICHOS & BIOLÓGICOS
+          </button>
+          <button type="button" class="btn btn-outline-warning text-dark fw-bold btn-apartado" id="btn-filtro-moshe" onclick="filtrarApartado('MOSHE', this)">
+            <i class="fa-solid fa-vial me-1"></i> MOSHE
+          </button>
+          <button type="button" class="btn btn-outline-info text-dark fw-bold btn-apartado" id="btn-filtro-alcaplant" onclick="filtrarApartado('ALCAPLANT', this)">
+            <i class="fa-solid fa-cubes me-1"></i> ALCAPLANT
+          </button>
+          <button type="button" class="btn btn-outline-danger fw-bold btn-apartado" id="btn-filtro-presiembras" onclick="filtrarApartado('PRESIEMBRAS', this)">
+            <i class="fa-solid fa-seedling me-1"></i> PRESIEMBRAS (PLANNING)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Placeholder Inicial Limpio (Sin saturar la pantalla hasta seleccionar un módulo) -->
+    <div id="no-module-selected-placeholder" class="card border-0 shadow-sm bg-white p-5 text-center my-3 rounded-3">
+      <div class="py-4">
+        <div class="mb-3">
+          <span class="p-3 bg-primary-subtle text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+            <i class="fa-solid fa-hand-pointer fs-4"></i>
+          </span>
+        </div>
+        <h5 class="fw-bold text-dark mb-1">Seleccione un Módulo de Fertilización</h5>
+        <p class="text-muted small mb-0">
+          Para evitar saturación en pantalla, seleccione arriba el módulo que desea gestionar:
+          <br class="d-none d-md-block">
+          <span class="badge bg-success-subtle text-success border border-success mx-1 mt-2">TRICHOS & BIOLÓGICOS</span>
+          <span class="badge bg-warning-subtle text-dark border border-warning mx-1 mt-2">MOSHE</span>
+          <span class="badge bg-info-subtle text-dark border border-info mx-1 mt-2">ALCAPLANT</span>
+          <span class="badge bg-danger-subtle text-danger border border-danger mx-1 mt-2">PRESIEMBRAS</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Sub-Barra de Régimen MOSHE (Verano vs Invierno) -->
+    <div id="moshe-modo-subbar" class="card border border-warning shadow-xs mb-3 bg-warning-subtle d-none">
+      <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="small fw-bold text-dark font-monospace">
+            <i class="fa-solid fa-cloud-sun text-warning me-1"></i>Régimen Activo de MOSHE:
+          </span>
+          <span class="badge {% if modo_moshe_actual == 'INVIERNO' %}bg-primary text-white{% else %}bg-warning text-dark border border-dark{% endif %} font-monospace fw-bold" id="badge-modo-moshe-subbar">
+            MODO {{ modo_moshe_actual }}
+          </span>
+          <span class="small text-muted font-monospace">
+            ({% if modo_moshe_actual == 'INVIERNO' %}Invierno Adicional: Edades 1 a 14{% else %}Verano Normal: Edades 1 a 7{% endif %})
+          </span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="small text-muted font-monospace">Seleccionar y Guardar Régimen:</span>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn {% if modo_moshe_actual == 'VERANO' %}btn-warning fw-bold text-dark border-dark active{% else %}btn-outline-dark bg-white{% endif %}" onclick="cambiarModoMoshe('VERANO')">
+              <i class="fa-solid fa-sun text-warning me-1"></i> ☀️ Moshe Verano (Normal)
+            </button>
+            <button type="button" class="btn {% if modo_moshe_actual == 'INVIERNO' %}btn-primary fw-bold text-white active{% else %}btn-outline-dark bg-white{% endif %}" onclick="cambiarModoMoshe('INVIERNO')">
+              <i class="fa-solid fa-snowflake me-1"></i> ❄️ Moshe Invierno (Adicional)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if calibracion_bombas and calibracion_bombas|length > 0 %}
+    <div class="row g-2.5 g-md-3 d-none" id="calibracion-cards-container">
+      {% for b_grp in calibracion_bombas %}
+      <div class="col-12 col-md-6 col-xl-4 card-bomba-wrapper" data-apartado="{{ b_grp.apartado or b_grp.tratamiento_key }}">
+        <div class="card h-100 border shadow-xs rounded-3 overflow-hidden bg-white {% if b_grp.estado_calibracion == 'ASIGNADO' %}border-success{% elif b_grp.estado_calibracion == 'EDITADO' %}border-warning{% endif %}">
+          <div class="card-header py-1.5 px-2.5 d-flex justify-content-between align-items-center border-bottom {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning-subtle text-warning-emphasis{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger-subtle text-danger-emphasis{% else %}bg-success-subtle text-success-emphasis{% endif %}">
+            <div class="d-flex align-items-center gap-1.5 flex-wrap">
+              <span class="badge {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning text-dark{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger text-white{% else %}bg-success text-white{% endif %} font-monospace fw-bold" style="font-size: 0.72rem;">
+                {% if b_grp.es_programa_completo %}SEMANAS {{ b_grp.edad }}{% else %}SEMANA {{ b_grp.edad }}{% endif %}
+              </span>
+              <span class="badge bg-white text-dark border font-monospace" style="font-size: 0.68rem;">
+                {{ b_grp.descripcion }}
+              </span>
+              <span class="badge bg-secondary-subtle text-secondary border font-monospace" style="font-size: 0.68rem;">
+                {{ b_grp.apartado or b_grp.tratamiento_key }}
+              </span>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-              <button type="button" class="btn btn-success btn-sm fw-bold shadow-xs" onclick="guardarMesaCalibracion()">
-                <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios
-              </button>
-              <button type="button" class="btn btn-light btn-sm fw-bold" onclick="cerrarMesaCalibracion()">
-                <i class="fa-solid fa-xmark me-1"></i> Cerrar
-              </button>
+            <div class="d-flex align-items-center gap-1">
+              <!-- Badge Estado Calibración / Asignación -->
+              <span class="badge card-status-badge font-monospace fw-bold {% if b_grp.estado_calibracion == 'ASIGNADO' %}bg-success text-white{% elif b_grp.estado_calibracion == 'EDITADO' %}bg-warning text-dark border border-dark{% else %}bg-light text-muted border{% endif %}" id="status-badge-bomba-{{ loop.index0 }}" style="font-size: 0.70rem;">
+                {% if b_grp.estado_calibracion == 'ASIGNADO' %}
+                  <i class="fa-solid fa-circle-check me-1"></i>ASIGNADO: {{ b_grp.dia_aplicacion }}
+                {% elif b_grp.estado_calibracion == 'EDITADO' %}
+                  <i class="fa-solid fa-pen-to-square me-1"></i>CALIBRADO
+                {% else %}
+                  <i class="fa-regular fa-clock me-1"></i>SIN TOCAR
+                {% endif %}
+              </span>
+              <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.70rem;">
+                {{ b_grp.bloques|length }} Blqs
+              </span>
+              <span class="badge bg-dark text-white font-monospace fw-bold" style="font-size: 0.72rem;">
+                {{ b_grp.camas_totales }} Camas
+              </span>
             </div>
           </div>
-          
-          <div class="card-body p-0">
-            <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2 small">
-              <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="text-muted">
-                  Bloques segmentados por <strong>Bomba de Aplicación</strong>. Edite camas físicas o estándar; el volumen se recalcula en tiempo real.
+          <div class="card-body p-2.5 d-flex flex-column justify-content-between">
+            <div>
+              <!-- Variedad Badge & Litraje -->
+              <div class="d-flex justify-content-between align-items-center mb-1.5">
+                <span class="badge bg-light text-dark border font-monospace text-truncate" style="max-width: 65%; font-size: 0.70rem;" title="{{ b_grp.cultivo }}">
+                  <i class="fa-solid fa-seedling text-success me-1"></i>{{ b_grp.cultivo }}
                 </span>
-                {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
-                <span class="badge bg-warning-subtle text-dark border border-warning font-monospace">
-                  <i class="fa-solid fa-crown text-warning me-1"></i>Modo Admin: Reasignación individual por bomba habilitada
+                {% if b_grp.vol_default == 0 or b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}
+                <span class="badge bg-warning-subtle text-dark border border-warning font-monospace" style="font-size: 0.68rem;">
+                  Espolvoreo (0 L)
+                </span>
+                {% else %}
+                <span class="badge bg-info-subtle text-info border border-info font-monospace" style="font-size: 0.68rem;">
+                  {{ b_grp.vol_default }} L/cama
                 </span>
                 {% endif %}
               </div>
-              <div class="d-flex align-items-center gap-3">
-                <span>Camas totales: <strong class="text-success font-monospace" id="wb-total-camas">0</strong></span>
-                <span>Volumen total: <strong class="text-primary font-monospace" id="wb-total-litros">0 L</strong></span>
-                <span class="text-secondary font-monospace" id="wb-blocks-count">0 bloques</span>
-              </div>
-            </div>
 
-            <!-- Contenedor dinámico segmentado por Bomba -->
-            <div id="wb-bombas-container" class="p-3 bg-light d-flex flex-column gap-3">
-              <!-- JS inyecta una tarjeta y tabla individual por cada Bomba -->
-            </div>
+              <!-- Nombre Bomba -->
+              <h6 class="font-monospace fw-bold text-primary mb-2 text-truncate" style="font-size: 0.85rem;" title="{{ b_grp.bomba }}">
+                {{ b_grp.bomba }}
+              </h6>
 
-            <div class="p-2 bg-light border-top d-flex justify-content-between align-items-center">
-              <span class="small text-muted font-monospace"><i class="fa-solid fa-circle-info text-primary me-1"></i>Todos los cambios de camas y cuartos de bombeo se consolidan al presionar Guardar.</span>
-              <div class="d-flex gap-2">
-                <button type="button" class="btn btn-success btn-sm fw-bold px-3 shadow-xs" onclick="guardarMesaCalibracion()">
-                  <i class="fa-solid fa-check me-1"></i> Guardar Cambios y Cerrar Mesa
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="cerrarMesaCalibracion()">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {% if calibracion_ordenada and calibracion_ordenada|length > 0 %}
-        <div class="row g-3" id="calibracion-cards-container">
-          {% for grp in calibracion_ordenada %}
-          <div class="col-12 col-xl-6">
-            <div class="card h-100 border shadow-xs rounded-3 overflow-hidden bg-white">
-              <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center border-bottom {% if grp.tipo_grupo == 'SOLIDOS' %}bg-warning-subtle text-warning-emphasis{% else %}bg-success-subtle text-success-emphasis{% endif %}">
-                <div class="d-flex align-items-center gap-2">
-                  <span class="badge {% if grp.tipo_grupo == 'SOLIDOS' %}bg-warning text-dark{% else %}bg-success text-white{% endif %} font-monospace fw-bold fs-7">
-                    SEMANA {{ grp.edad }}
-                  </span>
-                  {% if grp.es_siembra %}
-                  <span class="badge bg-primary text-white font-monospace small"><i class="fa-solid fa-seedling me-1"></i>SIEMBRA</span>
-                  {% endif %}
-                  {% if grp.es_poda %}
-                  <span class="badge bg-info text-dark font-monospace small"><i class="fa-solid fa-scissors me-1"></i>PODA</span>
-                  {% endif %}
-                  <span class="badge bg-white text-dark border font-monospace small">
-                    {{ grp.tipo_grupo }} ({{ grp.vol_default }} L/cama)
-                  </span>
+              <!-- Métricas compactas (Fila única) -->
+              <div class="p-1.5 rounded bg-light border mb-2 d-flex justify-content-between align-items-center font-monospace">
+                <div>
+                  <span class="text-muted d-block" style="font-size: 0.67rem;">VOLUMEN CALDO:</span>
+                  <strong class="text-dark" style="font-size: 0.78rem;">
+                    {% if b_grp.vol_default == 0 or b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}
+                      0 L (Seco)
+                    {% else %}
+                      {{ b_grp.litros_totales }} L
+                    {% endif %}
+                  </strong>
                 </div>
-                <span class="badge bg-dark text-white font-monospace fw-bold">
-                  {{ grp.camas_totales }} Camas
+                <div class="text-end">
+                  <span class="text-muted d-block" style="font-size: 0.67rem;">CUARTO / TÉCNICO:</span>
+                  <strong class="text-secondary text-truncate d-inline-block" style="max-width: 140px; font-size: 0.74rem;" title="{{ b_grp.tecnicos|join(', ') if b_grp.tecnicos else 'Técnico 1 (C1)' }}">
+                    {{ b_grp.tecnicos|join(', ') if b_grp.tecnicos else 'Técnico 1 (C1)' }}
+                  </strong>
+                </div>
+              </div>
+
+              <!-- Selector Día de Aplicación Programado -->
+              <div class="p-1 rounded bg-light border mb-2 d-flex justify-content-between align-items-center font-monospace">
+                <span class="text-muted fw-bold" style="font-size: 0.68rem;">
+                  <i class="fa-solid fa-calendar-day text-primary me-1"></i>DÍA APLICACIÓN:
+                </span>
+                <select class="form-select form-select-sm py-0 fw-bold font-monospace border-primary-subtle" style="width: auto; font-size: 0.72rem; height: 23px;" onchange="asignarDiaBomba('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, this.value, {{ loop.index0 }})">
+                  {% for d in ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'] %}
+                  <option value="{{ d }}" {% if (b_grp.dia_aplicacion and b_grp.dia_aplicacion|upper == d) or (b_grp.dias and d in b_grp.dias) %}selected{% endif %}>{{ d }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- Controles específicos para MOSHE / ALCAPLANT / OTRAS BOMBAS -->
+              {% if b_grp.apartado == 'MOSHE' or b_grp.tratamiento_key == 'MOSHE' %}
+              <div class="p-1 rounded bg-warning-subtle border border-warning mb-2 d-flex justify-content-between align-items-center gap-1 font-monospace">
+                <span class="fw-bold text-dark" style="font-size: 0.68rem;">
+                  <i class="fa-solid fa-cloud-sun text-warning me-1"></i>Régimen Moshe:
+                </span>
+                <div class="btn-group btn-group-sm">
+                  <button type="button" class="btn btn-xs {% if modo_moshe_actual == 'VERANO' %}btn-warning fw-bold text-dark active{% else %}btn-outline-secondary bg-white{% endif %}" style="font-size: 0.68rem; padding: 1px 6px;" onclick="cambiarModoMoshe('VERANO')" title="Aplicar y guardar régimen de Verano (Semanas 1 a 7)">
+                    ☀️ Verano
+                  </button>
+                  <button type="button" class="btn btn-xs {% if modo_moshe_actual == 'INVIERNO' %}btn-primary fw-bold text-white active{% else %}btn-outline-secondary bg-white{% endif %}" style="font-size: 0.68rem; padding: 1px 6px;" onclick="cambiarModoMoshe('INVIERNO')" title="Aplicar y guardar régimen de Invierno (Semanas 1 a 14)">
+                    ❄️ Invierno
+                  </button>
+                </div>
+              </div>
+              {% elif b_grp.apartado == 'ALCAPLANT' or b_grp.tratamiento_key == 'ALCAPLANT' %}
+              <div class="p-1 rounded bg-info-subtle border border-info mb-2 d-flex justify-content-between align-items-center gap-1 font-monospace">
+                <span class="fw-bold text-dark" style="font-size: 0.68rem;">
+                  <i class="fa-solid fa-cubes text-info me-1"></i>Programa Completo:
+                </span>
+                <span class="badge bg-white text-dark border" style="font-size: 0.68rem;">
+                  Edades 1 a 10 (Consolidado)
                 </span>
               </div>
-              <div class="card-body p-3">
-                <!-- Metadata: Bloques, Bombas, Cuartos de Bombeo / Técnicos -->
-                <div class="row g-2 mb-3 small">
-                  <div class="col-12">
-                    <span class="text-muted fw-semibold">Bloques:</span>
-                    <span class="badge bg-secondary-subtle text-secondary font-monospace fw-semibold">{{ grp.bloques|length }} bloques incluidos</span>
-                  </div>
-                  <div class="col-12">
-                    <span class="text-muted fw-semibold">Bomba:</span>
-                    <span class="font-monospace text-primary fw-semibold">{{ grp.bombas|join(' | ') }}</span>
-                  </div>
-                  <div class="col-12">
-                    <span class="text-muted fw-semibold">Cuartos de Bombeo / Técnicos:</span>
-                    <span class="text-dark">{{ grp.tecnicos|join(', ') if grp.tecnicos else 'No asignado' }}</span>
-                  </div>
+              {% elif session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
+              <div class="p-1 rounded bg-warning-subtle border border-warning mb-2 d-flex justify-content-between align-items-center gap-1">
+                <span class="fw-bold text-dark font-monospace" style="font-size: 0.68rem;">
+                  <i class="fa-solid fa-crown text-warning me-1"></i>Edad:
+                </span>
+                <div class="d-flex align-items-center gap-1">
+                  <select class="form-select form-select-sm py-0 border-warning fw-bold font-monospace" style="width: auto; font-size: 0.68rem; height: 23px;" id="select-edad-card-{{ loop.index0 }}">
+                    {% for s_num in range(0, 26) %}
+                    <option value="{{ s_num }}" {% if s_num == b_grp.edad %}selected{% endif %}>Sem {{ s_num }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="button" class="btn btn-warning btn-sm py-0 px-2 fw-bold text-dark shadow-xs" style="font-size: 0.68rem; height: 23px; line-height: 21px;" onclick="moverEdadBombaDirecta('{{ b_grp.bomba|escape }}', {{ b_grp.edad }}, 'select-edad-card-{{ loop.index0 }}')" title="Reasignar la edad de aplicación para esta bomba">
+                    <i class="fa-solid fa-arrows-rotate"></i> Mover
+                  </button>
                 </div>
-
-                <!-- Resumen de Agua -->
-                <div class="p-2 rounded bg-light border mb-3 d-flex justify-content-between align-items-center">
-                  <div>
-                    <span class="small text-muted d-block">Volumen de Caldo Programado:</span>
-                    <strong class="font-monospace text-dark fs-6">{{ grp.litros_totales }} Litros</strong>
-                  </div>
-                  <div class="text-end">
-                    <span class="badge bg-primary-subtle text-primary border border-primary font-monospace">
-                      {{ grp.camas_totales }} camas &times; {{ grp.vol_default }} L
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Botón para Abrir Mesa de Calibración -->
-                <button type="button" class="btn btn-outline-primary btn-sm fw-bold w-100 shadow-xs" onclick="abrirMesaCalibracion({{ grp.edad }}, '{{ grp.tipo_grupo }}', {{ grp.vol_default }}, '{{ grp.bombas|join(', ') }}')">
-                  <i class="fa-solid fa-sliders me-1"></i> Abrir Mesa de Calibración
-                </button>
-                <script type="application/json" id="ferti-data-edad-{{ grp.edad }}">{{ (grp['items_detail'] if (grp['items_detail'] is defined and grp['items_detail']) else (grp.items_detail if grp.items_detail is defined and grp.items_detail else []))|tojson }}</script>
               </div>
+              {% endif %}
             </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-5 text-muted bg-white rounded-3 shadow-none border p-4 my-2">
-          <i class="fa-solid fa-calculator fs-1 text-secondary mb-3"></i>
-          <h5 class="fw-bold text-dark">No hay registros de calibración para la Semana {{ semana_activa }}</h5>
-          <p class="small text-muted mb-0">Seleccione otra semana en el selector superior o proyecte la semana con el botón superior.</p>
-        </div>
-        {% endif %}
-      </div>
-    </div>
 
-    <!-- ============================================================== -->
-    <!-- TAB 2: CHECKLIST TRICHOS (BIOLÓGICOS & ENRAIZANTES) -->
-    <!-- ============================================================== -->
-    <div class="tab-pane fade" id="tab-trichos" role="tabpanel">
-      <div class="bento-card p-3 p-md-4 mb-4">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="badge bg-success text-white font-monospace">CHECKLIST OPERATIVO</span>
-              <span class="badge bg-light text-dark border">Trichos & Biológicos</span>
-            </div>
-            <h5 class="fw-bold mb-0">Checklist Trichos (Biológicos & Enraizantes)</h5>
-            <p class="text-muted small mb-0">Marca las camas y bombas de biológicos aplicadas. El estado se sincroniza al instante.</p>
+            <!-- Botón para Abrir Mesa de Calibración de esta Bomba -->
+            <button type="button" class="btn btn-outline-primary btn-sm fw-bold w-100 shadow-xs py-1 mt-1" style="font-size: 0.76rem;" onclick="abrirMesaCalibracionBombaDirecta({{ loop.index0 }})">
+              <i class="fa-solid fa-sliders me-1"></i> Calibrar Camas de esta Bomba
+            </button>
+            <script type="application/json" id="ferti-data-bomba-{{ loop.index0 }}">{{ b_grp|tojson }}</script>
           </div>
-          <div class="d-flex flex-wrap gap-2">
-            <input type="text" id="filtro-busqueda-trichos" onkeyup="filtrarTablaGenerica('tabla-trichos', this.value)" placeholder="Buscar bloque, bomba..." class="form-control form-control-sm" style="max-width: 220px;">
-          </div>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0" id="tabla-trichos">
-            <thead class="table-light">
-              <tr class="small text-uppercase text-secondary">
-                <th style="width: 50px;" class="text-center">Estado</th>
-                <th>Clasificación</th>
-                <th>Bloque</th>
-                <th>Zona</th>
-                <th>Camas</th>
-                <th>Edad</th>
-                <th>Bomba</th>
-                <th>Cultivo</th>
-                <th>Cuarto / Técnico</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in trichos_items %}
-              <tr id="row-drench-{{ item.id }}" class="{% if item.completado %}table-success-subtle opacity-75{% endif %}">
-                <td class="text-center">
-                  {% if item.completado %}
-                    <i class="fa-solid fa-circle-check text-success fs-5"></i>
-                  {% else %}
-                    <i class="fa-regular fa-circle text-secondary fs-5"></i>
-                  {% endif %}
-                </td>
-                <td>
-                  <span class="badge rounded-pill bg-success-subtle text-success fw-bold">{{ item.clasificacion }}</span>
-                </td>
-                <td class="fw-bold font-monospace">{{ item.bloque }}</td>
-                <td class="font-monospace small"><span class="badge bg-light text-dark border">{{ item.zona or 'GENERAL' }}</span></td>
-                <td class="metric-tabular font-monospace">
-                  C{{ item.cama_inicial }} - C{{ item.cama_final }} 
-                  <span class="text-muted small">({{ item.cantidad_camas }} camas)</span>
-                </td>
-                <td class="metric-tabular font-monospace">{{ item.edad }} sem</td>
-                <td class="small fw-semibold font-monospace text-truncate" style="max-width: 250px;" title="{{ item.bomba }}">
-                  {{ item.bomba }}
-                </td>
-                <td><span class="badge bg-secondary-subtle text-secondary">{{ item.cultivo }}</span></td>
-                <td class="small text-muted">
-                  {% if item.completado %}
-                    <strong>{{ item.aplicador or 'N/A' }}</strong> &bull; {{ item.tecnico or 'N/A' }}
-                  {% else %}
-                    <span class="text-warning-emphasis">Pendiente</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <button type="button" onclick="toggleDrenchItem({{ item.id }}, {{ 'true' if not item.completado else 'false' }})" class="btn btn-sm {% if item.completado %}btn-outline-secondary{% else %}btn-success{% endif %} fw-semibold">
-                    {% if item.completado %}
-                      <i class="fa-solid fa-rotate-left me-1"></i> Deshacer
-                    {% else %}
-                      <i class="fa-solid fa-check me-1"></i> Completar
-                    {% endif %}
-                  </button>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="10" class="text-center py-4 text-muted">
-                  No hay aplicaciones de Trichos/Biológicos registradas para la Semana {{ semana_activa }}.
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
         </div>
       </div>
+      {% endfor %}
     </div>
-
-    <!-- ============================================================== -->
-    <!-- TAB 3: CHECKLIST SÓLIDOS (MOSHE, ALCAPLANT & SULFATO) -->
-    <!-- ============================================================== -->
-    <div class="tab-pane fade" id="tab-solidos" role="tabpanel">
-      <div class="bento-card p-3 p-md-4 mb-4">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="badge bg-warning text-dark font-monospace">CHECKLIST OPERATIVO</span>
-              <span class="badge bg-light text-dark border">Sólidos & Nutrición</span>
-            </div>
-            <h5 class="fw-bold mb-0">Checklist Sólidos (Moshe, Alcaplant & Sulfato)</h5>
-            <p class="text-muted small mb-0">Marca las camas y bombas de fertilizantes sólidos aplicadas.</p>
-          </div>
-          <div class="d-flex flex-wrap gap-2">
-            <input type="text" id="filtro-busqueda-solidos" onkeyup="filtrarTablaGenerica('tabla-solidos', this.value)" placeholder="Buscar bloque, bomba..." class="form-control form-control-sm" style="max-width: 220px;">
-          </div>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0" id="tabla-solidos">
-            <thead class="table-light">
-              <tr class="small text-uppercase text-secondary">
-                <th style="width: 50px;" class="text-center">Estado</th>
-                <th>Clasificación</th>
-                <th>Bloque</th>
-                <th>Zona</th>
-                <th>Camas</th>
-                <th>Edad</th>
-                <th>Bomba</th>
-                <th>Cultivo</th>
-                <th>Cuarto / Técnico</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in solidos_items %}
-              <tr id="row-drench-{{ item.id }}" class="{% if item.completado %}table-success-subtle opacity-75{% endif %}">
-                <td class="text-center">
-                  {% if item.completado %}
-                    <i class="fa-solid fa-circle-check text-success fs-5"></i>
-                  {% else %}
-                    <i class="fa-regular fa-circle text-secondary fs-5"></i>
-                  {% endif %}
-                </td>
-                <td>
-                  <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis fw-bold">{{ item.clasificacion }}</span>
-                </td>
-                <td class="fw-bold font-monospace">{{ item.bloque }}</td>
-                <td class="font-monospace small"><span class="badge bg-light text-dark border">{{ item.zona or 'GENERAL' }}</span></td>
-                <td class="metric-tabular font-monospace">
-                  C{{ item.cama_inicial }} - C{{ item.cama_final }} 
-                  <span class="text-muted small">({{ item.cantidad_camas }} camas)</span>
-                </td>
-                <td class="metric-tabular font-monospace">{{ item.edad }} sem</td>
-                <td class="small fw-semibold font-monospace text-truncate" style="max-width: 250px;" title="{{ item.bomba }}">
-                  {{ item.bomba }}
-                </td>
-                <td><span class="badge bg-secondary-subtle text-secondary">{{ item.cultivo }}</span></td>
-                <td class="small text-muted">
-                  {% if item.completado %}
-                    <strong>{{ item.aplicador or 'N/A' }}</strong> &bull; {{ item.tecnico or 'N/A' }}
-                  {% else %}
-                    <span class="text-warning-emphasis">Pendiente</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <button type="button" onclick="toggleDrenchItem({{ item.id }}, {{ 'true' if not item.completado else 'false' }})" class="btn btn-sm {% if item.completado %}btn-outline-secondary{% else %}btn-success{% endif %} fw-semibold">
-                    {% if item.completado %}
-                      <i class="fa-solid fa-rotate-left me-1"></i> Deshacer
-                    {% else %}
-                      <i class="fa-solid fa-check me-1"></i> Completar
-                    {% endif %}
-                  </button>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="10" class="text-center py-4 text-muted">
-                  No hay aplicaciones de Sólidos registradas para la Semana {{ semana_activa }}.
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    {% else %}
+    <div class="text-center py-5 text-muted bg-white rounded-3 shadow-none border p-4 my-2">
+      <i class="fa-solid fa-calculator fs-1 text-secondary mb-3"></i>
+      <h5 class="fw-bold text-dark">No hay registros de calibración para la Semana {{ semana_activa }}</h5>
+      <p class="small text-muted mb-0">Seleccione otra semana en el selector superior o proyecte la semana con el botón superior.</p>
     </div>
-
-    <!-- ============================================================== -->
-    <!-- TAB 2: RIEGO DUCHA -->
-    <!-- ============================================================== -->
-    <div class="tab-pane fade" id="tab-riego" role="tabpanel">
-      <div class="bento-card p-3 p-md-4 mb-4">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
-          <div>
-            <h5 class="fw-bold mb-1">Registros de Riego Ducha (Rendimientos Operativos)</h5>
-            <p class="text-muted small mb-0">Seguimiento de minutos/cama y camas/hora por técnico y aplicador.</p>
-          </div>
-          <button type="button" class="btn btn-sm btn-info text-white fw-bold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalRiegoDucha">
-            <i class="fa-solid fa-plus me-1"></i> Registrar Riego Ducha
-          </button>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr class="small text-uppercase text-secondary">
-                <th>Fecha</th>
-                <th>Aplicador</th>
-                <th>Técnico</th>
-                <th>Bloque</th>
-                <th>Pases</th>
-                <th>Camas</th>
-                <th>Duración</th>
-                <th>Rendimiento</th>
-                <th class="text-end">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for reg in riego_ducha_items %}
-              <tr>
-                <td class="small">{{ reg.fecha.strftime('%d/%m/%Y') if reg.fecha else '' }}</td>
-                <td class="fw-bold">{{ reg.aplicador }}</td>
-                <td class="small text-muted">{{ reg.tecnico }}</td>
-                <td class="fw-bold">{{ reg.bloque }}</td>
-                <td><span class="badge bg-primary-subtle text-primary">{{ reg.pases }} pases</span></td>
-                <td class="metric-tabular">{{ reg.camas_fisicas }}</td>
-                <td class="metric-tabular">{{ reg.duracion_minutos|round(1) }} min</td>
-                <td class="metric-tabular fw-bold text-success">
-                  {{ reg.rendimiento_min_cama|round(2) }} min/cama
-                </td>
-                <td class="text-end">
-                  <button type="button" onclick="eliminarRiegoDucha({{ reg.id }})" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar">
-                    <i class="fa-solid fa-trash-can"></i>
-                  </button>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="9" class="text-center py-4 text-muted">
-                  No hay registros de Riego Ducha para el día de hoy.
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================================== -->
-    <!-- TAB 3: VÁLVULAS -->
-    <!-- ============================================================== -->
-    <div class="tab-pane fade" id="tab-valvulas" role="tabpanel">
-      <div class="bento-card p-3 p-md-4 mb-4">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
-          <div>
-            <h5 class="fw-bold mb-1">Registros de Válvulas de Riego</h5>
-            <p class="text-muted small mb-0">Control de apertura de válvulas y tiempos por variedad y bloque.</p>
-          </div>
-          <button type="button" class="btn btn-sm btn-warning text-dark fw-bold shadow-xs" data-bs-toggle="modal" data-bs-target="#modalValvula">
-            <i class="fa-solid fa-plus me-1"></i> Registrar Válvulas
-          </button>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr class="small text-uppercase text-secondary">
-                <th>Fecha</th>
-                <th>Aplicador</th>
-                <th>Técnico</th>
-                <th>Variedad</th>
-                <th>Válvulas</th>
-                <th>Minutos de Riego</th>
-                <th>Observaciones</th>
-                <th class="text-end">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for val in valvula_items %}
-              <tr>
-                <td class="small">{{ val.fecha.strftime('%d/%m/%Y') if val.fecha else '' }}</td>
-                <td class="fw-bold">{{ val.aplicador }}</td>
-                <td class="small text-muted">{{ val.tecnico }}</td>
-                <td><span class="badge bg-secondary-subtle text-secondary">{{ val.variedad }}</span></td>
-                <td class="metric-tabular fw-bold">{{ val.cantidad_valvulas }} válvulas</td>
-                <td class="metric-tabular text-info fw-bold">{{ val.minutos_riego }} min</td>
-                <td class="small text-muted">{{ val.observaciones or '-' }}</td>
-                <td class="text-end">
-                  <button type="button" onclick="eliminarValvula({{ val.id }})" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar">
-                    <i class="fa-solid fa-trash-can"></i>
-                  </button>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="8" class="text-center py-4 text-muted">
-                  No hay registros de válvulas para el día de hoy.
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
+    {% endif %}
   </div>
+
 </div>
 
 <!-- ================================================================== -->
-<!-- MODAL REGISTRO RIEGO DUCHA -->
+<!-- MODAL: INSERTAR BLOQUE / CASILLA MANUAL A LA MESA DE CALIBRACIÓN -->
+<!-- (Modal independiente de primer nivel sin anidar) -->
 <!-- ================================================================== -->
-<div class="modal fade" id="modalRiegoDucha" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalInsertarBloqueFerti" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bento-card border-0">
-      <div class="modal-header border-bottom">
-        <h5 class="modal-title fw-bold"><i class="fa-solid fa-shower text-info me-2"></i>Registrar Riego Ducha</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-content bento-card border-0 shadow">
+      <div class="modal-header bg-dark text-white border-bottom py-2.5 px-3">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="fa-solid fa-circle-plus text-warning me-2"></i>Insertar Bloque / Casilla a la Calibración
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form id="formRiegoDucha" onsubmit="guardarRiegoDucha(event)">
-        <div class="modal-body space-y-3">
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Aplicador:</label>
-            <input type="text" name="aplicador" required class="form-control form-control-sm" placeholder="Nombre del aplicador">
+      <form id="formInsertarBloqueFerti" onsubmit="event.preventDefault(); confirmarInsertarBloqueFerti();">
+        <div class="modal-body p-3">
+          <p class="small text-muted mb-3">
+            Permite añadir un bloque o casilla manual con su rango de camas, variedad, edad y dosis diferenciada (ideal para Presiembras, siembras presupuestadas o ajustes de campo).
+          </p>
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+              <label class="form-label small fw-bold text-dark mb-0">Bloque:</label>
+              <input type="text" id="modal-add-bloque" class="form-control form-control-sm font-monospace fw-bold text-primary" placeholder="ej: 154 o BL 154" list="catalogo-bloques-list" oninput="autoCompletarBloqueModal(this.value)" required autocomplete="off">
+              <datalist id="catalogo-bloques-list">
+                {% for b_cand in catalogo_bloques_list %}
+                  <option value="{{ b_cand }}">
+                {% endfor %}
+              </datalist>
+            </div>
+            <div class="col-5">
+              <label class="form-label small fw-bold text-dark mb-0">Zona:</label>
+              <input type="text" id="modal-add-zona" class="form-control form-control-sm font-monospace" placeholder="ZONA 1" value="ZONA 1">
+            </div>
           </div>
           <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label small fw-bold">Bloque:</label>
-              <input type="text" name="bloque" id="input-bloque-ducha" oninput="autoAsignarTecnicoZona(this, 'formRiegoDucha')" required class="form-control form-control-sm" placeholder="Ej: BL 11 o 100">
-            </div>
-            <div class="col-6">
-              <label class="form-label small fw-bold">Pases:</label>
-              <select name="pases" class="form-select form-select-sm">
-                <option value="1">1 Pase</option>
-                <option value="2">2 Pases</option>
-                <option value="3">3 Pases</option>
-                <option value="4">4 Pases</option>
-                <option value="5">5 Pases</option>
+            <div class="col-7">
+              <label class="form-label small fw-bold text-dark mb-0">Cultivo / Variedad:</label>
+              <select id="modal-add-cultivo" class="form-select form-select-sm fw-bold">
+                <option value="GYPSOPHILA">GYPSOPHILA (BILLION LIGHTS)</option>
+                <option value="HYPERICUM">HYPERICUM</option>
+                <option value="VERONICA">VERONICA</option>
+                <option value="SOLIDAGO">SOLIDAGO</option>
+                <option value="LIMONIUM">LIMONIUM</option>
               </select>
             </div>
+            <div class="col-5">
+              <label class="form-label small fw-bold text-dark mb-0">Edad (Semanas):</label>
+              <input type="number" id="modal-add-edad" class="form-control form-control-sm font-monospace text-center fw-bold" value="0" min="0">
+            </div>
           </div>
-          <div class="mb-2">
-            <span id="formRiegoDucha-zona-badge" class="badge bg-light text-dark border d-none small"></span>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Técnico Responsable (Automático por Catálogo):</label>
-            <select name="tecnico" required class="form-select form-select-sm">
-              <option value="">Seleccione Técnico...</option>
-              {% for t in tecnicos %}
-                <option value="{{ t.nombre }}">{{ t.nombre }}</option>
-              {% endfor %}
-            </select>
+          <div class="row g-2 mb-2">
+            <div class="col-4">
+              <label class="form-label small fw-bold text-dark mb-0">C. Inic:</label>
+              <input type="number" id="modal-add-cama-inic" class="form-control form-control-sm font-monospace text-center" value="1" min="1" oninput="recalcModalAddCamas()">
+            </div>
+            <div class="col-4">
+              <label class="form-label small fw-bold text-dark mb-0">C. Fin:</label>
+              <input type="number" id="modal-add-cama-fin" class="form-control form-control-sm font-monospace text-center" value="20" min="1" oninput="recalcModalAddCamas()">
+            </div>
+            <div class="col-4">
+              <label class="form-label small fw-bold text-success mb-0">Camas Fís:</label>
+              <input type="number" id="modal-add-camas-fis" class="form-control form-control-sm font-monospace text-end fw-bold text-success bg-light" value="20" min="1">
+            </div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-6">
-              <label class="form-label small fw-bold">Camas Físicas:</label>
-              <input type="number" name="camas_fisicas" required min="1" class="form-control form-control-sm" placeholder="Ej: 30">
+              <label class="form-label small fw-bold text-dark mb-0">Camas Estándar:</label>
+              <input type="number" step="0.1" id="modal-add-camas-std" class="form-control form-control-sm font-monospace text-end" value="20.0">
             </div>
             <div class="col-6">
-              <label class="form-label small fw-bold">Duración (Minutos):</label>
-              <input type="number" step="0.1" name="duracion_minutos" required min="0.1" class="form-control form-control-sm" placeholder="Ej: 45.5">
+              <label class="form-label small fw-bold text-primary mb-0">Dosis Diferenciada (Opc.):</label>
+              <input type="number" step="0.01" id="modal-add-dosis" class="form-control form-control-sm font-monospace text-end text-primary fw-bold" placeholder="ej: 0.75">
             </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Observaciones:</label>
-            <textarea name="observaciones" rows="2" class="form-control form-control-sm" placeholder="Notas adicionales..."></textarea>
-          </div>
         </div>
-        <div class="modal-footer border-top">
-          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-sm btn-info text-white fw-bold">Guardar Registro</button>
+        <div class="modal-footer border-top p-2 d-flex justify-content-between align-items-center">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="modal-keep-open">
+            <label class="form-check-label small fw-bold text-dark" for="modal-keep-open" style="font-size: 0.72rem;">Continuo (seguir agregando)</label>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="submit" class="btn btn-sm btn-success fw-bold shadow-xs">
+              <i class="fa-solid fa-check me-1"></i> Añadir a la Mesa
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -702,64 +577,8 @@
 </div>
 
 <!-- ================================================================== -->
-<!-- MODAL REGISTRO VÁLVULA -->
-<!-- ================================================================== -->
-<div class="modal fade" id="modalValvula" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bento-card border-0">
-      <div class="modal-header border-bottom">
-        <h5 class="modal-title fw-bold"><i class="fa-solid fa-gauge-high text-warning me-2"></i>Registrar Apertura de Válvulas</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form id="formValvula" onsubmit="guardarValvula(event)">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Aplicador:</label>
-            <input type="text" name="aplicador" required class="form-control form-control-sm" placeholder="Nombre del operador">
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Técnico Responsable:</label>
-            <select name="tecnico" required class="form-select form-select-sm">
-              <option value="">Seleccione Técnico...</option>
-              {% for t in tecnicos %}
-                <option value="{{ t.nombre }}">{{ t.nombre }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Variedad:</label>
-            <select name="variedad" required class="form-select form-select-sm">
-              <option value="">Seleccione Variedad...</option>
-              {% for v in variedades %}
-                <option value="{{ v.nombre }}">{{ v.nombre }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="row g-2 mb-3">
-            <div class="col-6">
-              <label class="form-label small fw-bold">Cantidad de Válvulas:</label>
-              <input type="number" name="cantidad_valvulas" required min="1" class="form-control form-control-sm" placeholder="Ej: 4">
-            </div>
-            <div class="col-6">
-              <label class="form-label small fw-bold">Minutos de Riego:</label>
-              <input type="number" name="minutos_riego" required min="1" class="form-control form-control-sm" placeholder="Ej: 30">
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Observaciones:</label>
-            <textarea name="observaciones" rows="2" class="form-control form-control-sm" placeholder="Notas..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer border-top">
-          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-sm btn-warning text-dark fw-bold">Guardar Válvulas</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL PROYECTAR SEMANA FERTILIZACIÓN (MÓDULO 6) -->
+<!-- ================================================================== -->
 <div class="modal fade" id="modalProyectarSemanaFerti" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content bento-card border-0 shadow">
@@ -773,28 +592,39 @@
         <div class="modal-body p-3">
           <div class="alert alert-info py-2 px-3 small mb-3">
             <i class="fa-solid fa-circle-info me-1"></i>
-            <strong>Proyección de Fertilización:</strong> Calcula la edad proyectada de cada cultivo para la semana seleccionada, mapea las bombas y recetas correspondientes, y genera el checklist operativo para los aplicadores de campo.
+            <strong>Proyección Automática:</strong> Calcula las edades proyectadas a partir del <strong>último estado de cultivo cargado</strong> con sus siembras y podas vivas, y genera las camas para los apartados de <strong>Trichos, Moshe, Alcaplant y Presiembras</strong>.
           </div>
           <div class="mb-3">
-            <label class="form-label small fw-bold">Semana Destino a Proyectar (ej: 2643 o 2026-43):</label>
-            <input type="text" id="inputSemanaDestinoFerti" class="form-control form-control-lg font-monospace fw-bold text-primary text-center" placeholder="2643" required>
+            <label class="form-label small fw-bold">Semana a Programar (ej: 47 o 2647):</label>
+            <input type="text" id="inputSemanaDestinoFerti" class="form-control form-control-lg font-monospace fw-bold text-primary text-center" placeholder="2647" value="2647" required>
             <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
-              Sugerencia: <strong id="lblSugerenciaSemanaFerti" class="text-success font-monospace">--</strong>
+              Puede ingresar el número directo (ej: <strong>47</strong>) o 4 dígitos (ej: <strong>2647</strong>).
             </small>
           </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">Semana Base Origen (desde donde se proyectan las edades):</label>
-            <select id="selectSemanaOrigenFerti" class="form-select form-select-sm fw-bold">
-              {% for sem in semanas_disponibles %}
-                <option value="{{ sem }}" {% if loop.first %}selected{% endif %}>Semana {{ sem }}</option>
-              {% endfor %}
-            </select>
+          <div class="row g-2 mb-3">
+            <div class="col-7">
+              <label class="form-label small fw-bold">Apartado a Proyectar:</label>
+              <select id="selectApartadoFerti" class="form-select form-select-sm fw-bold">
+                <option value="TODOS" selected>TODOS los Programas</option>
+                <option value="TRICHOS">Solo Trichos & Biológicos (41.7 L)</option>
+                <option value="MOSHE">Solo Moshe (30.0 L)</option>
+                <option value="ALCAPLANT">Solo Alcaplant (30.0 L)</option>
+                <option value="PRESIEMBRAS">Solo Presiembras / Planning (Seco)</option>
+              </select>
+            </div>
+            <div class="col-5">
+              <label class="form-label small fw-bold">Modo Moshe:</label>
+              <select id="selectModoMosheFerti" class="form-select form-select-sm fw-bold">
+                <option value="INVIERNO" selected>INVIERNO (Adultos y Jóvenes)</option>
+                <option value="VERANO">VERANO (Solo edades jóvenes)</option>
+              </select>
+            </div>
           </div>
         </div>
         <div class="modal-footer border-top">
           <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-sm btn-warning text-dark fw-bold" id="btnEjecutarProyeccionFerti">
-            <i class="fa-solid fa-play me-1"></i> Generar Programa & Checklist
+          <button type="submit" id="btnEjecutarProyeccionFerti" class="btn btn-sm btn-primary fw-bold">
+            <i class="fa-solid fa-play me-1"></i> Generar Programa & Camas
           </button>
         </div>
       </form>
@@ -806,160 +636,18 @@
 // --- Catálogo autoritativo de bloques (dim_bloques) para auto-asignación ---
 const DIM_BLOQUES_CATALOG = {{ (catalogo_bloques_json if catalogo_bloques_json is defined else '{}')|safe }};
 
-function autoAsignarTecnicoZona(inputEl, formId) {
-  const form = document.getElementById(formId);
-  if (!form || !DIM_BLOQUES_CATALOG) return;
-  const raw = (inputEl.value || '').trim().toUpperCase();
+// --- Autocompletar datos del bloque en el modal ---
+function autoCompletarBloqueModal(val) {
+  if (!DIM_BLOQUES_CATALOG) return;
+  const raw = (val || '').trim().toUpperCase();
   const clean = raw.replace('BL', '').trim();
   const info = DIM_BLOQUES_CATALOG[raw] || DIM_BLOQUES_CATALOG[clean] || DIM_BLOQUES_CATALOG['BL ' + clean] || DIM_BLOQUES_CATALOG['BL' + clean];
-  const tecSelect = form.querySelector('select[name="tecnico"]');
-  const zonaBadge = document.getElementById(formId + '-zona-badge');
   if (info) {
-    if (tecSelect && info.tecnico) {
-      for (let i = 0; i < tecSelect.options.length; i++) {
-        const optVal = tecSelect.options[i].value.toUpperCase();
-        const m1 = optVal.match(/([1-5])/);
-        const m2 = info.tecnico.match(/([1-5])/);
-        if ((m1 && m2 && m1[1] === m2[1]) || optVal.includes(info.tecnico.toUpperCase()) || info.tecnico.toUpperCase().includes(optVal)) {
-          tecSelect.selectedIndex = i;
-          break;
-        }
-      }
+    const zonaInput = document.getElementById('modal-add-zona');
+    if (zonaInput && info.zona) {
+      zonaInput.value = info.zona;
     }
-    if (zonaBadge) {
-      zonaBadge.textContent = '📍 Zona Asignada: ' + info.zona;
-      zonaBadge.classList.remove('d-none');
-    }
-  } else {
-    if (zonaBadge) zonaBadge.classList.add('d-none');
   }
-}
-
-// --- Toggle Drench Item ---
-async function toggleDrenchItem(id, nuevoEstado) {
-  try {
-    const res = await fetch("{{ url_for('fertilizacion.api_drench_toggle') }}", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: id, completado: nuevoEstado })
-    });
-    const data = await res.json();
-    if (data.success) {
-      location.reload();
-    } else {
-      alert("Error: " + data.message);
-    }
-  } catch (err) {
-    alert("Error de conexión: " + err);
-  }
-}
-
-// --- Guardar Riego Ducha ---
-async function guardarRiegoDucha(e) {
-  e.preventDefault();
-  const form = document.getElementById('formRiegoDucha');
-  const payload = {
-    aplicador: form.aplicador.value,
-    tecnico: form.tecnico.value,
-    bloque: form.bloque.value,
-    pases: form.pases.value,
-    camas_fisicas: form.camas_fisicas.value,
-    duracion_minutos: form.duracion_minutos.value,
-    observaciones: form.observaciones.value
-  };
-  try {
-    const res = await fetch("{{ url_for('fertilizacion.api_riego_ducha') }}", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success) {
-      location.reload();
-    } else {
-      alert("Error: " + data.message);
-    }
-  } catch (err) {
-    alert("Error al guardar: " + err);
-  }
-}
-
-// --- Eliminar Riego Ducha ---
-async function eliminarRiegoDucha(id) {
-  if (!confirm("¿Deseas eliminar este registro de Riego Ducha?")) return;
-  try {
-    const res = await fetch("{{ url_for('fertilizacion.api_riego_ducha') }}/" + id, { method: "DELETE" });
-    const data = await res.json();
-    if (data.success) location.reload();
-  } catch (err) {
-    alert("Error: " + err);
-  }
-}
-
-// --- Guardar Válvula ---
-async function guardarValvula(e) {
-  e.preventDefault();
-  const form = document.getElementById('formValvula');
-  const payload = {
-    aplicador: form.aplicador.value,
-    tecnico: form.tecnico.value,
-    variedad: form.variedad.value,
-    cantidad_valvulas: form.cantidad_valvulas.value,
-    minutos_riego: form.minutos_riego.value,
-    observaciones: form.observaciones.value
-  };
-  try {
-    const res = await fetch("{{ url_for('fertilizacion.api_valvulas') }}", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success) {
-      location.reload();
-    } else {
-      alert("Error: " + data.message);
-    }
-  } catch (err) {
-    alert("Error al guardar: " + err);
-  }
-}
-
-// --- Eliminar Válvula ---
-async function eliminarValvula(id) {
-  if (!confirm("¿Deseas eliminar este registro de válvula?")) return;
-  try {
-    const res = await fetch("{{ url_for('fertilizacion.api_valvulas') }}/" + id, { method: "DELETE" });
-    const data = await res.json();
-    if (data.success) location.reload();
-  } catch (err) {
-    alert("Error: " + err);
-  }
-}
-
-// --- Filtrado genérico para tablas de Checklist (Trichos y Sólidos) ---
-function filtrarTablaGenerica(tableId, query) {
-  const q = (query || '').toLowerCase().trim();
-  const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
-  rows.forEach(r => {
-    const text = r.innerText.toLowerCase();
-    r.style.display = (!q || text.includes(q)) ? '' : 'none';
-  });
-}
-
-// --- Filtrado en cliente de la tabla Drench ---
-function filtrarTablaDrench() {
-  const search = document.getElementById('filtro-busqueda-drench') ? document.getElementById('filtro-busqueda-drench').value.toLowerCase() : '';
-  const clasifEl = document.getElementById('filtro-clasif-drench');
-  const clasif = clasifEl ? clasifEl.value.toUpperCase() : 'TODAS';
-  const rows = document.querySelectorAll('#tabla-drench tbody tr');
-
-  rows.forEach(r => {
-    const text = r.innerText.toLowerCase();
-    const matchesSearch = !search || text.includes(search);
-    const matchesClasif = (clasif === 'TODAS') || text.includes(clasif.toLowerCase());
-    r.style.display = (matchesSearch && matchesClasif) ? '' : 'none';
-  });
 }
 
 // ==============================================================
@@ -983,204 +671,503 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-function abrirMesaCalibracion(edad, tipoGrupo, volDefault, bombasStr) {
-  const dataScript = document.getElementById('ferti-data-edad-' + edad);
-  if (!dataScript) {
-    alert("No se encontraron datos para la Semana " + edad);
+function filtrarApartado(apartado, btnEl) {
+  // Resetear estilos de todos los botones de apartado a outline
+  const btnTrichos = document.getElementById('btn-filtro-trichos');
+  const btnMoshe = document.getElementById('btn-filtro-moshe');
+  const btnAlcaplant = document.getElementById('btn-filtro-alcaplant');
+  const btnPresiembras = document.getElementById('btn-filtro-presiembras');
+
+  if (btnTrichos) btnTrichos.className = 'btn btn-outline-success fw-bold btn-apartado';
+  if (btnMoshe) btnMoshe.className = 'btn btn-outline-warning text-dark fw-bold btn-apartado';
+  if (btnAlcaplant) btnAlcaplant.className = 'btn btn-outline-info text-dark fw-bold btn-apartado';
+  if (btnPresiembras) btnPresiembras.className = 'btn btn-outline-danger fw-bold btn-apartado';
+
+  // Aplicar estilo activo distintivo según el apartado seleccionado
+  if (btnEl) {
+    if (apartado === 'TRICHOS') {
+      btnEl.className = 'btn btn-success text-white fw-bold btn-apartado active shadow-sm';
+    } else if (apartado === 'MOSHE') {
+      btnEl.className = 'btn btn-warning text-dark fw-bold btn-apartado active shadow-sm';
+    } else if (apartado === 'ALCAPLANT') {
+      btnEl.className = 'btn btn-info text-dark fw-bold btn-apartado active shadow-sm';
+    } else if (apartado === 'PRESIEMBRAS') {
+      btnEl.className = 'btn btn-danger text-white fw-bold btn-apartado active shadow-sm';
+    }
+  }
+
+  // Ocultar placeholder de selección
+  const placeholder = document.getElementById('no-module-selected-placeholder');
+  if (placeholder) {
+    placeholder.classList.add('d-none');
+  }
+
+  // Mostrar contenedor de tarjetas si estaba oculto
+  const cardsContainer = document.getElementById('calibracion-cards-container');
+  if (cardsContainer) {
+    cardsContainer.classList.remove('d-none');
+  }
+
+  // Si la mesa de calibración workbench estaba abierta, cerrarla para ver las tarjetas
+  const wbContainer = document.getElementById('ferti-workbench-container');
+  if (wbContainer && !wbContainer.classList.contains('d-none')) {
+    wbContainer.classList.add('d-none');
+  }
+
+  // Mostrar / ocultar sub-barra de modo Moshe
+  const mosheSubbar = document.getElementById('moshe-modo-subbar');
+  if (mosheSubbar) {
+    if (apartado === 'MOSHE') {
+      mosheSubbar.classList.remove('d-none');
+    } else {
+      mosheSubbar.classList.add('d-none');
+    }
+  }
+
+  // Filtrar tarjetas por apartado
+  const wrappers = document.querySelectorAll('.card-bomba-wrapper');
+  let matchCount = 0;
+  wrappers.forEach(w => {
+    const ap = (w.dataset.apartado || 'TRICHOS').toUpperCase();
+    if (ap === apartado.toUpperCase()) {
+      w.classList.remove('d-none');
+      matchCount++;
+    } else {
+      w.classList.add('d-none');
+    }
+  });
+}
+
+async function cambiarModoMoshe(modo) {
+  if (!confirm(`¿Desea cambiar el programa de MOSHE a Régimen de ${modo}? Esto actualizará automáticamente la base de datos local con los bloques correspondientes.`)) {
     return;
   }
-  let items = [];
+  const semanaActiva = '{{ semana_activa }}';
   try {
-    items = JSON.parse(dataScript.textContent);
-  } catch (e) {
-    console.error("Error parseando items de calibración:", e);
+    const res = await fetch('/fertilizacion/api/moshe/cambiar-modo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semana: semanaActiva, modo: modo })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(data.message || `Régimen MOSHE actualizado a ${modo}.`);
+      window.location.reload();
+    } else {
+      alert('Error: ' + (data.message || 'No se pudo actualizar el régimen'));
+    }
+  } catch (err) {
+    console.error('Error al cambiar modo de Moshe:', err);
+    alert('Error al comunicarse con el servidor.');
+  }
+}
+
+function abrirModalInsertarBloqueFerti() {
+  const modalEl = document.getElementById('modalInsertarBloqueFerti');
+  if (modalEl) {
+    if (activeWorkbenchState) {
+      if (document.getElementById('modal-add-edad')) {
+        let defaultAge = 0;
+        if (typeof activeWorkbenchState.edad === 'number') {
+          defaultAge = activeWorkbenchState.edad;
+        } else if (typeof activeWorkbenchState.edad === 'string') {
+          const match = activeWorkbenchState.edad.match(/\d+/);
+          defaultAge = match ? parseInt(match[0]) : 0;
+        }
+        document.getElementById('modal-add-edad').value = defaultAge;
+      }
+      if (activeWorkbenchState.cultivo && document.getElementById('modal-add-cultivo')) {
+        const cultUpper = activeWorkbenchState.cultivo.toUpperCase();
+        for (let opt of document.getElementById('modal-add-cultivo').options) {
+          if (cultUpper.includes(opt.value)) {
+            opt.selected = true;
+            break;
+          }
+        }
+      }
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+}
+
+function recalcModalAddCamas() {
+  const cIni = parseInt(document.getElementById('modal-add-cama-inic')?.value || 1);
+  const cFin = parseInt(document.getElementById('modal-add-cama-fin')?.value || 1);
+  const camasInput = document.getElementById('modal-add-camas-fis');
+  const stdInput = document.getElementById('modal-add-camas-std');
+  if (cFin >= cIni && camasInput) {
+    const total = (cFin - cIni + 1);
+    camasInput.value = total;
+    if (stdInput) stdInput.value = total.toFixed(1);
+  }
+}
+
+function confirmarInsertarBloqueFerti() {
+  const blq = document.getElementById('modal-add-bloque')?.value.trim();
+  const zona = document.getElementById('modal-add-zona')?.value.trim() || 'ZONA GENERAL';
+  const cultivo = document.getElementById('modal-add-cultivo')?.value.trim() || 'GYPSOPHILA';
+  const edad = parseInt(document.getElementById('modal-add-edad')?.value || 0);
+  const cIni = parseInt(document.getElementById('modal-add-cama-inic')?.value || 1);
+  const cFin = parseInt(document.getElementById('modal-add-cama-fin')?.value || 1);
+  const camas = parseFloat(document.getElementById('modal-add-camas-fis')?.value || 1);
+  const std = parseFloat(document.getElementById('modal-add-camas-std')?.value || camas);
+  const dosis = document.getElementById('modal-add-dosis')?.value.trim();
+
+  if (!blq) {
+    alert("Por favor ingrese el código del bloque.");
     return;
   }
 
+  const tbody = document.getElementById('wb-bomba-tbody');
+  if (!tbody) {
+    alert("Debe abrir primero la mesa de calibración de una bomba para insertar bloques.");
+    return;
+  }
+
+  const placeholder = tbody.querySelector('.wb-empty-placeholder');
+  if (placeholder) placeholder.remove();
+
+  const newId = 'new_' + Date.now();
+  const volDefault = (activeWorkbenchState && activeWorkbenchState.volDefault !== undefined) ? activeWorkbenchState.volDefault : 41.7;
+  const rowCount = tbody.querySelectorAll('.wb-bomba-row').length + 1;
+
+  const tr = document.createElement('tr');
+  tr.className = 'wb-bomba-row table-warning';
+  tr.dataset.id = newId;
+  tr.dataset.vol = volDefault;
+  tr.dataset.edad = edad;
+  tr.dataset.cultivo = cultivo;
+  tr.dataset.tecnico = 'Técnico 1 (C1)';
+  if (dosis) tr.dataset.dosis = dosis;
+  tr.draggable = true;
+
+  tr.innerHTML = `
+    <td class="text-center text-secondary cursor-grab p-1 drag-handle" title="Arrastrar para reordenar" style="cursor: grab;">
+      <i class="fa-solid fa-grip-vertical"></i>
+    </td>
+    <td class="text-center text-muted font-monospace small wb-row-idx">${rowCount}</td>
+    <td class="text-center font-monospace fw-bold fs-7 bg-light wb-bloque-cell">${escapeHtml(blq)}</td>
+    <td class="text-center font-monospace small"><span class="badge bg-light text-dark border text-truncate" style="max-width: 95px;">${escapeHtml(zona)}</span></td>
+    <td class="small fw-semibold text-dark">${escapeHtml(cultivo)}</td>
+    <td>
+      <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-inic-input" value="${cIni}" oninput="recalcBedRange(this)">
+    </td>
+    <td>
+      <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-fin-input" value="${cFin}" oninput="recalcBedRange(this)">
+    </td>
+    <td>
+      <input type="number" min="0" step="1" class="form-control form-control-sm text-end fw-bold text-success p-1 wb-camas-input" value="${camas}" oninput="recalcWbRow(this)">
+    </td>
+    <td>
+      <input type="number" min="0" step="0.1" class="form-control form-control-sm text-end p-1 wb-std-input" value="${std}">
+    </td>
+    <td class="text-center font-monospace small">
+      <span class="badge bg-warning text-dark border">Sem ${edad}</span>
+    </td>
+    <td class="text-center p-1">
+      <button type="button" class="btn btn-sm btn-outline-danger p-1 py-0" title="Eliminar fila de esta calibración" onclick="eliminarFilaBloqueDirecta(this)">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+    </td>
+  `;
+
+  tbody.appendChild(tr);
+
+  // Cerrar modal o mantener abierto si se seleccionó continuo
+  const keepOpen = document.getElementById('modal-keep-open')?.checked;
+  const modalEl = document.getElementById('modalInsertarBloqueFerti');
+  if (!keepOpen && modalEl) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.hide();
+  } else if (keepOpen) {
+    const blqInp = document.getElementById('modal-add-bloque');
+    if (blqInp) {
+      blqInp.value = '';
+      blqInp.focus();
+    }
+    const cIniInp = document.getElementById('modal-add-cama-inic');
+    const cFinInp = document.getElementById('modal-add-cama-fin');
+    if (cIniInp && cFinInp) {
+      cIniInp.value = cFin + 1;
+      cFinInp.value = cFin + 20;
+      recalcModalAddCamas();
+    }
+  }
+
+  // Recalcular y refrescar DND
+  updateWbTotals();
+  initWorkbenchDragAndDrop();
+}
+
+// ==============================================================
+// METODOLOGÍA FUMIGACIÓN: FILAS DIRECTAS EN LA MESA DE CALIBRACIÓN
+// ==============================================================
+function autoCompletarBloqueFila(inputEl) {
+  if (!DIM_BLOQUES_CATALOG) return;
+  const raw = (inputEl.value || '').trim().toUpperCase();
+  const clean = raw.replace('BL', '').trim();
+  const info = DIM_BLOQUES_CATALOG[raw] || DIM_BLOQUES_CATALOG[clean] || DIM_BLOQUES_CATALOG['BL ' + clean] || DIM_BLOQUES_CATALOG['BL' + clean];
+  const tr = inputEl.closest('tr');
+  if (info && tr) {
+    const zonaInput = tr.querySelector('.wb-zona-input');
+    if (zonaInput && info.zona) {
+      zonaInput.value = info.zona;
+    }
+    if (info.tecnico) {
+      tr.dataset.tecnico = info.tecnico;
+    }
+  }
+}
+
+function agregarFilaBloqueDirecta(data = null) {
+  const tbody = document.getElementById('wb-bomba-tbody');
+  if (!tbody) {
+    alert("Debe abrir primero la mesa de calibración de una bomba.");
+    return;
+  }
+
+  // Quitar placeholder de vacío si existe
+  const placeholder = tbody.querySelector('.wb-empty-placeholder');
+  if (placeholder) placeholder.remove();
+
+  const rows = tbody.querySelectorAll('.wb-bomba-row');
+  const rowCount = rows.length + 1;
+  const newId = 'new_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+  // Calcular valores sugeridos consecutivos
+  let defaultCIni = 1;
+  let defaultCFin = 20;
+  if (rows.length > 0) {
+    const lastRow = rows[rows.length - 1];
+    const lastFin = parseInt(lastRow.querySelector('.wb-cama-fin-input')?.value || 0);
+    if (lastFin > 0) {
+      defaultCIni = lastFin + 1;
+      defaultCFin = lastFin + 20;
+    }
+  }
+
+  const blq = data ? (data.bloque || '') : '';
+  const zona = data ? (data.zona || 'ZONA 1') : 'ZONA 1';
+  const cultivoDefault = activeWorkbenchState ? (activeWorkbenchState.cultivo || 'GYPSOPHILA') : 'GYPSOPHILA';
+  const cultivo = data ? (data.cultivo || data.variedad || cultivoDefault) : cultivoDefault;
+  const edad = data ? (data.edad !== undefined ? data.edad : (activeWorkbenchState ? activeWorkbenchState.edad : 0)) : (activeWorkbenchState ? activeWorkbenchState.edad : 0);
+  const cIni = data ? (data.cama_inicial || defaultCIni) : defaultCIni;
+  const cFin = data ? (data.cama_final || defaultCFin) : defaultCFin;
+  const camas = data ? (data.cantidad_camas || Math.max(1, cFin - cIni + 1)) : Math.max(1, cFin - cIni + 1);
+  const std = data ? (data.cama_estandar || camas) : camas;
+  const vol = (activeWorkbenchState && activeWorkbenchState.volDefault !== undefined) ? activeWorkbenchState.volDefault : 41.7;
+  const isZeroVol = (vol === 0 || (activeWorkbenchState && (activeWorkbenchState.volDefault === 0 || (activeWorkbenchState.tipoGrupo && activeWorkbenchState.tipoGrupo.toUpperCase().includes('PRESIEMBRA')))));
+  const litText = isZeroVol ? '0 L (Seco)' : ((camas * vol).toFixed(1) + ' L');
+
+  const tr = document.createElement('tr');
+  tr.className = 'wb-bomba-row table-warning';
+  tr.dataset.id = newId;
+  tr.dataset.vol = vol;
+  tr.dataset.edad = edad;
+  tr.dataset.cultivo = cultivo;
+  tr.dataset.tecnico = 'Técnico 1 (C1)';
+  tr.draggable = true;
+
+  tr.innerHTML = `
+    <td class="text-center text-secondary cursor-grab p-1 drag-handle" title="Arrastrar para reordenar" style="cursor: grab;">
+      <i class="fa-solid fa-grip-vertical"></i>
+    </td>
+    <td class="text-center text-muted font-monospace small wb-row-idx">${rowCount}</td>
+    <td class="p-1">
+      <input type="text" class="form-control form-control-sm font-monospace fw-bold text-primary text-center p-1 wb-bloque-input" placeholder="ej: 154" value="${escapeHtml(blq)}" list="catalogo-bloques-list" oninput="autoCompletarBloqueFila(this)" autocomplete="off">
+    </td>
+    <td class="p-1">
+      <input type="text" class="form-control form-control-sm font-monospace text-center p-1 bg-light wb-zona-input" value="${escapeHtml(zona)}" readonly style="font-size: 0.75rem;">
+    </td>
+    <td class="p-1">
+      <select class="form-select form-select-sm fw-bold p-1 wb-cultivo-select" style="font-size: 0.75rem;">
+        <option value="GYPSOPHILA" ${cultivo.toUpperCase().includes('GYP') ? 'selected' : ''}>GYPSOPHILA</option>
+        <option value="HYPERICUM" ${cultivo.toUpperCase().includes('HYP') ? 'selected' : ''}>HYPERICUM</option>
+        <option value="VERONICA" ${cultivo.toUpperCase().includes('VER') ? 'selected' : ''}>VERONICA</option>
+        <option value="SOLIDAGO" ${cultivo.toUpperCase().includes('SOL') ? 'selected' : ''}>SOLIDAGO</option>
+        <option value="LIMONIUM" ${cultivo.toUpperCase().includes('LIM') ? 'selected' : ''}>LIMONIUM</option>
+      </select>
+    </td>
+    <td class="p-1">
+      <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-inic-input" value="${cIni}" oninput="recalcBedRange(this)">
+    </td>
+    <td class="p-1">
+      <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-fin-input" value="${cFin}" oninput="recalcBedRange(this)">
+    </td>
+    <td class="p-1">
+      <input type="number" min="0" step="1" class="form-control form-control-sm text-end fw-bold text-success p-1 wb-camas-input" value="${camas}" oninput="recalcWbRow(this)">
+    </td>
+    <td class="p-1">
+      <input type="number" min="0" step="0.1" class="form-control form-control-sm text-end p-1 wb-std-input" value="${std}">
+    </td>
+    <td class="text-end fw-bold font-monospace text-primary p-1 wb-litros-cell" style="font-size: 0.78rem;">
+      ${litText}
+    </td>
+    <td class="p-1 text-center font-monospace">
+      <input type="number" min="0" max="25" class="form-control form-control-sm text-center font-monospace p-1 wb-edad-input" value="${edad}" style="width: 52px; margin: 0 auto;">
+    </td>
+    <td class="text-center p-1">
+      <button type="button" class="btn btn-sm btn-outline-danger p-1 py-0" title="Quitar fila" onclick="eliminarFilaBloqueDirecta(this)">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+    </td>
+  `;
+
+  tbody.appendChild(tr);
+
+  // Evento enter en el input de camas para agregar otra fila directa
+  const camasInput = tr.querySelector('.wb-camas-input');
+  if (camasInput) {
+    camasInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        agregarFilaBloqueDirecta();
+      }
+    });
+  }
+
+  // Auto-focus en el bloque de la nueva fila
+  const blqInp = tr.querySelector('.wb-bloque-input');
+  if (blqInp && !data) {
+    blqInp.focus();
+  }
+
+  updateWbTotals();
+  initWorkbenchDragAndDrop();
+}
+
+function eliminarFilaBloqueDirecta(btn) {
+  const tr = btn.closest('tr');
+  const rawId = tr.dataset.id;
+  const blqInput = tr.querySelector('.wb-bloque-input');
+  const blqCell = tr.querySelector('.wb-bloque-cell');
+  const blqName = (blqInput ? blqInput.value : (blqCell ? blqCell.textContent : '')) || 'este bloque';
+
+  if (!confirm(`¿Deseas quitar el bloque "${blqName.trim()}" de esta calibración?`)) {
+    return;
+  }
+  if (rawId && !rawId.startsWith('new_')) {
+    deletedWorkbenchIds.push(parseInt(rawId));
+  }
+  tr.remove();
+  updateWbTotals();
+
+  const tbody = document.getElementById('wb-bomba-tbody');
+  if (tbody && tbody.querySelectorAll('.wb-bomba-row').length === 0) {
+    tbody.innerHTML = `
+      <tr class="wb-empty-placeholder text-center text-muted py-4">
+        <td colspan="12" class="py-4 bg-light">
+          <div class="py-2">
+            <i class="fa-solid fa-seedling text-warning fs-3 mb-2 d-block"></i>
+            <h6 class="fw-bold text-dark mb-1">Sin bloques en esta calibración</h6>
+            <p class="small text-muted mb-3">Haga clic en el botón para añadir filas de bloques como en fumigación.</p>
+            <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-sm px-3" onclick="agregarFilaBloqueDirecta()">
+              <i class="fa-solid fa-plus me-1"></i> + Añadir Fila de Bloque
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function abrirMesaCalibracionBombaDirecta(idx) {
+  const dataScript = document.getElementById('ferti-data-bomba-' + idx);
+  if (!dataScript) {
+    alert("No se encontraron datos para esta bomba.");
+    return;
+  }
+  let bGrp = null;
+  try {
+    bGrp = JSON.parse(dataScript.textContent);
+  } catch (e) {
+    console.error("Error parseando datos de la bomba:", e);
+    return;
+  }
+  abrirMesaCalibracionParaBomba(bGrp, idx);
+}
+
+function abrirMesaCalibracionParaBomba(bGrp, bIdx) {
   deletedWorkbenchIds = [];
   activeWorkbenchState = {
-    edad: edad,
-    tipoGrupo: tipoGrupo,
-    volDefault: volDefault,
-    bombasStr: bombasStr,
-    items: items
+    edad: bGrp.edad,
+    tipoGrupo: bGrp.descripcion,
+    volDefault: bGrp.vol_default,
+    bomba: bGrp.bomba,
+    cultivo: bGrp.cultivo,
+    dia_aplicacion: bGrp.dia_aplicacion || (bGrp.dias && bGrp.dias.length ? bGrp.dias[0] : 'LUNES'),
+    items: bGrp.items
   };
 
   const wbContainer = document.getElementById('ferti-workbench-container');
   const wbTitle = document.getElementById('wb-title');
   const wbVolBadge = document.getElementById('wb-vol-badge');
-  const wbBombasContainer = document.getElementById('wb-bombas-container');
+  const wbDiaSelect = document.getElementById('wb-dia-aplicacion');
+  if (wbDiaSelect) {
+    wbDiaSelect.value = (activeWorkbenchState.dia_aplicacion || 'LUNES').toUpperCase();
+  }
 
-  wbTitle.textContent = `MESA DE CALIBRACIÓN • SEMANA ${edad}`;
-  wbVolBadge.textContent = `${volDefault} L/cama (${tipoGrupo})`;
+  const ageLabel = bGrp.es_programa_completo ? `SEMANAS ${bGrp.edad}` : `SEMANA ${bGrp.edad}`;
+  wbTitle.textContent = `MESA DE CALIBRACIÓN • ${bGrp.bomba.toUpperCase()} (${ageLabel})`;
+  const isZeroVol = (bGrp.vol_default === 0 || bGrp.es_presiembra || (bGrp.apartado && bGrp.apartado.toUpperCase().includes('PRESIEMBRA')));
+  wbVolBadge.textContent = isZeroVol ? `Espolvoreo directo (0 L) • ${bGrp.descripcion}` : `${bGrp.vol_default} L/cama (${bGrp.descripcion})`;
 
-  // Ocultar tarjetas resumen para maximizar el espacio en pantalla
+  // Ocultar tarjetas resumen
   const cardsContainer = document.getElementById('calibracion-cards-container');
   if (cardsContainer) cardsContainer.classList.add('d-none');
 
-  // Agrupar items por BOMBA para segmentación limpia
-  const bombasMap = {};
-  items.forEach(it => {
-    const bKey = (it.bomba || 'BOMBA GENERAL').trim();
-    if (!bombasMap[bKey]) {
-      bombasMap[bKey] = {
-        name: bKey,
-        items: []
-      };
-    }
-    bombasMap[bKey].items.push(it);
-  });
-
-  // Renderizar secciones segmentadas por Bomba con columnas completas estilo fumigación
-  let html = '';
-  const sortedBombas = Object.keys(bombasMap).sort();
-
-  sortedBombas.forEach((bKey, bIdx) => {
-    const bGrp = bombasMap[bKey];
-    const safeBombaId = sanitizeDomId(bKey) + '_' + edad + '_' + bIdx;
-    let bCamas = 0;
-    let bLitros = 0;
-
-    bGrp.items.forEach(it => {
-      const c = parseFloat(it.cantidad_camas) || 0;
-      bCamas += c;
-      bLitros += (c * volDefault);
-    });
-
-    html += `
-      <div class="card border shadow-xs rounded-3 overflow-hidden bg-white wb-bomba-section" data-bomba="${escapeHtml(bKey)}" id="bomba-card-${safeBombaId}">
-        <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light border-bottom">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge bg-primary text-white font-monospace"><i class="fa-solid fa-flask-vial me-1"></i>BOMBA</span>
-            <span class="fw-bold font-monospace text-dark fs-7">${escapeHtml(bKey)}</span>
-            <span class="badge bg-white text-secondary border font-monospace wb-bomba-blocks-badge">${bGrp.items.length} bloques</span>
-            <span class="badge bg-success-subtle text-success border border-success font-monospace fw-bold wb-bomba-camas-badge">${Math.round(bCamas)} camas</span>
-            <span class="badge bg-primary-subtle text-primary border border-primary font-monospace fw-bold wb-bomba-litros-badge">${bLitros.toFixed(1)} L</span>
-          </div>
-          
-          ${IS_ADMIN ? `
-          <div class="d-flex align-items-center gap-1 bg-white p-1 rounded border shadow-xs">
-            <span class="small fw-bold text-dark text-nowrap px-1" style="font-size: 0.72rem;">
-              <i class="fa-solid fa-arrows-split-up-and-left text-warning me-1"></i>Mover Bomba a Edad:
-            </span>
-            <select class="form-select form-select-sm py-0 border-primary fw-bold wb-bomba-age-select" style="font-size: 0.75rem; width: auto;" id="select-age-${safeBombaId}">
-              ${Array.from({length: 25}, (_, i) => i + 1).map(sNum => `
-                <option value="${sNum}" ${sNum === edad ? 'selected' : ''}>Semana ${sNum}</option>
-              `).join('')}
-            </select>
-            <button type="button" class="btn btn-warning btn-sm py-0 px-2 fw-bold text-dark" style="font-size: 0.75rem;" onclick="ejecutarReasignarBombaIndividual('${escapeHtml(bKey)}', ${edad}, '${safeBombaId}')" title="Mover únicamente los bloques de esta bomba a otra semana">
-              <i class="fa-solid fa-arrow-right me-1"></i> Mover
+  const tbody = document.getElementById('wb-bomba-tbody');
+  if (!bGrp.items || bGrp.items.length === 0) {
+    tbody.innerHTML = '';
+    // Auto-insertar primera fila editable para llenar de inmediato como en fumigación
+    agregarFilaBloqueDirecta();
+  } else {
+    tbody.innerHTML = bGrp.items.map((it, idx) => {
+      const cCam = parseFloat(it.cantidad_camas) || 0;
+      const cStd = parseFloat(it.cama_estandar) || 0.0;
+      const cInic = it.cama_inicial || 1;
+      const cFin = it.cama_final || (cInic + (cCam > 0 ? cCam - 1 : 0));
+      const vol = parseFloat(bGrp.vol_default !== undefined ? bGrp.vol_default : 41.7);
+      const isZero = (vol === 0 || bGrp.es_presiembra || (bGrp.apartado && bGrp.apartado.toUpperCase().includes('PRESIEMBRA')));
+      const litText = isZero ? '0 L (Seco)' : ((cCam * vol).toFixed(1) + ' L');
+      return `
+        <tr data-id="${it.id}" data-vol="${bGrp.vol_default}" data-edad="${it.edad || bGrp.edad}" data-cultivo="${escapeHtml(it.variedad || it.cultivo || 'GENERAL')}" data-tecnico="${escapeHtml(it.tecnico || '')}" class="wb-bomba-row" draggable="true">
+          <td class="text-center text-secondary cursor-grab p-1 drag-handle" title="Arrastrar para reordenar" style="cursor: grab;">
+            <i class="fa-solid fa-grip-vertical"></i>
+          </td>
+          <td class="text-center text-muted font-monospace small wb-row-idx">${idx + 1}</td>
+          <td class="text-center font-monospace fw-bold fs-7 bg-light wb-bloque-cell p-1">${escapeHtml(it.bloque)}</td>
+          <td class="text-center font-monospace small p-1"><span class="badge bg-light text-dark border text-truncate" style="max-width: 95px;" title="${escapeHtml(it.zona || 'ZONA GENERAL')}">${escapeHtml(it.zona || 'GENERAL')}</span></td>
+          <td class="small fw-semibold text-dark p-1">${escapeHtml(it.variedad || it.cultivo || '-')}</td>
+          <td class="p-1">
+            <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-inic-input" value="${cInic}" oninput="recalcBedRange(this)">
+          </td>
+          <td class="p-1">
+            <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-fin-input" value="${cFin}" oninput="recalcBedRange(this)">
+          </td>
+          <td class="p-1">
+            <input type="number" min="0" step="1" class="form-control form-control-sm text-end fw-bold text-success p-1 wb-camas-input" value="${cCam}" oninput="recalcWbRow(this)">
+          </td>
+          <td class="p-1">
+            <input type="number" min="0" step="0.1" class="form-control form-control-sm text-end p-1 wb-std-input" value="${cStd}">
+          </td>
+          <td class="text-end fw-bold font-monospace text-primary p-1 wb-litros-cell" style="font-size: 0.78rem;">
+            ${litText}
+          </td>
+          <td class="text-center font-monospace small p-1">
+            <span class="badge bg-light text-dark border">Sem ${it.edad || bGrp.edad}</span>
+          </td>
+          <td class="text-center p-1">
+            <button type="button" class="btn btn-sm btn-outline-danger p-1 py-0" title="Eliminar bloque de esta calibración" onclick="eliminarFilaBloqueDirecta(this)">
+              <i class="fa-solid fa-trash-can"></i>
             </button>
-          </div>
-          ` : ''}
-        </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
 
-        <div class="table-responsive">
-          <table class="table table-sm table-hover table-bordered align-middle mb-0 wb-bomba-table">
-            <thead class="table-light text-uppercase font-monospace text-secondary" style="font-size: 0.67rem;">
-              <tr>
-                <th style="width: 28px;" class="text-center" title="Arrastrar para mover"></th>
-                <th style="width: 32px;" class="text-center">#</th>
-                <th style="width: 70px;" class="text-center">BLOQUE</th>
-                <th style="width: 90px;" class="text-center">ZONA</th>
-                <th>VARIEDAD</th>
-                <th style="width: 65px;" class="text-center">C. INIC.</th>
-                <th style="width: 65px;" class="text-center">C. FIN.</th>
-                <th style="width: 75px;" class="text-end bg-light fw-bold text-success">CAMAS FÍS.</th>
-                <th style="width: 75px;" class="text-end">CAMAS EST.</th>
-                <th style="width: 55px;" class="text-center">EDAD</th>
-                <th style="width: 60px;" class="text-end">L/CAMA</th>
-                <th style="width: 85px;" class="text-end text-primary fw-bold">VOL. (L)</th>
-                <th style="width: 140px;">PRODUCTO</th>
-                <th style="width: 90px;" class="text-end">DOSIS</th>
-                <th style="width: 160px;">CUARTO / TÉCNICO</th>
-                <th style="width: 40px;" class="text-center">ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody class="wb-bomba-tbody">
-              ${bGrp.items.map((it, idx) => {
-                const cCam = parseFloat(it.cantidad_camas) || 0;
-                const cStd = parseFloat(it.cama_estandar) || 0.0;
-                const lits = (cCam * volDefault).toFixed(1);
-                const cInic = it.cama_inicial || 1;
-                const cFin = it.cama_final || (cInic + (cCam > 0 ? cCam - 1 : 0));
-                const itTec = (it.tecnico || '').trim();
-                return `
-                  <tr data-id="${it.id}" data-vol="${volDefault}" data-edad="${it.edad || edad}" class="wb-bomba-row" draggable="true">
-                    <td class="text-center text-secondary cursor-grab p-1 drag-handle" title="Arrastrar para reordenar" style="cursor: grab;">
-                      <i class="fa-solid fa-grip-vertical"></i>
-                    </td>
-                    <td class="text-center text-muted font-monospace small wb-row-idx">${idx + 1}</td>
-                    <td class="text-center font-monospace fw-bold fs-7 bg-light">${escapeHtml(it.bloque)}</td>
-                    <td class="text-center font-monospace small"><span class="badge bg-light text-dark border text-truncate" style="max-width: 95px;" title="${escapeHtml(it.zona || 'ZONA GENERAL')}">${escapeHtml(it.zona || 'GENERAL')}</span></td>
-                    <td class="small fw-semibold text-dark">${escapeHtml(it.variedad || it.cultivo || '-')}</td>
-                    <td>
-                      <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-inic-input" value="${cInic}" oninput="recalcBedRange(this)">
-                    </td>
-                    <td>
-                      <input type="number" min="1" step="1" class="form-control form-control-sm text-center font-monospace p-1 wb-cama-fin-input" value="${cFin}" oninput="recalcBedRange(this)">
-                    </td>
-                    <td>
-                      <input type="number" min="0" step="1" class="form-control form-control-sm text-end fw-bold text-success p-1 wb-camas-input" value="${cCam}" oninput="recalcWbRow(this)">
-                    </td>
-                    <td>
-                      <input type="number" min="0" step="0.1" class="form-control form-control-sm text-end p-1 wb-std-input" value="${cStd}">
-                    </td>
-                    <td class="text-center font-monospace small">
-                      <span class="badge bg-light text-dark border">Sem ${it.edad || edad}</span>
-                    </td>
-                    <td class="text-end font-monospace text-muted small">${volDefault}</td>
-                    <td class="text-end font-monospace fw-bold text-primary wb-litros-cell">${lits} L</td>
-                    <td>
-                      <div class="d-flex flex-column gap-1">
-                        ${(it.productos && it.productos.length > 0) ? it.productos.map(p => `
-                          <span class="small fw-semibold text-dark text-nowrap"><i class="fa-solid fa-flask text-primary me-1" style="font-size:0.65rem;"></i>${escapeHtml(p.name)}</span>
-                        `).join('') : '<span class="text-muted small">-</span>'}
-                      </div>
-                    </td>
-                    <td class="text-end">
-                      <div class="d-flex flex-column gap-1 text-end">
-                        ${(it.productos && it.productos.length > 0) ? it.productos.map(p => `
-                          <span class="small font-monospace text-secondary text-nowrap">${escapeHtml(p.dose_str || (p.dose + ' ' + (p.unit || 'GR')))}</span>
-                        `).join('') : '<span class="text-muted small">-</span>'}
-                      </div>
-                    </td>
-                    <td>
-                      <select class="form-select form-select-sm p-1 font-monospace wb-tec-input" style="font-size: 0.75rem;">
-                        <option value="Técnico 1 (C1)" ${(!itTec || itTec.includes('1')) ? 'selected' : ''}>Técnico 1 (C1)</option>
-                        <option value="Técnico 2 (C2)" ${(itTec.includes('2')) ? 'selected' : ''}>Técnico 2 (C2)</option>
-                        <option value="Técnico 3 (C3)" ${(itTec.includes('3')) ? 'selected' : ''}>Técnico 3 (C3)</option>
-                        <option value="Técnico 4 (C4)" ${(itTec.includes('4')) ? 'selected' : ''}>Técnico 4 (C4)</option>
-                        <option value="Técnico 5 (C5)" ${(itTec.includes('5')) ? 'selected' : ''}>Técnico 5 (C5)</option>
-                      </select>
-                    </td>
-                    <td class="text-center p-1">
-                      <button type="button" class="btn btn-sm btn-outline-danger p-1 py-0" title="Eliminar bloque de esta calibración" onclick="eliminarBloqueFertiRow(this, '${escapeHtml(it.bloque)}', ${it.id})">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-            <tfoot>
-              <tr class="table-light fw-bold font-monospace border-top">
-                <td colspan="7" class="text-end text-uppercase small text-secondary">Subtotal ${escapeHtml(bKey)}:</td>
-                <td class="text-end text-success fs-7 wb-bomba-subtotal-camas">${Math.round(bCamas)}</td>
-                <td class="text-end text-muted">-</td>
-                <td class="text-center text-muted small">Sem ${edad}</td>
-                <td class="text-end text-muted small">${volDefault}</td>
-                <td class="text-end text-primary fs-7 wb-bomba-subtotal-litros">${bLitros.toFixed(1)} L</td>
-                <td colspan="4"></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    `;
-  });
-
-  wbBombasContainer.innerHTML = html;
   initWorkbenchDragAndDrop();
   updateWbTotals();
 
@@ -1188,66 +1175,72 @@ function abrirMesaCalibracion(edad, tipoGrupo, volDefault, bombasStr) {
   wbContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+async function moverEdadBombaDirecta(bombaName, edadOrigen, selectId) {
+  if (!IS_ADMIN) {
+    alert("Acceso restringido: Solo un Administrador puede reasignar o mover bombas.");
+    return;
+  }
+  const selectEl = document.getElementById(selectId);
+  if (!selectEl) {
+    alert("No se encontró el selector de edad.");
+    return;
+  }
+  const nuevaEdad = parseInt(selectEl.value);
+  if (nuevaEdad === edadOrigen) {
+    alert(`La bomba "${bombaName}" ya está en la Semana ${edadOrigen}. Seleccione una semana diferente.`);
+    return;
+  }
+  if (!confirm(`¿Confirmas reasignar la bomba "${bombaName}" de la Semana ${edadOrigen} a la Semana ${nuevaEdad}?`)) {
+    return;
+  }
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_bomba_cambiar_edad') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        semana: "{{ semana_activa }}",
+        bomba: bombaName,
+        edad_origen: edadOrigen,
+        nueva_edad: nuevaEdad
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+      location.reload();
+    } else {
+      alert("❌ Error: " + (data.message || "No se pudo mover la bomba"));
+    }
+  } catch (err) {
+    alert("Error de conexión: " + err);
+  }
+}
+
 function recalcBedRange(inputEl) {
   const tr = inputEl.closest('tr');
   const cInic = parseInt(tr.querySelector('.wb-cama-inic-input')?.value || 1);
   const cFin = parseInt(tr.querySelector('.wb-cama-fin-input')?.value || 1);
   const camasInput = tr.querySelector('.wb-camas-input');
+  const stdInput = tr.querySelector('.wb-std-input');
   if (cFin >= cInic && camasInput) {
-    camasInput.value = (cFin - cInic + 1);
+    const diff = (cFin - cInic + 1);
+    camasInput.value = diff;
+    if (stdInput) stdInput.value = diff.toFixed(1);
   }
-  recalcWbRow(camasInput);
+  recalcWbRow(camasInput || inputEl);
 }
 
 function recalcWbRow(inputEl) {
   const tr = inputEl.closest('tr');
-  const vol = parseFloat(tr.dataset.vol) || 41.7;
-  const camas = parseFloat(tr.querySelector('.wb-camas-input')?.value || 0);
-  const lits = (camas * vol).toFixed(1);
-  const litsCell = tr.querySelector('.wb-litros-cell');
-  if (litsCell) litsCell.textContent = `${lits} L`;
-
-  const bSection = tr.closest('.wb-bomba-section');
-  if (bSection) recalcWbSection(bSection);
-  updateWbTotals();
-}
-
-function recalcWbSection(bSection) {
-  let bCamas = 0;
-  let bLitros = 0;
-  const rows = bSection.querySelectorAll('.wb-bomba-row');
-  rows.forEach((row, idx) => {
-    const idxCell = row.querySelector('.wb-row-idx');
-    if (idxCell) idxCell.textContent = idx + 1;
-    const c = parseFloat(row.querySelector('.wb-camas-input')?.value || 0);
-    const v = parseFloat(row.dataset.vol || 41.7);
-    bCamas += c;
-    bLitros += (c * v);
-  });
-  const bCamasBadge = bSection.querySelector('.wb-bomba-camas-badge');
-  const bLitrosBadge = bSection.querySelector('.wb-bomba-litros-badge');
-  const bSubtotalCamas = bSection.querySelector('.wb-bomba-subtotal-camas');
-  const bSubtotalLitros = bSection.querySelector('.wb-bomba-subtotal-litros');
-  const bBlocksBadge = bSection.querySelector('.wb-bomba-blocks-badge');
-
-  if (bCamasBadge) bCamasBadge.textContent = `${Math.round(bCamas)} camas`;
-  if (bLitrosBadge) bLitrosBadge.textContent = `${bLitros.toFixed(1)} L`;
-  if (bSubtotalCamas) bSubtotalCamas.textContent = `${Math.round(bCamas)}`;
-  if (bSubtotalLitros) bSubtotalLitros.textContent = `${bLitros.toFixed(1)} L`;
-  if (bBlocksBadge) bBlocksBadge.textContent = `${rows.length} bloques`;
-}
-
-function eliminarBloqueFertiRow(btn, blockName, id) {
-  if (!confirm(`¿Deseas eliminar el bloque "${blockName}" de esta calibración?`)) {
-    return;
+  if (tr) {
+    const vol = parseFloat(tr.dataset.vol !== undefined ? tr.dataset.vol : 41.7);
+    const camas = parseFloat(tr.querySelector('.wb-camas-input')?.value || 0) || 0;
+    const litCell = tr.querySelector('.wb-litros-cell');
+    if (litCell) {
+      const isZero = (vol === 0 || (activeWorkbenchState && activeWorkbenchState.volDefault === 0));
+      litCell.textContent = isZero ? '0 L (Seco)' : `${(camas * vol).toFixed(1)} L`;
+    }
   }
-  const tr = btn.closest('tr');
-  const bSection = tr.closest('.wb-bomba-section');
-  if (id) {
-    deletedWorkbenchIds.push(parseInt(id));
-  }
-  tr.remove();
-  recalcWbSection(bSection);
   updateWbTotals();
 }
 
@@ -1283,8 +1276,6 @@ function initWorkbenchDragAndDrop() {
 
     row.addEventListener('drop', function(e) {
       e.preventDefault();
-      const bSection = this.closest('.wb-bomba-section');
-      if (bSection) recalcWbSection(bSection);
       updateWbTotals();
     });
   });
@@ -1293,20 +1284,35 @@ function initWorkbenchDragAndDrop() {
 function updateWbTotals() {
   const allRows = document.querySelectorAll('.wb-bomba-row');
   let totalCamas = 0;
+  let totalStd = 0;
   let totalLitros = 0;
-  allRows.forEach(tr => {
+  allRows.forEach((tr, idx) => {
+    const idxCell = tr.querySelector('.wb-row-idx');
+    if (idxCell) idxCell.textContent = idx + 1;
     const camasInput = tr.querySelector('.wb-camas-input');
-    const vol = parseFloat(tr.dataset.vol) || 41.7;
+    const stdInput = tr.querySelector('.wb-std-input');
+    const vol = parseFloat(tr.dataset.vol !== undefined ? tr.dataset.vol : 41.7);
     const camas = parseFloat(camasInput ? camasInput.value : 0) || 0;
+    const std = parseFloat(stdInput ? stdInput.value : camas) || 0;
     totalCamas += camas;
-    totalLitros += (camas * vol);
+    totalStd += std;
+    totalLitros += (vol === 0 ? 0 : (camas * vol));
   });
-  const totalCamasEl = document.getElementById('wb-total-camas');
-  const totalLitrosEl = document.getElementById('wb-total-litros');
-  const blocksCountEl = document.getElementById('wb-blocks-count');
-  if (totalCamasEl) totalCamasEl.textContent = `${Math.round(totalCamas)} camas`;
-  if (totalLitrosEl) totalLitrosEl.textContent = `${totalLitros.toFixed(1)} L`;
-  if (blocksCountEl) blocksCountEl.textContent = `${allRows.length} bloques`;
+
+  const isPre = (activeWorkbenchState && (activeWorkbenchState.volDefault === 0 || (activeWorkbenchState.tipoGrupo && activeWorkbenchState.tipoGrupo.toUpperCase().includes('PRESIEMBRA'))));
+  const litsText = isPre ? '0 L (Seco)' : `${totalLitros.toFixed(1)} L`;
+
+  const topCamasEl = document.getElementById('wb-top-camas');
+  const topLitrosEl = document.getElementById('wb-top-litros');
+  const subCamasEl = document.getElementById('wb-subtotal-camas');
+  const subStdEl = document.getElementById('wb-subtotal-std');
+  const subLitrosEl = document.getElementById('wb-subtotal-litros');
+
+  if (topCamasEl) topCamasEl.textContent = Math.round(totalCamas);
+  if (topLitrosEl) topLitrosEl.textContent = litsText;
+  if (subCamasEl) subCamasEl.textContent = Math.round(totalCamas);
+  if (subStdEl) subStdEl.textContent = totalStd.toFixed(1);
+  if (subLitrosEl) subLitrosEl.textContent = litsText;
 }
 
 function cerrarMesaCalibracion() {
@@ -1324,21 +1330,54 @@ async function guardarMesaCalibracion() {
     return;
   }
 
+  // Validar que cada fila tenga su código de bloque ingresado
+  for (let i = 0; i < rows.length; i++) {
+    const tr = rows[i];
+    const blqInput = tr.querySelector('.wb-bloque-input');
+    const blqCell = tr.querySelector('.wb-bloque-cell');
+    const blqVal = blqInput ? blqInput.value.trim() : (blqCell ? blqCell.textContent.trim() : '');
+    if (!blqVal || blqVal === 'S/N') {
+      alert(`La fila #${i + 1} no tiene un código de bloque válido. Por favor complete el bloque antes de cargar.`);
+      if (blqInput) blqInput.focus();
+      return;
+    }
+  }
+
+  const diaApp = document.getElementById('wb-dia-aplicacion') ? document.getElementById('wb-dia-aplicacion').value : 'LUNES';
   const itemsPayload = [];
   rows.forEach(tr => {
-    const id = tr.dataset.id;
+    const rawId = tr.dataset.id;
     const cInic = tr.querySelector('.wb-cama-inic-input') ? tr.querySelector('.wb-cama-inic-input').value : 1;
     const cFin = tr.querySelector('.wb-cama-fin-input') ? tr.querySelector('.wb-cama-fin-input').value : 1;
     const camas = tr.querySelector('.wb-camas-input') ? tr.querySelector('.wb-camas-input').value : 0;
     const std = tr.querySelector('.wb-std-input') ? tr.querySelector('.wb-std-input').value : 0;
-    const tec = tr.querySelector('.wb-tec-input') ? tr.querySelector('.wb-tec-input').value.trim() : '';
+    const tec = tr.dataset.tecnico || (tr.querySelector('.wb-tec-input') ? tr.querySelector('.wb-tec-input').value.trim() : 'Técnico 1 (C1)');
+
+    const blqInput = tr.querySelector('.wb-bloque-input');
+    const blqCell = tr.querySelector('.wb-bloque-cell');
+    const blqVal = blqInput ? blqInput.value.trim() : (blqCell ? blqCell.textContent.trim() : (tr.dataset.bloque || 'S/N'));
+
+    const cultSelect = tr.querySelector('.wb-cultivo-select');
+    const cultVal = cultSelect ? cultSelect.value.trim() : (tr.dataset.cultivo || (activeWorkbenchState ? activeWorkbenchState.cultivo : 'GYPSOPHILA'));
+
+    const edadInput = tr.querySelector('.wb-edad-input');
+    const edadVal = edadInput ? parseInt(edadInput.value || 0) : parseInt(tr.dataset.edad || (activeWorkbenchState ? activeWorkbenchState.edad : 0));
+
     itemsPayload.push({
-      id: parseInt(id),
+      id: rawId && rawId.startsWith('new_') ? rawId : parseInt(rawId),
+      bloque: blqVal,
+      cultivo: cultVal,
+      bomba: activeWorkbenchState ? activeWorkbenchState.bomba : 'BOMBA GENERAL',
+      clasificacion: activeWorkbenchState ? activeWorkbenchState.tipoGrupo : 'CALIBRACION',
+      edad: edadVal,
       cama_inicial: parseInt(cInic),
       cama_final: parseInt(cFin),
       cantidad_camas: parseFloat(camas),
-      cama_estandar: parseFloat(std),
-      tecnico: tec
+      cama_estandar: parseFloat(std || camas),
+      dosis_diferenciada: tr.dataset.dosis ? parseFloat(tr.dataset.dosis) : null,
+      tecnico: tec,
+      dia_aplicacion: diaApp,
+      semana: "{{ semana_activa }}"
     });
   });
 
@@ -1365,58 +1404,39 @@ async function guardarMesaCalibracion() {
   }
 }
 
-async function ejecutarReasignarBombaIndividual(bombaName, edadOrigen, safeBombaId) {
-  if (!IS_ADMIN) {
-    alert("Acceso restringido: Solo un Administrador puede reasignar o mover bombas.");
-    return;
-  }
-  const selectEl = document.getElementById('select-age-' + safeBombaId);
-  if (!selectEl) {
-    alert("No se encontró el selector de edad para la bomba.");
-    return;
-  }
-  const nuevaEdad = parseInt(selectEl.value);
-  if (nuevaEdad === edadOrigen) {
-    alert(`La bomba "${bombaName}" ya se encuentra en la Semana ${edadOrigen}. Seleccione una semana diferente.`);
-    return;
-  }
-
-  // Recopilar los IDs de los bloques pertenecientes a esta bomba
-  const bCard = document.getElementById('bomba-card-' + safeBombaId);
-  const itemIds = [];
-  if (bCard) {
-    bCard.querySelectorAll('.wb-bomba-row').forEach(tr => {
-      const id = parseInt(tr.dataset.id);
-      if (id) itemIds.push(id);
-    });
-  }
-
-  if (!confirm(`¿Confirmas reasignar únicamente la bomba "${bombaName}" (${itemIds.length} bloques) de la Semana ${edadOrigen} a la Semana ${nuevaEdad}?\n\nLas demás bombas de la Semana ${edadOrigen} permanecerán intactas.`)) {
-    return;
-  }
-
+async function asignarDiaBomba(bomba, apartado, edad, dia, cardIdx) {
   try {
-    const res = await fetch("{{ url_for('fertilizacion.api_bomba_cambiar_edad') }}", {
+    const res = await fetch("{{ url_for('fertilizacion.api_calibracion_asignar_dia') }}", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         semana: "{{ semana_activa }}",
-        bomba: bombaName,
-        edad_origen: edadOrigen,
-        nueva_edad: nuevaEdad,
-        item_ids: itemIds
+        bomba: bomba,
+        apartado: apartado,
+        edad: edad,
+        dia: dia
       })
     });
     const data = await res.json();
     if (data.success) {
-      alert("✅ " + data.message);
-      cerrarMesaCalibracion();
-      location.reload();
+      console.log("✅ Día asignado correctamente:", dia);
+      if (cardIdx !== undefined && cardIdx !== null) {
+        const badge = document.getElementById('status-badge-bomba-' + cardIdx);
+        if (badge) {
+          badge.className = 'badge card-status-badge font-monospace fw-bold bg-success text-white';
+          badge.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>ASIGNADO: ${escapeHtml(dia)}`;
+        }
+        const wrapper = badge ? badge.closest('.card') : null;
+        if (wrapper) {
+          wrapper.classList.remove('border-warning');
+          wrapper.classList.add('border-success');
+        }
+      }
     } else {
-      alert("❌ Error: " + (data.message || "Error al mover la bomba"));
+      alert("❌ Error al asignar día: " + (data.message || 'Error desconocido'));
     }
   } catch (err) {
-    alert("Error de conexión al mover bomba: " + err);
+    alert("Error de conexión al asignar día: " + err);
   }
 }
 
@@ -1428,9 +1448,6 @@ function abrirModalProyectarFerti() {
   const inp = document.getElementById('inputSemanaDestinoFerti');
   if (inp) inp.value = nextNum;
   
-  const lbl = document.getElementById('lblSugerenciaSemanaFerti');
-  if (lbl) lbl.textContent = nextNum;
-  
   const modalEl = document.getElementById('modalProyectarSemanaFerti');
   if (modalEl) {
     const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1440,7 +1457,9 @@ function abrirModalProyectarFerti() {
 
 async function ejecutarProyeccionSemanaFerti() {
   const dest = document.getElementById('inputSemanaDestinoFerti')?.value.trim();
-  const orig = document.getElementById('selectSemanaOrigenFerti')?.value.trim();
+  const apar = document.getElementById('selectApartadoFerti')?.value.trim() || 'TODOS';
+  const modoM = document.getElementById('selectModoMosheFerti')?.value.trim() || 'INVIERNO';
+
   if (!dest) {
     alert("Por favor ingrese la semana destino a proyectar.");
     return;
@@ -1448,13 +1467,17 @@ async function ejecutarProyeccionSemanaFerti() {
   const btn = document.getElementById('btnEjecutarProyeccionFerti');
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Proyectando y generando checklist...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Proyectando y generando camas...';
   }
   try {
     const res = await fetch("{{ url_for('fertilizacion.api_proyectar_semana') }}", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ semana_destino: dest, semana_origen: orig })
+      body: JSON.stringify({
+        semana_destino: dest,
+        apartado: apar,
+        modo_moshe: modoM
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -1470,7 +1493,7 @@ async function ejecutarProyeccionSemanaFerti() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Generar Programa & Checklist';
+      btn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Generar Programa & Camas';
     }
   }
 }

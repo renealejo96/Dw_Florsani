@@ -189,8 +189,11 @@
                     <span class="module-num-badge">6</span>
                     <span class="module-title">Gestión de Fertilización</span>
                 </div>
-                <a href="{{ url_for('fertilizacion.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fertilizacion' in request.path and not 'reportes' in request.path and not 'configuracion' in request.path %}active-nav{% endif %}">
-                    <i class="fa-solid fa-droplet me-2 text-success"></i> Checklist & Aplicaciones
+                <a href="{{ url_for('fertilizacion.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if request.path == url_for('fertilizacion.index') or 'programas' in request.path or ('fertilizacion' in request.path and not 'checklist' in request.path and not 'reportes' in request.path and not 'configuracion' in request.path and not 'programa-impresion' in request.path) %}active-nav{% endif %}">
+                    <i class="fa-solid fa-calculator me-2 text-primary"></i> Programas Trichos y Sólidos
+                </a>
+                <a href="{{ url_for('fertilizacion.checklist') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fertilizacion/checklist' in request.path %}active-nav{% endif %}">
+                    <i class="fa-solid fa-list-check me-2 text-success"></i> Check List & Aplicaciones
                 </a>
                 <a href="{{ url_for('fertilizacion.reportes') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fertilizacion/reportes' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-chart-pie me-2 text-info"></i> Rendimientos & Reportes
