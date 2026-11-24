@@ -427,13 +427,13 @@ def commit_preview():
         db.session.bulk_save_objects(records)
         db.session.commit()
 
-        # Sincronizar eventos TPSR (fact_eventos_cultivo) desde el Excel de Estado de Cultivo
+        # Sincronizar eventos TPSR (fact_eventos_cultivo) y camas físicas en dim_camas desde el Excel de Estado de Cultivo
         ev_msg = ""
-        if file_type == 'ESTADO_CULTIVO':
+        if file_type in ('ESTADO_CULTIVO', 'ESTADO_CULTIVO_COMPRA'):
             try:
                 from scripts.ingestar_semana_excel import ingestar_archivo
                 ev_res = ingestar_archivo(upload_path, target_week=target_week, sync_crop_state=False, engine=db.engine)
-                ev_msg = f" (TPSR sincronizado: +{ev_res.get('nuevos_eventos', 0)} eventos detectados)"
+                ev_msg = f" (TPSR sincronizado: +{ev_res.get('nuevos_eventos', 0)} eventos, {ev_res.get('nuevas_camas', 0)} camas sincronizadas)"
             except Exception as e_ing:
                 print(f"[WARN] Error sincronizando eventos TPSR desde importador preview: {e_ing}")
 

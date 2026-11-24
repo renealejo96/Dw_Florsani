@@ -163,7 +163,11 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
                 except Exception:
                     pass
 
-        is_empty_or_tumba = (actividad == 'VACIO' or prod_maestro.upper() in ('VACIO', 'ERRADICADO', 'NAN', ''))
+        is_empty_or_tumba = (
+            actividad in ('VACIO', 'TUMBA', 'ERRADICADO', 'DESCARTE', 'TUMBAR') or
+            prod_maestro.upper() in ('VACIO', 'ERRADICADO', 'NAN', '', 'DESCARTE', 'TUMBAR', 'SIN CULTIVO') or
+            str(row.get('estado', '')).strip().upper() in ('VACIO', 'ERRADICADO', 'TUMBA', 'TUMBAR', 'DESCARTE')
+        )
         area_prod_val = 'VACIO' if is_empty_or_tumba else (prod_maestro or 'GYPSOPHILA')
         var_val = 'VACIO' if is_empty_or_tumba else variedad
 
@@ -230,7 +234,8 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
 
         # 3. TUMBA (Transición a VACIO respecto al estado previo en TPSR)
         estado_anterior = estado_previo_camas.get(id_cama)
-        if actividad == 'VACIO' and estado_anterior in ('SIEMBRA', 'PODA'):
+        is_prev_active = bool(estado_anterior and estado_anterior not in ('DISPONIBLE / VACIO', 'VACIO', 'NONE', ''))
+        if is_empty_or_tumba and is_prev_active:
             key_t = (id_cama, 'TUMBA', fecha_semana, 0)
             if key_t not in existing_set:
                 existing_set.add(key_t)
@@ -246,6 +251,47 @@ def ingestar_archivo(excel_path: str, target_week: str = None, sync_crop_state: 
                     'origen_evento': f"Transición a VACIO en {filename}",
                     'estado_evento': 'ACTIVO'
                 })
+
+    # Si se cargó un censo completo (>5000 camas), detectar bloques/camas que estaban activas y fueron tumbadas/omitidas del archivo
+    if len(camas_a_sincronizar) > 5000:
+        camas_en_archivo = set(camas_a_sincronizar.keys())
+        for c_id, est_ant in estado_previo_camas.items():
+            if c_id not in camas_en_archivo:
+                is_prev_act = bool(est_ant and est_ant not in ('DISPONIBLE / VACIO', 'VACIO', 'NONE', ''))
+                if is_prev_act:
+                    key_t = (c_id, 'TUMBA', fecha_semana, 0)
+                    if key_t not in existing_set:
+                        existing_set.add(key_t)
+                        b_cod = c_id.split('-')[0] if '-' in c_id else c_id
+                        nuevos_eventos.append({
+                            'id_cama': c_id,
+                            'codigo_bloque': b_cod,
+                            'fecha_evento': fecha_semana,
+                            'semana_campo': semana_campo_val,
+                            'tipo_evento': 'TUMBA',
+                            'num_poda': None,
+                            'producto_maestro': 'VACIO',
+                            'variedad': 'ERRADICADO',
+                            'origen_evento': f"Bloque/Cama omitida (TUMBA) en {filename}",
+                            'estado_evento': 'ACTIVO'
+                        })
+                        # Asegurar que dim_camas también se actualice a VACIO
+                        camas_a_sincronizar[c_id] = {
+                            'id_cama': c_id,
+                            'codigo_bloque': b_cod,
+                            'id_finca': 1,
+                            'blq': b_cod.rstrip('ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+                            'sufijo': b_cod[len(b_cod.rstrip('ABCDEFGHIJKLMNOPQRSTUVWXYZ')):] or 'A',
+                            'num_cama': int(re.findall(r'\d+', c_id.split('-')[-1])[0]) if re.findall(r'\d+', c_id.split('-')[-1]) else 1,
+                            'cama_estandar': 1.0,
+                            'metros_netos': 30.0,
+                            'metros_brutos': 30.0,
+                            'ha': 0.0,
+                            'zona': 'SIN ZONA',
+                            'tecnico_de_riego': 'C1',
+                            'area_producto_comercial': 'VACIO',
+                            'variedad_comercial': 'VACIO'
+                        }
 
     # Guardar en base de datos
     with engine.begin() as conn:

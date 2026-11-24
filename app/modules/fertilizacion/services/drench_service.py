@@ -6,6 +6,15 @@ from datetime import date, datetime
 from app.extensions import db
 from app.modules.fertilizacion.models import DrenchItem, TecnicoBloque, calcular_semana_formato
 
+def _semana_filter(semana):
+    s_str = str(semana).strip()
+    s_clean = s_str.replace('-', '').replace('20', '', 1) if s_str.startswith('20') else s_str
+    return db.or_(
+        DrenchItem.semana == s_str,
+        DrenchItem.semana == s_clean,
+        DrenchItem.semana == f"20{s_clean}" if len(s_clean) == 4 else False
+    )
+
 def normalizar_clasificacion(texto):
     if not texto:
         return ""
@@ -31,7 +40,7 @@ def obtener_bloques_de_tecnico(tecnico):
 def obtener_items_drench(fecha=None, semana=None, clasificacion=None, bomba=None, bloque=None, completado=None, search=None, tecnico=None):
     query = DrenchItem.query
     if semana:
-        query = query.filter(DrenchItem.semana == str(semana).strip())
+        query = query.filter(_semana_filter(semana))
     elif fecha:
         query = query.filter(DrenchItem.fecha == fecha)
     
@@ -102,7 +111,7 @@ def toggle_completado_drench(item_id, aplicador="Sistema", tecnico="Técnico", n
 def obtener_bombas_por_clasificacion(fecha=None, semana=None, clasificacion=None, tecnico=None):
     query = DrenchItem.query
     if semana:
-        query = query.filter(DrenchItem.semana == str(semana).strip())
+        query = query.filter(_semana_filter(semana))
     elif fecha:
         query = query.filter(DrenchItem.fecha == fecha)
     if tecnico:
@@ -165,7 +174,7 @@ def obtener_bombas_por_clasificacion(fecha=None, semana=None, clasificacion=None
 def obtener_resumen_clasificaciones(fecha=None, semana=None, tecnico=None):
     query = DrenchItem.query
     if semana:
-        query = query.filter(DrenchItem.semana == str(semana).strip())
+        query = query.filter(_semana_filter(semana))
     elif fecha:
         query = query.filter(DrenchItem.fecha == fecha)
     if tecnico:
@@ -206,7 +215,7 @@ def obtener_resumen_clasificaciones(fecha=None, semana=None, tecnico=None):
 def obtener_bloques_disponibles(fecha=None, semana=None, clasificacion=None, bomba=None, tecnico=None):
     query = db.session.query(DrenchItem.bloque).distinct()
     if semana:
-        query = query.filter(DrenchItem.semana == str(semana).strip())
+        query = query.filter(_semana_filter(semana))
     elif fecha:
         query = query.filter(DrenchItem.fecha == fecha)
     if tecnico:

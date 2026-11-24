@@ -792,6 +792,7 @@ def rotacion_sincronizar_bloques(rotation_id):
 
         nuevos_agregados = 0
         actualizados = 0
+        eliminados_tumbados = 0
 
         # Obtener bloques que ya estaban activos en censos previos para no resucitar
         # bloques que el agronomo deliberadamente saco/descarto de la rotacion
@@ -833,6 +834,42 @@ def rotacion_sincronizar_bloques(rotation_id):
                     continue
 
             # Crear indice de segmentos existentes por (clean_block, sufijo, crop_normalized)
+            existing_groups = {}
+            for idx, s in enumerate(existing_segs):
+                raw_b = str(s.get('block_name') or '').strip()
+                suf = str(s.get('suffix') or 'A').strip().upper()
+                c_b = clean_block_name(raw_b, suf)
+                c_n = CalculationEngine.normalize_crop_name(s.get('crop_name') or '')
+                key_grp = (c_b, suf, c_n)
+                if key_grp not in existing_groups:
+                    existing_groups[key_grp] = []
+                existing_groups[key_grp].append((idx, s))
+
+            # Construir conjunto de claves activas en fresh_segments para detectar bloques tumbados/erradicados
+            fresh_block_crop_keys = set()
+            for fs in fresh_segments:
+                raw_b = str(fs.get('block_name') or '').strip()
+                suf = str(fs.get('suffix') or 'A').strip().upper()
+                c_b = clean_block_name(raw_b, suf)
+                c_n = CalculationEngine.normalize_crop_name(fs.get('crop_name') or '')
+                fresh_block_crop_keys.add((c_b, suf, c_n))
+                fresh_block_crop_keys.add((c_b, 'A', c_n))
+
+            # Purgar segmentos obsoletos de bloques que fueron tumbados o erradicados en el nuevo censo
+            segs_vigentes = []
+            for s in existing_segs:
+                raw_b = str(s.get('block_name') or '').strip()
+                suf = str(s.get('suffix') or 'A').strip().upper()
+                c_b = clean_block_name(raw_b, suf)
+                c_n = CalculationEngine.normalize_crop_name(s.get('crop_name') or '')
+                key_s = (c_b, suf, c_n)
+                if key_s in fresh_block_crop_keys or (c_b, 'A', c_n) in fresh_block_crop_keys or s.get('is_manual'):
+                    segs_vigentes.append(s)
+                else:
+                    eliminados_tumbados += 1
+            existing_segs = segs_vigentes
+
+            # Indexar los segmentos vigentes restantes
             existing_groups = {}
             for idx, s in enumerate(existing_segs):
                 raw_b = str(s.get('block_name') or '').strip()
@@ -919,12 +956,13 @@ def rotacion_sincronizar_bloques(rotation_id):
         record_audit('FUMIGACION', 'SYNC_CENSO_BLOCKS', 'Rotation', rotation.id, details={
             'week': rotation.week,
             'nuevos': nuevos_agregados,
-            'actualizados': actualizados
+            'actualizados': actualizados,
+            'eliminados_tumbados': eliminados_tumbados
         })
 
         return jsonify({
             'success': True,
-            'message': f'Sincronizacion completada: +{nuevos_agregados} bloques nuevos incorporados y {actualizados} actualizados desde el Censo. Calibraciones y recetas guardadas intactas.'
+            'message': f'Sincronización completada: +{nuevos_agregados} bloques nuevos incorporados, {actualizados} actualizados y {eliminados_tumbados} bloques tumbados/erradicados removidos desde el Censo. Calibraciones y recetas guardadas intactas.'
         })
     except Exception as e:
         db.session.rollback()

@@ -597,6 +597,11 @@ def proyectar_semana_fertilizacion(semana_destino, semana_origen=None, apartado=
     created_items = []
     for s in segments:
         tec_name = resolver_tecnico(s['bloque'])
+        # A partir de la semana 2 (edad >= 2) o programas completos (Moshe/Alcaplant),
+        # Agronomía confía 100% en la calibración y quedan pre-asignadas.
+        # Edades 0 y 1 se mantienen en 'SIN_TOCAR' para revisión y carga manual.
+        ed_val = int(s.get('edad') or 0)
+        es_auto_asignable = (ed_val >= 2 or s.get('clasificacion') in ['MOSHE', 'MOSHE-AD', 'ALCAPLANT'])
         item = DrenchItem(
             semana=w_clean,
             bloque=s['bloque'],
@@ -612,6 +617,8 @@ def proyectar_semana_fertilizacion(semana_destino, semana_origen=None, apartado=
             tecnico=tec_name,
             grupo_id=1,
             segmento_edades=f"Semana {s['edad']}",
+            dia_aplicacion='LUNES',
+            estado_calibracion='ASIGNADO' if es_auto_asignable else 'SIN_TOCAR',
             completado=False
         )
         created_items.append(item)
@@ -1731,20 +1738,21 @@ def api_calibracion_asignar_dia():
     )
     if item_ids and isinstance(item_ids, list):
         q = q.filter(DrenchItem.id.in_([int(i) for i in item_ids if str(i).isdigit()]))
-    elif apartado and apartado != 'TODOS':
-        clasif_map = {
-            'MOSHE': ['MOSHE', 'MOSHE-AD'],
-            'ALCAPLANT': ['ALCAPLANT'],
-            'PRESIEMBRAS': ['PRESIEMBRA'],
-            'TRICHOS': ['TRICHOS', 'BIOLOGICOS', 'ENRAIZANTE', 'DRENCH', 'DRENCH HIERRO', 'SOLIDOS']
-        }
-        if apartado in clasif_map:
-            q = q.filter(DrenchItem.clasificacion.in_(clasif_map[apartado]))
-    elif bomba:
-        b_clean = str(bomba).strip()
-        q = q.filter(DrenchItem.bomba.ilike(f"%{b_clean}%"))
+    else:
+        if bomba:
+            b_clean = str(bomba).strip()
+            q = q.filter(DrenchItem.bomba.ilike(f"%{b_clean}%"))
         if edad is not None and str(edad).isdigit():
             q = q.filter(DrenchItem.edad == int(edad))
+        if apartado and apartado != 'TODOS':
+            clasif_map = {
+                'MOSHE': ['MOSHE', 'MOSHE-AD'],
+                'ALCAPLANT': ['ALCAPLANT'],
+                'PRESIEMBRAS': ['PRESIEMBRA'],
+                'TRICHOS': ['TRICHOS', 'BIOLOGICOS', 'ENRAIZANTE', 'DRENCH', 'DRENCH HIERRO', 'SOLIDOS']
+            }
+            if apartado in clasif_map:
+                q = q.filter(DrenchItem.clasificacion.in_(clasif_map[apartado]))
 
     updated = q.update({
         DrenchItem.dia_aplicacion: dia,
@@ -1757,6 +1765,81 @@ def api_calibracion_asignar_dia():
         "message": f"Día programado asignado a {dia} ({updated} registros actualizados como ASIGNADOS).",
         "dia": dia,
         "estado_calibracion": "ASIGNADO",
+        "updated": updated
+    })
+
+
+@fertilizacion_bp.route('/api/calibracion/asignar-masivo', methods=['POST'])
+@login_required
+@permission_required('fertilizacion')
+def api_calibracion_asignar_masivo():
+    """Asigna masivamente el estado ASIGNADO y día programado a mesas de calibración seleccionadas o edad >= 2"""
+    data = request.get_json() or {}
+    semana = str(data.get('semana') or '').strip()
+    modo = str(data.get('modo') or 'edad_mayor_1').strip()
+    dia = str(data.get('dia') or 'LUNES').strip().upper()
+    bombas_list = data.get('bombas', [])
+
+    if not semana:
+        return jsonify({"success": False, "message": "Semana requerida"}), 400
+
+    w_clean = semana.replace('-', '').replace('20', '', 1) if semana.startswith('20') else semana
+    base_q = DrenchItem.query.filter(
+        db.or_(
+            DrenchItem.semana == semana,
+            DrenchItem.semana == w_clean,
+            DrenchItem.semana == f"20{w_clean}" if len(w_clean) == 4 else False
+        )
+    )
+
+    if modo == 'edad_mayor_1':
+        # Mesas automáticas confiables de edad >= 2 (y programas completos de nutrición como Moshe y Alcaplant)
+        q = base_q.filter(
+            db.or_(
+                DrenchItem.edad >= 2,
+                DrenchItem.clasificacion.in_(['MOSHE', 'MOSHE-AD', 'ALCAPLANT'])
+            )
+        )
+    elif modo == 'todas':
+        q = base_q
+    elif modo == 'seleccionadas' and bombas_list:
+        filters = []
+        for b in bombas_list:
+            conds = []
+            b_name = b.get('bomba')
+            b_edad = b.get('edad')
+            b_apar = b.get('apartado')
+            if b_name:
+                conds.append(DrenchItem.bomba.ilike(f"%{str(b_name).strip()}%"))
+            if b_edad is not None and str(b_edad).isdigit():
+                conds.append(DrenchItem.edad == int(b_edad))
+            if b_apar and b_apar in ['MOSHE', 'ALCAPLANT', 'PRESIEMBRAS', 'TRICHOS']:
+                clasif_map = {
+                    'MOSHE': ['MOSHE', 'MOSHE-AD'],
+                    'ALCAPLANT': ['ALCAPLANT'],
+                    'PRESIEMBRAS': ['PRESIEMBRA'],
+                    'TRICHOS': ['TRICHOS', 'BIOLOGICOS', 'ENRAIZANTE', 'DRENCH', 'DRENCH HIERRO', 'SOLIDOS']
+                }
+                conds.append(DrenchItem.clasificacion.in_(clasif_map[b_apar]))
+            if conds:
+                filters.append(db.and_(*conds))
+        if filters:
+            q = base_q.filter(db.or_(*filters))
+        else:
+            return jsonify({"success": False, "message": "No se encontraron filtros válidos en las mesas seleccionadas"}), 400
+    else:
+        return jsonify({"success": False, "message": f"Modo '{modo}' no reconocido o lista vacía"}), 400
+
+    updated = q.update({
+        DrenchItem.dia_aplicacion: dia,
+        DrenchItem.estado_calibracion: 'ASIGNADO'
+    }, synchronize_session=False)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Se asignaron exitosamente {updated} registros como ASIGNADOS (Día {dia}).",
+        "dia": dia,
         "updated": updated
     })
 

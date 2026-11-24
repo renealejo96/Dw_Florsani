@@ -331,12 +331,61 @@
     </div>
 
     {% if calibracion_bombas and calibracion_bombas|length > 0 %}
+    <!-- Barra de Acciones Masivas y Confirmación Rápida -->
+    <div class="card border-0 shadow-xs mb-3 bg-white rounded-3 p-2.5">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button type="button" class="btn btn-success btn-sm fw-bold shadow-xs d-flex align-items-center gap-1.5" onclick="asignarMasivoEdadMayor1()">
+            <i class="fa-solid fa-bolt-lightning text-warning"></i> Confirmar y Asignar Mesas Automáticas (Edad ≥ 2)
+          </button>
+          <div class="d-flex align-items-center gap-1 bg-light border px-2 py-1 rounded">
+            <span class="small text-muted fw-bold" style="font-size: 0.70rem;">Día Defecto:</span>
+            <select id="select-dia-masivo-defecto" class="form-select form-select-sm py-0 fw-bold font-monospace border-0 bg-transparent" style="font-size: 0.72rem; height: 22px; width: auto;">
+              <option value="LUNES" selected>LUNES</option>
+              <option value="MARTES">MARTES</option>
+              <option value="MIERCOLES">MIÉRCOLES</option>
+              <option value="JUEVES">JUEVES</option>
+              <option value="VIERNES">VIERNES</option>
+              <option value="SABADO">SÁBADO</option>
+              <option value="DOMINGO">DOMINGO</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" onclick="toggleSelectAllCards(true)" title="Marcar todas las tarjetas visibles">
+            <i class="fa-solid fa-check-double me-1"></i> Seleccionar Visibles
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" onclick="toggleSelectAllCards(false)" title="Desmarcar todas">
+            <i class="fa-solid fa-xmark me-1"></i> Desmarcar
+          </button>
+        </div>
+
+        <!-- Barra flotante / inline de tarjetas seleccionadas -->
+        <div id="bar-seleccionadas" class="d-none align-items-center gap-2 bg-primary-subtle border border-primary px-3 py-1 rounded-3">
+          <span class="small fw-bold text-primary font-monospace">
+            <i class="fa-solid fa-square-check me-1"></i><span id="count-seleccionadas">0</span> mesas seleccionadas
+          </span>
+          <select id="select-dia-seleccionadas" class="form-select form-select-sm py-0 fw-bold font-monospace border-primary" style="font-size: 0.72rem; height: 24px; width: auto;">
+            <option value="LUNES">LUNES</option>
+            <option value="MARTES">MARTES</option>
+            <option value="MIERCOLES">MIÉRCOLES</option>
+            <option value="JUEVES">JUEVES</option>
+            <option value="VIERNES">VIERNES</option>
+            <option value="SABADO">SÁBADO</option>
+            <option value="DOMINGO">DOMINGO</option>
+          </select>
+          <button type="button" class="btn btn-primary btn-sm fw-bold py-0.5 px-2.5 shadow-xs" onclick="asignarSeleccionadas()">
+            <i class="fa-solid fa-check me-1"></i> Asignar a Seleccionadas
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="row g-2.5 g-md-3 d-none" id="calibracion-cards-container">
       {% for b_grp in calibracion_bombas %}
       <div class="col-12 col-md-6 col-xl-4 card-bomba-wrapper" data-apartado="{{ b_grp.apartado or b_grp.tratamiento_key }}">
         <div class="card h-100 border shadow-xs rounded-3 overflow-hidden bg-white {% if b_grp.estado_calibracion == 'ASIGNADO' %}border-success{% elif b_grp.estado_calibracion == 'EDITADO' %}border-warning{% endif %}">
           <div class="card-header py-1.5 px-2.5 d-flex justify-content-between align-items-center border-bottom {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning-subtle text-warning-emphasis{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger-subtle text-danger-emphasis{% else %}bg-success-subtle text-success-emphasis{% endif %}">
             <div class="d-flex align-items-center gap-1.5 flex-wrap">
+              <input type="checkbox" class="form-check-input cb-select-bomba m-0" style="cursor: pointer;" data-bomba="{{ b_grp.bomba|escape }}" data-apartado="{{ b_grp.apartado or b_grp.tratamiento_key }}" data-edad="{{ b_grp.edad_sort }}" data-idx="{{ loop.index0 }}" onchange="actualizarSeleccionBombas()" title="Seleccionar mesa para asignación">
               <span class="badge {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning text-dark{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger text-white{% else %}bg-success text-white{% endif %} font-monospace fw-bold" style="font-size: 0.72rem;">
                 {% if b_grp.es_programa_completo %}SEMANAS {{ b_grp.edad }}{% else %}SEMANA {{ b_grp.edad }}{% endif %}
               </span>
@@ -409,16 +458,21 @@
                 </div>
               </div>
 
-              <!-- Selector Día de Aplicación Programado -->
+              <!-- Selector Día de Aplicación Programado y Confirmación Directa -->
               <div class="p-1 rounded bg-light border mb-2 d-flex justify-content-between align-items-center font-monospace">
                 <span class="text-muted fw-bold" style="font-size: 0.68rem;">
                   <i class="fa-solid fa-calendar-day text-primary me-1"></i>DÍA APLICACIÓN:
                 </span>
-                <select class="form-select form-select-sm py-0 fw-bold font-monospace border-primary-subtle" style="width: auto; font-size: 0.72rem; height: 23px;" onchange="asignarDiaBomba('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, this.value, {{ loop.index0 }})">
-                  {% for d in ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'] %}
-                  <option value="{{ d }}" {% if (b_grp.dia_aplicacion and b_grp.dia_aplicacion|upper == d) or (b_grp.dias and d in b_grp.dias) %}selected{% endif %}>{{ d }}</option>
-                  {% endfor %}
-                </select>
+                <div class="d-flex align-items-center gap-1">
+                  <select class="form-select form-select-sm py-0 fw-bold font-monospace border-primary-subtle" id="select-dia-{{ loop.index0 }}" style="width: auto; font-size: 0.72rem; height: 24px;" onchange="asignarDiaBomba('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, this.value, {{ loop.index0 }})">
+                    {% for d in ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'] %}
+                    <option value="{{ d }}" {% if (b_grp.dia_aplicacion and b_grp.dia_aplicacion|upper == d) or (b_grp.dias and d in b_grp.dias) %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 fw-bold" style="height: 24px; font-size: 0.72rem;" onclick="confirmarBombaCard('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, {{ loop.index0 }})" title="Confirmar y Asignar esta Mesa de Calibración">
+                    <i class="fa-solid fa-check"></i>
+                  </button>
+                </div>
               </div>
 
               <!-- Controles específicos para MOSHE / ALCAPLANT / OTRAS BOMBAS -->
@@ -1437,6 +1491,107 @@ async function asignarDiaBomba(bomba, apartado, edad, dia, cardIdx) {
     }
   } catch (err) {
     alert("Error de conexión al asignar día: " + err);
+  }
+}
+
+function confirmarBombaCard(bomba, apartado, edad, cardIdx) {
+  const sel = document.getElementById('select-dia-' + cardIdx);
+  const dia = sel ? sel.value : 'LUNES';
+  asignarDiaBomba(bomba, apartado, edad, dia, cardIdx);
+}
+
+function actualizarSeleccionBombas() {
+  const cbs = document.querySelectorAll('.cb-select-bomba:checked');
+  const bar = document.getElementById('bar-seleccionadas');
+  const countEl = document.getElementById('count-seleccionadas');
+  if (countEl) countEl.textContent = cbs.length;
+  if (bar) {
+    if (cbs.length > 0) {
+      bar.classList.remove('d-none');
+      bar.classList.add('d-flex');
+    } else {
+      bar.classList.remove('d-flex');
+      bar.classList.add('d-none');
+    }
+  }
+}
+
+function toggleSelectAllCards(checkState) {
+  const container = document.getElementById('calibracion-cards-container');
+  if (!container) return;
+  const wrappers = container.querySelectorAll('.card-bomba-wrapper');
+  wrappers.forEach(w => {
+    if (!w.classList.contains('d-none')) {
+      const cb = w.querySelector('.cb-select-bomba');
+      if (cb) cb.checked = checkState;
+    }
+  });
+  actualizarSeleccionBombas();
+}
+
+async function asignarMasivoEdadMayor1() {
+  const dia = document.getElementById('select-dia-masivo-defecto')?.value || 'LUNES';
+  if (!confirm(`¿Confirmar y asignar día ${dia} a TODAS las mesas automáticas de edad ≥ 2 (y nutrición completa)? Esta acción habilitará inmediatamente el módulo de estadísticas y programa de impresión.`)) {
+    return;
+  }
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_calibracion_asignar_masivo') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        semana: "{{ semana_activa }}",
+        modo: "edad_mayor_1",
+        dia: dia
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+      location.reload();
+    } else {
+      alert("❌ Error: " + (data.message || 'Error desconocido'));
+    }
+  } catch (err) {
+    alert("Error de conexión al asignar mesas automáticas: " + err);
+  }
+}
+
+async function asignarSeleccionadas() {
+  const cbs = document.querySelectorAll('.cb-select-bomba:checked');
+  if (cbs.length === 0) {
+    alert("No hay mesas seleccionadas.");
+    return;
+  }
+  const dia = document.getElementById('select-dia-seleccionadas')?.value || 'LUNES';
+  const bombasPayload = [];
+  cbs.forEach(cb => {
+    bombasPayload.push({
+      bomba: cb.dataset.bomba,
+      apartado: cb.dataset.apartado,
+      edad: cb.dataset.edad ? parseInt(cb.dataset.edad) : null
+    });
+  });
+
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_calibracion_asignar_masivo') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        semana: "{{ semana_activa }}",
+        modo: "seleccionadas",
+        dia: dia,
+        bombas: bombasPayload
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+      location.reload();
+    } else {
+      alert("❌ Error: " + (data.message || 'Error desconocido'));
+    }
+  } catch (err) {
+    alert("Error de conexión al asignar seleccionadas: " + err);
   }
 }
 

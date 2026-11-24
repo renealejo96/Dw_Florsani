@@ -1137,6 +1137,10 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                         act_name = 'Siembra'
                         edad_proy = 0
 
+                # Si el bloque físico no tiene cultivo activo (está vacío o tumbado), no añadirlo al plano activo ni a calificaciones
+                if norm_p in ('SIN CULTIVO', 'VACIO', 'ERRADICADO', ''):
+                    continue
+
                 min_c = int(pb.min_cama or 1)
                 max_c = int(pb.max_cama or min_c)
                 for nc in range(min_c, max_c + 1):
