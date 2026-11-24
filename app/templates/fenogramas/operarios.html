@@ -1289,18 +1289,37 @@
                     <td class="text-center" style="width: 30px; padding: 2px 0;">
                         {% if item.actividad_tipo == 'Poda' %}
                         <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>
+                        {% elif item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO') %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Tumba / Sin Cultivo">T</span>
                         {% else %}
                         <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>
                         {% endif %}
                     </td>
 
-                    <td class="text-truncate" style="max-width: 88px;" title="{{ item.producto_maestro }}">{{ item.producto_maestro }}</td>
+                    <td class="text-truncate" style="max-width: 88px;" title="{{ item.producto_maestro }}">
+                        {% if item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO') or item.actividad_tipo == 'Tumba' %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-semibold" style="font-size: 0.68rem;">SIN CULTIVO</span>
+                        {% else %}
+                        {{ item.producto_maestro }}
+                        {% endif %}
+                    </td>
 
-                    <td class="text-center tabular-nums fw-semibold">{{ item.edad_real }}</td>
+                    <td class="text-center tabular-nums fw-semibold">
+                        {% if item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO') %}
+                        <span class="text-muted">-</span>
+                        {% else %}
+                        {{ item.edad_real }}
+                        {% endif %}
+                    </td>
 
+                    {% set es_tumbado = (item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO')) %}
                     {% set es_sin_labor = (not item.labor or item.labor == 'No hay actividad' or not item.tiene_evaluacion) %}
                     <td class="cell-labor" title="{{ item.labor }}">
-                        {% if not es_sin_labor %}
+                        {% if es_tumbado and (not item.labor or item.labor == 'No hay actividad') %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fst-italic" style="font-size: 0.72rem;">
+                                <i class="fa-solid fa-ban me-1"></i>Tumbado / Sin labores
+                            </span>
+                        {% elif not es_sin_labor %}
                             <span class="fw-semibold text-dark">{{ item.labor }}</span>
                             {% if not item.tiene_evaluacion %}
                             <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size: 0.65rem;">Sin match</span>

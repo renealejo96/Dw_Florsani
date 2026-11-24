@@ -1112,8 +1112,13 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                 norm_p = normalizar_producto_maestro(pb.prod_com)
                 act_name = 'Siembra'
                 edad_proy = 0
-                if norm_p in ('VACIO', 'SIN CULTIVO', ''):
-                    # Recuperar último cultivo, evento y edad activa desde fact_eventos_cultivo
+                if norm_p in ('VACIO', 'SIN CULTIVO', 'ERRADICADO', 'DESCARTE', ''):
+                    # Bloque físico tumbado o vacío: mantenerlo en el fenograma como 'Tumba' y 'SIN CULTIVO'
+                    norm_p = 'SIN CULTIVO'
+                    act_name = 'Tumba'
+                    edad_proy = 0
+                else:
+                    # Recuperar último cultivo, evento y edad activa desde fact_eventos_cultivo si existiera
                     try:
                         last_ev = db.session.execute(text("""
                             SELECT producto_maestro, tipo_evento, semana_campo, fecha_evento
@@ -1135,18 +1140,13 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
                             else:
                                 edad_proy = 1
                         else:
-                            # Si el último evento fue TUMBA o no tiene cultivo activo, no resucitar eventos antiguos
                             norm_p = 'SIN CULTIVO'
-                            act_name = 'Siembra'
+                            act_name = 'Tumba'
                             edad_proy = 0
-                    except Exception as e_recov:
+                    except Exception:
                         norm_p = 'SIN CULTIVO'
-                        act_name = 'Siembra'
+                        act_name = 'Tumba'
                         edad_proy = 0
-
-                # Si el bloque físico no tiene cultivo activo (está vacío o tumbado), no añadirlo al plano activo ni a calificaciones
-                if norm_p in ('SIN CULTIVO', 'VACIO', 'ERRADICADO', ''):
-                    continue
 
                 min_c = int(pb.min_cama or 1)
                 max_c = int(pb.max_cama or min_c)
@@ -1205,19 +1205,28 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
               );
         """), {'sem': semana_corte})
 
-        # Si un bloque fue tumbado/erradicado en el nuevo estado de cultivo, limpiar sus filas huerfanas
+        # Si un bloque ya no existe físicamente en la finca, limpiar sus filas huérfanas
         active_blocks = [str(b).strip() for b in df_plano['BLOQUE'].unique() if str(b).strip()]
         if active_blocks:
             db.session.execute(text("""
                 DELETE FROM calificaciones
                 WHERE semana_anio = :sem
-                  AND (bloque NOT IN :blocks OR producto_maestro IN ('VACIO', 'ERRADICADO', 'SIN CULTIVO', 'NAN'))
-                  AND (
-                      labor = 'No hay actividad'
-                      OR cumplido IS NULL
-                      OR (observacion IS NULL OR TRIM(observacion) = '')
-                  );
+                  AND bloque NOT IN :blocks
+                  AND cumplido IS NULL
+                  AND (observacion IS NULL OR TRIM(observacion) = '');
             """).bindparams(bindparam('blocks', expanding=True)), {'sem': semana_corte, 'blocks': active_blocks})
+
+        # Para bloques que ahora están tumbados ('SIN CULTIVO'), purgar filas viejas que aún tengan cultivo anterior no calificado
+        tumbados_blocks = [str(b).strip() for b in df_plano[df_plano['PRODUCTO_MAESTRO'] == 'SIN CULTIVO']['BLOQUE'].unique() if str(b).strip()]
+        if tumbados_blocks:
+            db.session.execute(text("""
+                DELETE FROM calificaciones
+                WHERE semana_anio = :sem
+                  AND bloque IN :t_blocks
+                  AND producto_maestro != 'SIN CULTIVO'
+                  AND cumplido IS NULL
+                  AND (observacion IS NULL OR TRIM(observacion) = '');
+            """).bindparams(bindparam('t_blocks', expanding=True)), {'sem': semana_corte, 't_blocks': tumbados_blocks})
 
     db.session.commit()
 
