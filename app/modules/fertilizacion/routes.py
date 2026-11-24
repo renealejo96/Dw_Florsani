@@ -385,6 +385,13 @@ def proyectar_semana_fertilizacion(semana_destino, semana_origen=None, apartado=
     from sqlalchemy import text
     import re
 
+    # Reconciliar censo vigente para asegurar que bloques tumbados/erradicados se reflejen de inmediato
+    try:
+        from app.shared.censo_sync import reconciliar_censo_vigente
+        reconciliar_censo_vigente()
+    except Exception as e_cs:
+        print(f"[WARN] Error reconciliando censo antes de proyeccion fertilizacion: {e_cs}")
+
     target_year, target_week, semana_dest_clean = _parse_semana_destino(semana_destino)
     rules = get_bomba_rules_fertilizacion(apartado=apartado, modo_moshe=modo_moshe)
 

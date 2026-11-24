@@ -358,6 +358,13 @@ def create_app(config_class=Config):
             db.session.rollback()
             print(f"[SYSTEM] Aviso en migración de catálogo con lápidas: {ex_mig_cat}")
 
+        # Reconciliación automática del censo más reciente con dim_camas y fact_eventos_cultivo (detección de tumbas)
+        try:
+            from app.shared.censo_sync import reconciliar_censo_vigente
+            reconciliar_censo_vigente()
+        except Exception as ex_sync:
+            print(f"[SYSTEM] Aviso en reconciliación automática de censo: {ex_sync}")
+
     # Register blueprints
     from app.modules.auth.routes import auth_bp
     from app.modules.orden_compra.routes import orden_compra_bp

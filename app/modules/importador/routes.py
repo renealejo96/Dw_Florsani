@@ -241,6 +241,12 @@ def upload():
                 except Exception as e_ing:
                     print(f"[WARN] Error sincronizando eventos TPSR desde importador: {e_ing}")
 
+                try:
+                    from app.shared.censo_sync import reconciliar_censo_vigente
+                    reconciliar_censo_vigente()
+                except Exception as e_rec:
+                    print(f"[WARN] Error en reconciliar_censo_vigente tras importar: {e_rec}")
+
             record_audit('IMPORTADOR', 'IMPORT_EXCEL', 'CropStateRecord', batch.id, details={'file': filename, 'week': target_week, 'type': file_type, 'rows': len(records)})
             flash(f"Se importaron exitosamente {len(records)} registros de Estado de Cultivo [{tipo_desc}] para la Semana {target_week}{ev_msg}.", "success")
             return redirect(url_for('importador.index'))
@@ -436,6 +442,12 @@ def commit_preview():
                 ev_msg = f" (TPSR sincronizado: +{ev_res.get('nuevos_eventos', 0)} eventos, {ev_res.get('nuevas_camas', 0)} camas sincronizadas)"
             except Exception as e_ing:
                 print(f"[WARN] Error sincronizando eventos TPSR desde importador preview: {e_ing}")
+
+            try:
+                from app.shared.censo_sync import reconciliar_censo_vigente
+                reconciliar_censo_vigente()
+            except Exception as e_rec:
+                print(f"[WARN] Error en reconciliar_censo_vigente tras importar preview: {e_rec}")
 
         record_audit('IMPORTADOR', 'IMPORT_EXCEL', 'CropStateRecord', batch.id, details={'file': filename, 'week': target_week, 'type': file_type, 'rows': len(records)})
         if previous_count > 0:

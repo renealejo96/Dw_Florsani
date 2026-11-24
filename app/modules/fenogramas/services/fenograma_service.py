@@ -905,6 +905,13 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
     anio = int(anio or 2026)
     fuente = str(fuente or 'AUTO').strip().upper()
 
+    # Reconciliar censo vigente para asegurar que bloques tumbados/erradicados se reflejen de inmediato en dim_camas
+    try:
+        from app.shared.censo_sync import reconciliar_censo_vigente
+        reconciliar_censo_vigente()
+    except Exception as e_cs:
+        print(f"[FENOGRAMAS] Aviso al reconciliar censo antes de sync: {e_cs}")
+
     config = load_mapeos_config()
     prod_aliases = {normalize_key(k): v for k, v in config.get("producto_aliases", {}).items()}
 
@@ -1204,9 +1211,12 @@ def sync_from_mrt_estado_cultivo(semana_corte, anio=2026, fuente='AUTO', semana_
             db.session.execute(text("""
                 DELETE FROM calificaciones
                 WHERE semana_anio = :sem
-                  AND bloque NOT IN :blocks
-                  AND cumplido IS NULL
-                  AND (observacion IS NULL OR TRIM(observacion) = '');
+                  AND (bloque NOT IN :blocks OR producto_maestro IN ('VACIO', 'ERRADICADO', 'SIN CULTIVO', 'NAN'))
+                  AND (
+                      labor = 'No hay actividad'
+                      OR cumplido IS NULL
+                      OR (observacion IS NULL OR TRIM(observacion) = '')
+                  );
             """).bindparams(bindparam('blocks', expanding=True)), {'sem': semana_corte, 'blocks': active_blocks})
 
     db.session.commit()

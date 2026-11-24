@@ -769,6 +769,14 @@ def rotacion_sincronizar_bloques(rotation_id):
     try:
         rotation = Rotation.query.get_or_404(rotation_id)
         rot_week = rotation.week.strip() if rotation.week else ''
+
+        # Reconciliar censo vigente para asegurar que bloques tumbados/erradicados se reflejen de inmediato
+        try:
+            from app.shared.censo_sync import reconciliar_censo_vigente
+            reconciliar_censo_vigente()
+        except Exception as e_cs:
+            print(f"[WARN] Error reconciliando censo antes de sincronizar rotacion: {e_cs}")
+
         cached_crop_records = CalculationEngine.get_projected_crop_records(rot_week)
 
         # Cargar borradores existentes
