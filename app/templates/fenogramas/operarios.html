@@ -335,6 +335,11 @@
         border-color: #cbd5e1;
         border-top: 3.5px solid #64748b;
     }
+    .blq-tile.state-TUMBA {
+        background: #fff1f2;
+        border-color: #fecdd3;
+        border-top: 3.5px solid #e11d48;
+    }
 
     .blq-tile-row1 {
         width: 100%;
@@ -991,7 +996,9 @@
             <div class="blq-tile-row2">
                 <div class="d-flex align-items-center justify-content-center gap-1">
                     <span class="blq-pct" id="tile-metric-{{ bloque }}">
-                        {% if meta.estado_bloque == 'SIN_LABOR' %}
+                        {% if meta.estado_bloque == 'TUMBA' %}
+                            <span class="text-danger fw-bold" style="font-size: 0.72rem;">TUMBA</span>
+                        {% elif meta.estado_bloque == 'SIN_LABOR' %}
                             S/L
                         {% elif pct_cu is none %}
                             Pend.
@@ -1104,6 +1111,10 @@
                                         <label class="filter-item-label">
                                             <input type="checkbox" class="filter-chk-tipo form-check-input my-0" value="Poda" checked onchange="applyAllFilters()">
                                             <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-1 fw-bold">P</span> Poda
+                                        </label>
+                                        <label class="filter-item-label">
+                                            <input type="checkbox" class="filter-chk-tipo form-check-input my-0" value="Tumba" checked onchange="applyAllFilters()">
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1 fw-bold">T</span> Tumba / Sin cultivo
                                         </label>
                                     </div>
                                     <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
@@ -2737,18 +2748,20 @@ function applyAllFilters() {
         const currVal = btnCheck ? btnCheck.getAttribute('data-current-val') : 'null';
         const isEjecutada = (currVal === '1');
 
+        const isTumba = (rAct === 'Tumba' || rProd === 'SIN CULTIVO' || rProd === 'VACIO');
+
         // Match Tipo
-        const matchTipo = (totalTipos === 0) || selTipos.includes(rAct);
+        const matchTipo = (totalTipos === 0) || selTipos.includes(rAct) || (isTumba && (!isTipoFiltered || selTipos.includes('Tumba')));
 
         // Match Producto
-        const matchProd = (totalProds === 0) || selProds.includes(rProd);
+        const matchProd = (totalProds === 0) || selProds.includes(rProd) || (rProd === 'SIN CULTIVO' && (!isProdFiltered || selProds.includes('SIN CULTIVO')));
 
         // Match Supervisor / Auxiliar
-        const matchSup = (totalSups === 0) || selSups.includes(rSup) || selSups.includes(rAux) || (!rSup && !rAux && selSups.length === totalSups);
+        const matchSup = (totalSups === 0) || selSups.includes(rSup) || selSups.includes(rAux) || (!rSup && !rAux && (!isSupFiltered || isTumba));
 
         // Match Cumplimiento
         let matchCumpl = false;
-        if (totalCumpl === 0) {
+        if (totalCumpl === 0 || (isTumba && !isCumplFiltered)) {
             matchCumpl = true;
         } else {
             if (selCumpl.includes('EJECUTADA') && isEjecutada) matchCumpl = true;
@@ -2783,7 +2796,7 @@ function applyAllFilters() {
     document.querySelectorAll('#blq-grid .blq-tile').forEach(tile => {
         const blq = tile.getAttribute('data-bloque');
         const tZona = tile.getAttribute('data-zona');
-        const isTileMatch = (tZona === currentActiveZone) && matchingBlocks.has(blq);
+        const isTileMatch = (tZona === currentActiveZone) && (!hasAnyFilter || matchingBlocks.has(blq));
         tile.style.display = isTileMatch ? 'flex' : 'none';
         if (isTileMatch) visibleBlocksCount++;
     });

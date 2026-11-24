@@ -281,7 +281,9 @@ def index():
         tiene_notas = any(bool(it.get('observacion') and str(it['observacion']).strip()) for it in items)
         ha_sido_editado = bool(calif > 0 or tiene_notas)
 
-        if total_lab == 0:
+        if 'Tumba' in acts_bl or 'SIN CULTIVO' in prods_bl:
+            estado_bl = 'TUMBA'
+        elif total_lab == 0:
             estado_bl = 'SIN_LABOR'
         elif calif == 0 and not tiene_notas:
             estado_bl = 'PENDIENTE'
