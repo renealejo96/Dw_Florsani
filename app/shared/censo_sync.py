@@ -6,8 +6,56 @@ se propague inmediatamente a dim_camas y a la vista viva mrt_estado_cultivo_actu
 from app.extensions import db
 from sqlalchemy import text
 import re
+import time
 
-def reconciliar_censo_vigente():
+_MRT_CACHE_ROWS = None
+_MRT_CACHE_TIME = 0.0
+
+def invalidate_mrt_cache():
+    """Invalida la caché en memoria de mrt_estado_cultivo_actual tras cambios de campo o censo."""
+    global _MRT_CACHE_ROWS, _MRT_CACHE_TIME
+    _MRT_CACHE_ROWS = None
+    _MRT_CACHE_TIME = 0.0
+    try:
+        from app.modules.fumigacion.services.calculation_engine import CalculationEngine
+        CalculationEngine.invalidate_projected_cache()
+    except Exception:
+        pass
+
+def get_mrt_rows_cached(ttl_seconds=25):
+    """
+    Retorna las filas de mrt_estado_cultivo_actual con caché en memoria ultrarrápida (25s TTL),
+    evitando escaneos repetitivos en ráfagas de navegación entre módulos.
+    """
+    global _MRT_CACHE_ROWS, _MRT_CACHE_TIME
+    now = time.time()
+    if _MRT_CACHE_ROWS is not None and (now - _MRT_CACHE_TIME) < ttl_seconds:
+        return _MRT_CACHE_ROWS
+
+    with db.engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT 
+                COALESCE(blq, codigo_bloque) AS blq,
+                COALESCE(sufijo, 'A') AS sufijo,
+                num_cama,
+                producto_actual,
+                variedad_actual,
+                ultimo_evento,
+                semana_campo_ultimo_evento,
+                fecha_ultimo_evento,
+                cama_estandar,
+                zona,
+                ha,
+                id_cama,
+                codigo_bloque
+            FROM mrt_estado_cultivo_actual
+            WHERE num_cama IS NOT NULL;
+        """)).fetchall()
+    _MRT_CACHE_ROWS = rows
+    _MRT_CACHE_TIME = now
+    return rows
+
+def reconciliar_censo_vigente(startup_only_if_needed=False):
     """
     1. Obtiene la semana más reciente cargada en crop_state_records.
     2. Identifica bloques y camas activos vs vacíos/tumbados.
@@ -34,6 +82,14 @@ def reconciliar_censo_vigente():
 
             if not latest_week:
                 return {"success": False, "message": "No hay semanas en crop_state_records"}
+
+            mig_key = f"censo_reconciled_v1_{latest_week}"
+            if startup_only_if_needed:
+                already_done = conn.execute(text(
+                    "SELECT 1 FROM _system_one_time_migrations WHERE migration_key = :mk"
+                ), {'mk': mig_key}).scalar()
+                if already_done:
+                    return {"success": True, "latest_week": latest_week, "skipped": True, "bloques_tumbados": []}
 
             # 2. Cargar registros del censo más reciente
             csr_rows = conn.execute(text("""
@@ -75,6 +131,33 @@ def reconciliar_censo_vigente():
                 else:
                     active_blocks.add(clean_b)
                     active_blocks.add(cod_bloque)
+
+            # Auto-registrar cualquier cultivo activo nuevo del censo en el catálogo 'crops' (ej. BRILLANTINA)
+            try:
+                crops_en_censo = conn.execute(text("""
+                    SELECT DISTINCT UPPER(TRIM(crop_master))
+                    FROM crop_state_records
+                    WHERE week = :w
+                      AND crop_master IS NOT NULL
+                      AND TRIM(crop_master) != ''
+                      AND UPPER(TRIM(crop_master)) NOT IN ('VACIO', 'DESCARTE', 'TUMBAR', 'ERRADICADO', 'NAN', 'TOTAL', 'TOTAL GENERAL', 'SIN CULTIVO', 'NONE')
+                """), {'w': latest_week}).fetchall()
+
+                existing_crops = conn.execute(text("SELECT UPPER(TRIM(name)) FROM crops")).fetchall()
+                existing_set = {row[0] for row in existing_crops if row[0]}
+
+                for cr in crops_en_censo:
+                    c_name_raw = cr[0]
+                    if c_name_raw and c_name_raw not in existing_set:
+                        c_title = c_name_raw.capitalize()
+                        conn.execute(text("""
+                            INSERT INTO crops (name, category, is_active, veg_min_age, veg_max_age, prod_min_age, prod_max_age, aliases_json, created_at, updated_at)
+                            VALUES (:name, 'PRODUCTOS_NUEVOS', TRUE, 0, 12, 13, 99, '[]', NOW(), NOW())
+                            ON CONFLICT (name) DO NOTHING;
+                        """), {'name': c_title})
+                        existing_set.add(c_name_raw)
+            except Exception as e_cr:
+                print(f"[CENSO_SYNC] Nota al sincronizar catálogo crops: {e_cr}")
 
             # 3. Detectar bloques en dim_camas que antes tenían cultivo pero en el censo vigente NO tienen camas activas (TUMBADOS COMPLETOS)
             # Aplica si el censo tiene representatividad (>1000 camas)
@@ -182,12 +265,22 @@ def reconciliar_censo_vigente():
                             'orig': f"Cama vacía detectada por censo semana {latest_week}"
                         })
 
-            print(f"[CENSO_SYNC] Reconciliación completada con semana {latest_week}: {len(bloques_tumbados_detectados)} bloques tumbados actualizados ({bloques_tumbados_detectados}).")
-            return {
-                "success": True,
-                "latest_week": latest_week,
-                "bloques_tumbados": bloques_tumbados_detectados
-            }
+            try:
+                conn.execute(text("""
+                    INSERT INTO _system_one_time_migrations (migration_key)
+                    VALUES (:mk)
+                    ON CONFLICT (migration_key) DO NOTHING;
+                """), {'mk': mig_key})
+            except Exception:
+                pass
+
+        invalidate_mrt_cache()
+        print(f"[CENSO_SYNC] Reconciliación completada con semana {latest_week}: {len(bloques_tumbados_detectados)} bloques tumbados actualizados ({bloques_tumbados_detectados}).")
+        return {
+            "success": True,
+            "latest_week": latest_week,
+            "bloques_tumbados": bloques_tumbados_detectados
+        }
     except Exception as e:
         print(f"[WARN] Error en reconciliar_censo_vigente: {e}")
         return {"success": False, "error": str(e)}

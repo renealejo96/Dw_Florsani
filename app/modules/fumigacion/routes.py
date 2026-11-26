@@ -49,8 +49,14 @@ def rotaciones_index():
     if status_filter != 'all':
         query = query.filter_by(status=status_filter)
 
+    # Diferir columnas JSON gigantes (review_data_*) y evitar JOIN cartesiano con items/productos que no usa el índice
     rotations = query.options(
-        db.joinedload(Rotation.rounds).joinedload(RotationRound.items).joinedload(RotationRoundItem.product)
+        db.defer(Rotation.review_data_json),
+        db.defer(Rotation.review_data_by_round_json),
+        db.defer(Rotation.weighed_products_json),
+        db.defer(Rotation.applied_rounds_json),
+        db.defer(Rotation.confirmed_rounds_json),
+        db.selectinload(Rotation.rounds)
     ).order_by(Rotation.week.desc(), Rotation.version.desc(), Rotation.created_at.desc()).all()
     unique_weeks = [r[0] for r in db.session.query(Rotation.week).distinct().order_by(Rotation.week.desc()).all() if r[0]]
     if current_week_str not in unique_weeks:
@@ -301,10 +307,14 @@ def rotacion_eliminar(rotation_id):
 @fumigacion_bp.route('/rotaciones/<int:rotation_id>')
 @login_required
 def rotacion_detalle(rotation_id):
-    rotation = Rotation.query.get_or_404(rotation_id)
+    from app.shared.utils import format_age
+    rotation = Rotation.query.options(
+        db.selectinload(Rotation.rounds)
+          .selectinload(RotationRound.items)
+          .joinedload(RotationRoundItem.product)
+    ).get_or_404(rotation_id)
     
-    # NEW: Load review data by round
-    # NEW: Load review data by round and draft data
+    # Load review data by round and draft data
     review_by_round = {}
     if rotation.review_data_by_round_json:
         try:
@@ -319,8 +329,8 @@ def rotacion_detalle(rotation_id):
         except Exception:
             draft_segments = None
     
-    # Get all rounds sorted
-    all_rounds = RotationRound.query.filter_by(rotation_id=rotation.id).order_by(RotationRound.round_number.asc()).all()
+    # Reuse already eager-loaded rounds sorted by round_number
+    all_rounds = sorted(list(rotation.rounds), key=lambda r_obj: r_obj.round_number)
     
     # For initial display, prioritize working draft so all users see active calibrated work
     first_round_id = all_rounds[0].id if all_rounds else None
@@ -343,7 +353,7 @@ def rotacion_detalle(rotation_id):
             'calc': calc_base
         })
 
-    # Calculate rounds with cumulative logic for Paso 2 review
+    # Calculate rounds with cumulative logic for Paso 2 review (si no hay custom_segs, reutiliza calc_base directo)
     rounds_calculated = []
     for i, r in enumerate(all_rounds):
         custom_segs = None
@@ -352,26 +362,33 @@ def rotacion_detalle(rotation_id):
         elif draft_segments:
             custom_segs = draft_segments
         else:
-            # Inherit from earlier configured round if available
             for j in range(i - 1, -1, -1):
                 earlier_rid = all_rounds[j].id
                 if str(earlier_rid) in review_by_round:
                     custom_segs = review_by_round[str(earlier_rid)]
                     break
 
-        calc = CalculationEngine.calculate_round(r, custom_review_segments=custom_segs, cached_crop_records=cached_crop_records)
+        if custom_segs is not None:
+            calc = CalculationEngine.calculate_round(r, custom_review_segments=custom_segs, cached_crop_records=cached_crop_records)
+        else:
+            calc = rounds_base_calculated[i]['calc']
         rounds_calculated.append({
             'round': r,
             'calc': calc
         })
 
-    # Get associated requisition (forecast based on baseline rounds)
-    requisition = Requisition.query.filter_by(rotation_id=rotation.id).first()
+    # Get associated requisition (eager load items)
+    requisition = Requisition.query.options(
+        db.selectinload(Requisition.items)
+    ).filter_by(rotation_id=rotation.id).first()
     if not requisition:
         requisition = RequisitionService.generate_or_update_forecast(rotation.id, cached_crop_records=cached_crop_records)
 
-    # Generated orders for this rotation
-    orders = FumigationOrder.query.filter_by(rotation_id=rotation.id).order_by(FumigationOrder.round_number.asc()).all()
+    # Generated orders for this rotation (eager load details & products_summary to prevent N+1)
+    orders = FumigationOrder.query.options(
+        db.selectinload(FumigationOrder.details),
+        db.selectinload(FumigationOrder.products_summary)
+    ).filter_by(rotation_id=rotation.id).order_by(FumigationOrder.round_number.asc()).all()
 
     # Additional applications for this week
     additional_apps = AdditionalApplication.query.filter_by(week=rotation.week).all()
@@ -379,11 +396,15 @@ def rotacion_detalle(rotation_id):
     active_products = Product.query.filter_by(is_active=True).order_by(Product.code.asc()).all()
     active_crops = Crop.query.filter_by(is_active=True).order_by(Crop.name.asc()).all()
 
-    # Unique crops present in this rotation for filtering
-    rotation_crops = list(set([it.crop_name for r in rotation.rounds for it in r.items]))
-
-    # Comparison data (Forecast vs Real Validated + Extras)
-    comp_data = RequisitionService.get_comparison_data(rotation.id, cached_crop_records=cached_crop_records)
+    # Comparison data (reutilizando objetos precargados)
+    comp_data = RequisitionService.get_comparison_data(
+        rotation.id,
+        cached_crop_records=cached_crop_records,
+        preloaded_rotation=rotation,
+        preloaded_requisition=requisition,
+        preloaded_add_apps=additional_apps,
+        preloaded_products=active_products
+    )
 
     # Distinct block to zone map from preloaded crop state records
     block_zone_map = {}
@@ -437,8 +458,16 @@ def rotacion_detalle(rotation_id):
             if not any(p['product_code'] == prod_entry['product_code'] for p in rotation_formulas_map[formula_key]):
                 rotation_formulas_map[formula_key].append(prod_entry)
 
-    # Breakdown of chemical assignment by Crop / Variety
-    variety_breakdown = RequisitionService.get_variety_breakdown_data(rotation.id, cached_crop_records=cached_crop_records)
+    # Breakdown of chemical assignment by Crop / Variety (reutilizando rounds_base_calculated sin recalcular)
+    variety_breakdown = RequisitionService.get_variety_breakdown_data(
+        rotation.id,
+        cached_crop_records=cached_crop_records,
+        precalculated_base_rounds=rounds_base_calculated,
+        preloaded_rotation=rotation,
+        preloaded_requisition=requisition,
+        preloaded_add_apps=additional_apps,
+        preloaded_products=active_products
+    )
     breakdown_crops = sorted(list(set([v['crop_name'].strip() for v in variety_breakdown if v.get('crop_name')])))
     
     # Only crops that actually have chemical products assigned in this rotation's rounds!
@@ -522,24 +551,84 @@ def rotacion_detalle(rotation_id):
                     crop_status_map[c_name]['is_draft_modified'] = True
                     crop_status_map[c_name]['modified_blocks_count'] += 1
 
-        if rotation.review_data_by_round_json:
-            try:
-                r_by_r = json.loads(rotation.review_data_by_round_json)
-                for r_segs in r_by_r.values():
-                    if isinstance(r_segs, list):
-                        for s in r_segs:
-                            if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm:
-                                if s.get('is_modified') or s.get('is_custom_mix'):
-                                    crop_status_map[c_name]['has_draft'] = True
-                                    crop_status_map[c_name]['is_draft_modified'] = True
-            except Exception:
-                pass
+        if review_by_round:
+            for r_segs in review_by_round.values():
+                if isinstance(r_segs, list):
+                    for s in r_segs:
+                        if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm:
+                            if s.get('is_modified') or s.get('is_custom_mix'):
+                                crop_status_map[c_name]['has_draft'] = True
+                                crop_status_map[c_name]['is_draft_modified'] = True
+
+    # Pre-serializar segmentos por vuelta en C (json.dumps) una sola vez en lugar de 900 llamadas |tojson en Jinja2
+    round_segments_js_dict = {}
+    for r_item in rounds_calculated:
+        rid_str = str(r_item['round'].id)
+        segs_out = []
+        for idx_s, s in enumerate(r_item['calc'].get('segments', []), 1):
+            b_nm = s.get('block_name') or ''
+            segs_out.append({
+                'uid': f"seg_{idx_s}_{rid_str}_{b_nm.replace(' ', '_')}",
+                'zone': s.get('zone') or '',
+                'block_name': b_nm,
+                'suffix': s.get('suffix') or 'A',
+                'activity_type': s.get('activity_type') or s.get('ultimo_evento') or 'SIEMBRA',
+                'ultimo_evento': s.get('ultimo_evento') or s.get('activity_type') or 'SIEMBRA',
+                'crop_name': s.get('crop_name') or '',
+                'variety': s.get('variety') or s.get('crop_name') or '',
+                'phenological_stage': s.get('phenological_stage') or 'VEGETATIVO',
+                'real_age': format_age(s.get('real_age')),
+                'bed_start': s.get('bed_start') or 1,
+                'bed_end': s.get('bed_end') or 1,
+                'standard_beds': s.get('standard_beds') or 1.0,
+                'liters_per_bed': s.get('liters_per_bed') or 5.5,
+                'total_liters': s.get('total_liters') or 0.0,
+                'spray_lance': s.get('spray_lance') or 'Lanza de 3 salidas (C35)',
+                'products': s.get('products') or s.get('products_detail') or [],
+                'is_custom_mix': bool(s.get('is_custom_mix')),
+                'is_additional': bool(s.get('is_additional')),
+                'is_modified': bool(s.get('is_modified'))
+            })
+        round_segments_js_dict[rid_str] = segs_out
+    round_segments_map_json = json.dumps(round_segments_js_dict, ensure_ascii=False)
+
+    # Calculate investment and cost per bodega for this rotation
+    from app.modules.fumigacion.services.cost_service import CostService
+    prod_cost_map = CostService.get_product_cost_map()
+    rotation_cost_by_bodega = {
+        'total_cost': 0.0,
+        'by_bodega': []
+    }
+    bod_dict = {}
+    if requisition and requisition.items:
+        for it in requisition.items:
+            p_code = (it.product_code or '').strip().upper()
+            p_info = prod_cost_map.get(p_code) or prod_cost_map.get((it.commercial_name or '').strip().upper()) or {}
+            unit_cost = float(p_info.get('costo_unitario') or 0.0)
+            bod_name = (p_info.get('bodega') or 'FUMIGANTES').strip().upper()
+            qty = float(it.quantity_final if it.quantity_final is not None else (it.quantity_forecast or 0.0))
+            line_cost = round(qty * unit_cost, 2)
+            rotation_cost_by_bodega['total_cost'] += line_cost
+            if bod_name not in bod_dict:
+                bod_dict[bod_name] = {'bodega': bod_name, 'cost': 0.0, 'items_count': 0}
+            bod_dict[bod_name]['cost'] += line_cost
+            bod_dict[bod_name]['items_count'] += 1
+
+    rotation_cost_by_bodega['total_cost'] = round(rotation_cost_by_bodega['total_cost'], 2)
+    bod_list = list(bod_dict.values())
+    bod_list.sort(key=lambda b: b['cost'], reverse=True)
+    for b in bod_list:
+        b['cost'] = round(b['cost'], 2)
+        b['pct'] = round((b['cost'] / rotation_cost_by_bodega['total_cost']) * 100, 1) if rotation_cost_by_bodega['total_cost'] > 0 else 0.0
+    rotation_cost_by_bodega['by_bodega'] = bod_list
 
     return render_template(
         'fumigacion/rotacion_detalle.html',
         rotation=rotation,
+        rotation_cost_by_bodega=rotation_cost_by_bodega,
         rounds_base_calculated=rounds_base_calculated,
         rounds_calculated=rounds_calculated,
+        round_segments_map_json=round_segments_map_json,
         requisition=requisition,
         comp_data=comp_data,
         variety_breakdown=variety_breakdown,
@@ -625,13 +714,15 @@ def rotacion_guardar_revision(rotation_id):
                     review_by_round = {}
 
             # Scope handling:
+            if target_crop and target_crop.upper() == 'ALL':
+                target_crop = ''
             c_norm = CalculationEngine.normalize_crop_name(target_crop) if target_crop else ''
             existing_segs = review_by_round.get(str(target_round_id_int), [])
 
-            if assign_scope == 'crop_replace' and target_crop:
+            if assign_scope == 'crop_replace' and c_norm:
                 # Exclusively this crop in this round (clears accidental assignments of other crops)
                 final_round_segs = [s for s in clean_segments if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm]
-            elif assign_scope == 'crop' and target_crop:
+            elif assign_scope == 'crop' and c_norm:
                 # Merge target crop with existing segments of other crops that were ALREADY in this round
                 kept_segs = [s for s in existing_segs if CalculationEngine.normalize_crop_name(s.get('crop_name')) != c_norm]
                 new_crop_segs = [s for s in clean_segments if CalculationEngine.normalize_crop_name(s.get('crop_name')) == c_norm]

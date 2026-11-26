@@ -1258,149 +1258,31 @@
                 </tr>
             </thead>
             <tbody id="excel-tbody">
-                {% for bloque, items in bloques.items() %}
-                {% set b_meta = bloques_meta[bloque] %}
-                {% for item in items %}
-                {% set c_val = '1' if item.cumplido == 1 else 'null' %}
-                <tr id="row-{{ item.id }}"
-                    class="excel-row {% if item.es_pendiente_anterior %}row-arrastre{% endif %} {% if item.cumplido == 1 or c_val == '1' %}row-calificada{% endif %}"
-                    data-item-id="{{ item.id }}"
-                    data-bloque="{{ bloque }}"
-                    data-zona="{{ item.zona }}"
-                    data-semana="{{ item.semana_anio }}"
-                    data-cama-inicial="{{ item.cama_inicial }}"
-                    data-cama-final="{{ item.cama_final }}"
-                    data-sufijo="{{ item.sufijo or '' }}"
-                    data-labor="{{ item.labor or '' }}"
-                    data-evaluable="1"
-                    data-producto="{{ item.producto_maestro }}"
-                    data-actividad="{{ item.actividad_tipo }}"
-                    data-supervisor="{{ item.supervisor or '' }}"
-                    data-auxiliar="{{ item.auxiliar or '' }}"
-                    data-search-text="bl {{ b_meta.clean_code }} {{ item.producto_maestro }} {{ item.labor }} {{ item.auxiliar or '' }} {{ item.supervisor or '' }} {{ item.zona }}"
-                    style="{% if item.zona != zona_sel %}display: none;{% endif %}">
-
+                {%- set is_admin_user = (session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN')) -%}
+                {%- set is_sem_cerrada = (semana_estado == 'CERRADA') -%}
+                {%- for bloque, items in bloques.items() -%}
+                {%- set b_meta = bloques_meta[bloque] -%}
+                {%- for item in items -%}
+                {%- set c_val = '1' if item.cumplido == 1 else 'null' -%}
+                {%- set es_tumbado = (item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO')) -%}
+                {%- set es_sin_labor = (not item.labor or item.labor == 'No hay actividad' or not item.tiene_evaluacion) -%}
+                <tr id="row-{{ item.id }}" class="excel-row{% if item.es_pendiente_anterior %} row-arrastre{% endif %}{% if item.cumplido == 1 or c_val == '1' %} row-calificada{% endif %}" data-item-id="{{ item.id }}" data-bloque="{{ bloque }}" data-zona="{{ item.zona }}" data-semana="{{ item.semana_anio }}" data-cama-inicial="{{ item.cama_inicial }}" data-cama-final="{{ item.cama_final }}" data-sufijo="{{ item.sufijo or '' }}" data-labor="{{ item.labor or '' }}" data-evaluable="1" data-producto="{{ item.producto_maestro }}" data-actividad="{{ item.actividad_tipo }}" data-supervisor="{{ item.supervisor or '' }}" data-auxiliar="{{ item.auxiliar or '' }}" data-search-text="bl {{ b_meta.clean_code }} {{ item.producto_maestro }} {{ item.labor }} {{ item.auxiliar or '' }} {{ item.supervisor or '' }} {{ item.zona }}"{% if item.zona != zona_sel %} style="display:none;"{% endif %}>
                     <td class="fw-bold text-dark tabular-nums">{{ b_meta.clean_code }}</td>
-
-                    <td class="tabular-nums" title="Camas {{ item.cama_inicial }} a {{ item.cama_final }}{% if item.sufijo %} {{ item.sufijo }}{% endif %}">
-                        <span class="fw-semibold">{{ item.cama_inicial }}-{{ item.cama_final }}</span>
-                        {% if item.sufijo and item.cama_inicial == item.cama_final %}<span class="text-muted">{{ item.sufijo }}</span>{% endif %}
-                        {% if item.es_pendiente_anterior %}
-                        <span class="text-danger fw-bold ms-1" title="Arrastrada de Semana {{ item.semana_origen }}">
-                            [S{{ item.semana_origen }}]
-                        </span>
-                        {% if semana_estado != 'CERRADA' %}
-                        <button type="button" class="btn btn-link text-danger p-0 ms-1" style="font-size: 0.68rem; line-height: 1;"
-                                onclick="descartarArrastreItem({{ item.id }}, '{{ bloque }}')"
-                                title="Descartar tarea arrastrada">&times;</button>
-                        {% endif %}
-                        {% endif %}
-                    </td>
-
-                    <td class="text-center" style="width: 30px; padding: 2px 0;">
-                        {% if item.actividad_tipo == 'Poda' %}
-                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Poda">P</span>
-                        {% elif item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO') %}
-                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Tumba / Sin Cultivo">T</span>
-                        {% else %}
-                        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size: 0.68rem; padding: 2px 5px;" title="Siembra">S</span>
-                        {% endif %}
-                    </td>
-
-                    <td class="text-truncate" style="max-width: 88px;" title="{{ item.producto_maestro }}">
-                        {% if item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO') or item.actividad_tipo == 'Tumba' %}
-                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-semibold" style="font-size: 0.68rem;">SIN CULTIVO</span>
-                        {% else %}
-                        {{ item.producto_maestro }}
-                        {% endif %}
-                    </td>
-
-                    <td class="text-center tabular-nums fw-semibold">
-                        {% if item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO') %}
-                        <span class="text-muted">-</span>
-                        {% else %}
-                        {{ item.edad_real }}
-                        {% endif %}
-                    </td>
-
-                    {% set es_tumbado = (item.actividad_tipo == 'Tumba' or item.producto_maestro in ('SIN CULTIVO', 'VACIO', 'ERRADICADO')) %}
-                    {% set es_sin_labor = (not item.labor or item.labor == 'No hay actividad' or not item.tiene_evaluacion) %}
-                    <td class="cell-labor" title="{{ item.labor }}">
-                        {% if es_tumbado and (not item.labor or item.labor == 'No hay actividad') %}
-                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fst-italic" style="font-size: 0.72rem;">
-                                <i class="fa-solid fa-ban me-1"></i>Tumbado / Sin labores
-                            </span>
-                        {% elif not es_sin_labor %}
-                            <span class="fw-semibold text-dark">{{ item.labor }}</span>
-                            {% if not item.tiene_evaluacion %}
-                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size: 0.65rem;">Sin match</span>
-                            {% elif item.semana_origen != item.semana_anio and not item.es_pendiente_anterior %}
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.65rem;">+ Extra</span>
-                            {% endif %}
-                        {% else %}
-                            <span class="text-muted fst-italic small">Sin labor programada</span>
-                        {% endif %}
-                    </td>
-
-                    <td class="text-center" style="{% if semana_estado == 'CERRADA' or es_sin_labor %}cursor: not-allowed; opacity: 0.45;{% else %}cursor: pointer;{% endif %}" {% if semana_estado != 'CERRADA' and not es_sin_labor %}onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}>
-                        <div class="calif-cell-wrap" style="pointer-events: none;">
-                            <button type="button"
-                                    id="btn-check-{{ item.id }}"
-                                    class="check-circle state-{{ c_val }}"
-                                    style="pointer-events: auto; {% if semana_estado == 'CERRADA' or es_sin_labor %}cursor: not-allowed; opacity: 0.35;{% endif %}"
-                                    data-item-id="{{ item.id }}"
-                                    data-bloque="{{ bloque }}"
-                                    data-original-val="{{ c_val }}"
-                                    data-current-val="{{ c_val }}"
-                                    aria-label="Marcar cumplimiento de labor {{ item.labor }} en bloque {{ bloque }}"
-                                    title="{% if semana_estado == 'CERRADA' %}Semana CERRADA - Calificaciones bloqueadas{% elif es_sin_labor %}Sin labor programada - Asigne una labor con '+' para calificar{% else %}Clic para marcar/desmarcar labor ejecutada (✓){% endif %}"
-                                    {% if semana_estado == 'CERRADA' or es_sin_labor %}disabled{% else %}onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>
-                                {% if c_val == '1' and not es_sin_labor %}✓{% endif %}
-                            </button>
-                        </div>
-                    </td>
-
-                    <td class="text-center" style="padding: 1px 2px;">
-                        {% if semana_estado != 'CERRADA' %}
-                        <button type="button" 
-                                class="btn-extra-mini"
-                                title="Calificar labor adicional en estas camas (+ Extra)"
-                                onclick='abrirModalAgregarLabor({{ item.id }}, "{{ b_meta.clean_code }}", "{{ item.cama_inicial }}-{{ item.cama_final }}{% if item.sufijo %}{{ item.sufijo }}{% endif %}", "{{ item.producto_maestro }}")'>
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        <input type="text"
-                               id="obs-{{ item.id }}"
-                               class="obs-excel-input"
-                               placeholder="{% if es_sin_labor and not item.observacion %}Sin labor - Observación...{% else %}...{% endif %}"
-                               aria-label="Observación fila {{ item.id }}"
-                               value="{{ item.observacion or '' }}"
-                               data-original-obs="{{ item.observacion or '' }}"
-                               {% if semana_estado == 'CERRADA' %}disabled style="cursor: not-allowed; background-color: #f8fafc;" title="Semana cerrada"{% else %}oninput="markItemDirty({{ item.id }})"{% endif %}>
-                    </td>
-
-                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}">
-                        <span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span>
-                        <span id="sup-name-{{ item.id }}" class="text-muted" style="font-size: 0.66rem;">{% if item.supervisor %}/ {{ item.supervisor }}{% endif %}</span>
-                        <span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span>
-                    </td>
-
-                    {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
-                    <td class="text-center" style="padding: 1px 2px;">
-                        <button type="button"
-                                class="btn btn-outline-danger btn-xs border-0 p-1 btn-del-calif"
-                                onclick="eliminarFilaCalificacion({{ item.id }}, '{{ bloque }}')"
-                                title="Eliminar labor de este bloque (Solo Admin)">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                    </td>
-                    {% endif %}
+                    <td class="tabular-nums" title="Camas {{ item.cama_inicial }} a {{ item.cama_final }}{% if item.sufijo %} {{ item.sufijo }}{% endif %}"><span class="fw-semibold">{{ item.cama_inicial }}-{{ item.cama_final }}</span>{% if item.sufijo and item.cama_inicial == item.cama_final %}<span class="text-muted">{{ item.sufijo }}</span>{% endif %}{% if item.es_pendiente_anterior %}<span class="text-danger fw-bold ms-1" title="Arrastrada de Semana {{ item.semana_origen }}">[S{{ item.semana_origen }}]</span>{% if not is_sem_cerrada %}<button type="button" class="btn btn-link text-danger p-0 ms-1" style="font-size:0.68rem;line-height:1;" onclick="descartarArrastreItem({{ item.id }}, '{{ bloque }}')" title="Descartar">&times;</button>{% endif %}{% endif %}</td>
+                    <td class="text-center" style="width:30px;padding:2px 0;">{% if item.actividad_tipo == 'Poda' %}<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold" style="font-size:0.68rem;padding:2px 5px;" title="Poda">P</span>{% elif es_tumbado %}<span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold" style="font-size:0.68rem;padding:2px 5px;" title="Tumba / Sin Cultivo">T</span>{% else %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold" style="font-size:0.68rem;padding:2px 5px;" title="Siembra">S</span>{% endif %}</td>
+                    <td class="text-truncate" style="max-width:88px;" title="{{ item.producto_maestro }}">{% if es_tumbado %}<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-semibold" style="font-size:0.68rem;">SIN CULTIVO</span>{% else %}{{ item.producto_maestro }}{% endif %}</td>
+                    <td class="text-center tabular-nums fw-semibold">{% if es_tumbado %}<span class="text-muted">-</span>{% else %}{{ item.edad_real }}{% endif %}</td>
+                    <td class="cell-labor" title="{{ item.labor }}">{% if es_tumbado and (not item.labor or item.labor == 'No hay actividad') %}<span class="badge bg-danger-subtle text-danger border border-danger-subtle fst-italic" style="font-size:0.72rem;"><i class="fa-solid fa-ban me-1"></i>Tumbado / Sin labores</span>{% elif not es_sin_labor %}<span class="fw-semibold text-dark">{{ item.labor }}</span>{% if not item.tiene_evaluacion %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size:0.65rem;">Sin match</span>{% elif item.semana_origen != item.semana_anio and not item.es_pendiente_anterior %}<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.65rem;">+ Extra</span>{% endif %}{% else %}<span class="text-muted fst-italic small">Sin labor programada</span>{% endif %}</td>
+                    <td class="text-center" style="{% if is_sem_cerrada or es_sin_labor %}cursor:not-allowed;opacity:0.45;{% else %}cursor:pointer;{% endif %}"{% if not is_sem_cerrada and not es_sin_labor %} onclick="toggleCheckCircle({{ item.id }}, event)"{% endif %}><div class="calif-cell-wrap" style="pointer-events:none;"><button type="button" id="btn-check-{{ item.id }}" class="check-circle state-{{ c_val }}" style="pointer-events:auto;{% if is_sem_cerrada or es_sin_labor %}cursor:not-allowed;opacity:0.35;{% endif %}" data-item-id="{{ item.id }}" data-bloque="{{ bloque }}" data-original-val="{{ c_val }}" data-current-val="{{ c_val }}"{% if is_sem_cerrada or es_sin_labor %} disabled{% else %} onclick="event.stopPropagation(); toggleCheckCircle({{ item.id }}, event)" onkeydown="handleCheckKeydown(event, {{ item.id }})"{% endif %}>{% if c_val == '1' and not es_sin_labor %}✓{% endif %}</button></div></td>
+                    <td class="text-center" style="padding:1px 2px;">{% if not is_sem_cerrada %}<button type="button" class="btn-extra-mini" title="Calificar labor adicional (+ Extra)" onclick='abrirModalAgregarLabor({{ item.id }}, "{{ b_meta.clean_code }}", "{{ item.cama_inicial }}-{{ item.cama_final }}{% if item.sufijo %}{{ item.sufijo }}{% endif %}", "{{ item.producto_maestro }}")'><i class="fa-solid fa-plus"></i></button>{% endif %}</td>
+                    <td><input type="text" id="obs-{{ item.id }}" class="obs-excel-input" placeholder="{% if es_sin_labor and not item.observacion %}Sin labor - Observación...{% else %}...{% endif %}" value="{{ item.observacion or '' }}" data-original-obs="{{ item.observacion or '' }}"{% if is_sem_cerrada %} disabled style="cursor:not-allowed;background-color:#f8fafc;"{% else %} oninput="markItemDirty({{ item.id }})"{% endif %}></td>
+                    <td id="aux-cell-{{ item.id }}" title="Aux: {{ item.auxiliar or 'N/A' }} | Sup: {{ item.supervisor or 'N/A' }}"><span id="aux-name-{{ item.id }}" class="fw-medium text-dark">{{ item.auxiliar or '-' }}</span><span id="sup-name-{{ item.id }}" class="text-muted" style="font-size:0.66rem;">{% if item.supervisor %} / {{ item.supervisor }}{% endif %}</span><span id="badge-reasignada-{{ item.id }}" class="badge-reasignada ms-1 d-none">Reasignada</span></td>
+                    {%- if is_admin_user -%}
+                    <td class="text-center" style="padding:1px 2px;"><button type="button" class="btn btn-outline-danger btn-xs border-0 p-1 btn-del-calif" onclick="eliminarFilaCalificacion({{ item.id }}, '{{ bloque }}')" title="Eliminar labor"><i class="fa-solid fa-trash-can"></i></button></td>
+                    {%- endif -%}
                 </tr>
-                {% endfor %}
-                {% endfor %}
+                {%- endfor -%}
+                {%- endfor -%}
             </tbody>
         </table>
     </div>
@@ -1936,7 +1818,7 @@ function handleLaborSelectChange(itemId, newLabor) {
 }
 
 let currentExtraItemId = null;
-const CATALOGO_LABORES_MAP = {{ catalogo_labores|tojson if catalogo_labores else '{}' }};
+const CATALOGO_LABORES_MAP = CATALOGO_LABORES || {};
 const TODAS_LABORES_LIST = {{ todas_labores|tojson if todas_labores else '[]' }};
 let modalExtraAllOptions = [];
 

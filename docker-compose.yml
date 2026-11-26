@@ -17,6 +17,16 @@ services:
     restart: unless-stopped
     mem_limit: 2.5g
     shm_size: 256m
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c work_mem=32MB
+      -c maintenance_work_mem=128MB
+      -c effective_cache_size=1536MB
+      -c random_page_cost=1.1
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c synchronous_commit=off
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-florsani_prod_secure_2026}

@@ -72,6 +72,16 @@
     transform: scale(1.06);
     box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.5);
 }
+.cursor-grab {
+    cursor: grab;
+}
+.cursor-grab:active {
+    cursor: grabbing;
+}
+.crop-drag-cell.drag-over-crop {
+    background-color: #fef08a !important;
+    outline: 2px dashed #ca8a04 !important;
+}
 .prod-badge-tag .btn-remove-tag {
     color: #0369a1;
     margin-left: 5px;
@@ -275,11 +285,28 @@
 
 {% block extra_js %}
 <script>
-const ACTIVE_CROPS = [
+let ACTIVE_CROPS = [
     {% for c in active_crops %}
     { id: {{ c.id }}, name: "{{ c.name }}", veg_min: {{ c.veg_min_age }}, veg_max: {{ c.veg_max_age }}, prod_min: {{ c.prod_min_age }}, prod_max: {{ c.prod_max_age }} },
     {% endfor %}
 ];
+
+// Reordenar cultivos según preferencia previa del usuario guardada en localStorage
+try {
+    const savedOrder = JSON.parse(localStorage.getItem('fumigacion_matrix_crops_order') || '[]');
+    if (Array.isArray(savedOrder) && savedOrder.length > 0) {
+        ACTIVE_CROPS.sort((a, b) => {
+            const idxA = savedOrder.indexOf(a.name);
+            const idxB = savedOrder.indexOf(b.name);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.name.localeCompare(b.name);
+        });
+    }
+} catch (e) {}
+
+let draggedCropIdx = null;
 
 const ACTIVE_PRODUCTS = [
     {% for p in active_products %}
@@ -374,7 +401,7 @@ function renderMatrixTable() {
     });
 
     tbody.innerHTML = '';
-    ACTIVE_CROPS.forEach(crop => {
+    ACTIVE_CROPS.forEach((crop, cropIndex) => {
         ['VEGETATIVO', 'PRODUCTIVO'].forEach(stage => {
             const isVeg = stage === 'VEGETATIVO';
             const tr = document.createElement('tr');
@@ -385,8 +412,53 @@ function renderMatrixTable() {
             tr.appendChild(tdWeek);
 
             const tdCrop = document.createElement('td');
-            tdCrop.className = 'fw-bold text-dark';
-            tdCrop.innerHTML = `<i class="fa-solid fa-seedling text-success me-1"></i> ${crop.name}`;
+            tdCrop.className = 'fw-bold text-dark crop-drag-cell';
+            tdCrop.dataset.cropIdx = cropIndex;
+            tdCrop.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="crop-drag-handle cursor-grab me-1.5 text-secondary" draggable="true" data-crop-idx="${cropIndex}" title="Arrastra para mover este cultivo y colocarlo al lado de otro">
+                        <i class="fa-solid fa-grip-vertical"></i>
+                    </span>
+                    <span class="flex-grow-1 text-truncate"><i class="fa-solid fa-seedling text-success me-1"></i> ${crop.name}</span>
+                    <div class="btn-group btn-group-xs ms-1">
+                        <button type="button" class="btn btn-outline-secondary py-0 px-1 btn-move-crop-up" style="font-size: 0.62rem; height: 18px; line-height: 14px;" data-crop-idx="${cropIndex}" title="Subir cultivo"><i class="fa-solid fa-chevron-up"></i></button>
+                        <button type="button" class="btn btn-outline-secondary py-0 px-1 btn-move-crop-down" style="font-size: 0.62rem; height: 18px; line-height: 14px;" data-crop-idx="${cropIndex}" title="Bajar cultivo"><i class="fa-solid fa-chevron-down"></i></button>
+                    </div>
+                </div>
+            `;
+            // Drag and drop events on crop cell
+            tdCrop.addEventListener('dragover', function(e) {
+                if (draggedCropIdx !== null && draggedCropIdx !== cropIndex) {
+                    e.preventDefault();
+                    tdCrop.classList.add('drag-over-crop');
+                }
+            });
+            tdCrop.addEventListener('dragleave', function() {
+                tdCrop.classList.remove('drag-over-crop');
+            });
+            tdCrop.addEventListener('drop', function(e) {
+                tdCrop.classList.remove('drag-over-crop');
+                if (draggedCropIdx !== null && draggedCropIdx !== cropIndex) {
+                    e.preventDefault();
+                    const movedItem = ACTIVE_CROPS.splice(draggedCropIdx, 1)[0];
+                    ACTIVE_CROPS.splice(cropIndex, 0, movedItem);
+                    draggedCropIdx = null;
+                    try { localStorage.setItem('fumigacion_matrix_crops_order', JSON.stringify(ACTIVE_CROPS.map(c => c.name))); } catch (err) {}
+                    renderMatrixTable();
+                }
+            });
+            const handle = tdCrop.querySelector('.crop-drag-handle');
+            if (handle) {
+                handle.addEventListener('dragstart', function(e) {
+                    draggedCropIdx = cropIndex;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', cropIndex);
+                });
+                handle.addEventListener('dragend', function() {
+                    draggedCropIdx = null;
+                    document.querySelectorAll('.crop-drag-cell').forEach(c => c.classList.remove('drag-over-crop'));
+                });
+            }
             tr.appendChild(tdCrop);
 
             const tdStage = document.createElement('td');
@@ -707,6 +779,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (confirm(`¿Eliminar la ${roundsState[rIdx].name}?`)) {
                 roundsState.splice(rIdx, 1);
                 roundsState.forEach((r, idx) => r.round_number = idx + 1);
+                renderMatrixTable();
+            }
+        } else if (e.target.closest('.btn-move-crop-up')) {
+            e.preventDefault();
+            const btn = e.target.closest('.btn-move-crop-up');
+            const idx = parseInt(btn.dataset.cropIdx);
+            if (idx > 0) {
+                const moved = ACTIVE_CROPS.splice(idx, 1)[0];
+                ACTIVE_CROPS.splice(idx - 1, 0, moved);
+                try { localStorage.setItem('fumigacion_matrix_crops_order', JSON.stringify(ACTIVE_CROPS.map(c => c.name))); } catch (err) {}
+                renderMatrixTable();
+            }
+        } else if (e.target.closest('.btn-move-crop-down')) {
+            e.preventDefault();
+            const btn = e.target.closest('.btn-move-crop-down');
+            const idx = parseInt(btn.dataset.cropIdx);
+            if (idx < ACTIVE_CROPS.length - 1) {
+                const moved = ACTIVE_CROPS.splice(idx, 1)[0];
+                ACTIVE_CROPS.splice(idx + 1, 0, moved);
+                try { localStorage.setItem('fumigacion_matrix_crops_order', JSON.stringify(ACTIVE_CROPS.map(c => c.name))); } catch (err) {}
                 renderMatrixTable();
             }
         }

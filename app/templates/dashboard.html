@@ -525,9 +525,37 @@
                     </div>
                 </div>
 
+                <!-- 1. Desglose por Cultivo dentro de esta Bodega -->
+                <div class="card border shadow-xs rounded-3 overflow-hidden mb-3">
+                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
+                        <span class="fw-bold small text-dark"><i class="fa-solid fa-leaf me-1 text-success"></i> Inversión por Cultivo en esta Bodega</span>
+                        <span class="badge bg-light text-muted border font-monospace" id="modalBodegaCropCount">0 cultivos</span>
+                    </div>
+                    <div class="table-responsive" style="max-height: 220px;">
+                        <table class="table table-hover table-striped table-sm align-middle mb-0 small">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 35px;" class="text-center">#</th>
+                                    <th>Cultivo Maestro</th>
+                                    <th style="width: 90px;" class="text-end">Área (ha)</th>
+                                    <th style="width: 120px;" class="text-end text-success">Inversión ($)</th>
+                                    <th style="width: 120px;" class="text-end text-primary">Costo / Ha ($/ha)</th>
+                                    <th style="width: 80px;" class="text-end">% Bodega</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalBodegaCropsTbody">
+                                <tr>
+                                    <td colspan="6" class="text-center py-3 text-muted">Cargando cultivos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2. Detalle de Insumos / Agroquímicos (Mayor a Menor Costo) -->
                 <div class="card border shadow-xs rounded-3 overflow-hidden">
                     <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
-                        <span class="fw-bold small text-dark"><i class="fa-solid fa-list-check me-1 text-primary"></i> Insumos Aplicados en Campo</span>
+                        <span class="fw-bold small text-dark"><i class="fa-solid fa-list-check me-1 text-primary"></i> Detalle de Insumos (Ordenados del más caro a más barato)</span>
                         <span class="badge bg-light text-muted border font-monospace" id="modalBodegaItemCount">0 insumos</span>
                     </div>
                     <div class="table-responsive" style="max-height: 380px;">
@@ -1080,6 +1108,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 blocks = topBlocksGlobal.length > 0 ? topBlocksGlobal : allBlocksGlobal.slice(0, 10);
             }
 
+            // Orden estricto de mayor costo a menor en el eje X
+            blocks = [...blocks].sort((a, b) => (parseFloat(b.total_cost) || 0) - (parseFloat(a.total_cost) || 0));
+
             labels = blocks.map(b => 'BL ' + b.block_name);
             costData = blocks.map(b => b.total_cost);
             costHaData = blocks.map(b => b.cost_per_ha);
@@ -1090,17 +1121,38 @@ document.addEventListener('DOMContentLoaded', function() {
             if (subCombo) subCombo.textContent = 'Comparativa de costo total en insumos (barras) frente a eficiencia por hectárea real (línea)';
 
         } else if (modoComboChart === 'SEMANAS') {
-            labels = weeklyCostHistory.map(w => 'Sem ' + (w.week || '').replace('2026-', ''));
-            costData = weeklyCostHistory.map(w => w.total_cost);
-            costHaData = weeklyCostHistory.map(w => w.ha > 0 ? Number((w.total_cost / w.ha).toFixed(2)) : 0.0);
+            // Orden cronológico estricto por semana del año (ej. 44, 45, 46, 47...)
+            function parseWeekNum(wStr) {
+                const s = String(wStr || '').replace('2026-', '').replace('Sem ', '').trim();
+                const m = s.match(/\d+/);
+                return m ? parseInt(m[0], 10) : 0;
+            }
+            const sortedWeekly = [...weeklyCostHistory].sort((a, b) => parseWeekNum(a.week) - parseWeekNum(b.week));
+
+            labels = sortedWeekly.map(w => 'Sem ' + (w.week || '').replace('2026-', ''));
+            costData = sortedWeekly.map(w => w.total_cost);
+            costHaData = sortedWeekly.map(w => w.ha > 0 ? Number((w.total_cost / w.ha).toFixed(2)) : 0.0);
 
             if (titCombo) titCombo.textContent = 'Evolución Semanal de Inversión Insumos ($) y Costo por Hectárea ($/ha)';
             if (subCombo) subCombo.textContent = 'Histórico consolidado semana a semana de aplicaciones impresas y liquidadas';
 
         } else if (modoComboChart === 'CULTIVO') {
-            labels = cropCostSummary.map(c => c.crop);
-            costData = cropCostSummary.map(c => c.total_cost);
-            costHaData = cropCostSummary.map(c => c.cost_per_ha);
+            // Consolidación de nombres homologados canónicos en MAYÚSCULAS para evitar duplicados
+            const consolidatedCrops = {};
+            (cropCostSummary || []).forEach(c => {
+                let rawName = String(c.crop || '').trim().toUpperCase();
+                if (!rawName) return;
+                if (!consolidatedCrops[rawName]) {
+                    consolidatedCrops[rawName] = { crop: rawName, total_cost: 0, ha: 0 };
+                }
+                consolidatedCrops[rawName].total_cost += parseFloat(c.total_cost) || 0;
+                consolidatedCrops[rawName].ha += parseFloat(c.ha) || 0;
+            });
+            const sortedCrops = Object.values(consolidatedCrops).sort((a, b) => b.total_cost - a.total_cost);
+
+            labels = sortedCrops.map(c => c.crop);
+            costData = sortedCrops.map(c => Number(c.total_cost.toFixed(2)));
+            costHaData = sortedCrops.map(c => c.ha > 0 ? Number((c.total_cost / c.ha).toFixed(2)) : 0.0);
 
             if (titCombo) titCombo.textContent = 'Inversión Total ($) vs Costo por Hectárea ($/ha) por Cultivo Maestro';
             if (subCombo) subCombo.textContent = 'Desglose agronómico por producto maestro cultivado';
@@ -1674,6 +1726,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalEl = document.getElementById('modalBodegaTotal');
         const pctEl = document.getElementById('modalBodegaPct');
         const metaEl = document.getElementById('modalBodegaMeta');
+        const cropsTbodyEl = document.getElementById('modalBodegaCropsTbody');
         const tbodyEl = document.getElementById('modalBodegaTbody');
         const badgeCountEl = document.getElementById('modalBodegaItemCount');
 
@@ -1694,7 +1747,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        const prods = b.products || [];
+        // 1. Desglose por Cultivo en esta Bodega (Gypsophila, Verónica, etc. en $ y $/ha)
+        const crops = b.crops || [];
+        if (cropsTbodyEl) {
+            if (crops.length === 0) {
+                cropsTbodyEl.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted small"><i class="fa-solid fa-leaf fs-5 d-block mb-1 text-secondary"></i>No se registraron cultivos específicos asociados a esta bodega.</td></tr>`;
+            } else {
+                cropsTbodyEl.innerHTML = crops.map((c, idx) => `
+                    <tr>
+                        <td class="text-center text-muted fw-bold">${idx + 1}</td>
+                        <td><strong class="text-dark"><i class="fa-solid fa-seedling text-success me-1"></i>${c.crop}</strong></td>
+                        <td class="text-end font-monospace">${Number(c.ha || 0).toFixed(2)} ha</td>
+                        <td class="text-end font-monospace fw-bold text-success">$${Number(c.cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="text-end font-monospace fw-bold text-primary">$${Number(c.cost_per_ha || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="text-end font-monospace fw-bold text-dark">${c.pct_bodega || 0}%</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 2. Detalle de Insumos / Agroquímicos (Ordenados del más caro al más barato)
+        const prods = [...(b.products || [])].sort((x, y) => (parseFloat(y.total_cost) || 0) - (parseFloat(x.total_cost) || 0));
         if (badgeCountEl) badgeCountEl.textContent = `${prods.length} insumos`;
 
         if (tbodyEl) {

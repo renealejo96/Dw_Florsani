@@ -42,7 +42,7 @@ class RequisitionService:
 
         # Find or create requisition
         req = Requisition.query.filter_by(rotation_id=rotation.id).first()
-        if req and req.status in ('APROBADO', 'CONFIRMADO', 'VALIDADO'):
+        if req and req.status in ('APROBADO', 'APROBADA', 'CONFIRMADO', 'VALIDADO'):
             # Preserve approved/frozen requisition so purchase forecast is never overwritten!
             return req
 
@@ -81,7 +81,7 @@ class RequisitionService:
         return req
 
     @classmethod
-    def get_comparison_data(cls, rotation_id: int, cached_crop_records=None):
+    def get_comparison_data(cls, rotation_id: int, cached_crop_records=None, preloaded_rotation=None, preloaded_requisition=None, preloaded_add_apps=None, preloaded_products=None):
         """
         Builds the unified comparative data between:
         1. Cantidad Comprada (Requisición 15 días)
@@ -90,21 +90,29 @@ class RequisitionService:
         4. Total Requerido Real = Ejecutado + Extras
         5. Diferencia = Total Requerido Real - Comprado
         """
-        rotation = Rotation.query.get_or_404(rotation_id)
-        req = Requisition.query.filter_by(rotation_id=rotation.id).first()
+        rotation = preloaded_rotation or Rotation.query.options(
+            db.defer(Rotation.review_data_json),
+            db.defer(Rotation.review_data_by_round_json)
+        ).get_or_404(rotation_id)
+        req = preloaded_requisition or Requisition.query.options(
+            db.selectinload(Requisition.items)
+        ).filter_by(rotation_id=rotation.id).first()
         if not req:
             req = cls.generate_or_update_forecast(rotation_id, cached_crop_records=cached_crop_records)
 
         # Forecast items from purchase order
         forecast_by_code = {it.product_code: it for it in req.items}
 
-        # Real quantities from generated orders across all active rotations for this week
-        all_rots = Rotation.query.filter(
-            Rotation.week == rotation.week,
-            Rotation.status != 'ELIMINADA'
-        ).all()
-        rot_ids = [r.id for r in all_rots]
-        orders = FumigationOrder.query.filter(FumigationOrder.rotation_id.in_(rot_ids)).all() if rot_ids else []
+        # Real quantities from generated orders across all active rotations for this week (sin cargar megabytes de JSON)
+        rot_ids = [
+            r[0] for r in db.session.query(Rotation.id).filter(
+                Rotation.week == rotation.week,
+                Rotation.status != 'ELIMINADA'
+            ).all()
+        ]
+        orders = FumigationOrder.query.options(
+            db.selectinload(FumigationOrder.products_summary)
+        ).filter(FumigationOrder.rotation_id.in_(rot_ids)).all() if rot_ids else []
         orders_by_code = {}
         for ord in orders:
             for ps in ord.products_summary:
@@ -121,7 +129,7 @@ class RequisitionService:
                 orders_by_code[c]['quantity_orders'] += ps.total_required_quantity
 
         # Additional / Spot applications for this week
-        add_apps = AdditionalApplication.query.filter_by(week=rotation.week).all()
+        add_apps = preloaded_add_apps if preloaded_add_apps is not None else AdditionalApplication.query.filter_by(week=rotation.week).all()
         extras_by_code = {}
         for a in add_apps:
             c = a.product_code
@@ -141,7 +149,8 @@ class RequisitionService:
         all_codes.sort()
 
         # Batch load all products to avoid N+1 queries
-        products_map = {p.code: p for p in Product.query.all()}
+        all_prods_list = preloaded_products if preloaded_products is not None else Product.query.all()
+        products_map = {p.code: p for p in all_prods_list}
 
         comparison_rows = []
         for code in all_codes:
@@ -248,22 +257,26 @@ class RequisitionService:
         }
 
     @classmethod
-    def get_variety_breakdown_data(cls, rotation_id: int, cached_crop_records=None) -> list:
+    def get_variety_breakdown_data(cls, rotation_id: int, cached_crop_records=None, precalculated_base_rounds=None, preloaded_rotation=None, preloaded_requisition=None, preloaded_add_apps=None, preloaded_products=None) -> list:
         """
         Builds a comprehensive breakdown of chemical allocation per crop / variety and phenological stage,
         enabling agronomists to quickly see how much chemical is assigned to each crop/variety (e.g. VERONICA, HYPERICUM).
         """
-        rotation = Rotation.query.get_or_404(rotation_id)
+        rotation = preloaded_rotation or Rotation.query.get_or_404(rotation_id)
         breakdown_dict = {}
         
         # Batch load products to avoid N+1 queries
-        all_prods = Product.query.all()
+        all_prods = preloaded_products if preloaded_products is not None else Product.query.all()
         products_by_id = {p.id: p for p in all_prods}
         products_by_code = {p.code: p for p in all_prods}
 
-        # 1. From rotation rounds
-        for r in rotation.rounds:
-            calc = CalculationEngine.calculate_round(r, cached_crop_records=cached_crop_records)
+        # 1. From rotation rounds (reutilizar cálculo base si ya se ejecutó)
+        rounds_iter = (
+            [(entry['round'], entry['calc']) for entry in precalculated_base_rounds]
+            if precalculated_base_rounds is not None
+            else [(r, CalculationEngine.calculate_round(r, cached_crop_records=cached_crop_records)) for r in rotation.rounds]
+        )
+        for r, calc in rounds_iter:
             for seg in calc.get('segments', []):
                 c_name = (seg.get('crop_name') or 'SIN CULTIVO').strip().upper()
                 stage = (seg.get('phenological_stage') or 'VEGETATIVO').strip().upper()
@@ -296,7 +309,7 @@ class RequisitionService:
                         breakdown_dict[key]['rounds_list'].append(r_label)
 
         # 2. From extra applications
-        add_apps = AdditionalApplication.query.filter_by(week=rotation.week).all()
+        add_apps = preloaded_add_apps if preloaded_add_apps is not None else AdditionalApplication.query.filter_by(week=rotation.week).all()
         for a in add_apps:
             c_name = (a.crop_name or 'EXTRA / GENERAL').strip().upper()
             stage = 'EXTRA'
@@ -327,7 +340,7 @@ class RequisitionService:
                 breakdown_dict[key]['rounds_list'].append('Aplicación Extra / Mancha')
 
         # 3. From budget adjustments in requisition (Holguras / Presupuesto)
-        req = Requisition.query.filter_by(rotation_id=rotation.id).first()
+        req = preloaded_requisition or Requisition.query.filter_by(rotation_id=rotation.id).first()
         if req and req.budget_adjustments_json:
             try:
                 import json
@@ -801,7 +814,9 @@ class RequisitionService:
                 )
                 db.session.add(new_it)
 
-        req.status = "VALIDADO"
+        # Only advance to VALIDADO if not already officially approved in Compras
+        if req.status not in ('APROBADO', 'APROBADA'):
+            req.status = "VALIDADO"
         db.session.commit()
         return req
 

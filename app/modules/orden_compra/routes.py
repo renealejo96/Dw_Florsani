@@ -219,9 +219,11 @@ def index():
     real_std_beds_sum = 0.0
     real_liters_sum = 0.0
     real_segments_count = 0
-    all_rot_ids = [r.id for r in Rotation.query.filter(Rotation.week == selected_week, Rotation.status != 'ELIMINADA').all()]
+    all_rot_ids = [r[0] for r in db.session.query(Rotation.id).filter(Rotation.week == selected_week, Rotation.status != 'ELIMINADA').all()]
     if all_rot_ids:
-        orders_for_week = FumigationOrder.query.filter(FumigationOrder.rotation_id.in_(all_rot_ids)).all()
+        orders_for_week = FumigationOrder.query.options(
+            db.selectinload(FumigationOrder.details)
+        ).filter(FumigationOrder.rotation_id.in_(all_rot_ids)).all()
         for ord in orders_for_week:
             seen_blocks_for_order = set()
             for d in ord.details:

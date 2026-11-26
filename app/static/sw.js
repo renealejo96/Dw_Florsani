@@ -1,9 +1,5 @@
-const CACHE_NAME = 'florsani-pwa-v8';
+const CACHE_NAME = 'florsani-pwa-v9';
 const STATIC_ASSETS = [
-  '/',
-  '/fenogramas/',
-  '/cosechas/nuevo',
-  '/cosechas/nuevo-registro',
   '/static/css/main.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
@@ -13,14 +9,13 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // Usar Promise.allSettled para que un redireccionamiento 302 o fallo puntual no aborte el resto de assets
       await Promise.allSettled(
         STATIC_ASSETS.map((url) =>
-          fetch(url, { cache: 'no-cache' })
+          fetch(url)
             .then((res) => {
               if (res.ok) return cache.put(url, res);
             })
-            .catch((err) => console.warn('[SW] Pre-caching asset warning:', url, err))
+            .catch(() => {})
         )
       );
     })
@@ -30,61 +25,79 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
+    (async () => {
+      // Activar Navigation Preload para que las peticiones al servidor salgan en paralelo sin esperar al Service Worker
+      if (self.registration.navigationPreload) {
+        try {
+          await self.registration.navigationPreload.enable();
+        } catch (_) {}
+      }
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+      await self.clients.claim();
+    })()
   );
-  return self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
-  // Only process GET requests; POST/PUT/DELETE are handled by our offline queue in localStorage
   if (e.request.method !== 'GET') return;
 
-  // 1. Manejo de navegación HTML (Páginas de la App) - Network First con Fallback a Cache
-  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
+  const url = new URL(e.request.url);
+
+  // 1. Navegación HTML:
+  // Solo cachear en disco los módulos de campo offline (/fenogramas y /cosechas/nuevo).
+  // El resto de módulos del ERP (/fumigacion, /fertilizacion, /bodega, /tpsr, etc.) pasan directo a red con Navigation Preload sin clonar ni escribir MBs en disco.
+  if (e.request.mode === 'navigate') {
+    const isFieldOfflineRoute =
+      url.pathname.startsWith('/fenogramas') ||
+      url.pathname.startsWith('/cosechas/nuevo');
+
     e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          if (res.status === 200) {
-            const resClone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
+      (async () => {
+        try {
+          const preloadRes = await e.preloadResponse;
+          const netRes = preloadRes || (await fetch(e.request));
+          if (isFieldOfflineRoute && netRes && netRes.status === 200) {
+            const clone = netRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone)).catch(() => {});
           }
-          return res;
-        })
-        .catch(() => {
-          return caches.match(e.request).then((cachedRes) => {
-            if (cachedRes) return cachedRes;
-            // Si la URL exacta no está, intentar páginas de trabajo según el módulo
-            if (e.request.url.includes('/fenogramas')) {
-              return caches.match('/fenogramas/').then(r => r || caches.match('/fenogramas'));
-            }
-            if (e.request.url.includes('/cosechas')) {
-              return caches.match('/cosechas/nuevo').then(r => r || caches.match('/cosechas/nuevo-registro'));
-            }
-            return caches.match('/');
-          });
-        })
+          return netRes;
+        } catch (err) {
+          const cachedRes = await caches.match(e.request);
+          if (cachedRes) return cachedRes;
+          if (url.pathname.startsWith('/fenogramas')) {
+            return (await caches.match('/fenogramas/')) || (await caches.match('/fenogramas'));
+          }
+          if (url.pathname.startsWith('/cosechas')) {
+            return (await caches.match('/cosechas/nuevo')) || (await caches.match('/cosechas/nuevo-registro'));
+          }
+          return (await caches.match('/')) || Response.error();
+        }
+      })()
     );
     return;
   }
 
-  // 2. Archivos estáticos (CSS, JS, Fuentes, CDN) - Stale-While-Revalidate
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const fetchPromise = fetch(e.request)
-        .then((res) => {
-          if (res.status === 200 && (e.request.url.includes('/static/') || e.request.url.includes('cdn') || e.request.url.includes('font'))) {
+  // 2. Recursos estáticos (CSS, JS, Fuentes, CDN): Cache-First ultrarrápido
+  const isStaticOrCdn =
+    url.pathname.startsWith('/static/') ||
+    url.hostname.includes('jsdelivr.net') ||
+    url.hostname.includes('cloudflare.com') ||
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('gstatic.com');
+
+  if (isStaticOrCdn) {
+    e.respondWith(
+      caches.match(e.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(e.request).then((res) => {
+          if (res && res.status === 200) {
             const resClone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone)).catch(() => {});
           }
           return res;
-        })
-        .catch(() => cached);
-
-      return cached || fetchPromise;
-    })
-  );
+        });
+      })
+    );
+  }
 });

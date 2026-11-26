@@ -30,8 +30,13 @@ def salidas():
     Muestra únicamente las salidas y requerimientos de insumos de las rotaciones
     y órdenes OFICIALES APROBADAS por los agrónomos / asistentes.
     """
-    # Query only approved rotations
-    approved_rotations = Rotation.query.filter(Rotation.status == 'APROBADA').order_by(Rotation.week.desc(), Rotation.version.desc()).all()
+    # Query only approved rotations (diferir JSON pesados de revisión para evitar transferencia masiva)
+    approved_rotations = Rotation.query.options(
+        db.defer(Rotation.review_data_json),
+        db.defer(Rotation.review_data_by_round_json),
+        db.defer(Rotation.applied_rounds_json),
+        db.defer(Rotation.confirmed_rounds_json)
+    ).filter(Rotation.status == 'APROBADA').order_by(Rotation.week.desc(), Rotation.version.desc()).all()
     
     if not approved_rotations:
         flash("Aún no hay planificaciones oficiales aprobadas en el sistema para despacho de bodega.", "info")
@@ -87,8 +92,10 @@ def salidas():
                 prev_rotation = approved_rotations[idx + 1]
             break
 
-    # Get ONLY official approved orders for this rotation AND any additional extra application orders for this week
-    orders = FumigationOrder.query.filter(
+    # Get ONLY official approved orders for this rotation AND any additional extra application orders for this week (eager load details)
+    orders = FumigationOrder.query.options(
+        db.selectinload(FumigationOrder.details)
+    ).filter(
         db.or_(
             FumigationOrder.rotation_id == current_rot.id,
             FumigationOrder.week == current_rot.week
@@ -247,6 +254,15 @@ def salidas():
     # Consolidado de insumos de fertilización para bodega (pesaje y despacho unificado)
     # REGLA ESTRICTA: Solo los insumos de los programas asignados/guardados por agronomía van al despacho
     ferti_prods_dict = {}
+    # Pre-cargar catálogo de productos activos una sola vez (evita consultas N+1 por cada ítem de fertilización)
+    all_active_prods = Product.query.filter_by(is_active=True).all()
+    prods_lookup = {}
+    for ap in all_active_prods:
+        if ap.code:
+            prods_lookup[ap.code.strip().upper()] = ap
+        if ap.commercial_name:
+            prods_lookup[ap.commercial_name.strip().upper()] = ap
+
     for prog in fertilizacion_programas_oficiales:
         for p in prog.get('productos', []):
             p_name = (p.get('name') or '').strip().upper()
@@ -255,13 +271,7 @@ def salidas():
             if not p_name or p_qty <= 0:
                 continue
             if p_name not in ferti_prods_dict:
-                p_match = Product.query.filter(
-                    db.or_(
-                        Product.commercial_name.ilike(p_name),
-                        Product.code.ilike(p_name)
-                    ),
-                    Product.is_active == True
-                ).first()
+                p_match = prods_lookup.get(p_name)
                 p_code = p_match.code if p_match else p_name
                 ferti_prods_dict[p_name] = {
                     'product_code': p_code,
@@ -334,11 +344,13 @@ def ordenes():
     if week_filter and week_filter != 'all':
         query = query.filter(FumigationOrder.week == week_filter)
 
-    official_orders = query.order_by(FumigationOrder.week.desc(), FumigationOrder.round_number.asc()).all()
+    official_orders = query.options(
+        db.selectinload(FumigationOrder.details)
+    ).order_by(FumigationOrder.week.desc(), FumigationOrder.round_number.asc()).all()
 
-    # Get distinct weeks of approved orders for filter
-    approved_weeks = [r.week for r in Rotation.query.filter(Rotation.status == 'APROBADA').order_by(Rotation.week.desc()).all()]
-    extra_weeks = [o.week for o in FumigationOrder.query.filter_by(round_number=99).all()]
+    # Get distinct weeks of approved orders for filter (sin cargar columnas JSON pesadas)
+    approved_weeks = [r[0] for r in db.session.query(Rotation.week).filter(Rotation.status == 'APROBADA').distinct().order_by(Rotation.week.desc()).all() if r[0]]
+    extra_weeks = [r[0] for r in db.session.query(FumigationOrder.week).filter_by(round_number=99).distinct().all() if r[0]]
     approved_weeks = list(dict.fromkeys(approved_weeks + extra_weeks))
 
     return render_template(

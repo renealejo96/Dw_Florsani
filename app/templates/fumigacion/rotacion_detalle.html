@@ -260,6 +260,46 @@
     </div>
 </div>
 
+<!-- Bento Cards: Inversión por Bodega en esta Rotación -->
+{% if rotation_cost_by_bodega and rotation_cost_by_bodega.total_cost > 0 %}
+<div class="row g-2 mb-3">
+    <div class="col-12 col-md-3">
+        <div class="card h-100 shadow-xs border-start border-4 border-success bg-white">
+            <div class="card-body p-2.5 d-flex flex-column justify-content-between">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">
+                        <i class="fa-solid fa-coins text-warning me-1"></i> Inversión Total
+                    </span>
+                    <span class="badge bg-success-subtle text-success border border-success font-monospace" style="font-size: 0.68rem;">Sem {{ rotation.week }}</span>
+                </div>
+                <div class="d-flex align-items-baseline gap-1">
+                    <h4 class="fw-bold text-dark font-monospace mb-0">${{ "{:,.2f}".format(rotation_cost_by_bodega.total_cost) }}</h4>
+                    <span class="text-muted small">estimado</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% for b in rotation_cost_by_bodega.by_bodega %}
+    <div class="col-6 col-md">
+        <div class="card h-100 shadow-xs border bg-white">
+            <div class="card-body p-2.5 d-flex flex-column justify-content-between">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-bold text-uppercase text-truncate" style="font-size: 0.72rem;" title="{{ b.bodega }}">
+                        <i class="fa-solid {% if 'FUMIG' in b.bodega %}fa-spray-can text-danger{% elif 'FERTIL' in b.bodega %}fa-seedling text-success{% else %}fa-warehouse text-primary{% endif %} me-1"></i> {{ b.bodega }}
+                    </span>
+                    <span class="badge bg-light text-muted border font-monospace" style="font-size: 0.68rem;">{{ b.pct }}%</span>
+                </div>
+                <div class="d-flex align-items-baseline justify-content-between">
+                    <h5 class="fw-bold text-dark font-monospace mb-0">${{ "{:,.2f}".format(b.cost) }}</h5>
+                    <span class="text-muted" style="font-size: 0.70rem;">{{ b.items_count }} prod</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Sequential Navigation Tabs -->
 <ul class="nav nav-tabs nav-fill mb-3 shadow-xs bg-white rounded" id="mainWorkflowTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -1258,37 +1298,8 @@ const ROUND_CROP_PRODUCTS_MAP = {{ (round_crop_products_map or {})|tojson }};
 const CROP_STATUS_MAP = {{ (crop_status_map or {})|tojson }};
 const BLOCK_EVENT_MAP = {{ (block_event_map or {})|tojson }};
 
-// Map of calibrated segments per round
-const ROUND_SEGMENTS_MAP = {
-    {% for r_item in rounds_calculated %}
-    "{{ r_item.round.id }}": [
-        {% for s in r_item.calc.segments %}
-        {
-            uid: "seg_{{ loop.index }}_{{ r_item.round.id }}_{{ s.block_name|replace(' ', '_') }}",
-            zone: "{{ s.zone or '' }}",
-            block_name: "{{ s.block_name }}",
-            suffix: "{{ s.suffix or 'A' }}",
-            activity_type: "{{ s.activity_type or s.ultimo_evento or 'SIEMBRA' }}",
-            ultimo_evento: "{{ s.ultimo_evento or s.activity_type or 'SIEMBRA' }}",
-            crop_name: "{{ s.crop_name }}",
-            variety: "{{ s.variety or s.crop_name }}",
-            phenological_stage: "{{ s.phenological_stage or 'VEGETATIVO' }}",
-            real_age: "{{ s.real_age|format_age }}",
-            bed_start: {{ s.bed_start or 1 }},
-            bed_end: {{ s.bed_end or 1 }},
-            standard_beds: {{ s.standard_beds or 1.0 }},
-            liters_per_bed: {{ s.liters_per_bed or 5.5 }},
-            total_liters: {{ s.total_liters or 0.0 }},
-            spray_lance: "{{ s.spray_lance or 'Lanza de 3 salidas (C35)' }}",
-            products: {{ (s.products_detail or s.products or [])|tojson }},
-            is_custom_mix: {{ "true" if s.is_custom_mix else "false" }},
-            is_additional: {{ "true" if s.is_additional else "false" }},
-            is_modified: {{ "true" if s.is_modified else "false" }}
-        }{% if not loop.last %},{% endif %}
-        {% endfor %}
-    ]{% if not loop.last %},{% endif %}
-    {% endfor %}
-};
+// Map of calibrated segments per round (pre-serialized in Python for instant load)
+const ROUND_SEGMENTS_MAP = {{ (round_segments_map_json or '{}')|safe }};
 
 const DRAFT_SEGMENTS = {{ (draft_segments or [])|tojson if draft_segments else "null" }};
 let currentActiveRoundId = "{{ rounds_calculated[0].round.id if rounds_calculated else '' }}";
@@ -3012,7 +3023,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ==================== MODAL ASSIGN ROUND LOGIC ====================
     function refreshModalProductsAndAlert(targetRoundId) {
-        const activeCrop = (cropSelect && cropSelect.value !== 'ALL') ? cropSelect.value : 'GYPSOPHILA';
+        const wsCrop = document.getElementById('workspace-active-crop-name')?.textContent?.trim();
+        const activeCrop = (wsCrop || (cropSelect && cropSelect.value !== 'ALL' ? cropSelect.value : '') || 'GYPSOPHILA').trim().toUpperCase();
         const roundSelect = document.getElementById('modal-assign-round-select');
         const effRoundId = targetRoundId || (roundSelect ? roundSelect.value : currentActiveRoundId);
         const roundName = roundSelect ? roundSelect.options[roundSelect.selectedIndex]?.text.split('•')[0].trim() : 'Vuelta';
@@ -3136,7 +3148,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const activeCrop = (cropSelect ? cropSelect.value : 'ALL').trim().toUpperCase();
+        const wsCrop = document.getElementById('workspace-active-crop-name')?.textContent?.trim();
+        const activeCrop = (wsCrop || (cropSelect && cropSelect.value !== 'ALL' ? cropSelect.value : '') || (cropSelect ? cropSelect.value : 'ALL')).trim().toUpperCase();
         const selectedScope = document.querySelector('input[name="modal_assign_scope"]:checked')?.value || 'crop';
 
         const payload = prepareSegmentsPayload();

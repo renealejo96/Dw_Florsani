@@ -1123,6 +1123,11 @@ def api_editar_evento():
                 conn.execute(text("UPDATE dim_camas SET num_plantas = :p WHERE id_cama = :id_cama;"), {'p': int(num_plantas), 'id_cama': id_cama})
 
             sync_crop_state_records(conn)
+            try:
+                from app.shared.censo_sync import invalidate_mrt_cache
+                invalidate_mrt_cache()
+            except Exception:
+                pass
 
     return jsonify({
         'success': True,
