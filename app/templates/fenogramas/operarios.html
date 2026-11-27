@@ -803,6 +803,12 @@
                     title="Sincronizar camas y edades desde el último Estado de Cultivo para la Semana {{ semana }} (Conserva el 100% de las calificaciones hechas)">
                 <i class="fa-solid fa-arrows-rotate me-1 text-success"></i>Sincronizar Plano Actual
             </button>
+            <a href="{{ url_for('fenogramas.dashboard', semana=semana) }}"
+               class="btn btn-outline-info btn-sm py-0 px-2 fw-semibold text-nowrap shadow-xs"
+               style="height: 27px; font-size: 0.73rem;"
+               title="Ver Dashboard Ejecutivo de Cumplimiento">
+                <i class="fa-solid fa-chart-pie me-1 text-info"></i>Dashboard Fenogramas
+            </a>
             {% if session.get('role') == 'ADMIN' %}
             <button type="button"
                     class="btn btn-outline-primary btn-sm py-0 px-2 fw-semibold text-nowrap"

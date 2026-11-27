@@ -288,6 +288,10 @@
                 </select>
             </div>
 
+            <a href="{{ url_for('fenogramas.index', semana=semana) }}" class="btn btn-outline-success btn-sm fw-semibold shadow-xs">
+                <i class="fa-solid fa-table-list me-1"></i> Calificación Operarios
+            </a>
+
             <button type="button" class="btn btn-primary btn-sm fw-bold shadow-xs" onclick="openGenerarFactModal()">
                 <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Generar desde Censo Local
             </button>

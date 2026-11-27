@@ -483,6 +483,19 @@ def create_app(config_class=Config):
             db.session.rollback()
             print(f"[SYSTEM] Aviso en reconciliación automática de censo: {ex_sync}")
 
+        # Purga permanente de eventos artificiales 'Corrección Siembra%' que alteraban edades reales de campo (Bloque 36C, 38C, 39E)
+        try:
+            db.session.execute(text("""
+                DELETE FROM fact_eventos_cultivo WHERE origen_evento LIKE 'Corrección Siembra%';
+                UPDATE dim_camas SET area_producto_comercial = 'SOLIDAGO', variedad_comercial = 'GOLDEN GLORY YELLOW' WHERE (blq = '38C' OR codigo_bloque LIKE '38C%') AND area_producto_comercial = 'HYPERICUM';
+                UPDATE dim_camas SET area_producto_comercial = 'SOLIDAGO', variedad_comercial = 'GOLDEN GLORY YELLOW' WHERE (blq = '39E' OR codigo_bloque LIKE '39E%') AND area_producto_comercial = 'VERONICA';
+                DELETE FROM plano_cultivo WHERE bloque = '36C' AND edad_real = 4;
+            """))
+            db.session.commit()
+        except Exception as ex_purge:
+            db.session.rollback()
+            print(f"[SYSTEM] Aviso en purga de eventos artificiales: {ex_purge}")
+
     # Register blueprints
     from app.modules.auth.routes import auth_bp
     from app.modules.orden_compra.routes import orden_compra_bp

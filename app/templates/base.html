@@ -251,7 +251,7 @@
                 <a href="{{ url_for('fenogramas.index') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas' in request.path and not 'dashboard' in request.path and not 'matriz' in request.path and not 'incumplidas' in request.path and not 'sin-match' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-table-list me-2 text-success"></i> Calificación Operarios
                 </a>
-                {% if current_user.role in ['ADMIN', 'AGRONOMO'] or current_user.has_permission('fenogramas_dashboard') %}
+                {% if current_user.has_permission('fenogramas') or current_user.role in ['ADMIN', 'AGRONOMO'] or current_user.has_permission('fenogramas_dashboard') %}
                 <a href="{{ url_for('fenogramas.dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white {% if 'fenogramas/dashboard' in request.path %}active-nav{% endif %}">
                     <i class="fa-solid fa-chart-pie me-2 text-info"></i> Dashboard Ejecutivo
                 </a>

@@ -53,6 +53,9 @@ echo "💰 Sincronizando catálogo maestro de costos, factores tras y bodegas de
 docker cp "costos productos.xlsx" dw_florsani_app:/app/ 2>/dev/null || true
 docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/migrar_costos_productos.py || true
 
+echo "🧹 Purgando eventos fantasma y sincronizando edades reales de Estado de Cultivo..."
+docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_eventos_fantasma.py || true
+
 # echo "🧹 Vaciando calificaciones y semanas de prueba de Fenogramas (iniciar limpios para Semana 43)..."
 # docker exec -w /app -e PYTHONPATH=/app dw_florsani_app python scripts/limpiar_fenogramas_pruebas.py
 
