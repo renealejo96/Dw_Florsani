@@ -255,6 +255,7 @@ def get_bomba_rules_fertilizacion(apartado='TODOS', modo_moshe='INVIERNO'):
 
     # EDAD 8:
     for act in ['SIEMBRA', 'PODA']:
+        add_rule(8, 'GYPSOPHILA', act, 'SULFATO DE POTASIO', 'SOLIDOS', 'TRICHOS')
         add_rule(8, 'GYPSOPHILA', act, 'TRICHOEB, ARTHROEB, K-TIONIC', 'TRICHOS', 'TRICHOS')
         add_rule(8, 'HYPERICUM', act, 'TRICHOEB, ARTHROEB, K-TIONIC', 'TRICHOS', 'TRICHOS')
         add_rule(8, 'VERONICA', act, 'TRICHOEB, ARTHROEB, K-TIONIC', 'TRICHOS', 'TRICHOS')
@@ -269,6 +270,7 @@ def get_bomba_rules_fertilizacion(apartado='TODOS', modo_moshe='INVIERNO'):
 
     # EDAD 10:
     for act in ['SIEMBRA', 'PODA']:
+        add_rule(10, 'GYPSOPHILA', act, 'SULFATO DE POTASIO', 'SOLIDOS', 'TRICHOS')
         add_rule(10, 'GYPSOPHILA', act, 'GLIOCEB, TRICHOEB, FULMINANTE', 'BIOLOGICOS', 'TRICHOS')
         add_rule(10, 'HYPERICUM', act, 'GLIOCEB, TRICHOEB, FULMINANTE', 'BIOLOGICOS', 'TRICHOS')
         add_rule(10, 'VERONICA', act, 'GLIOCEB, TRICHOEB, FULMINANTE', 'BIOLOGICOS', 'TRICHOS')
@@ -792,45 +794,49 @@ def procesar_calibracion_fertilizacion(drench_items):
         calibracion_por_tecnico[tec_name]['edades'].add(item.edad or 0)
         calibracion_por_tecnico[tec_name]['bombas'].add(item.bomba)
 
-        # Agrupar por Bomba directamente (para impresión vertical de bloques agrupados)
+        # Agrupar por Bomba directamente (para consolidación de rangos de edad en una sola tarjeta)
         es_moshe_item = ('MOSHE' in clasif_upper or 'MOSHE' in b_upper)
         es_alcaplant_item = ('ALCAPLANT' in clasif_upper or 'ALCAPLANT' in b_upper)
 
         if es_moshe_item:
-            b_key = ('MOSHE', 0)
+            b_key = ('MOSHE', 'MOSHE')
             b_card_name = 'MOSHE'
             desc_label = 'MOSHE (Nutrición y Fondo)'
             t_key = 'MOSHE'
             apar_key = 'MOSHE'
         elif es_alcaplant_item:
-            b_key = ('ALCAPLANT', 0)
+            b_key = ('ALCAPLANT', 'ALCAPLANT')
             b_card_name = 'ALCAPLANT'
             desc_label = 'ALCAPLANT (Encalado y Calcio)'
             t_key = 'ALCAPLANT'
             apar_key = 'ALCAPLANT'
         else:
-            b_key = (b_name.strip().upper(), ed)
             b_card_name = b_name
             if es_presiembra:
                 desc_label = 'PRESIEMBRAS (Planning y Fondo)'
                 t_key = 'PRESIEMBRAS'
                 apar_key = 'PRESIEMBRAS'
+                b_key = (b_name.strip().upper(), 'PRESIEMBRAS')
             elif any(p in b_upper for p in ['PILATUS', 'RAIZAL', 'TURBO ROOT', 'ENRAIZ']):
                 desc_label = 'ENRAIZANTES'
                 t_key = 'ENRAIZANTES'
                 apar_key = 'TRICHOS'
+                b_key = (b_name.strip().upper(), 'TRICHOS')
             elif any(k in b_upper for k in ['SULFATO', 'POTASIO', 'MAGNESIO', 'CALCIO', 'SOLID', 'SÓLID']):
                 desc_label = 'SÓLIDOS EDÁFICOS'
                 t_key = 'SOLIDOS'
                 apar_key = 'TRICHOS'
+                b_key = (b_name.strip().upper(), 'TRICHOS')
             elif 'TRICHO' in b_upper or 'GLIO' in b_upper or 'BIOLOG' in b_upper:
                 desc_label = 'TRICHOS & BIOLÓGICOS'
                 t_key = 'TRICHOS'
                 apar_key = 'TRICHOS'
+                b_key = (b_name.strip().upper(), 'TRICHOS')
             else:
                 desc_label = item.clasificacion or 'DRENCH'
                 t_key = 'SOLIDOS' if es_sol else 'TRICHOS'
                 apar_key = 'TRICHOS'
+                b_key = (b_name.strip().upper(), 'TRICHOS')
 
         if b_key not in calibracion_por_bomba:
             calibracion_por_bomba[b_key] = {
@@ -1199,7 +1205,21 @@ def procesar_calibracion_fertilizacion(drench_items):
             'vol_default': 30.0
         },
         {
-            'b_key': ('MOSHE', 0),
+            'b_key': ('SULFATO DE POTASIO', 'TRICHOS'),
+            'bomba': 'SULFATO DE POTASIO',
+            'edad': 8,
+            'cultivo': 'GYPSOPHILA',
+            'variedades': {'GYPSOPHILA'},
+            'descripcion': 'SÓLIDOS EDÁFICOS',
+            'tratamiento_key': 'SOLIDOS',
+            'apartado': 'TRICHOS',
+            'es_solidos': True,
+            'es_presiembra': False,
+            'es_programa_completo': True,
+            'vol_default': 30.0
+        },
+        {
+            'b_key': ('MOSHE', 'MOSHE'),
             'bomba': 'MOSHE',
             'edad': 0,
             'cultivo': 'VERONICA, SOLIDAGO, GYPSOPHILA, HYPERICUM',
@@ -1213,7 +1233,7 @@ def procesar_calibracion_fertilizacion(drench_items):
             'vol_default': 30.0
         },
         {
-            'b_key': ('ALCAPLANT', 0),
+            'b_key': ('ALCAPLANT', 'ALCAPLANT'),
             'bomba': 'ALCAPLANT',
             'edad': 0,
             'cultivo': 'HYPERICUM, VERONICA, GYPSOPHILA',
@@ -1229,7 +1249,7 @@ def procesar_calibracion_fertilizacion(drench_items):
     ]
 
     for req in bombas_fijas_requeridas:
-        b_k = req.get('b_key') or (req['bomba'].strip().upper(), req['edad'])
+        b_k = req.get('b_key') or (req['bomba'].strip().upper(), req.get('apartado', 'TRICHOS'))
         if b_k not in calibracion_por_bomba:
             calibracion_por_bomba[b_k] = {
                 'bomba': req['bomba'],
@@ -1254,26 +1274,29 @@ def procesar_calibracion_fertilizacion(drench_items):
                 'estado_calibracion': 'SIN_TOCAR'
             }
 
-    # Ordenar y enriquecer grupos por Bomba
+    # Ordenar y enriquecer grupos por Bomba (agrupando rangos de edad en una sola tarjeta)
     calibracion_bombas_ordenada = []
     for b_key, b_grp in calibracion_por_bomba.items():
         ed_list = sorted(list(b_grp.get('edades', [])))
-        if b_grp.get('es_programa_completo') or b_grp.get('apartado') in ['MOSHE', 'ALCAPLANT']:
+        if b_grp.get('apartado') == 'ALCAPLANT':
             b_grp['es_programa_completo'] = True
-            if b_grp.get('apartado') == 'ALCAPLANT':
-                b_grp['edad'] = "1 - 10"
-                b_grp['edad_sort'] = 1
-            elif b_grp.get('apartado') == 'MOSHE':
-                b_grp['edad'] = "1 - 14"
-                b_grp['edad_sort'] = 1
-            elif ed_list:
-                b_grp['edad'] = f"{min(ed_list)} - {max(ed_list)}"
-                b_grp['edad_sort'] = min(ed_list)
-            else:
-                b_grp['edad'] = "1 - 10"
-                b_grp['edad_sort'] = 1
+            b_grp['edad'] = "1 - 10"
+            b_grp['edad_sort'] = 1
+        elif b_grp.get('apartado') == 'MOSHE':
+            b_grp['es_programa_completo'] = True
+            b_grp['edad'] = "1 - 14"
+            b_grp['edad_sort'] = 1
+        elif len(ed_list) > 1:
+            b_grp['es_programa_completo'] = True
+            b_grp['edad'] = f"{min(ed_list)} - {max(ed_list)}"
+            b_grp['edad_sort'] = min(ed_list)
+        elif len(ed_list) == 1:
+            b_grp['es_programa_completo'] = False
+            b_grp['edad'] = str(ed_list[0])
+            b_grp['edad_sort'] = ed_list[0]
         else:
             b_grp['es_programa_completo'] = False
+            b_grp['edad'] = str(b_grp.get('edad', 0))
             b_grp['edad_sort'] = int(b_grp.get('edad', 0)) if str(b_grp.get('edad', 0)).isdigit() else 0
 
         # Ordenar camas de menor a mayor edad, luego bloque, luego cama_inicial
@@ -2042,7 +2065,7 @@ def api_bomba_editar():
     nueva_bomba = str(data.get('nueva_bomba') or bomba_orig).strip().upper()
     nuevo_cultivo = str(data.get('nuevo_cultivo') or '').strip().upper()
     nuevo_dia = str(data.get('nuevo_dia') or '').strip().upper()
-    nueva_edad = data.get('nueva_edad')
+    nueva_edad_raw = str(data.get('nueva_edad') or '').strip()
 
     if not semana or not bomba_orig:
         return jsonify({"success": False, "message": "Semana y bomba original son requeridos."}), 400
@@ -2050,15 +2073,13 @@ def api_bomba_editar():
     try:
         from app.modules.fertilizacion.services.drench_service import _semana_filter
         q = DrenchItem.query.filter(_semana_filter(semana), DrenchItem.bomba == bomba_orig)
-        if edad_orig is not None:
-            try:
-                q = q.filter(DrenchItem.edad == int(edad_orig))
-            except (ValueError, TypeError):
-                pass
-
         items = q.all()
         if not items:
             return jsonify({"success": False, "message": f"No se encontraron registros para la bomba '{bomba_orig}'."}), 404
+
+        nueva_edad_int = None
+        if nueva_edad_raw.isdigit():
+            nueva_edad_int = int(nueva_edad_raw)
 
         for it in items:
             if nueva_bomba:
@@ -2067,11 +2088,11 @@ def api_bomba_editar():
                 it.cultivo = nuevo_cultivo
             if nuevo_dia:
                 it.dia_aplicacion = nuevo_dia
-            if nueva_edad is not None:
-                try:
-                    it.edad = int(nueva_edad)
-                except (ValueError, TypeError):
-                    pass
+            if nueva_edad_int is not None:
+                it.edad = nueva_edad_int
+                it.segmento_edades = f"Semana {nueva_edad_int}"
+            elif nueva_edad_raw:
+                it.segmento_edades = f"Semanas {nueva_edad_raw}"
             it.estado_calibracion = 'EDITADO'
 
         db.session.commit()

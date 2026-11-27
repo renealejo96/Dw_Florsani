@@ -722,8 +722,9 @@
               <small class="text-muted" style="font-size: 0.68rem;">Modifique los cultivos que reciben esta bomba.</small>
             </div>
             <div class="col-5">
-              <label class="form-label small fw-bold text-dark mb-0">Edad (Semana):</label>
-              <input type="number" id="modal-edit-bomba-edad" class="form-control form-control-sm font-monospace text-center fw-bold" min="0" max="25" required>
+              <label class="form-label small fw-bold text-dark mb-0">Edad / Rango Semanas:</label>
+              <input type="text" id="modal-edit-bomba-edad" class="form-control form-control-sm font-monospace text-center fw-bold" placeholder="ej: 2-4 o 8, 10 o 3" required>
+              <small class="text-muted" style="font-size: 0.65rem;">Rango ej: <code>2-4</code> o comas <code>8, 10</code></small>
             </div>
           </div>
           <div class="mb-2">
@@ -1629,10 +1630,14 @@ function abrirModalEditarBomba(idx) {
   try {
     const bGrp = JSON.parse(dataScript.textContent);
     document.getElementById('modal-edit-bomba-orig').value = bGrp.bomba;
-    document.getElementById('modal-edit-edad-orig').value = (bGrp.edad_sort !== undefined ? bGrp.edad_sort : bGrp.edad);
+    document.getElementById('modal-edit-edad-orig').value = (bGrp.edad !== undefined ? bGrp.edad : (bGrp.edad_sort || 0));
     document.getElementById('modal-edit-bomba-name').value = bGrp.bomba;
     document.getElementById('modal-edit-bomba-cultivo').value = bGrp.cultivo || '';
-    document.getElementById('modal-edit-bomba-edad').value = (bGrp.edad_sort !== undefined ? bGrp.edad_sort : (parseInt(bGrp.edad) || 1));
+    
+    // Cargar rango de edad o edad única
+    const edadVal = bGrp.edad !== undefined ? bGrp.edad : (bGrp.edad_sort !== undefined ? bGrp.edad_sort : 1);
+    document.getElementById('modal-edit-bomba-edad').value = edadVal;
+    
     const selDia = document.getElementById('modal-edit-bomba-dia');
     if (selDia) selDia.value = (bGrp.dia_aplicacion || (bGrp.dias && bGrp.dias[0]) || 'LUNES').toUpperCase();
 
@@ -1648,7 +1653,7 @@ async function ejecutarGuardarEdicionBomba() {
   const edadOrig = document.getElementById('modal-edit-edad-orig').value.trim();
   const nuevaBomba = document.getElementById('modal-edit-bomba-name').value.trim();
   const nuevoCultivo = document.getElementById('modal-edit-bomba-cultivo').value.trim();
-  const nuevaEdad = parseInt(document.getElementById('modal-edit-bomba-edad').value || 1);
+  const nuevaEdadStr = document.getElementById('modal-edit-bomba-edad').value.trim();
   const nuevoDia = document.getElementById('modal-edit-bomba-dia').value;
 
   if (!nuevaBomba) {
@@ -1666,7 +1671,7 @@ async function ejecutarGuardarEdicionBomba() {
         edad_original: edadOrig,
         nueva_bomba: nuevaBomba,
         nuevo_cultivo: nuevoCultivo,
-        nueva_edad: nuevaEdad,
+        nueva_edad: nuevaEdadStr,
         nuevo_dia: nuevoDia
       })
     });
