@@ -566,6 +566,7 @@ class CostService:
         bodega_totals = {}
         bodega_products_map = {}
         bodega_crops_map = {}
+        bodega_programs_map = {}
         block_totals = {}
         crop_totals = {}
         weekly_history = {}
@@ -641,6 +642,25 @@ class CostService:
                         if c_nom not in bodega_crops_map[p_bod]:
                             bodega_crops_map[p_bod][c_nom] = {'crop': c_nom, 'total_cost': 0.0}
                         bodega_crops_map[p_bod][c_nom]['total_cost'] += p_cost
+
+                        prog_fumi = 'Fumigación Foliar Rotaciones'
+                        if p_bod not in bodega_programs_map:
+                            bodega_programs_map[p_bod] = {}
+                        if prog_fumi not in bodega_programs_map[p_bod]:
+                            bodega_programs_map[p_bod][prog_fumi] = {'program': prog_fumi, 'total_cost': 0.0, 'products': {}}
+                        bodega_programs_map[p_bod][prog_fumi]['total_cost'] += p_cost
+                        p_code = (p_b.get('product_code') or p_b.get('name') or '').strip().upper()
+                        if p_code not in bodega_programs_map[p_bod][prog_fumi]['products']:
+                            bodega_programs_map[p_bod][prog_fumi]['products'][p_code] = {
+                                'product_code': p_code,
+                                'commercial_name': p_b.get('name') or p_code,
+                                'unit': p_b.get('unit') or 'CC',
+                                'unit_cost': float(p_b.get('unit_cost') or 0.0),
+                                'total_amount': 0.0,
+                                'total_cost': 0.0
+                            }
+                        bodega_programs_map[p_bod][prog_fumi]['products'][p_code]['total_amount'] += float(p_b.get('dose') or 0.0)
+                        bodega_programs_map[p_bod][prog_fumi]['products'][p_code]['total_cost'] += p_cost
 
         # Si no hay órdenes con costo mayor a 0, consultar rotaciones de la semana (con eager load)
         if total_cost_all <= 0.0:
@@ -879,6 +899,37 @@ class CostService:
                                 bodega_crops_map[bod_name][c_nom] = {'crop': c_nom, 'total_cost': 0.0}
                             bodega_crops_map[bod_name][c_nom]['total_cost'] += line_cost
 
+                            # Clasificación por Programa de Fertilizantes
+                            c_clas = (it.get('clasificacion') or 'TRICHOS').upper()
+                            if 'MOSHE' in c_clas:
+                                prog_ferti = 'MOSHE (Nutrición y Fondo Edáfico)'
+                            elif 'ALCAPLANT' in c_clas:
+                                prog_ferti = 'ALCAPLANT (Encalado y Calcio)'
+                            elif 'PRESIEMBRA' in c_clas:
+                                prog_ferti = 'PRESIEMBRAS (Abonos Edáficos de Siembra)'
+                            elif any(k in c_clas for k in ['TRICHO', 'BIOLOG', 'ENRAIZ', 'DRENCH']):
+                                prog_ferti = 'TRICHOS & BIOLÓGICOS (Drench Radicular)'
+                            else:
+                                prog_ferti = f"Fertilización ({c_clas})"
+
+                            if bod_name not in bodega_programs_map:
+                                bodega_programs_map[bod_name] = {}
+                            if prog_ferti not in bodega_programs_map[bod_name]:
+                                bodega_programs_map[bod_name][prog_ferti] = {'program': prog_ferti, 'total_cost': 0.0, 'products': {}}
+                            bodega_programs_map[bod_name][prog_ferti]['total_cost'] += line_cost
+
+                            if p_code not in bodega_programs_map[bod_name][prog_ferti]['products']:
+                                bodega_programs_map[bod_name][prog_ferti]['products'][p_code] = {
+                                    'product_code': p_code,
+                                    'commercial_name': c_info.get('commercial_name') or p_code,
+                                    'unit': p.get('unit') or 'GR',
+                                    'unit_cost': u_cost,
+                                    'total_amount': 0.0,
+                                    'total_cost': 0.0
+                                }
+                            bodega_programs_map[bod_name][prog_ferti]['products'][p_code]['total_amount'] += tot_q
+                            bodega_programs_map[bod_name][prog_ferti]['products'][p_code]['total_cost'] += line_cost
+
                         if blk_clean not in block_totals:
                             block_totals[blk_clean] = {
                                 'block_name': blk_clean,
@@ -961,6 +1012,7 @@ class CostService:
                 pct_b = round((c_cst / bod_c) * 100, 1) if bod_c > 0 else 0.0
                 b_crops.append({
                     'crop': c_k_norm,
+                    'cost': c_cst,
                     'total_cost': c_cst,
                     'ha': round(c_ha, 2),
                     'cost_per_ha': c_cst_ha,
@@ -968,11 +1020,33 @@ class CostService:
                 })
             b_crops.sort(key=lambda x: x['total_cost'], reverse=True)
 
+            # Desglose por programa de aplicación dentro de esta bodega
+            b_programs_dict = bodega_programs_map.get(bod_nom, {})
+            b_programs = []
+            for pr_k, pr_v in b_programs_dict.items():
+                pr_cost = round(pr_v['total_cost'], 2)
+                pr_pct = round((pr_cost / bod_c) * 100, 1) if bod_c > 0 else 0.0
+                pr_prods = list(pr_v['products'].values())
+                pr_prods.sort(key=lambda x: x['total_cost'], reverse=True)
+                for pr_p in pr_prods:
+                    pr_p['total_amount'] = round(pr_p['total_amount'], 2)
+                    pr_p['total_cost'] = round(pr_p['total_cost'], 2)
+                    pr_p['unit_cost'] = round(pr_p['unit_cost'], 4)
+                b_programs.append({
+                    'program': pr_k,
+                    'cost': pr_cost,
+                    'total_cost': pr_cost,
+                    'pct_bodega': pr_pct,
+                    'products': pr_prods
+                })
+            b_programs.sort(key=lambda x: x['cost'], reverse=True)
+
             bodega_list.append({
                 'bodega': bod_nom,
                 'cost': round(bod_c, 2),
                 'pct': pct,
                 'crops': b_crops,
+                'programs': b_programs,
                 'products': b_prods
             })
 

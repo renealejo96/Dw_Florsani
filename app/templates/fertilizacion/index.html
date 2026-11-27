@@ -195,7 +195,10 @@
           <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-sm px-2.5 py-1" onclick="agregarFilaBloqueDirecta()" title="Añadir una nueva fila de bloque directamente a esta calibración">
             <i class="fa-solid fa-plus me-1"></i> + Añadir Fila de Bloque
           </button>
-          <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm px-3 py-1" onclick="guardarMesaCalibracion()" title="Cargar y guardar los cambios a la mesa de calibración">
+          <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm px-3 py-1" onclick="guardarMesaCalibracion('BORRADOR')" title="Guardar borrador de la calibración sin asignación definitiva">
+            <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Borrador
+          </button>
+          <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm px-3 py-1" onclick="guardarMesaCalibracion('ASIGNADO')" title="Cargar y confirmar asignación a la mesa de calibración">
             <i class="fa-solid fa-cloud-arrow-up me-1"></i> Cargar a la Mesa de Calibración
           </button>
           <button type="button" class="btn btn-light btn-sm fw-bold shadow-xs px-2 py-1" onclick="cerrarMesaCalibracion()" title="Cerrar mesa y volver a las tarjetas">
@@ -356,6 +359,11 @@
           <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" onclick="toggleSelectAllCards(false)" title="Desmarcar todas">
             <i class="fa-solid fa-xmark me-1"></i> Desmarcar
           </button>
+          {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
+          <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 fw-bold" onclick="abrirModalCrearMesa()" title="Crear una nueva mesa de calibración / bomba">
+            <i class="fa-solid fa-plus me-1 text-primary"></i> + Nueva Mesa
+          </button>
+          {% endif %}
         </div>
 
         <!-- Barra flotante / inline de tarjetas seleccionadas -->
@@ -502,18 +510,11 @@
               {% elif session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
               <div class="p-1 rounded bg-warning-subtle border border-warning mb-2 d-flex justify-content-between align-items-center gap-1">
                 <span class="fw-bold text-dark font-monospace" style="font-size: 0.68rem;">
-                  <i class="fa-solid fa-crown text-warning me-1"></i>Edad:
+                  <i class="fa-solid fa-crown text-warning me-1"></i>Configuración Bomba:
                 </span>
-                <div class="d-flex align-items-center gap-1">
-                  <select class="form-select form-select-sm py-0 border-warning fw-bold font-monospace" style="width: auto; font-size: 0.68rem; height: 23px;" id="select-edad-card-{{ loop.index0 }}">
-                    {% for s_num in range(0, 26) %}
-                    <option value="{{ s_num }}" {% if s_num == b_grp.edad %}selected{% endif %}>Sem {{ s_num }}</option>
-                    {% endfor %}
-                  </select>
-                  <button type="button" class="btn btn-warning btn-sm py-0 px-2 fw-bold text-dark shadow-xs" style="font-size: 0.68rem; height: 23px; line-height: 21px;" onclick="moverEdadBombaDirecta('{{ b_grp.bomba|escape }}', {{ b_grp.edad }}, 'select-edad-card-{{ loop.index0 }}')" title="Reasignar la edad de aplicación para esta bomba">
-                    <i class="fa-solid fa-arrows-rotate"></i> Mover
-                  </button>
-                </div>
+                <button type="button" class="btn btn-warning btn-sm py-0.5 px-2.5 fw-bold text-dark shadow-xs" style="font-size: 0.72rem;" onclick="abrirModalEditarBomba({{ loop.index0 }})" title="Editar químicos, edad y cultivos aplicables a esta bomba">
+                  <i class="fa-solid fa-pen-to-square me-1"></i> Editar
+                </button>
               </div>
               {% endif %}
             </div>
@@ -679,6 +680,124 @@
           <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" id="btnEjecutarProyeccionFerti" class="btn btn-sm btn-primary fw-bold">
             <i class="fa-solid fa-play me-1"></i> Generar Programa & Camas
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- MODAL: EDITAR CONFIGURACIÓN DE BOMBA (EXCLUSIVO ADMINISTRADOR)     -->
+<!-- ================================================================== -->
+<div class="modal fade" id="modalEditarBombaAdmin" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bento-card border-0 shadow">
+      <div class="modal-header bg-dark text-white border-bottom py-2.5 px-3">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="fa-solid fa-pen-to-square text-warning me-2"></i>Editar Configuración de Mesa de Calibración
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="formEditarBombaAdmin" onsubmit="event.preventDefault(); ejecutarGuardarEdicionBomba();">
+        <div class="modal-body p-3">
+          <input type="hidden" id="modal-edit-bomba-orig">
+          <input type="hidden" id="modal-edit-edad-orig">
+          <div class="mb-2">
+            <label class="form-label small fw-bold text-dark mb-0">Nombre de la Bomba / Productos Químicos:</label>
+            <input type="text" id="modal-edit-bomba-name" class="form-control form-control-sm font-monospace fw-bold text-primary" required placeholder="ej: RAIZAL, K-TIONIC, TURBO ROOT">
+            <small class="text-muted" style="font-size: 0.68rem;">Separe con comas los químicos de la mezcla (ej: solo <code>RAIZAL</code>, o <code>PILATUS, RAIZAL</code>).</small>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+              <label class="form-label small fw-bold text-dark mb-0">Cultivos Aplicables:</label>
+              <input type="text" id="modal-edit-bomba-cultivo" class="form-control form-control-sm fw-bold" placeholder="ej: VERONICA, SOLIDAGO, GYPSOPHILA">
+              <small class="text-muted" style="font-size: 0.68rem;">Modifique los cultivos que reciben esta bomba.</small>
+            </div>
+            <div class="col-5">
+              <label class="form-label small fw-bold text-dark mb-0">Edad (Semana):</label>
+              <input type="number" id="modal-edit-bomba-edad" class="form-control form-control-sm font-monospace text-center fw-bold" min="0" max="25" required>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold text-dark mb-0">Día de Aplicación:</label>
+            <select id="modal-edit-bomba-dia" class="form-select form-select-sm fw-bold font-monospace">
+              <option value="LUNES">LUNES</option>
+              <option value="MARTES">MARTES</option>
+              <option value="MIERCOLES">MIÉRCOLES</option>
+              <option value="JUEVES">JUEVES</option>
+              <option value="VIERNES">VIERNES</option>
+              <option value="SABADO">SÁBADO</option>
+              <option value="DOMINGO">DOMINGO</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-top p-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-warning fw-bold text-dark shadow-xs">
+            <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- MODAL: CREAR NUEVA MESA DE CALIBRACIÓN / BOMBA (ADMIN)             -->
+<!-- ================================================================== -->
+<div class="modal fade" id="modalCrearNuevaMesaBomba" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bento-card border-0 shadow">
+      <div class="modal-header bg-dark text-white border-bottom py-2.5 px-3">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="fa-solid fa-plus-circle text-warning me-2"></i>Nueva Mesa de Calibración / Bomba
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="formCrearNuevaMesaBomba" onsubmit="event.preventDefault(); ejecutarCrearNuevaMesa();">
+        <div class="modal-body p-3">
+          <div class="mb-2">
+            <label class="form-label small fw-bold text-dark mb-0">Apartado / Programa:</label>
+            <select id="modal-create-apartado" class="form-select form-select-sm fw-bold">
+              <option value="TRICHOS" selected>TRICHOS & BIOLÓGICOS (41.7 L/cama)</option>
+              <option value="MOSHE">MOSHE (30.0 L/cama)</option>
+              <option value="ALCAPLANT">ALCAPLANT (30.0 L/cama)</option>
+              <option value="PRESIEMBRAS">PRESIEMBRAS / PLANNING (Espolvoreo Seco 0 L)</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold text-dark mb-0">Productos Químicos de la Bomba:</label>
+            <input type="text" id="modal-create-bomba" class="form-control form-control-sm font-monospace fw-bold text-primary" required placeholder="ej: RAIZAL, K-TIONIC, TURBO ROOT">
+            <small class="text-muted" style="font-size: 0.68rem;">Separe con comas los insumos que componen la receta.</small>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+              <label class="form-label small fw-bold text-dark mb-0">Cultivos Objetivo:</label>
+              <input type="text" id="modal-create-cultivo" class="form-control form-control-sm fw-bold" value="GYPSOPHILA, HYPERICUM, VERONICA, SOLIDAGO">
+            </div>
+            <div class="col-5">
+              <label class="form-label small fw-bold text-dark mb-0">Edad (Semana):</label>
+              <input type="number" id="modal-create-edad" class="form-control form-control-sm font-monospace text-center fw-bold" value="1" min="0" max="25" required>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold text-dark mb-0">Día de Aplicación Programado:</label>
+            <select id="modal-create-dia" class="form-select form-select-sm fw-bold font-monospace">
+              <option value="LUNES" selected>LUNES</option>
+              <option value="MARTES">MARTES</option>
+              <option value="MIERCOLES">MIÉRCOLES</option>
+              <option value="JUEVES">JUEVES</option>
+              <option value="VIERNES">VIERNES</option>
+              <option value="SABADO">SÁBADO</option>
+              <option value="DOMINGO">DOMINGO</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-top p-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-success fw-bold shadow-xs">
+            <i class="fa-solid fa-check me-1"></i> Crear Mesa de Calibración
           </button>
         </div>
       </form>
@@ -957,6 +1076,44 @@ function confirmarInsertarBloqueFerti() {
 // ==============================================================
 // METODOLOGÍA FUMIGACIÓN: FILAS DIRECTAS EN LA MESA DE CALIBRACIÓN
 // ==============================================================
+function attachRowKeyboardNavigation(tr) {
+  if (!tr) return;
+  // Inputs navegables por Enter en orden natural de digitado:
+  const inputs = Array.from(tr.querySelectorAll('.wb-bloque-input, .wb-cama-inic-input, .wb-cama-fin-input, .wb-camas-input, .wb-std-input, .wb-edad-input'));
+  inputs.forEach((inp, idx) => {
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Disparar recalculos de rangos o totales si aplica
+        if (inp.classList.contains('wb-cama-inic-input') || inp.classList.contains('wb-cama-fin-input')) {
+          recalcBedRange(inp);
+        } else if (inp.classList.contains('wb-camas-input')) {
+          recalcWbRow(inp);
+        }
+
+        if (idx < inputs.length - 1) {
+          const nextInp = inputs[idx + 1];
+          nextInp.focus();
+          if (nextInp.select) nextInp.select();
+        } else {
+          // Último campo de la fila: pasar a la siguiente fila o crear una nueva
+          const nextRow = tr.nextElementSibling;
+          if (nextRow && nextRow.classList.contains('wb-bomba-row')) {
+            const firstNext = nextRow.querySelector('.wb-bloque-input') || nextRow.querySelector('.wb-cama-inic-input');
+            if (firstNext) {
+              firstNext.focus();
+              if (firstNext.select) firstNext.select();
+            }
+          } else {
+            // Última fila alcanzada: agregar fila automáticamente y posicionar cursor
+            agregarFilaBloqueDirecta();
+          }
+        }
+      }
+    });
+  });
+}
+
 function autoCompletarBloqueFila(inputEl) {
   if (!DIM_BLOQUES_CATALOG) return;
   const raw = (inputEl.value || '').trim().toUpperCase();
@@ -1070,16 +1227,8 @@ function agregarFilaBloqueDirecta(data = null) {
 
   tbody.appendChild(tr);
 
-  // Evento enter en el input de camas para agregar otra fila directa
-  const camasInput = tr.querySelector('.wb-camas-input');
-  if (camasInput) {
-    camasInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        agregarFilaBloqueDirecta();
-      }
-    });
-  }
+  // Vincular navegación rápida por teclado (Enter pasa a la siguiente casilla)
+  attachRowKeyboardNavigation(tr);
 
   // Auto-focus en el bloque de la nueva fila
   const blqInp = tr.querySelector('.wb-bloque-input');
@@ -1221,6 +1370,10 @@ function abrirMesaCalibracionParaBomba(bGrp, bIdx) {
       `;
     }).join('');
   }
+
+  // Vincular navegación fluida por Enter en todas las filas de la mesa
+  const allRows = tbody.querySelectorAll('.wb-bomba-row');
+  allRows.forEach(r => attachRowKeyboardNavigation(r));
 
   initWorkbenchDragAndDrop();
   updateWbTotals();
@@ -1377,7 +1530,7 @@ function cerrarMesaCalibracion() {
   deletedWorkbenchIds = [];
 }
 
-async function guardarMesaCalibracion() {
+async function guardarMesaCalibracion(estado = 'ASIGNADO') {
   const rows = document.querySelectorAll('.wb-bomba-row');
   if (!rows.length && !deletedWorkbenchIds.length) {
     alert("No hay registros ni modificaciones en la mesa de calibración.");
@@ -1391,7 +1544,7 @@ async function guardarMesaCalibracion() {
     const blqCell = tr.querySelector('.wb-bloque-cell');
     const blqVal = blqInput ? blqInput.value.trim() : (blqCell ? blqCell.textContent.trim() : '');
     if (!blqVal || blqVal === 'S/N') {
-      alert(`La fila #${i + 1} no tiene un código de bloque válido. Por favor complete el bloque antes de cargar.`);
+      alert(`La fila #${i + 1} no tiene un código de bloque válido. Por favor complete el bloque antes de guardar.`);
       if (blqInput) blqInput.focus();
       return;
     }
@@ -1431,6 +1584,7 @@ async function guardarMesaCalibracion() {
       dosis_diferenciada: tr.dataset.dosis ? parseFloat(tr.dataset.dosis) : null,
       tecnico: tec,
       dia_aplicacion: diaApp,
+      estado_calibracion: estado,
       semana: "{{ semana_activa }}"
     });
   });
@@ -1441,12 +1595,13 @@ async function guardarMesaCalibracion() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         items: itemsPayload,
-        deleted_ids: deletedWorkbenchIds
+        deleted_ids: deletedWorkbenchIds,
+        estado_calibracion: estado
       })
     });
     const data = await res.json();
     if (data.success) {
-      alert("✅ " + data.message);
+      alert("✅ " + data.message + (estado === 'BORRADOR' ? " (Guardado como Borrador)" : ""));
       deletedWorkbenchIds = [];
       cerrarMesaCalibracion();
       location.reload();
@@ -1455,6 +1610,110 @@ async function guardarMesaCalibracion() {
     }
   } catch (err) {
     alert("Error de conexión al guardar calibración: " + err);
+  }
+}
+
+// ==============================================================
+// EDICIÓN Y CREACIÓN DE BOMBAS (EXCLUSIVO ADMINISTRADOR)
+// ==============================================================
+function abrirModalEditarBomba(idx) {
+  const dataScript = document.getElementById('ferti-data-bomba-' + idx);
+  if (!dataScript) return;
+  try {
+    const bGrp = JSON.parse(dataScript.textContent);
+    document.getElementById('modal-edit-bomba-orig').value = bGrp.bomba;
+    document.getElementById('modal-edit-edad-orig').value = (bGrp.edad_sort !== undefined ? bGrp.edad_sort : bGrp.edad);
+    document.getElementById('modal-edit-bomba-name').value = bGrp.bomba;
+    document.getElementById('modal-edit-bomba-cultivo').value = bGrp.cultivo || '';
+    document.getElementById('modal-edit-bomba-edad').value = (bGrp.edad_sort !== undefined ? bGrp.edad_sort : (parseInt(bGrp.edad) || 1));
+    const selDia = document.getElementById('modal-edit-bomba-dia');
+    if (selDia) selDia.value = (bGrp.dia_aplicacion || (bGrp.dias && bGrp.dias[0]) || 'LUNES').toUpperCase();
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarBombaAdmin'));
+    modal.show();
+  } catch (e) {
+    console.error("Error al abrir modal editar bomba:", e);
+  }
+}
+
+async function ejecutarGuardarEdicionBomba() {
+  const bombaOrig = document.getElementById('modal-edit-bomba-orig').value.trim();
+  const edadOrig = document.getElementById('modal-edit-edad-orig').value.trim();
+  const nuevaBomba = document.getElementById('modal-edit-bomba-name').value.trim();
+  const nuevoCultivo = document.getElementById('modal-edit-bomba-cultivo').value.trim();
+  const nuevaEdad = parseInt(document.getElementById('modal-edit-bomba-edad').value || 1);
+  const nuevoDia = document.getElementById('modal-edit-bomba-dia').value;
+
+  if (!nuevaBomba) {
+    alert("El nombre de químicos de la bomba no puede estar vacío.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/fertilizacion/api/bomba/editar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        semana: "{{ semana_activa }}",
+        bomba_original: bombaOrig,
+        edad_original: edadOrig,
+        nueva_bomba: nuevaBomba,
+        nuevo_cultivo: nuevoCultivo,
+        nueva_edad: nuevaEdad,
+        nuevo_dia: nuevoDia
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+      location.reload();
+    } else {
+      alert("❌ " + (data.message || "Error al actualizar la bomba"));
+    }
+  } catch (err) {
+    alert("Error de conexión: " + err);
+  }
+}
+
+function abrirModalCrearMesa() {
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrearNuevaMesaBomba'));
+  modal.show();
+}
+
+async function ejecutarCrearNuevaMesa() {
+  const apartado = document.getElementById('modal-create-apartado').value;
+  const bomba = document.getElementById('modal-create-bomba').value.trim();
+  const cultivo = document.getElementById('modal-create-cultivo').value.trim();
+  const edad = parseInt(document.getElementById('modal-create-edad').value || 1);
+  const dia = document.getElementById('modal-create-dia').value;
+
+  if (!bomba) {
+    alert("Por favor ingrese los químicos que componen la bomba.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/fertilizacion/api/bomba/crear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        semana: "{{ semana_activa }}",
+        apartado: apartado,
+        bomba: bomba,
+        cultivo: cultivo,
+        edad: edad,
+        dia: dia
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+      location.reload();
+    } else {
+      alert("❌ " + (data.message || "Error al crear la nueva mesa"));
+    }
+  } catch (err) {
+    alert("Error de conexión: " + err);
   }
 }
 

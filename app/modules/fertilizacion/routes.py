@@ -494,8 +494,8 @@ def proyectar_semana_fertilizacion(semana_destino, semana_origen=None, apartado=
             })
 
         edad = (target_year - ev_year) * 52 + (target_week - ev_week)
-        # Edades 0 y 1 corresponden a presiembras y planning manual; no se proyectan desde censos anteriores
-        if edad <= 1 or edad > 15:
+        # Proyectar siembras y podas desde edad 0 (presiembras) y edad 1 (Alcaplant, Moshe, Trichos, Sulfatos) hasta semana 15
+        if edad < 0 or edad > 15:
             continue
 
         bed_objects.append({
@@ -654,6 +654,26 @@ def procesar_calibracion_fertilizacion(drench_items):
             prod_map[c_name] = p
         if code:
             prod_map[code] = p
+
+    def resolver_producto_quimico(p_name):
+        raw = (p_name or '').strip().upper()
+        if not raw:
+            return None
+        # 1. Búsqueda exacta
+        if raw in prod_map:
+            return prod_map[raw]
+        # 2. Búsqueda por mejor coincidencia (evitando que RAIZAL coincida con RAIZA)
+        best_p = None
+        best_l = 0
+        for k, p_obj in prod_map.items():
+            if raw.startswith('RAIZAL') and k == 'RAIZA':
+                continue
+            if k == raw:
+                return p_obj
+            if (raw.startswith(k) or k.startswith(raw) or raw in k) and len(k) > best_l:
+                best_p = p_obj
+                best_l = len(k)
+        return best_p
 
     import re
     from sqlalchemy import text
@@ -839,11 +859,7 @@ def procesar_calibracion_fertilizacion(drench_items):
         parts_b = [p.strip().upper() for p in (b_name or '').split(',') if p.strip()]
         b_item_prods = []
         for p_name in parts_b:
-            p_match = None
-            for k, v in prod_map.items():
-                if k == p_name or p_name in k or k in p_name:
-                    p_match = v
-                    break
+            p_match = resolver_producto_quimico(p_name)
             unit = p_match.unit if p_match else 'GR'
             base_dose = None
             if p_match:
@@ -943,11 +959,7 @@ def procesar_calibracion_fertilizacion(drench_items):
         for b_str in grp['bombas']:
             parts = [p.strip().upper() for p in (b_str or '').split(',') if p.strip()]
             for p_name in parts:
-                p_match = None
-                for k, v in prod_map.items():
-                    if k == p_name or p_name in k or k in p_name:
-                        p_match = v
-                        break
+                p_match = resolver_producto_quimico(p_name)
                 dose = None
                 unit = 'GR'
                 comm_name = p_name
@@ -994,11 +1006,7 @@ def procesar_calibracion_fertilizacion(drench_items):
             parts_it = [p.strip().upper() for p in (it.bomba or '').split(',') if p.strip()]
             it_prods = []
             for p_name in parts_it:
-                p_match = None
-                for k, v in prod_map.items():
-                    if k == p_name or p_name in k or k in p_name:
-                        p_match = v
-                        break
+                p_match = resolver_producto_quimico(p_name)
                 unit = p_match.unit if p_match else 'GR'
                 if it_is_pre:
                     dose = (p_match.dose_presiembra if p_match else None) or (p_match.dose_solidos if p_match else None) or (p_match.dose_drench if p_match else None)
@@ -1495,13 +1503,15 @@ def programa_impresion():
     drench_items = obtener_items_drench(semana=semana)
     calibracion_ordenada, calibracion_tecnicos, calibracion_bombas = procesar_calibracion_fertilizacion(drench_items)
 
-    # REGLA ESTRICTA: Solo las bombas que han sido guardadas o asignadas por Agronomía cargan en los filtros y en la planilla
-    calibracion_bombas_asignadas = [
-        b for b in calibracion_bombas 
-        if b.get('estado_calibracion') == 'ASIGNADO' and b.get('camas_totales', 0) > 0
+    # Bombas asignadas o editadas disponibles para impresión
+    bombas_con_camas = [b for b in calibracion_bombas if b.get('camas_totales', 0) > 0]
+    asignadas_exclusivas = [
+        b for b in bombas_con_camas 
+        if b.get('estado_calibracion') in ('ASIGNADO', 'EDITADO', 'BORRADOR')
     ]
+    calibracion_bombas_asignadas = asignadas_exclusivas if asignadas_exclusivas else bombas_con_camas
 
-    # Catálogos dinámicos basados estrictamente en lo que fue asignado/guardado
+    # Catálogos dinámicos basados en lo que está disponible
     apartados_disponibles = sorted(list(set(b.get('apartado') for b in calibracion_bombas_asignadas if b.get('apartado'))))
     todos_tecnicos = sorted(list(set(
         t for b in calibracion_bombas_asignadas for t in b.get('tecnicos', []) if t
@@ -1585,6 +1595,53 @@ def programa_impresion():
     total_camas = sum(b['camas_totales'] for b in calibracion_bombas)
     total_litros = sum(b['litros_totales'] for b in calibracion_bombas)
 
+    # Formateo y enriquecimiento detallado de cada bloque según formato oficial de Fumigación
+    target_year, target_week, _ = _parse_semana_destino(semana)
+    dias_offset = {
+        'LUNES': 0, 'MARTES': 1, 'MIERCOLES': 2, 'MIÉRCOLES': 2,
+        'JUEVES': 3, 'VIERNES': 4, 'SABADO': 5, 'SÁBADO': 5, 'DOMINGO': 6
+    }
+    for b in calibracion_bombas:
+        b_vol = float(b.get('vol_default') or 0.0)
+        is_seco = (b_vol == 0.0 or b.get('es_presiembra') or 'PRESIEMBRA' in str(b.get('apartado', '')).upper())
+        b_items = b.get('bloque_items') or b.get('items') or []
+        for it in b_items:
+            dia_it = str(it.get('dia_aplicacion') or b.get('dia_aplicacion') or 'LUNES').strip().upper()
+            it['dia_nombre'] = dia_it
+            offset = dias_offset.get(dia_it, 0)
+            try:
+                from datetime import date, timedelta
+                d_mon = date.fromisocalendar(int(target_year), int(target_week), 1)
+                d_target = d_mon + timedelta(days=offset)
+                it['fecha_formateada'] = d_target.strftime("%d/%m/%Y")
+            except Exception:
+                it['fecha_formateada'] = datetime.now().strftime("%d/%m/%Y")
+
+            camas_std = float(it.get('cama_estandar') or it.get('cantidad_camas') or 0.0)
+            it['area_ha'] = round(camas_std * 0.0068, 4) if camas_std > 0 else 0.0
+
+            if is_seco:
+                it['litros_cama_display'] = 'N/A'
+                it['total_litros_display'] = 'N/A'
+            else:
+                it['litros_cama_display'] = f"{b_vol:.1f}"
+                it_camas = float(it.get('cantidad_camas') or 0.0)
+                it['total_litros_display'] = f"{round(it_camas * b_vol, 1)}"
+
+            c_ini = it.get('cama_inicial', 1)
+            c_fin = it.get('cama_final', c_ini)
+            it['ubicacion_camas'] = f"{c_ini} - {c_fin}" if c_ini != c_fin else str(c_ini)
+
+            # Recalcular dosis total de cada producto en este bloque
+            it_camas = float(it.get('cantidad_camas') or 0.0)
+            for p in it.get('productos', []):
+                p_dose = float(p.get('dose') or 0.0)
+                if is_seco:
+                    tot_p = round(p_dose * it_camas, 2)
+                else:
+                    tot_p = round(p_dose * b_vol * it_camas, 2)
+                p['dosis_total_bloque'] = f"{tot_p} {p.get('unit', '')}"
+
     # Identificar categorías de tratamientos presentes
     cats_presentes = list(dict.fromkeys([b.get('tratamiento_key', 'TRICHOS') for b in calibracion_bombas]))
 
@@ -1626,6 +1683,7 @@ def api_calibracion_guardar():
         return jsonify({"success": False, "message": "No se enviaron datos para guardar"}), 400
 
     target_dia = str(data.get('dia_aplicacion') or '').strip().upper()
+    target_estado = str(data.get('estado_calibracion') or 'ASIGNADO').strip().upper()
 
     try:
         import re
@@ -1648,6 +1706,7 @@ def api_calibracion_guardar():
                 c_cam = int(float(it_info.get('cantidad_camas', max(1, c_fin - c_ini + 1))))
                 d_diff = float(it_info['dosis_diferenciada']) if it_info.get('dosis_diferenciada') else None
                 dia_val = str(it_info.get('dia_aplicacion') or target_dia or 'LUNES').strip().upper()
+                est_val = str(it_info.get('estado_calibracion') or target_estado).strip().upper()
 
                 nuevo = DrenchItem(
                     semana=str(w_target).strip(),
@@ -1664,7 +1723,7 @@ def api_calibracion_guardar():
                     edad=int(float(it_info.get('edad', 0))),
                     tecnico=str(it_info.get('tecnico', 'Técnico 1 (C1)')).strip(),
                     dosis_diferenciada=d_diff,
-                    estado_calibracion='ASIGNADO',
+                    estado_calibracion=est_val,
                     observaciones=str(it_info.get('observaciones', '')).strip()
                 )
                 db.session.add(nuevo)
@@ -1672,7 +1731,7 @@ def api_calibracion_guardar():
             else:
                 item = DrenchItem.query.get(int(it_id))
                 if item:
-                    item.estado_calibracion = 'ASIGNADO'
+                    item.estado_calibracion = target_estado
                     if 'cantidad_camas' in it_info:
                         item.cantidad_camas = int(float(it_info['cantidad_camas']))
                     if 'cama_estandar' in it_info:
@@ -1932,6 +1991,126 @@ def api_bomba_cambiar_edad():
             "message": f"Bomba '{bomba}' reasignada exitosamente a Semana {nueva_edad_int} ({affected} bloques actualizados).",
             "affected": affected,
             "nueva_edad": nueva_edad_int
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@fertilizacion_bp.route('/api/bomba/editar', methods=['POST'])
+@login_required
+@permission_required('fertilizacion')
+def api_bomba_editar():
+    """Permite al Administrador modificar nombre de químicos, cultivos, edad o día de una bomba calibrada"""
+    if session.get('role') != 'ADMIN' and not (current_user and getattr(current_user, 'role', '') == 'ADMIN'):
+        return jsonify({"success": False, "message": "Acceso restringido: Solo un Administrador puede editar bombas."}), 403
+
+    data = request.get_json() or {}
+    semana = str(data.get('semana') or '').strip()
+    bomba_orig = str(data.get('bomba_original') or '').strip()
+    edad_orig = data.get('edad_original')
+
+    nueva_bomba = str(data.get('nueva_bomba') or bomba_orig).strip().upper()
+    nuevo_cultivo = str(data.get('nuevo_cultivo') or '').strip().upper()
+    nuevo_dia = str(data.get('nuevo_dia') or '').strip().upper()
+    nueva_edad = data.get('nueva_edad')
+
+    if not semana or not bomba_orig:
+        return jsonify({"success": False, "message": "Semana y bomba original son requeridos."}), 400
+
+    try:
+        from app.modules.fertilizacion.services.drench_service import _semana_filter
+        q = DrenchItem.query.filter(_semana_filter(semana), DrenchItem.bomba == bomba_orig)
+        if edad_orig is not None:
+            try:
+                q = q.filter(DrenchItem.edad == int(edad_orig))
+            except (ValueError, TypeError):
+                pass
+
+        items = q.all()
+        if not items:
+            return jsonify({"success": False, "message": f"No se encontraron registros para la bomba '{bomba_orig}'."}), 404
+
+        for it in items:
+            if nueva_bomba:
+                it.bomba = nueva_bomba
+            if nuevo_cultivo:
+                it.cultivo = nuevo_cultivo
+            if nuevo_dia:
+                it.dia_aplicacion = nuevo_dia
+            if nueva_edad is not None:
+                try:
+                    it.edad = int(nueva_edad)
+                except (ValueError, TypeError):
+                    pass
+            it.estado_calibracion = 'EDITADO'
+
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"Bomba actualizada correctamente ({len(items)} registros modificados).",
+            "count": len(items)
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@fertilizacion_bp.route('/api/bomba/crear', methods=['POST'])
+@login_required
+@permission_required('fertilizacion')
+def api_bomba_crear():
+    """Permite al Administrador registrar una nueva mesa de calibración / bomba con químicos, edad y cultivos"""
+    if session.get('role') != 'ADMIN' and not (current_user and getattr(current_user, 'role', '') == 'ADMIN'):
+        return jsonify({"success": False, "message": "Acceso restringido: Solo un Administrador puede crear nuevas mesas."}), 403
+
+    data = request.get_json() or {}
+    semana = str(data.get('semana') or '').strip()
+    bomba = str(data.get('bomba') or '').strip().upper()
+    apartado = str(data.get('apartado') or 'TRICHOS').strip().upper()
+    cultivo = str(data.get('cultivo') or 'GYPSOPHILA').strip().upper()
+    dia = str(data.get('dia') or 'LUNES').strip().upper()
+    edad = int(data.get('edad') or 0)
+
+    if not semana or not bomba:
+        return jsonify({"success": False, "message": "Semana y químicos/nombre de bomba son requeridos."}), 400
+
+    try:
+        from app.modules.fertilizacion.routes import _parse_semana_destino
+        _, _, w_clean = _parse_semana_destino(semana)
+
+        clasif_map = {
+            'MOSHE': 'MOSHE',
+            'ALCAPLANT': 'ALCAPLANT',
+            'PRESIEMBRAS': 'PRESIEMBRA',
+            'TRICHOS': 'ENRAIZANTE' if any(k in bomba for k in ['RAIZAL', 'PILATUS', 'TURBO']) else 'TRICHOS'
+        }
+        clasif = clasif_map.get(apartado, 'CALIBRACION')
+
+        nuevo = DrenchItem(
+            semana=w_clean,
+            dia_aplicacion=dia,
+            bloque='S/N',
+            cultivo=cultivo,
+            bomba=bomba,
+            clasificacion=clasif,
+            actividad='SIEMBRA',
+            cama_inicial=1,
+            cama_final=1,
+            cantidad_camas=0,
+            cama_estandar=0.0,
+            edad=edad,
+            tecnico='Técnico 1 (C1)',
+            estado_calibracion='EDITADO',
+            observaciones='Mesa creada por administración'
+        )
+        db.session.add(nuevo)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"Nueva mesa para '{bomba}' (Semana {edad}) creada exitosamente.",
+            "id": nuevo.id
         })
     except Exception as e:
         db.session.rollback()

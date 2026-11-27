@@ -5,8 +5,8 @@
 {% block extra_css %}
 <style>
 @page {
-    size: portrait;
-    margin: 5mm 5mm 5mm 5mm;
+    size: landscape;
+    margin: 6mm 6mm 6mm 6mm;
 }
 @media print {
     .no-print, header, nav, footer, .sidebar, #sidebar-wrapper, .btn, select, form, .breadcrumb {
@@ -14,7 +14,7 @@
     }
     body {
         background-color: #ffffff !important;
-        font-size: 0.72rem !important;
+        font-size: 0.69rem !important;
         color: #000000 !important;
     }
     #page-content-wrapper {
@@ -24,8 +24,13 @@
     .card-tecnico {
         border: 1.5px solid #000000 !important;
         box-shadow: none !important;
-        page-break-inside: avoid !important;
-        margin-bottom: 18px !important;
+        page-break-before: always !important;
+        break-before: page !important;
+        margin-bottom: 20px !important;
+    }
+    .card-tecnico:first-of-type {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
     }
     .card-header-print {
         background-color: #000000 !important;
@@ -42,11 +47,11 @@
         font-weight: 800 !important;
     }
     .table-print {
-        font-size: 0.70rem !important;
+        font-size: 0.68rem !important;
         border: 1px solid #334155 !important;
     }
     .table-print th, .table-print td {
-        padding: 4px 6px !important;
+        padding: 3px 5px !important;
         border: 1px solid #94a3b8 !important;
     }
     .signature-box {
@@ -294,7 +299,7 @@
       </div>
       {% endif %}
 
-      <!-- 2. TABLA VERTICAL DE BLOQUES CALIBRADOS (Distribución en Campo - Formato Fumigación) -->
+      <!-- 2. TABLA VERTICAL DE BLOQUES CALIBRADOS (Distribución en Campo - Formato Oficial) -->
       <div class="p-2 bg-light border-top border-bottom">
         <span class="small fw-bold text-dark font-monospace text-uppercase">
           <i class="fa-solid fa-map-location-dot text-success me-1"></i> Bloques Calibrados para {{ b.bomba }} (Distribución de Campo):
@@ -302,72 +307,77 @@
       </div>
       <div class="table-responsive">
         <table class="table table-sm table-bordered table-print table-hover align-middle mb-0">
-          <thead class="table-light text-uppercase font-monospace" style="font-size: 0.68rem;">
+          <thead class="table-light text-uppercase font-monospace" style="font-size: 0.67rem;">
             <tr>
-              <th style="width: 30px;" class="text-center">#</th>
-              <th style="width: 65px;" class="text-center">BLOQUE</th>
+              <th style="width: 55px;" class="text-center">DÍA</th>
+              <th style="width: 70px;" class="text-center">FECHA</th>
               <th style="width: 75px;" class="text-center">ZONA</th>
+              <th style="width: 60px;" class="text-center">BLOQUE</th>
               <th style="width: 100px;">VARIEDAD</th>
-              <th style="width: 45px;" class="text-center">EDAD</th>
-              <th style="width: 75px;" class="text-center">DÍA</th>
-              <th style="width: 80px;" class="text-center">RANGO CAMAS</th>
-              <th style="width: 55px;" class="text-end bg-light fw-bold text-success">CAMAS</th>
-              <th style="width: 50px;" class="text-end">L/CAMA</th>
-              <th style="width: 70px;" class="text-end text-primary fw-bold">VOL. (L)</th>
-              <th style="width: 150px;">PRODUCTO</th>
-              <th style="width: 35px;" class="text-center">U.M</th>
-              <th style="width: 85px;" class="text-end">DOSIS</th>
-              <th style="width: 85px;" class="text-end fw-bold text-dark">TOTAL PROD.</th>
-              <th style="width: 120px;">CUARTO / TÉCNICO</th>
-              <th style="width: 55px;" class="text-center">CONFORME</th>
+              <th style="width: 50px;" class="text-center">EDAD</th>
+              <th style="width: 50px;" class="text-end bg-light fw-bold text-success">CAMAS</th>
+              <th style="width: 80px;" class="text-center">UBICACIÓN</th>
+              <th style="width: 140px;">PRODUCTO</th>
+              <th style="width: 35px;" class="text-center">UM</th>
+              <th style="width: 85px;" class="text-end fw-bold text-dark">DOSIS TOTAL</th>
+              <th style="width: 65px;" class="text-end text-primary fw-bold">LITROS</th>
+              <th style="width: 65px;" class="text-end">LITROS CAMA</th>
+              <th style="width: 65px;" class="text-end">ÁREA</th>
+              <th style="width: 120px;">TÉCNICO / CUARTO BOMBEO</th>
             </tr>
           </thead>
           <tbody>
             {% for it in (b.bloque_items if b.bloque_items is defined else b['items']) %}
-            {% set block_loop_idx = loop.index %}
-            {% set prods = it.productos if (it.productos and it.productos|length > 0) else [{'name': b.bomba, 'unit': 'L', 'dose': '-', 'dose_str': '-', 'total_producto': '-'}] %}
+            {% set prods = it.productos if (it.productos and it.productos|length > 0) else [{'name': b.bomba, 'unit': 'L', 'dose': '-', 'dose_str': '-', 'dosis_total_bloque': '-'}] %}
             {% set num_prods = prods|length %}
             {% for p in prods %}
             <tr>
               {% if loop.first %}
-              <td rowspan="{{ num_prods }}" class="text-center text-muted font-monospace small align-middle">{{ block_loop_idx }}</td>
-              <td rowspan="{{ num_prods }}" class="text-center fw-bold text-dark font-monospace fs-7 bg-light align-middle">{{ it.bloque }}</td>
-              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle"><span class="badge bg-light text-dark border">{{ it.zona or 'GENERAL' }}</span></td>
-              <td rowspan="{{ num_prods }}" class="fw-semibold text-dark small align-middle">{{ it.variedad }}</td>
-              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle">Sem {{ it.edad }}</td>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace fw-bold small align-middle">
+                {{ it.dia_nombre or it.dia_aplicacion or b.dia_aplicacion or 'LUNES' }}
+              </td>
               <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle">
-                <span class="badge bg-light text-dark border fw-bold" style="font-size: 0.68rem;">{{ it.dia_aplicacion or b.dia_aplicacion or 'LUNES' }}</span>
+                {{ it.fecha_formateada or '-' }}
+              </td>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle">
+                <span class="badge bg-light text-dark border">{{ it.zona or 'GENERAL' }}</span>
+              </td>
+              <td rowspan="{{ num_prods }}" class="text-center fw-bold text-dark font-monospace fs-7 bg-light align-middle">
+                {{ it.bloque }}
+              </td>
+              <td rowspan="{{ num_prods }}" class="fw-semibold text-dark small align-middle">
+                {{ it.variedad }}
+              </td>
+              <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle">
+                Sem {{ it.edad }}
+              </td>
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace fw-bold text-success bg-light fs-7 align-middle">
+                {{ it.cantidad_camas }}
               </td>
               <td rowspan="{{ num_prods }}" class="text-center font-monospace small align-middle text-nowrap">
-                {% if it.cama_inicial and it.cama_final %}
-                  {% if it.cama_inicial == it.cama_final %}{{ it.cama_inicial }}{% else %}{{ it.cama_inicial }} - {{ it.cama_final }}{% endif %}
-                {% else %}
-                  -
-                {% endif %}
+                {{ it.ubicacion_camas or '-' }}
               </td>
-              <td rowspan="{{ num_prods }}" class="text-end font-monospace fw-bold text-success bg-light fs-7 align-middle">{{ it.cantidad_camas }}</td>
-              <td rowspan="{{ num_prods }}" class="text-end font-monospace text-muted small align-middle">{% if it.litros_cama == '-' or b.vol_default == 0 %}-{% else %}{{ it.litros_cama }}{% endif %}</td>
-              <td rowspan="{{ num_prods }}" class="text-end font-monospace fw-bold text-primary align-middle">{% if it.litros_cama == '-' or b.vol_default == 0 %}-{% else %}{{ it.total_litros|round(1) }} L{% endif %}</td>
               {% endif %}
 
               <!-- Fila individual por cada producto de la bomba -->
               <td class="small fw-semibold text-dark font-monospace">{{ p.name }}</td>
               <td class="text-center font-monospace small text-muted">{{ p.unit }}</td>
-              <td class="text-end font-monospace small fw-bold text-dark">
-                {% if p.dosis_diferenciada %}
-                  <span class="text-primary">{{ p.dosis_diferenciada }} {{ p.unit }}{% if it.litros_cama != '-' and it.litros_cama > 0 %}/L{% else %}/cama{% endif %}</span>
-                {% else %}
-                  {{ p.dose_str or p.dose }}
-                {% endif %}
-              </td>
               <td class="text-end font-monospace small fw-bold text-dark bg-light-subtle">
-                {{ p.total_producto }} {{ p.unit if p.total_producto != '-' else '' }}
+                {{ p.dosis_total_bloque or p.total_producto or '-' }}
               </td>
 
               {% if loop.first %}
-              <td rowspan="{{ num_prods }}" class="small fw-semibold text-secondary font-monospace align-middle">{{ it.tecnico }}</td>
-              <td rowspan="{{ num_prods }}" class="text-center text-muted font-monospace align-middle" style="font-size: 0.65rem;">
-                [ &nbsp; ]
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace fw-bold text-primary align-middle">
+                {{ it.total_litros_display }}
+              </td>
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace text-muted small align-middle">
+                {{ it.litros_cama_display }}
+              </td>
+              <td rowspan="{{ num_prods }}" class="text-end font-monospace small align-middle">
+                {{ "%.4f"|format(it.area_ha) }} ha
+              </td>
+              <td rowspan="{{ num_prods }}" class="small fw-semibold text-secondary font-monospace align-middle">
+                {{ it.tecnico }}
               </td>
               {% endif %}
             </tr>
@@ -375,11 +385,14 @@
             {% endfor %}
             <!-- Subtotal Row -->
             <tr class="table-light fw-bold font-monospace border-top border-2 border-dark">
-              <td colspan="7" class="text-end text-uppercase">Subtotal {{ b.bomba }}:</td>
+              <td colspan="6" class="text-end text-uppercase">Subtotal {{ b.bomba }}:</td>
               <td class="text-end text-success fs-7">{{ b.camas_totales }}</td>
-              <td class="text-end text-muted">{% if b.vol_default == 0 %}-{% else %}{{ b.vol_default }}{% endif %}</td>
-              <td class="text-end text-primary fs-7">{% if b.vol_default == 0 %}-{% else %}{{ b.litros_totales|round(1) }} L{% endif %}</td>
-              <td colspan="6" class="text-muted small">Bloques: {{ b.bloques|join(', ') }}</td>
+              <td></td>
+              <td colspan="3" class="text-muted small">Insumos: {{ b.bomba }}</td>
+              <td class="text-end text-primary fs-7">{% if b.vol_default == 0 or b.es_presiembra %}N/A{% else %}{{ b.litros_totales|round(1) }} L{% endif %}</td>
+              <td class="text-end text-muted">{% if b.vol_default == 0 or b.es_presiembra %}N/A{% else %}{{ b.vol_default }} L{% endif %}</td>
+              <td class="text-end font-monospace">{{ "%.4f"|format(b.camas_totales * 0.0068) }} ha</td>
+              <td class="small text-secondary">{{ b.tecnicos|join(', ') }}</td>
             </tr>
           </tbody>
         </table>

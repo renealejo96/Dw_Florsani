@@ -7,13 +7,22 @@ from app.extensions import db
 from app.modules.fertilizacion.models import DrenchItem, TecnicoBloque, calcular_semana_formato
 
 def _semana_filter(semana):
-    s_str = str(semana).strip()
-    s_clean = s_str.replace('-', '').replace('20', '', 1) if s_str.startswith('20') else s_str
-    return db.or_(
-        DrenchItem.semana == s_str,
-        DrenchItem.semana == s_clean,
-        DrenchItem.semana == f"20{s_clean}" if len(s_clean) == 4 else False
-    )
+    raw = str(semana or '').strip().replace('-', '').replace('_', '')
+    candidates = {str(semana).strip(), raw}
+    cur_yy = str(date.today().year)[-2:]
+    if len(raw) == 2 and raw.isdigit():
+        candidates.add(f"{cur_yy}{raw}")
+        candidates.add(f"20{cur_yy}-{raw}")
+        candidates.add(f"20{cur_yy}{raw}")
+    elif len(raw) == 4 and raw.isdigit():
+        candidates.add(f"20{raw[:2]}-{raw[2:]}")
+        candidates.add(raw[2:])
+        candidates.add(f"20{raw}")
+    elif len(raw) == 6 and raw.isdigit():
+        candidates.add(raw[2:])
+        candidates.add(f"{raw[:4]}-{raw[4:]}")
+        candidates.add(raw[4:])
+    return DrenchItem.semana.in_(list(candidates))
 
 def normalizar_clasificacion(texto):
     if not texto:

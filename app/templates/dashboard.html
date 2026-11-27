@@ -260,9 +260,9 @@
                 <div class="chart-header d-flex justify-content-between align-items-center mb-2">
                     <div>
                         <div class="d-flex align-items-center gap-2">
-                            <h6 class="chart-title mb-0">
+                            <h6 class="chart-title mb-0" id="tituloCosechaBarras">
                                 <i class="fa-solid fa-chart-bar text-primary me-1"></i>
-                                Participación por Producto
+                                COSECHA PYGANFLOR SEMANA {{ selected_week_num or selected_week or semana_actual or 'ACTUAL' }}
                             </h6>
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 small fw-semibold d-none" id="chipFiltroCrop">
                                 <i class="fa-solid fa-filter me-1"></i><span id="chipNombreCrop">GYPSOPHILA</span>
@@ -418,14 +418,15 @@
                             <div class="d-flex justify-content-between align-items-center small mb-1">
                                 <span class="fw-bold text-dark">
                                     <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i>{{ b.bodega }}
+                                    {% set real_ha_cost = (b.cost / cost_summary.total_ha) if (cost_summary.total_ha and cost_summary.total_ha > 0) else 0 %}
                                     {% if 'FUMIG' in b.bodega.upper() %}
-                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1" style="font-size: 0.65rem;">Meta: $240/ha</span>
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1" style="font-size: 0.65rem;">Real: ${{ "%.2f"|format(real_ha_cost) }}/ha &bull; Meta: $240/ha</span>
                                     {% elif 'FERTIL' in b.bodega.upper() %}
-                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size: 0.65rem;">Meta: $340/ha</span>
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size: 0.65rem;">Real: ${{ "%.2f"|format(real_ha_cost) }}/ha &bull; Meta: $340/ha</span>
                                     {% endif %}
                                     <i class="fa-solid fa-arrow-up-right-from-square text-muted ms-1" style="font-size: 0.68rem;"></i>
                                 </span>
-                                <span class="font-monospace text-secondary">${{ "%.2f"|format(b.cost) }} <strong class="text-dark">({{ b.pct }}%)</strong></span>
+                                <span class="font-monospace text-dark fw-bold fs-7">${{ "%.2f"|format(b.cost) }} <strong class="text-secondary small">({{ b.pct }}%)</strong></span>
                             </div>
                             <div class="progress" style="height: 6px;">
                                 <div class="progress-bar {% if loop.index == 1 %}bg-success{% elif loop.index == 2 %}bg-warning{% elif loop.index == 3 %}bg-info{% elif loop.index == 4 %}bg-primary{% else %}bg-secondary{% endif %}" 
@@ -552,7 +553,33 @@
                     </div>
                 </div>
 
-                <!-- 2. Detalle de Insumos / Agroquímicos (Mayor a Menor Costo) -->
+                <!-- 2. Desglose por Programa de Aplicación en esta Bodega (Trichos, Foliar, etc.) -->
+                <div class="card border shadow-xs rounded-3 overflow-hidden mb-3">
+                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
+                        <span class="fw-bold small text-dark"><i class="fa-solid fa-layer-group me-1 text-primary"></i> Inversión por Programa de Aplicación</span>
+                        <span class="badge bg-light text-muted border font-monospace" id="modalBodegaProgramCount">0 programas</span>
+                    </div>
+                    <div class="table-responsive" style="max-height: 220px;">
+                        <table class="table table-hover table-striped table-sm align-middle mb-0 small">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 35px;" class="text-center">#</th>
+                                    <th>Programa de Aplicación</th>
+                                    <th style="width: 140px;" class="text-end text-success">Inversión ($)</th>
+                                    <th style="width: 90px;" class="text-end">% Bodega</th>
+                                    <th style="width: 110px;" class="text-center">Insumos</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalBodegaProgramsTbody">
+                                <tr>
+                                    <td colspan="5" class="text-center py-3 text-muted">Cargando programas...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. Detalle de Insumos / Agroquímicos (Mayor a Menor Costo) -->
                 <div class="card border shadow-xs rounded-3 overflow-hidden">
                     <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
                         <span class="fw-bold small text-dark"><i class="fa-solid fa-list-check me-1 text-primary"></i> Detalle de Insumos (Ordenados del más caro a más barato)</span>
@@ -795,9 +822,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             ];
 
+            const validCompliance = complianceValues.filter(v => v !== null && v !== undefined && !isNaN(v) && v > 0);
+            let dynamicMin = 0;
+            if (validCompliance.length > 0) {
+                const minVal = Math.min(...validCompliance);
+                dynamicMin = Math.max(0, Math.floor(minVal - 5));
+            }
+
             lineChartInstance.options.scales.y = {
-                min: 0,
-                max: 100,
+                min: dynamicMin,
+                suggestedMax: 100,
                 grid: { color: '#f1f5f9' },
                 ticks: {
                     font: { family: 'Fira Code', size: 11 },
@@ -961,7 +995,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const displayCropNames = cropsDataList.map(c => c.producto);
-    const displayBarLabels = cropsDataList.map(c => `${c.producto} (${c.pct}%)`);
+    const displayBarLabels = cropsDataList.map(c => `${c.producto}: ${Number(c.tallos).toLocaleString()} tallos (${c.pct}%)`);
     const displayValues = cropsDataList.map(c => c.tallos);
 
     if (barCtx) {
@@ -1727,6 +1761,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const pctEl = document.getElementById('modalBodegaPct');
         const metaEl = document.getElementById('modalBodegaMeta');
         const cropsTbodyEl = document.getElementById('modalBodegaCropsTbody');
+        const programsTbodyEl = document.getElementById('modalBodegaProgramsTbody');
+        const badgeProgramsEl = document.getElementById('modalBodegaProgramCount');
         const tbodyEl = document.getElementById('modalBodegaTbody');
         const badgeCountEl = document.getElementById('modalBodegaItemCount');
 
@@ -1738,10 +1774,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (metaEl) {
             const bUpper = (b.bodega || '').toUpperCase();
+            const totalHa = (costSummaryGlobal && Number(costSummaryGlobal.total_ha) > 0) ? Number(costSummaryGlobal.total_ha) : 19.99;
+            const realCostHa = totalHa > 0 ? (Number(b.cost || 0) / totalHa) : 0;
             if (bUpper.includes('FUMIG')) {
-                metaEl.innerHTML = 'Meta: <strong class="text-primary font-monospace">$240.00 / ha</strong>';
+                metaEl.innerHTML = `Real: <strong class="text-dark font-monospace">$${realCostHa.toFixed(2)}/ha</strong> &bull; Meta: <strong class="text-primary font-monospace">$240.00 / ha</strong>`;
             } else if (bUpper.includes('FERTIL')) {
-                metaEl.innerHTML = 'Meta: <strong class="text-primary font-monospace">$340.00 / ha</strong>';
+                metaEl.innerHTML = `Real: <strong class="text-dark font-monospace">$${realCostHa.toFixed(2)}/ha</strong> &bull; Meta: <strong class="text-warning-emphasis font-monospace">$340.00 / ha</strong>`;
             } else {
                 metaEl.innerHTML = 'Meta: <span class="text-muted">-</span>';
             }
@@ -1758,9 +1796,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td class="text-center text-muted fw-bold">${idx + 1}</td>
                         <td><strong class="text-dark"><i class="fa-solid fa-seedling text-success me-1"></i>${c.crop}</strong></td>
                         <td class="text-end font-monospace">${Number(c.ha || 0).toFixed(2)} ha</td>
-                        <td class="text-end font-monospace fw-bold text-success">$${Number(c.cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="text-end font-monospace fw-bold text-success">$${Number(c.cost || c.total_cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                         <td class="text-end font-monospace fw-bold text-primary">$${Number(c.cost_per_ha || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                         <td class="text-end font-monospace fw-bold text-dark">${c.pct_bodega || 0}%</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 2. Desglose por Programa de Aplicación en esta Bodega (Foliar, Trichos, Moshe, etc.)
+        const progs = b.programs || [];
+        if (badgeProgramsEl) badgeProgramsEl.textContent = `${progs.length} programas`;
+        if (programsTbodyEl) {
+            if (progs.length === 0) {
+                programsTbodyEl.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small"><i class="fa-solid fa-layer-group fs-5 d-block mb-1 text-secondary"></i>No se registraron programas específicos para esta bodega.</td></tr>`;
+            } else {
+                programsTbodyEl.innerHTML = progs.map((pr, idx) => `
+                    <tr>
+                        <td class="text-center text-muted fw-bold">${idx + 1}</td>
+                        <td><strong class="text-dark"><i class="fa-solid fa-clipboard-check text-primary me-1"></i>${pr.program}</strong></td>
+                        <td class="text-end font-monospace fw-bold text-success">$${Number(pr.cost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="text-end font-monospace fw-bold text-dark">${pr.pct_bodega || 0}%</td>
+                        <td class="text-center"><span class="badge bg-light text-muted border font-monospace">${(pr.products || []).length} insumos</span></td>
                     </tr>
                 `).join('');
             }
