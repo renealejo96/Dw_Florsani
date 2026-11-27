@@ -374,22 +374,30 @@
           {% endif %}
         </div>
 
-        <!-- Barra flotante / inline de tarjetas seleccionadas -->
-        <div id="bar-seleccionadas" class="d-none align-items-center gap-2 bg-primary-subtle border border-primary px-3 py-1 rounded-3">
-          <span class="small fw-bold text-primary font-monospace">
-            <i class="fa-solid fa-square-check me-1"></i><span id="count-seleccionadas">0</span> mesas seleccionadas
-          </span>
-          <select id="select-dia-seleccionadas" class="form-select form-select-sm py-0 fw-bold font-monospace border-primary" style="font-size: 0.72rem; height: 24px; width: auto;">
-            <option value="LUNES">LUNES</option>
-            <option value="MARTES">MARTES</option>
-            <option value="MIERCOLES">MIÉRCOLES</option>
-            <option value="JUEVES">JUEVES</option>
-            <option value="VIERNES">VIERNES</option>
-            <option value="SABADO">SÁBADO</option>
-            <option value="DOMINGO">DOMINGO</option>
-          </select>
-          <button type="button" class="btn btn-primary btn-sm fw-bold py-0.5 px-2.5 shadow-xs" onclick="asignarSeleccionadas()">
-            <i class="fa-solid fa-check me-1"></i> Asignar a Seleccionadas
+        <!-- Barra Flotante Inferior Central para Asignación Masiva -->
+        <div id="bar-seleccionadas" class="d-none position-fixed start-50 translate-middle-x shadow-lg px-3.5 py-2 rounded-pill align-items-center gap-2.5" style="bottom: 24px; z-index: 1060; background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);">
+          <div class="d-flex align-items-center gap-1.5 text-white font-monospace" style="font-size: 0.78rem;">
+            <span class="badge rounded-pill bg-primary px-2 py-0.5 fw-bold" id="count-seleccionadas" style="font-size: 0.75rem;">0</span>
+            <span class="fw-semibold text-nowrap">mesas seleccionadas</span>
+          </div>
+          <div class="vr bg-secondary opacity-50 my-1" style="height: 18px;"></div>
+          <div class="d-flex align-items-center gap-1.5">
+            <select id="select-dia-seleccionadas" class="form-select form-select-sm py-0.5 px-2 fw-bold font-monospace bg-dark text-white border-secondary" style="font-size: 0.75rem; height: 28px; width: auto;">
+              <option value="LUNES">LUNES</option>
+              <option value="MARTES">MARTES</option>
+              <option value="MIERCOLES">MIÉRCOLES</option>
+              <option value="JUEVES">JUEVES</option>
+              <option value="VIERNES">VIERNES</option>
+              <option value="SABADO">SÁBADO</option>
+              <option value="DOMINGO">DOMINGO</option>
+            </select>
+            <button type="button" class="btn btn-success btn-sm fw-bold py-0.5 px-2.5 shadow-xs text-nowrap d-flex align-items-center gap-1" style="height: 28px; font-size: 0.75rem;" onclick="asignarSeleccionadas()">
+              <i class="fa-solid fa-check"></i>
+              <span>Asignar Día</span>
+            </button>
+          </div>
+          <button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-1 text-decoration-none" onclick="toggleSelectAllCards(false)" title="Cancelar / Desmarcar selección">
+            <i class="fa-solid fa-xmark fs-6"></i>
           </button>
         </div>
       </div>
@@ -399,137 +407,128 @@
       {% for b_grp in calibracion_bombas %}
       <div class="col-12 col-md-6 col-xl-4 card-bomba-wrapper" data-apartado="{{ b_grp.apartado or b_grp.tratamiento_key }}">
         <div class="card h-100 border shadow-xs rounded-3 overflow-hidden bg-white {% if b_grp.estado_calibracion == 'ASIGNADO' %}border-success{% elif b_grp.estado_calibracion == 'EDITADO' %}border-warning{% endif %}">
+          
+          <!-- HEADER DE LA TARJETA -->
           <div class="card-header py-1.5 px-2.5 d-flex justify-content-between align-items-center border-bottom {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning-subtle text-warning-emphasis{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger-subtle text-danger-emphasis{% else %}bg-success-subtle text-success-emphasis{% endif %}">
-            <div class="d-flex align-items-center gap-1.5 flex-wrap">
-              <input type="checkbox" class="form-check-input cb-select-bomba m-0" style="cursor: pointer;" data-bomba="{{ b_grp.bomba|escape }}" data-apartado="{{ b_grp.apartado or b_grp.tratamiento_key }}" data-edad="{{ b_grp.edad_sort }}" data-idx="{{ loop.index0 }}" onchange="actualizarSeleccionBombas()" title="Seleccionar mesa para asignación">
-              <span class="badge {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning text-dark{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger text-white{% else %}bg-success text-white{% endif %} font-monospace fw-bold" style="font-size: 0.72rem;">
+            <div class="d-flex align-items-center gap-1.5 flex-nowrap min-w-0">
+              <input type="checkbox" class="form-check-input cb-select-bomba m-0 shrink-0" style="cursor: pointer;" data-bomba="{{ b_grp.bomba|escape }}" data-apartado="{{ b_grp.apartado or b_grp.tratamiento_key }}" data-edad="{{ b_grp.edad_sort }}" data-idx="{{ loop.index0 }}" onchange="actualizarSeleccionBombas()" title="Seleccionar mesa para asignación">
+              <span class="badge {% if b_grp.es_solidos or b_grp.apartado == 'MOSHE' or b_grp.apartado == 'ALCAPLANT' %}bg-warning text-dark{% elif b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}bg-danger text-white{% else %}bg-success text-white{% endif %} font-monospace fw-bold shrink-0" style="font-size: 0.72rem;">
                 {% if b_grp.es_programa_completo %}SEMANAS {{ b_grp.edad }}{% else %}SEMANA {{ b_grp.edad }}{% endif %}
               </span>
-              <span class="badge bg-white text-dark border font-monospace" style="font-size: 0.68rem;">
-                {{ b_grp.descripcion }}
-              </span>
-              <span class="badge bg-secondary-subtle text-secondary border font-monospace" style="font-size: 0.68rem;">
-                {{ b_grp.apartado or b_grp.tratamiento_key }}
-              </span>
-            </div>
-            <div class="d-flex align-items-center gap-1">
               <!-- Badge Estado Calibración / Asignación -->
-              <span class="badge card-status-badge font-monospace fw-bold {% if b_grp.estado_calibracion == 'ASIGNADO' %}bg-success text-white{% elif b_grp.estado_calibracion == 'EDITADO' %}bg-warning text-dark border border-dark{% else %}bg-light text-muted border{% endif %}" id="status-badge-bomba-{{ loop.index0 }}" style="font-size: 0.70rem;">
+              <span class="badge card-status-badge font-monospace fw-bold text-truncate {% if b_grp.estado_calibracion == 'ASIGNADO' %}bg-success text-white{% elif b_grp.estado_calibracion == 'EDITADO' %}bg-warning text-dark border border-dark{% else %}bg-light text-muted border{% endif %}" id="status-badge-bomba-{{ loop.index0 }}" style="font-size: 0.68rem; max-width: 140px;" title="{% if b_grp.estado_calibracion == 'ASIGNADO' %}ASIGNADO: {{ b_grp.dia_aplicacion }}{% elif b_grp.estado_calibracion == 'EDITADO' %}CALIBRADO{% else %}SIN TOCAR{% endif %}">
                 {% if b_grp.estado_calibracion == 'ASIGNADO' %}
-                  <i class="fa-solid fa-circle-check me-1"></i>ASIGNADO: {{ b_grp.dia_aplicacion }}
+                  <i class="fa-solid fa-circle-check me-0.5"></i>{{ b_grp.dia_aplicacion }}
                 {% elif b_grp.estado_calibracion == 'EDITADO' %}
-                  <i class="fa-solid fa-pen-to-square me-1"></i>CALIBRADO
+                  <i class="fa-solid fa-pen-to-square me-0.5"></i>CALIBRADO
                 {% else %}
-                  <i class="fa-regular fa-clock me-1"></i>SIN TOCAR
+                  <i class="fa-regular fa-clock me-0.5"></i>SIN TOCAR
                 {% endif %}
               </span>
-              <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.70rem;">
-                {{ b_grp.bloques|length }} Blqs
-              </span>
-              <span class="badge bg-dark text-white font-monospace fw-bold" style="font-size: 0.72rem;">
-                {{ b_grp.camas_totales }} Camas
-              </span>
+            </div>
+
+            <!-- Botón Editar reducido en la esquina superior derecha (solo ADMIN) -->
+            <div>
+              {% if session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
+              <button type="button" class="btn btn-xs btn-outline-dark bg-white py-0 px-1.5 rounded shadow-2xs d-flex align-items-center gap-1 border" style="font-size: 0.68rem; height: 22px;" onclick="abrirModalEditarBomba({{ loop.index0 }})" title="Editar bomba, edad y cultivos">
+                <i class="fa-solid fa-pen-to-square text-primary" style="font-size: 0.68rem;"></i>
+                <span class="fw-semibold">Editar</span>
+              </button>
+              {% endif %}
             </div>
           </div>
+
+          <!-- CUERPO DE LA TARJETA -->
           <div class="card-body p-2.5 d-flex flex-column justify-content-between">
             <div>
-              <!-- Variedad Badge & Litraje -->
-              <div class="d-flex justify-content-between align-items-center mb-1.5">
-                <span class="badge bg-light text-dark border font-monospace text-truncate" style="max-width: 65%; font-size: 0.70rem;" title="{{ b_grp.cultivo }}">
-                  <i class="fa-solid fa-seedling text-success me-1"></i>{{ b_grp.cultivo }}
-                </span>
-                {% if b_grp.vol_default == 0 or b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}
-                <span class="badge bg-warning-subtle text-dark border border-warning font-monospace" style="font-size: 0.68rem;">
-                  Espolvoreo (0 L)
-                </span>
-                {% else %}
-                <span class="badge bg-info-subtle text-info border border-info font-monospace" style="font-size: 0.68rem;">
-                  {{ b_grp.vol_default }} L/cama
-                </span>
-                {% endif %}
+              <!-- 1. Clasificación / Tipo (Enraizantes, Drench Hierro, etc.) & Cultivo & Litraje -->
+              <div class="d-flex align-items-center justify-content-between gap-1 flex-wrap mb-1">
+                <div class="d-flex align-items-center gap-1 flex-wrap min-w-0">
+                  <span class="badge bg-secondary-subtle text-secondary border font-monospace text-uppercase" style="font-size: 0.68rem;">
+                    {{ b_grp.descripcion or b_grp.apartado }}
+                  </span>
+                  <span class="badge bg-light text-dark border font-monospace text-truncate" style="max-width: 150px; font-size: 0.68rem;" title="{{ b_grp.cultivo }}">
+                    <i class="fa-solid fa-seedling text-success me-1"></i>{{ b_grp.cultivo }}
+                  </span>
+                </div>
+                <div>
+                  {% if b_grp.vol_default == 0 or b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}
+                  <span class="badge bg-warning-subtle text-dark border border-warning font-monospace" style="font-size: 0.66rem;">
+                    Seco (0 L)
+                  </span>
+                  {% else %}
+                  <span class="badge bg-info-subtle text-info border border-info font-monospace" style="font-size: 0.66rem;">
+                    {{ b_grp.vol_default }} L/cama
+                  </span>
+                  {% endif %}
+                </div>
               </div>
 
-              <!-- Nombre Bomba -->
-              <h6 class="font-monospace fw-bold text-primary mb-2 text-truncate" style="font-size: 0.85rem;" title="{{ b_grp.bomba }}">
+              <!-- 2. Nombre de la Bomba (Destacado, abajo de la clasificación) -->
+              <h6 class="font-monospace fw-bold text-dark my-1.5 text-wrap" style="font-size: 0.84rem; line-height: 1.35; min-height: 2.2em;" title="{{ b_grp.bomba }}">
                 {{ b_grp.bomba }}
               </h6>
 
-              <!-- Métricas compactas (Fila única) -->
-              <div class="p-1.5 rounded bg-light border mb-2 d-flex justify-content-between align-items-center font-monospace">
-                <div>
-                  <span class="text-muted d-block" style="font-size: 0.67rem;">VOLUMEN CALDO:</span>
-                  <strong class="text-dark" style="font-size: 0.78rem;">
-                    {% if b_grp.vol_default == 0 or b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}
-                      0 L (Seco)
-                    {% else %}
-                      {{ b_grp.litros_totales }} L
-                    {% endif %}
-                  </strong>
+              <!-- 3. Contenedor de Métricas: Día Asignado, Bloques y Camas -->
+              <div class="p-2 rounded bg-light border mb-2 font-monospace">
+                <!-- Fila 3a: Día Asignado y Botón de confirmación -->
+                <div class="d-flex justify-content-between align-items-center mb-1.5">
+                  <span class="text-muted fw-bold" style="font-size: 0.68rem;">
+                    <i class="fa-solid fa-calendar-day text-primary me-1"></i>DÍA APLICACIÓN:
+                  </span>
+                  <div class="d-flex align-items-center gap-1">
+                    <select class="form-select form-select-sm py-0 px-1 fw-bold font-monospace border-primary-subtle" id="select-dia-{{ loop.index0 }}" style="width: auto; font-size: 0.72rem; height: 24px;" onchange="asignarDiaBomba('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, this.value, {{ loop.index0 }})">
+                      {% for d in ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'] %}
+                      {% set is_selected = (b_grp.dia_aplicacion and b_grp.dia_aplicacion|upper == d) or (not b_grp.dia_aplicacion and ((b_grp.apartado == 'ALCAPLANT' and d == 'JUEVES') or (b_grp.apartado == 'MOSHE' and d == 'MARTES') or (b_grp.apartado not in ['ALCAPLANT', 'MOSHE'] and d == 'LUNES'))) %}
+                      <option value="{{ d }}" {% if is_selected %}selected{% endif %}>{{ d }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-outline-success py-0 px-1.5 fw-bold" style="height: 24px; font-size: 0.70rem;" onclick="confirmarBombaCard('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, {{ loop.index0 }})" title="Confirmar día para esta mesa">
+                      <i class="fa-solid fa-check"></i>
+                    </button>
+                  </div>
                 </div>
-                <div class="text-end">
-                  <span class="text-muted d-block" style="font-size: 0.67rem;">CUARTO / TÉCNICO:</span>
-                  <strong class="text-secondary text-truncate d-inline-block" style="max-width: 140px; font-size: 0.74rem;" title="{{ b_grp.tecnicos|join(', ') if b_grp.tecnicos else 'Técnico 1 (C1)' }}">
-                    {{ b_grp.tecnicos|join(', ') if b_grp.tecnicos else 'Técnico 1 (C1)' }}
-                  </strong>
+
+                <!-- Fila 3b: Cuántos Bloques, Cuántas Camas (box negro), Volumen y Cuarto de bombeo -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 pt-1 border-top">
+                  <span class="badge bg-white text-secondary border font-monospace py-1 px-1.5" style="font-size: 0.68rem;" title="Bloques asignados">
+                    <i class="fa-solid fa-shapes text-secondary me-0.5"></i>{{ b_grp.bloques|length }} Blqs
+                  </span>
+                  <!-- BOX DE CAMAS EN FONDO NEGRO: Nunca se corta aquí adentro -->
+                  <span class="badge bg-dark text-white font-monospace fw-bold py-1 px-2" style="font-size: 0.72rem;" title="Camas totales">
+                    <i class="fa-solid fa-layer-group text-warning me-1"></i>{{ b_grp.camas_totales }} Camas
+                  </span>
+                  <span class="badge bg-white text-primary border font-monospace py-1 px-1.5" style="font-size: 0.68rem;" title="Volumen de caldo">
+                    <i class="fa-solid fa-droplet text-primary me-0.5"></i>{% if b_grp.vol_default == 0 or b_grp.es_presiembra or b_grp.apartado == 'PRESIEMBRAS' %}Seco{% else %}{{ b_grp.litros_totales }} L{% endif %}
+                  </span>
+                  <span class="badge bg-white text-muted border font-monospace py-1 px-1.5 text-truncate" style="max-width: 105px; font-size: 0.68rem;" title="{{ b_grp.tecnicos|join(', ') if b_grp.tecnicos else 'Técnico 1 (C1)' }}">
+                    {{ b_grp.tecnicos|join(', ') if b_grp.tecnicos else 'T1 (C1)' }}
+                  </span>
                 </div>
               </div>
 
-              <!-- Selector Día de Aplicación Programado y Confirmación Directa -->
-              <div class="p-1 rounded bg-light border mb-2 d-flex justify-content-between align-items-center font-monospace">
-                <span class="text-muted fw-bold" style="font-size: 0.68rem;">
-                  <i class="fa-solid fa-calendar-day text-primary me-1"></i>DÍA APLICACIÓN:
-                </span>
-                <div class="d-flex align-items-center gap-1">
-                  <select class="form-select form-select-sm py-0 fw-bold font-monospace border-primary-subtle" id="select-dia-{{ loop.index0 }}" style="width: auto; font-size: 0.72rem; height: 24px;" onchange="asignarDiaBomba('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, this.value, {{ loop.index0 }})">
-                    {% for d in ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'] %}
-                    <option value="{{ d }}" {% if (b_grp.dia_aplicacion and b_grp.dia_aplicacion|upper == d) or (b_grp.dias and d in b_grp.dias) %}selected{% endif %}>{{ d }}</option>
-                    {% endfor %}
-                  </select>
-                  <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 fw-bold" style="height: 24px; font-size: 0.72rem;" onclick="confirmarBombaCard('{{ b_grp.bomba|escape }}', '{{ b_grp.apartado or b_grp.tratamiento_key }}', {{ b_grp.edad_sort }}, {{ loop.index0 }})" title="Confirmar y Asignar esta Mesa de Calibración">
-                    <i class="fa-solid fa-check"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Controles específicos para MOSHE / ALCAPLANT / OTRAS BOMBAS -->
+              <!-- Régimen Moshe si corresponde (compacto) -->
               {% if b_grp.apartado == 'MOSHE' or b_grp.tratamiento_key == 'MOSHE' %}
               <div class="p-1 rounded bg-warning-subtle border border-warning mb-2 d-flex justify-content-between align-items-center gap-1 font-monospace">
-                <span class="fw-bold text-dark" style="font-size: 0.68rem;">
+                <span class="fw-bold text-dark" style="font-size: 0.66rem;">
                   <i class="fa-solid fa-cloud-sun text-warning me-1"></i>Régimen Moshe:
                 </span>
                 <div class="btn-group btn-group-sm">
-                  <button type="button" class="btn btn-xs {% if modo_moshe_actual == 'VERANO' %}btn-warning fw-bold text-dark active{% else %}btn-outline-secondary bg-white{% endif %}" style="font-size: 0.68rem; padding: 1px 6px;" onclick="cambiarModoMoshe('VERANO')" title="Aplicar y guardar régimen de Verano (Semanas 1 a 7)">
+                  <button type="button" class="btn btn-xs {% if modo_moshe_actual == 'VERANO' %}btn-warning fw-bold text-dark active{% else %}btn-outline-secondary bg-white{% endif %}" style="font-size: 0.66rem; padding: 1px 6px;" onclick="cambiarModoMoshe('VERANO')" title="Aplicar y guardar régimen de Verano (Semanas 1 a 7)">
                     ☀️ Verano
                   </button>
-                  <button type="button" class="btn btn-xs {% if modo_moshe_actual == 'INVIERNO' %}btn-primary fw-bold text-white active{% else %}btn-outline-secondary bg-white{% endif %}" style="font-size: 0.68rem; padding: 1px 6px;" onclick="cambiarModoMoshe('INVIERNO')" title="Aplicar y guardar régimen de Invierno (Semanas 1 a 14)">
+                  <button type="button" class="btn btn-xs {% if modo_moshe_actual == 'INVIERNO' %}btn-primary fw-bold text-white active{% else %}btn-outline-secondary bg-white{% endif %}" style="font-size: 0.66rem; padding: 1px 6px;" onclick="cambiarModoMoshe('INVIERNO')" title="Aplicar y guardar régimen de Invierno (Semanas 1 a 14)">
                     ❄️ Invierno
                   </button>
                 </div>
               </div>
-              {% elif b_grp.apartado == 'ALCAPLANT' or b_grp.tratamiento_key == 'ALCAPLANT' %}
-              <div class="p-1 rounded bg-info-subtle border border-info mb-2 d-flex justify-content-between align-items-center gap-1 font-monospace">
-                <span class="fw-bold text-dark" style="font-size: 0.68rem;">
-                  <i class="fa-solid fa-cubes text-info me-1"></i>Programa Completo:
-                </span>
-                <span class="badge bg-white text-dark border" style="font-size: 0.68rem;">
-                  Edades 1 a 10 (Consolidado)
-                </span>
-              </div>
-              {% elif session.get('role') == 'ADMIN' or (current_user and current_user.role == 'ADMIN') %}
-              <div class="p-1 rounded bg-warning-subtle border border-warning mb-2 d-flex justify-content-between align-items-center gap-1">
-                <span class="fw-bold text-dark font-monospace" style="font-size: 0.68rem;">
-                  <i class="fa-solid fa-crown text-warning me-1"></i>Configuración Bomba:
-                </span>
-                <button type="button" class="btn btn-warning btn-sm py-0.5 px-2.5 fw-bold text-dark shadow-xs" style="font-size: 0.72rem;" onclick="abrirModalEditarBomba({{ loop.index0 }})" title="Editar químicos, edad y cultivos aplicables a esta bomba">
-                  <i class="fa-solid fa-pen-to-square me-1"></i> Editar
-                </button>
-              </div>
               {% endif %}
             </div>
 
-            <!-- Botón para Abrir Mesa de Calibración de esta Bomba -->
-            <button type="button" class="btn btn-outline-primary btn-sm fw-bold w-100 shadow-xs py-1 mt-1" style="font-size: 0.76rem;" onclick="abrirMesaCalibracionBombaDirecta({{ loop.index0 }})">
-              <i class="fa-solid fa-sliders me-1"></i> Calibrar Camas de esta Bomba
+            <!-- Botón para Calibrar Camas de esta Bomba -->
+            <button type="button" class="btn btn-outline-primary btn-sm fw-bold w-100 shadow-xs py-1 mt-1 d-flex align-items-center justify-content-center gap-1.5" style="font-size: 0.76rem;" onclick="abrirMesaCalibracionBombaDirecta({{ loop.index0 }})">
+              <i class="fa-solid fa-sliders"></i>
+              <span>Calibrar Camas de esta Bomba</span>
             </button>
             <script type="application/json" id="ferti-data-bomba-{{ loop.index0 }}">{{ b_grp|tojson }}</script>
           </div>

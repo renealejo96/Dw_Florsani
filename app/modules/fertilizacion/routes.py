@@ -618,6 +618,8 @@ def proyectar_semana_fertilizacion(semana_destino, semana_origen=None, apartado=
         # Edades 0 y 1 se mantienen en 'SIN_TOCAR' para revisión y carga manual.
         ed_val = int(s.get('edad') or 0)
         es_auto_asignable = (ed_val >= 2 or s.get('clasificacion') in ['MOSHE', 'MOSHE-AD', 'ALCAPLANT'])
+        # Día por defecto según apartado agronómico: Alcaplant -> JUEVES, Moshe -> MARTES, demás -> LUNES
+        dia_def = 'JUEVES' if s.get('apartado') == 'ALCAPLANT' or 'ALCAPLANT' in (s.get('clasificacion') or '') else ('MARTES' if s.get('apartado') == 'MOSHE' or 'MOSHE' in (s.get('clasificacion') or '') else 'LUNES')
         item = DrenchItem(
             semana=w_clean,
             bloque=s['bloque'],
@@ -633,7 +635,7 @@ def proyectar_semana_fertilizacion(semana_destino, semana_origen=None, apartado=
             tecnico=tec_name,
             grupo_id=1,
             segmento_edades=f"Semana {s['edad']}",
-            dia_aplicacion='LUNES',
+            dia_aplicacion=dia_def,
             estado_calibracion='ASIGNADO' if es_auto_asignable else 'SIN_TOCAR',
             completado=False
         )
@@ -1284,7 +1286,19 @@ def procesar_calibracion_fertilizacion(drench_items):
         b_grp['edades'] = sorted(list(b_grp.get('edades', [])))
         dias_b = sorted(list(b_grp.get('dias', [])))
         b_grp['dias'] = dias_b
-        b_grp['dia_aplicacion'] = ', '.join(dias_b) if dias_b else 'LUNES'
+        def_day = 'JUEVES' if b_grp.get('apartado') == 'ALCAPLANT' else ('MARTES' if b_grp.get('apartado') == 'MOSHE' else 'LUNES')
+        if dias_b:
+            if b_grp.get('apartado') == 'ALCAPLANT' and dias_b == ['LUNES']:
+                b_grp['dia_aplicacion'] = 'JUEVES'
+                b_grp['dias'] = ['JUEVES']
+            elif b_grp.get('apartado') == 'MOSHE' and dias_b == ['LUNES']:
+                b_grp['dia_aplicacion'] = 'MARTES'
+                b_grp['dias'] = ['MARTES']
+            else:
+                b_grp['dia_aplicacion'] = ', '.join(dias_b)
+        else:
+            b_grp['dia_aplicacion'] = def_day
+            b_grp['dias'] = [def_day]
         estados_b = b_grp.get('estados', set())
         if 'ASIGNADO' in estados_b:
             b_grp['estado_calibracion'] = 'ASIGNADO'
