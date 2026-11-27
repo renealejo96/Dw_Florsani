@@ -2168,27 +2168,34 @@ def api_proyectar_semana():
 @permission_required('fertilizacion')
 def api_sincronizar_plano_actual():
     """Sincroniza directamente la semana activa con el último Estado de Cultivo (mrt_estado_cultivo_actual)"""
-    data = request.get_json() or {}
-    semana_raw = str(data.get('semana', '')).strip()
-    if not semana_raw:
-        return jsonify({"success": False, "message": "Semana requerida para sincronizar"}), 400
-
-    # Normalizar formato de semana a 4 dígitos (ej: 48 -> 2448 o 2648)
-    cur_year = datetime.now().year
-    y_s = str(cur_year)[-2:]
-    if len(semana_raw) == 4 and semana_raw.isdigit():
-        semana_destino = semana_raw
-    elif semana_raw.isdigit():
-        semana_destino = f"{y_s}{int(semana_raw):02d}"
-    else:
-        semana_destino = semana_raw
-
-    # Consultar modo Moshe vigente
-    from app.models.models_agronomia import FertilizacionParametro
-    modo_param = FertilizacionParametro.query.filter_by(clave='MODO_MOSHE').first()
-    modo_actual = modo_param.valor if modo_param else 'INVIERNO'
-
     try:
+        data = request.get_json() or {}
+        semana_raw = str(data.get('semana', '')).strip()
+        if not semana_raw:
+            return jsonify({"success": False, "message": "Semana requerida para sincronizar"}), 400
+
+        # Normalizar formato de semana a 4 dígitos (ej: 48 -> 2648 o 2448)
+        cur_year = datetime.now().year
+        y_s = str(cur_year)[-2:]
+        if len(semana_raw) == 4 and semana_raw.isdigit():
+            semana_destino = semana_raw
+        elif semana_raw.isdigit():
+            semana_destino = f"{y_s}{int(semana_raw):02d}"
+        else:
+            semana_destino = semana_raw
+
+        # Determinar modo Moshe (Invierno por defecto)
+        modo_actual = 'INVIERNO'
+        try:
+            moshe_items = DrenchItem.query.filter(
+                DrenchItem.semana == semana_destino,
+                (DrenchItem.bomba.ilike('%MOSHE%') | DrenchItem.clasificacion.ilike('%MOSHE%'))
+            ).all()
+            tiene_invierno = any('MOSHE-AD' in (it.bomba or '').upper() or (it.edad or 0) > 7 for it in moshe_items)
+            modo_actual = 'INVIERNO' if (not moshe_items or tiene_invierno) else 'VERANO'
+        except Exception:
+            modo_actual = 'INVIERNO'
+
         count = proyectar_semana_fertilizacion(
             semana_destino=semana_destino,
             semana_origen=None,

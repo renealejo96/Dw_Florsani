@@ -1962,7 +1962,16 @@ async function ejecutarSincronizarPlanoFerti(targetWeek) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ semana: sem })
     });
-    const data = await res.json();
+    
+    let data;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const errText = await res.text();
+      throw new Error(`El servidor respondió con código ${res.status}: ${errText.substring(0, 150)}`);
+    }
+
     if (data.success) {
       alert("✅ " + data.message);
       location.reload();
@@ -1978,7 +1987,7 @@ async function ejecutarSincronizarPlanoFerti(targetWeek) {
       btn.disabled = false;
       btn.innerHTML = originalHtml;
     }
-    alert("Error de conexión al sincronizar plano: " + err);
+    alert("Error al sincronizar plano: " + (err.message || err));
   }
 }
 </script>
