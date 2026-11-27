@@ -52,6 +52,14 @@
               </select>
             </form>
 
+            <!-- Botón Sincronizar Plano Actual -->
+            {% if current_user.role == 'ADMIN' or current_user.has_permission('fertilizacion') %}
+            <button type="button" id="btn-sync-current-plano-ferti" class="btn btn-outline-light btn-sm fw-bold shadow-xs text-nowrap d-flex align-items-center gap-1.5" onclick="ejecutarSincronizarPlanoFerti('{{ semana_activa }}')" title="Sincronizar camas, edades y siembras/podas del último Estado de Cultivo para la Semana {{ semana_activa }}">
+              <i class="fa-solid fa-arrows-rotate text-emerald-300"></i>
+              <span>Sincronizar Plano Actual</span>
+            </button>
+            {% endif %}
+
             <!-- Botón Crear / Proyectar Nueva Semana -->
             {% if current_user.role == 'ADMIN' or current_user.has_permission('fertilizacion') %}
             <button type="button" class="btn btn-warning btn-sm fw-bold shadow-xs text-dark d-flex align-items-center gap-1.5" onclick="abrirModalProyectarFerti()">
@@ -1932,6 +1940,45 @@ async function proyectarSemanaFertilizacion(semanaDestino) {
     }
   } catch (err) {
     alert("Error al proyectar semana: " + err);
+  }
+}
+
+async function ejecutarSincronizarPlanoFerti(targetWeek) {
+  const sem = targetWeek || '{{ semana_activa }}';
+  if (!confirm(`¿Sincronizar camas, edades y siembras/podas del último Estado de Cultivo para la Semana ${sem}?\n\nSe recalcularán los bloques de Trichos, Moshe, Alcaplant y Presiembras a partir del plano vigente conservando la configuración de calibración.`)) {
+    return;
+  }
+
+  const btn = document.getElementById('btn-sync-current-plano-ferti');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Sincronizando...';
+  }
+
+  try {
+    const res = await fetch("{{ url_for('fertilizacion.api_sincronizar_plano_actual') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ semana: sem })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("✅ " + data.message);
+      location.reload();
+    } else {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+      alert("❌ " + (data.message || 'Error al sincronizar plano actual'));
+    }
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+    alert("Error de conexión al sincronizar plano: " + err);
   }
 }
 </script>

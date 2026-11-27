@@ -490,7 +490,7 @@
 </div>
 <!-- Modal Detalle Consumo por Bodega -->
 <div class="modal fade" id="modalDetalleConsumoBodega" tabindex="-1" aria-labelledby="modalBodegaTitulo" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 1400px; width: 95vw;">
         <div class="modal-content shadow-lg border-0 rounded-4">
             <div class="modal-header bg-dark text-white py-3 px-4">
                 <div>
@@ -995,7 +995,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const displayCropNames = cropsDataList.map(c => c.producto);
-    const displayBarLabels = cropsDataList.map(c => `${c.producto}: ${Number(c.tallos).toLocaleString()} tallos (${c.pct}%)`);
+    const displayBarLabels = cropsDataList.map(c => c.producto);
     const displayValues = cropsDataList.map(c => c.tallos);
 
     if (barCtx) {
@@ -1059,7 +1059,46 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
-            }
+            },
+            plugins: [{
+                id: 'insideBarLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    chart.getDatasetMeta(0).data.forEach((bar, index) => {
+                        const cInfo = cropsDataList[index];
+                        if (!cInfo || !cInfo.tallos) return;
+                        const text = `${Number(cInfo.tallos).toLocaleString()} tallos (${cInfo.pct}%)`;
+                        const barWidth = Math.abs(bar.x - bar.base);
+
+                        ctx.save();
+                        ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+                        ctx.textBaseline = 'middle';
+
+                        if (barWidth > 130) {
+                            // Espacio amplio: texto dentro de la barra a la derecha en blanco con sombra
+                            ctx.textAlign = 'right';
+                            ctx.fillStyle = '#ffffff';
+                            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+                            ctx.shadowBlur = 4;
+                            ctx.fillText(text, bar.x - 12, bar.y);
+                        } else if (barWidth > 65) {
+                            // Espacio medio: texto dentro de la barra a la izquierda en blanco con sombra
+                            ctx.textAlign = 'left';
+                            ctx.fillStyle = '#ffffff';
+                            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+                            ctx.shadowBlur = 4;
+                            ctx.fillText(text, bar.base + 8, bar.y);
+                        } else {
+                            // Barra pequeña: texto afuera a la derecha
+                            ctx.textAlign = 'left';
+                            ctx.fillStyle = '#1e293b';
+                            ctx.shadowBlur = 0;
+                            ctx.fillText(text, bar.x + 8, bar.y);
+                        }
+                        ctx.restore();
+                    });
+                }
+            }]
         });
     }
 

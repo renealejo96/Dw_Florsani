@@ -330,16 +330,25 @@ def get_bomba_rules_fertilizacion(apartado='TODOS', modo_moshe='INVIERNO'):
     # =========================================================================
     # 3. ALCAPLANT
     # =========================================================================
-    for ed in [2, 4, 6, 8, 10]:
+    for ed in [1, 2, 4, 6, 8, 10]:
         add_rule(ed, 'VERONICA', 'SIEMBRA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
         add_rule(ed, 'VERONICA', 'PODA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
 
-    for ed in [1, 3, 5]:
+    for ed in [1, 2, 3, 5]:
         add_rule(ed, 'HYPERICUM', 'SIEMBRA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
         add_rule(ed, 'HYPERICUM', 'PODA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
 
-    add_rule(2, 'GYPSOPHILA', 'SIEMBRA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
-    add_rule(2, 'GYPSOPHILA', 'PODA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
+    for ed in [1, 2]:
+        add_rule(ed, 'GYPSOPHILA', 'SIEMBRA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
+        add_rule(ed, 'GYPSOPHILA', 'PODA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
+
+    for ed in [1, 2, 3, 5]:
+        add_rule(ed, 'SOLIDAGO', 'SIEMBRA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
+        add_rule(ed, 'SOLIDAGO', 'PODA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
+
+    for ed in [1, 2]:
+        add_rule(ed, 'LIMONIUM', 'SIEMBRA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
+        add_rule(ed, 'LIMONIUM', 'PODA', 'ALCAPLANT', 'ALCAPLANT', 'ALCAPLANT')
 
     # =========================================================================
     # 4. PRESIEMBRAS (EDAD 0 / PLANNING)
@@ -1249,11 +1258,17 @@ def procesar_calibracion_fertilizacion(drench_items):
         ed_list = sorted(list(b_grp.get('edades', [])))
         if b_grp.get('es_programa_completo') or b_grp.get('apartado') in ['MOSHE', 'ALCAPLANT']:
             b_grp['es_programa_completo'] = True
-            if ed_list:
+            if b_grp.get('apartado') == 'ALCAPLANT':
+                b_grp['edad'] = "1 - 10"
+                b_grp['edad_sort'] = 1
+            elif b_grp.get('apartado') == 'MOSHE':
+                b_grp['edad'] = "1 - 14"
+                b_grp['edad_sort'] = 1
+            elif ed_list:
                 b_grp['edad'] = f"{min(ed_list)} - {max(ed_list)}"
                 b_grp['edad_sort'] = min(ed_list)
             else:
-                b_grp['edad'] = "1 - 14" if b_grp.get('apartado') == 'MOSHE' else "1 - 10"
+                b_grp['edad'] = "1 - 10"
                 b_grp['edad_sort'] = 1
         else:
             b_grp['es_programa_completo'] = False
@@ -2146,6 +2161,49 @@ def api_proyectar_semana():
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@fertilizacion_bp.route('/api/sincronizar-plano-actual', methods=['POST'])
+@login_required
+@permission_required('fertilizacion')
+def api_sincronizar_plano_actual():
+    """Sincroniza directamente la semana activa con el último Estado de Cultivo (mrt_estado_cultivo_actual)"""
+    data = request.get_json() or {}
+    semana_raw = str(data.get('semana', '')).strip()
+    if not semana_raw:
+        return jsonify({"success": False, "message": "Semana requerida para sincronizar"}), 400
+
+    # Normalizar formato de semana a 4 dígitos (ej: 48 -> 2448 o 2648)
+    cur_year = datetime.now().year
+    y_s = str(cur_year)[-2:]
+    if len(semana_raw) == 4 and semana_raw.isdigit():
+        semana_destino = semana_raw
+    elif semana_raw.isdigit():
+        semana_destino = f"{y_s}{int(semana_raw):02d}"
+    else:
+        semana_destino = semana_raw
+
+    # Consultar modo Moshe vigente
+    from app.models.models_agronomia import FertilizacionParametro
+    modo_param = FertilizacionParametro.query.filter_by(clave='MODO_MOSHE').first()
+    modo_actual = modo_param.valor if modo_param else 'INVIERNO'
+
+    try:
+        count = proyectar_semana_fertilizacion(
+            semana_destino=semana_destino,
+            semana_origen=None,
+            apartado='TODOS',
+            modo_moshe=modo_actual
+        )
+        return jsonify({
+            "success": True,
+            "message": f"Semana {semana_destino} sincronizada exitosamente con el último Estado de Cultivo ({count} bloques proyectados).",
+            "count": count,
+            "semana": semana_destino
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": f"Error al sincronizar plano actual: {str(e)}"}), 500
 
 
 @fertilizacion_bp.route('/api/moshe/cambiar-modo', methods=['POST'])
